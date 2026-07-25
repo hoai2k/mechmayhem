@@ -1007,7 +1007,23 @@ const FROGGER_SHOOT_GLB = {
   events: [{ t: 0.1, type: 'fire' }],
 };
 
+// inferno for the GLB: the shared `shootLoop` folds both elbows in tight, and
+// this model's flame barrels are FOREARM mounts (the manifest pins muzzleR/L to
+// forearm bones), so a folded elbow aims the torches up over his own shoulder —
+// the flames sprayed skyward instead of at the target. Straighten both arms out
+// along the aim line and keep the loop's breathing motion in the torso/shoulders
+// so the barrels stay level and the jets travel forward.
+const INFERNO_FLAME_GLB = {
+  dur: 0.36, upper: true, loop: true,
+  keys: [
+    { t: 0, pose: { shoulderR: [-78, 0, 6], elbowR: [8, 0, 0], shoulderL: [-79, 8, -6], elbowL: [8, 18, 0], torso: [2, -8, 0], head: [0, 5, 0] } },
+    { t: 0.18, ease: 'inOutQuad', pose: { shoulderR: [-80, 0, 6], elbowR: [10, 0, 0], shoulderL: [-81, 8, -6], elbowL: [10, 18, 0], torso: [0, -6, 0] } },
+    { t: 0.36, ease: 'inOutQuad', pose: { shoulderR: [-78, 0, 6], elbowR: [8, 0, 0], shoulderL: [-79, 8, -6], elbowL: [8, 18, 0], torso: [2, -8, 0] } },
+  ],
+};
+
 export const GLB_CLIP_VARIANTS = {
+  infernoFlameGlb: compile('shootLoop', INFERNO_FLAME_GLB),
   froggerShootGlb: compile('shoot', FROGGER_SHOOT_GLB),
   froggerShootLGlb: compile('shootL', mirrorRaw(FROGGER_SHOOT_GLB)),
   wraithLasersGlb: compile('wraithLasers', {
