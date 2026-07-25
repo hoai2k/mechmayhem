@@ -48,6 +48,12 @@ export const CONTRACT = {
   viper: {
     joints: ['bladeL', 'bladeR'],       // animator flares on attack
     anchors: ['bladeL', 'bladeR'],
+    // the custom rig carries each dagger as a REAL bone off its forearm, and
+    // the manifest hangs a blade-tip anchor on it. Both are load-bearing: the
+    // bone is what Fighter.regrowWeapon collapses when that dagger is thrown,
+    // the anchor is what draws the blade trail.
+    glbBones: ['bladeL', 'bladeR'],
+    glbAnchors: ['bladeL', 'bladeR'],
   },
   nova: {
     joints: ['halo'],                   // animator spins .z constantly

@@ -737,13 +737,20 @@ const WEAPONS = {
     w.audio?.play('dart');
   },
 
-  blade(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // VIPER: hurls a forearm sword end-over-end — the blade
-    // re-forges in her sheath a beat later (regrowWeapon)
-    w.projectiles.spawn('blade', f, from, dir, {
+  blade(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // VIPER: hurls a forearm
+    // dagger end-over-end; it re-forges on the empty forearm a beat later
+    // (regrowWeapon collapses that side's blade bone and grows it back).
+    // She ALTERNATES arms throw to throw — doRanged toggled _altSide and
+    // mirrored the clip, so the blade leaves the hand that actually threw it,
+    // off that side's barrel, and it is that side's dagger which disappears.
+    const left = !!(f._shotSide && anchors.muzzleL);
+    const bFrom = left ? anchors.muzzleL.getWorldPosition(new THREE.Vector3()) : from;
+    const bDir = left ? dirFrom(anchors.muzzleL) : dir;
+    w.projectiles.spawn('blade', f, bFrom, bDir, {
       dmg: mv.dmg * f.dmgMult(), speed: mv.speed, color: 0x5aff2e, knock: 5,
       status: { slow: 0.85, slowT: 1 },
     });
-    f.regrowWeapon?.('bladeR');
+    f.regrowWeapon?.(left ? 'bladeL' : 'bladeR');
     w.audio?.play('slash');
   },
 
