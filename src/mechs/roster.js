@@ -32,6 +32,7 @@ export const ROSTER = [
     heavyReleaseClip: 'poundSlam',
     chargeGlow: 'arms', // both raised pound arms flicker as power banks
     rangedClip: 'fistLaunch',
+    rangedClipL: 'fistLaunchL', // throws alternate fists — see Fighter.doRanged
     moves: {
       light: { dmg: [46, 50, 68], knock: [16, 18, 30], range: 3.4 },
       heavy: { dmg: 105, knock: 38, range: 3.8, launch: 9 },

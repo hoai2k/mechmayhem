@@ -277,7 +277,7 @@ export class ProjectileSystem {
         const dHome = _dir.length();
         if (!p.reachCalled && dHome < sp * 0.42) { // ~0.4s out: arm up!
           p.reachCalled = true;
-          p.owner.reachForFist?.(p.mesh.position);
+          p.owner.reachForFist?.(p.mesh.position, p.fistSide);
         }
         if (dHome < Math.max(1.6, sp * dt * 1.5)) {
           p.life = -1; // home — the dead path below re-attaches it (onReturn)
