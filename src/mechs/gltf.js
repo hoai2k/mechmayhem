@@ -30,6 +30,7 @@ import { profileFor as glbProfileFor } from './glbanim.js';
 import { applySkinOpsToGltf, applySkinOps } from './skinops.js';
 import { rigFor } from './rigs/index.js';
 import { applyCustomRig, buildRigPosts } from './reskin.js';
+import { buildFistSplit } from './fistsplit.js';
 import { recolorMaterial } from './recolorglb.js';
 import { clamp } from '../core/utils.js';
 import { warnContract } from './contract.js';
@@ -398,6 +399,25 @@ function buildGlbMech(def, entry, gltf) {
     }
   }
 
+  // ---- detachable fist (TITANUS' rocket punch) --------------------------
+  // Runs HERE, after the material loop, on purpose: it turns the mesh's single
+  // material into an ARRAY (one entry per cut piece) and the ownMat/recolor
+  // paths above read `o.material` as a single material. See fistsplit.js for
+  // how the cut is derived. Only mechs whose rig carries `fistL`/`fistR` tip
+  // bones with a painted selection get a split; everyone else gets null and
+  // keeps the old whole-joint behaviour.
+  let fistSplit = null;   // handed to `mech` once that object exists, below
+  if (rigBones?.fistR || rigBones?.fistL) {
+    const sk = meshes.find((m) => m.isSkinnedMesh);
+    if (sk) {
+      try {
+        fistSplit = buildFistSplit(sk);
+      } catch (e) {
+        warnEntryOnce(def.id, `fist split failed (${e.message}); rocket fist stays attached`);
+      }
+    }
+  }
+
   // scale + ground the model to the mech's gameplay height.
   // NOTE: measure the SKINNED vertices, not Box3.setFromObject — skinned
   // verts follow bones and ignore the mesh node's own transform chain
@@ -445,6 +465,7 @@ function buildGlbMech(def, entry, gltf) {
   root.add(container);
 
   const mech = { group: root, joints, anchors: {}, materials: {}, dims: D, def, isGLB: true };
+  mech.fistSplit = fistSplit;   // Fighter.launchFist/catchFist + WEAPONS.fist
   // reinterpret shared anims for this model. entry.profileKey lets a model
   // VARIANT (e.g. an alt whose weapon sits in the other hand) carry its own
   // glbanim profile ('aegis_alt') instead of the mech's default one.

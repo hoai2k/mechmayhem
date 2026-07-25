@@ -1157,8 +1157,12 @@ export class Fighter {
 
   // ---- ROCKET FIST (TITANUS): the punching fist detaches and flies as a
   // boomerang projectile; the hand stays hidden until it thunks back on ----
+  // The fist LEAVES the body: on a GLB the fist is a cut-out geometry group in
+  // the one skinned mesh (fistsplit.js), so hiding that group + showing the dark
+  // wrist cap is what opens the socket. Procedural bodies carry the fist as real
+  // children of the hand joint, so scaling the joint away still does it there.
   launchFist() {
-    this.mech.joints.handR?.scale.setScalar(0.001);
+    if (!this.mech.fistSplit?.detach('R')) this.mech.joints.handR?.scale.setScalar(0.001);
     this._fistOut = true;
   }
 
@@ -1175,9 +1179,14 @@ export class Fighter {
   catchFist() {
     if (!this._fistOut) return;
     this._fistOut = false;
+    // onReturn fires on ANY death of the projectile, not just a clean catch, so
+    // this is also the "it expired out there" restore — the fist can never be
+    // left missing.
+    const split = this.mech.fistSplit;
+    if (split) split.attach('R');
     const j = this.mech.joints.handR;
     if (j) {
-      j.scale.setScalar(1);
+      if (!split) j.scale.setScalar(1);
       j.getWorldPosition(_v);
       this.world.effects.impactSparks(_v, this.def.colors.glow, 8, 5);
     }
@@ -2512,7 +2521,7 @@ export class Fighter {
     this.clearChargeGlow();
     if (this._fistOut) { // fist projectile died with the round — re-attach
       this._fistOut = false;
-      this.mech.joints.handR?.scale.setScalar(1);
+      if (!this.mech.fistSplit?.attach('R')) this.mech.joints.handR?.scale.setScalar(1);
     }
     this.animator.action = null;
   }
