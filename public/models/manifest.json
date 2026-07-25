@@ -81,25 +81,15 @@
       {"sel":{"comp":5},"to":"tripoSpine_1"}
     ],
     "muzzles": {
-      "R": {
-        "joint": "torso",
-        "offset": [
-          0.95,
-          3.7,
-          -0.7
-        ]
-      },
-      "L": {
-        "joint": "torso",
-        "offset": [
-          -0.95,
-          3.7,
-          -0.7
-        ]
-      }
+      "R": {"joint":"torso","offset":[0.95,3.7,-0.7],"rot":[0,0,0]},
+      "L": {"joint":"torso","offset":[-0.95,3.7,-0.7],"rot":[0,0,0]}
     }
   },
   "titanus": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_titanus.glb",
     "bindPose": "native",
     "yawOffset": 270,
@@ -225,6 +215,10 @@
     ]
   },
   "nova": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_nova.glb",
     "bindPose": "native",
     "yawOffset": 270,
@@ -376,6 +370,10 @@
     ]
   },
   "tempest": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_tempest.glb",
     "bindPose": "native",
     "yawOffset": 270,
@@ -522,6 +520,10 @@
     ]
   },
   "nullbot": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_nullbot.glb",
     "bindPose": "native",
     "yawOffset": 270,
@@ -578,6 +580,10 @@
     ]
   },
   "viper": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_viper.glb",
     "bindPose": "native",
     "yawOffset": 270,
@@ -733,17 +739,15 @@
       {"sel":{"comp":112},"to":"bone_27"}
     ],
     "muzzles": {
-      "R": {
-        "bone": "handR",
-        "offset": [
-          -0.53,
-          2.64,
-          -0.5
-        ]
-      }
+      "R": {"bone":"handR","offset":[-0.53,2.64,-0.5],"rot":[-46.88,61.25,28.79]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
     }
   },
   "rhino": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_rhino.glb",
     "bindPose": "native",
     "yawOffset": 270,
@@ -835,12 +839,20 @@
     ]
   },
   "glacier": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_glacier.glb",
     "bindPose": "native",
     "yawOffset": 270,
     "rig": "glacier"
   },
   "jerry": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[-6.45,-3.82,-0.22]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[-6.45,3.82,0.22]}
+    },
     "skinOps": [
       {"sel":{"comp":9},"to":"torso"},
       {"sel":{"comp":10},"to":"torso"},
@@ -1069,6 +1081,10 @@
     }
   },
   "aegis": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_aegis.glb",
     "bindPose": "native",
     "yawOffset": 270,
@@ -1311,22 +1327,8 @@
       "handR": "bone_44"
     },
     "muzzles": {
-      "R": {
-        "bone": "head",
-        "offset": [
-          -1.9,
-          0,
-          0
-        ]
-      },
-      "L": {
-        "bone": "head",
-        "offset": [
-          -1.9,
-          0,
-          0
-        ]
-      }
+      "R": {"bone":"head","offset":[-1.9,0,0],"rot":[-25.85,-2.91,-0.67]},
+      "L": {"bone":"head","offset":[-1.9,0,0],"rot":[-25.85,-2.91,-0.67]}
     },
     "skinOps": [
       {"sel":{"comp":61},"to":"bone_43"},
@@ -1433,22 +1435,8 @@
     },
     "heightScale": 1.05,
     "muzzles": {
-      "R": {
-        "joint": "handR",
-        "offset": [
-          0,
-          -0.5,
-          1.05
-        ]
-      },
-      "L": {
-        "joint": "handL",
-        "offset": [
-          0,
-          -0.5,
-          1.05
-        ]
-      }
+      "R": {"joint":"handR","offset":[0,-0.5,1.05],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.5,1.05],"rot":[12,0,0]}
     },
     "skinOps": [
       {"sel":{"comp":10},"to":"bone_19"},
@@ -1597,6 +1585,10 @@
     ]
   },
   "fenrir": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+    },
     "url": "models/mech_fenrir.glb",
     "bindPose": "native",
     "yawOffset": 270,
@@ -1703,22 +1695,8 @@
     },
     "heightScale": 1.05,
     "muzzles": {
-      "R": {
-        "joint": "handR",
-        "offset": [
-          0,
-          -0.4,
-          0.85
-        ]
-      },
-      "L": {
-        "joint": "handL",
-        "offset": [
-          0,
-          -0.4,
-          0.85
-        ]
-      }
+      "R": {"joint":"handR","offset":[0,-0.4,0.85],"rot":[12,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.4,0.85],"rot":[12,0,0]}
     },
     "skinOps": [
       {"sel":{"comp":39},"to":"tripoSpine_1"},
@@ -1837,38 +1815,10 @@
     },
     "heightScale": 1.1,
     "muzzles": {
-      "R": {
-        "bone": "handR",
-        "offset": [
-          0,
-          0,
-          0
-        ]
-      },
-      "L": {
-        "bone": "handL",
-        "offset": [
-          0,
-          0,
-          0
-        ]
-      },
-      "podL": {
-        "joint": "torso",
-        "offset": [
-          -1.35,
-          2.2,
-          -0.2
-        ]
-      },
-      "podR": {
-        "joint": "torso",
-        "offset": [
-          1.35,
-          2.2,
-          -0.2
-        ]
-      }
+      "R": {"bone":"handR","offset":[0,0,0],"rot":[-58.1,80.26,50.18]},
+      "L": {"bone":"handL","offset":[0,0,0],"rot":[-9.88,0,0]},
+      "podL": {"joint":"torso","offset":[-1.35,2.2,-0.2],"rot":[0,0,0]},
+      "podR": {"joint":"torso","offset":[1.35,2.2,-0.2],"rot":[0,0,0]}
     },
     "skinOps": [
       {"sel":{"comp":14},"to":"tripo1_Left_Limb_2"},
