@@ -56,16 +56,23 @@ const loader = new GLTFLoader();
 const _gcTmp = new THREE.Vector3();   // groundClamp scratch
 const _gcTmp2 = new THREE.Vector3();
 
-// ?debug=3d enables the service GLB models; any other value (incl. default)
-// runs procedural. When on, menus/previews show a spinner instead of the
-// procedural stand-in while a GLB downloads, then swap the GLB in.
+// The GLB models are the DEFAULT: any mech with a manifest url renders from
+// its service model, and only `?debug=fallback` forces the whole roster back
+// to the procedural bodies (the hand-sculpted route-B mechs, still the
+// fallback for any mech missing from the manifest or whose GLB fails to
+// load). `?debug=3d` still means GLB — it stays valid so the older tool URLs
+// and docs keep working, it just isn't needed any more.
+// When GLBs are on, menus/previews show a spinner instead of the procedural
+// stand-in while a GLB downloads, then swap the GLB in.
+export const FALLBACK_PARAM = 'fallback';
 export function is3dMode() {
-  return new URLSearchParams(location.search).get('debug') === '3d';
+  return new URLSearchParams(location.search).get('debug') !== FALLBACK_PARAM;
 }
 
 // Sync check — only meaningful once loadManifest() has resolved (which the
-// boot flow awaits before building any screen). In non-3d mode the manifest
-// is forced empty, so this is always false and callers show procedural.
+// boot flow awaits before building any screen). Under ?debug=fallback the
+// manifest is forced empty, so this is always false and callers show
+// procedural.
 export function manifestHasGlb(id) {
   return !!(manifest && manifest[id]?.url);
 }
@@ -82,10 +89,9 @@ function fetchManifestJson() {
 
 export function loadManifest() {
   if (!manifestPromise) {
-    // GLB overrides are opt-in for now: ?debug=3d enables the service
-    // models; anything else (including the default) runs the procedural
-    // models. (?debug=backup therefore also means procedural.)
-    if (new URLSearchParams(location.search).get('debug') !== '3d') {
+    // GLB overrides are ON by default; ?debug=fallback is the one value that
+    // forces the procedural roster (see is3dMode).
+    if (!is3dMode()) {
       manifestPromise = Promise.resolve({}).then((m) => { manifest = m; return m; });
       return manifestPromise;
     }

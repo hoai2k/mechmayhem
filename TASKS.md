@@ -2323,3 +2323,34 @@ controllers via Gamepad API), AI opponents.
   paws — before, the legs never articulated); uptown battle; ace soaks
   fenrir-vs-viper and cranky-vs-glacier crash-free; cranky/glacier/jerry
   showcase unchanged; `vite build` green.
+
+## GLB models become the default + Fenrir skin pass (user request, 2026-07-25)
+
+- MODEL SET FLIP: the GLBs in `public/models/manifest.json` are now the
+  DEFAULT for every mech — title lineup, chooser, showcase and battle all
+  build from the service models with no URL flag. `?debug=fallback` forces
+  the procedural roster; the procedural bodies also stay the automatic
+  fallback for any mech with no manifest entry or a GLB that fails to load.
+  One switch: `gltf.js is3dMode()` (now `debug !== 'fallback'`), which
+  `loadManifest` also reads instead of re-parsing the query itself. The old
+  `?debug=3d` still resolves to GLBs, so every tool URL and doc keeps
+  working. `?debug=fallback` is not a dev-router mode, so it falls through
+  to the normal boot path.
+- FENRIR SKIN PASS: 47 `skinOps` from the `?debug=skin` workbench merged
+  into the manifest entry (38 explicit vertex-set rebinds + 9 component
+  rebinds), authored against the new custom rig — targets are its own bone
+  names (thighL/R, kneeL/R, footL/R, shoulderL/R, elbowL/R, hips, torso,
+  head, snout). `applySkinOps` runs them over the custom rig's proximity
+  skinning exactly as the workbench previewed, since both sides analyze the
+  same rig. All 47 applied with no "unknown target bone" / "matched
+  nothing" warnings.
+- Still an accepted GLB-route contract loss for fenrir (unchanged, and
+  logged by `warnContract` on every build): joints `tail0/1/2` and anchors
+  `clawL/clawR`. The rig now HAS a real 6-bone tail chain, so wiring the
+  animator's wag onto it through a glbanim `post` hook is possible — not
+  done here.
+- Verified: title lineup + CHOOSE YOUR FIGHTER + showcase + 4-player uptown
+  battle all render GLBs with no flag and no console warnings;
+  `?debug=fallback` renders the procedural roster on the same screens; ace
+  soaks crash-free with GLBs default-on (fenrir-vs-viper, titanus-vs-nova,
+  cranky-vs-saurion) and under `?debug=fallback`; `vite build` green.

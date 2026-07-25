@@ -3,8 +3,10 @@
 // wiring. Each mode is still a separate lazy chunk — importing this router
 // does NOT pull the dev modules into the main bundle.
 //
-// NOTE: ?debug=3d is deliberately NOT handled here — enabling the GLB models
-// is a real game toggle, routed through the normal boot path, not a dev mode.
+// NOTE: ?debug=fallback (procedural roster instead of the GLB models, and the
+// legacy ?debug=3d that now just means "default") is deliberately NOT handled
+// here — choosing the model set is a real game toggle, routed through the
+// normal boot path, not a dev mode.
 export function runDevMode(params) {
   const debug = params.get('debug');
   if (params.get('edit') === 'level') {

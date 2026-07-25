@@ -14,7 +14,12 @@ audio). Progress history: `TASKS.md`.
 - Combat crash soak: `node tools/soak.mjs "http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1&diff=ace"`
 - Debug URLs: `?showcase` (12-mech lineup) · `?showcase=<id>&anim=<clip|walk|none>`
   (single mech, judging camera) · `?battle=<arena>&p1=<id>&p2=<id>[&p3..p4][&auto=1][&diff=ace][&forcesplit=1]`
-  · `?rigtest` (GLB retarget math check)
+  · `?rigtest` (GLB retarget math check) · `?rigedit=<id>` (edit a mech's
+  hand-authored rig, `src/mechs/rigs/<id>.rig.js`)
+- Model set: the GLBs in `public/models/manifest.json` are the DEFAULT for
+  every mech; `?debug=fallback` forces the procedural roster (also the
+  automatic fallback for a mech with no manifest entry or a broken GLB).
+  `?debug=3d` is the old opt-in flag and still means GLBs.
 - Level builder: `?edit=level` (place/move buildings, props, terrain + export)
   · `?edit=level&load=<name>` edits `public/levels/<name>.json` ·
   `?battle=<theme>&level=<name>` plays an authored level. Editor: `src/editor/`,

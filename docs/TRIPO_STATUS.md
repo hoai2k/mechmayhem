@@ -3,6 +3,11 @@
 Session 2026-07-18. Goal: rigged GLBs for all 17 mechs from `docs/canonical/`
 images via Tripo API → `public/models/` + `manifest.json` → main.
 
+> **The `?debug=3d` flag described in the session logs below is superseded**
+> (2026-07-25). The GLB models are now the DEFAULT everywhere; `?debug=fallback`
+> is what forces the procedural roster. `?debug=3d` still resolves to GLBs, so
+> the older URLs in this file keep working.
+
 ## How to resume (any fresh session)
 
 1. `TRIPO_API_KEY=<key> NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt \

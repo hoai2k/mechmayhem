@@ -26,8 +26,9 @@ export async function bootGame() {
   const input = new Input();
   const uiRoot = document.getElementById('ui-root');
 
-  // In ?debug=3d, resolve the manifest before any screen builds so
-  // manifestHasGlb() can decide spinner-vs-procedural synchronously.
+  // Resolve the manifest before any screen builds so manifestHasGlb() can
+  // decide spinner-vs-procedural synchronously. Skipped under ?debug=fallback,
+  // where is3dMode() is false and the whole roster stays procedural.
   if (is3dMode()) { try { await loadManifest(); } catch (e) { /* falls back to procedural */ } }
 
   let audio;
