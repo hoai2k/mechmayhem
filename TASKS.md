@@ -2966,3 +2966,28 @@ controllers via Gamepad API), AI opponents.
   knuckles leading); titanus attackmatrix ALL CONNECT; ace soaks crash-free
   (titanus/viper, and two titanus + glacier so both fighters' splits and both
   hands are exercised at once); `vite build` green.
+
+## Rhino: back to the Tripo rig (user call, 2026-07-25)
+
+- Owner judged the hand-authored rig worse in play, so `public/models/manifest.json`
+  puts rhino back on his ORIGINAL config: 15 `boneOverrides` + 67 `skinOps`, no
+  `rig` key, and the muzzle anchors exactly as the owner authored them against
+  the Tripo hand bones (`R` offset [0.224,0.102,0.221] rot [-91.5,-27.15,-163.29],
+  `L` offset [-0.349,0.087,0.042] rot [-104.21,15.35,167.89]).
+- The custom rig is PARKED, not deleted: `src/mechs/rigs/rhino.rig.js` and its
+  registry entry stay, and the whole custom-rig entry now sits in the manifest
+  `alt` block — so `?debug=models` still A/Bs the two and swapping back is one
+  key (`"rig": "rhino"` on the primary, drop boneOverrides/skinOps).
+- `modelScale` is unaffected: the pin (8.12531) was derived from the TRIPO rig,
+  and the pin wins over the head match either way, so rhino's rendered height is
+  identical before and after this revert (the custom rig would have head-matched
+  to 8.96 unpinned — the pin is exactly why a rig swap can't resize him).
+- The ranged-shot arm leveling (glbanim `RHINO_LEVEL`/`RHINO_LEAD`) was measured
+  on this rig originally and still holds: barrel elevation at the fire frame is
+  +0.6°, unchanged from when it was tuned.
+- reskin.js keeps `cutWelds`/`cutPairs`/`softSkin` (all opt-in, all default-off,
+  now used by no shipped rig) and `tools/cliptear.mjs` stays — they cost nothing
+  parked and are what any future re-rig of a welded service GLB will need.
+- Verified: rest + uppercut frames VIEWed (Tripo skinning back), muzzle aim
+  probe +0.6° at the fire frame, ace soak rhino/titanus crash-free,
+  `vite build` green.
