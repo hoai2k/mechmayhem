@@ -28,6 +28,7 @@ import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
 import { applyColorScheme } from '../mechs/colorscheme.js';
 import { JOINT_ORDER } from '../mechs/rigadapter.js';
 import { describeAction, ACTIONS } from './actionchars.js';
+import { anchorUses } from './anchoruses.js';
 
 const R2D = 180 / Math.PI;
 const PAIR_X = 6;              // half-separation of the two models
@@ -502,7 +503,7 @@ export async function runPoseTool(startId) {
   const bAction = toggle('▶ Action', () => setMode('action'));
   const bPose = toggle('✋ Pose', () => setMode('pose'));
   modeRow.append(bAction, bPose); panel.appendChild(modeRow);
-  function setMode(m) { mode = m; styleMode(); applyMode(); }
+  function setMode(m) { mode = m; styleMode(); applyMode(); refreshAnchorUI(); }
   function styleMode() {
     for (const [b, m] of [[bAction, 'action'], [bPose, 'pose']]) {
       const on = mode === m;
@@ -616,6 +617,10 @@ export async function runPoseTool(startId) {
   panel.appendChild(anchorInfo);
   const anchorGrid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px');
   panel.appendChild(anchorGrid);
+  // what the held anchor actually drives, so you know what you're affecting
+  const anchorUsePanel = el('div', `display:none;background:#0b0f16;border:1px solid #3a3020;border-radius:5px;
+    padding:7px;margin-bottom:6px`);
+  panel.appendChild(anchorUsePanel);
   const aGizRow = el('div', 'display:flex;gap:6px;margin-bottom:5px');
   const bAMove = toggle('Move', () => { anchorGizmo.setMode('translate'); markAGiz(); });
   const bARot = toggle('Rotate', () => { anchorGizmo.setMode('rotate'); markAGiz(); });
@@ -635,9 +640,10 @@ export async function runPoseTool(startId) {
   panel.appendChild(bindRow);
   const aResetRow = el('div', 'display:flex;gap:6px;margin-bottom:5px');
   aResetRow.appendChild(btn('Reset anchor', () => { if (selAnchor) { resetAnchor(selAnchor); refreshAnchorUI(); } }));
-  aResetRow.appendChild(btn('Reset all', () => { for (const n of Object.keys(anchorBase)) resetAnchor(n); refreshAnchorUI(); }));
+  aResetRow.appendChild(btn('Reset all anchors', () => { for (const n of Object.keys(anchorBase)) resetAnchor(n); refreshAnchorUI(); }));
   panel.appendChild(aResetRow);
-  panel.appendChild(btn('Output changes ▶', outputAnchors, true));
+  const outBtn = btn('Output changes ▶', outputAnchors, true);
+  panel.appendChild(outBtn);
   const anchorNote = el('div', 'margin-top:5px;color:#9fb2c8;font-size:10.5px;line-height:1.45');
   panel.appendChild(anchorNote);
   const anchorOut = el('textarea', `width:100%;height:110px;margin-top:6px;background:#0b0f16;color:#8fe;
@@ -678,7 +684,35 @@ export async function runPoseTool(startId) {
     const mech = glbF?.mech;
     anchorInfo.textContent = selAnchor && mech
       ? `${selAnchor} · on ${parentLabel(mech, mech.anchors[selAnchor])} · ${anchorGizmo.mode}`
+        + (mode === 'action' ? ' · ANIM FROZEN' : '')
       : 'Click an anchor to grab it · shift-click = rotate';
+    // ---- what this anchor drives ----
+    if (selAnchor) {
+      const avail = new Set(Object.keys(mech?.anchors || {}));
+      const { role, uses, notes } = anchorUses(ROSTER_BY_ID[curId], selAnchor, avail);
+      let html = `<div style="font-weight:600;color:#ffd9a0;margin-bottom:3px">${selAnchor} drives</div>`;
+      if (uses.length) {
+        for (const u of uses) {
+          html += `<div style="color:#cfe0f5;font-size:11px">• ${u.label}`
+            + (u.detail ? ` <span style="color:#8a97a8">(${u.detail})</span>` : '') + '</div>';
+        }
+      } else {
+        html += `<div style="color:#9fb2c8;font-size:11px">• No action on ${curId.toUpperCase()} reads this anchor.</div>`;
+      }
+      for (const n of notes || []) {
+        html += `<div style="color:#ffb347;font-size:10.5px;margin-top:3px">⚠ ${n}</div>`;
+      }
+      if (role) html += `<div style="color:#7d8ea3;font-size:10px;margin-top:4px;line-height:1.4">${role}</div>`;
+      anchorUsePanel.innerHTML = html;
+      anchorUsePanel.style.display = 'block';
+    } else anchorUsePanel.style.display = 'none';
+    // ---- Output only when there is something to output ----
+    const dirtyCount = Object.keys(anchorBase).filter(anchorChanged).length;
+    outBtn.disabled = !dirtyCount;
+    outBtn.style.opacity = dirtyCount ? '1' : '0.4';
+    outBtn.style.cursor = dirtyCount ? 'pointer' : 'not-allowed';
+    outBtn.style.background = dirtyCount ? '#1f7a4d' : '#243040';
+    outBtn.textContent = dirtyCount ? `Output changes (${dirtyCount}) ▶` : 'Output changes ▶';
     markAGiz();
   }
 
@@ -686,7 +720,8 @@ export async function runPoseTool(startId) {
   help.innerHTML = 'Orbit: drag empty space · Zoom: wheel<br>Left = procedural · Right = GLB<br>'
     + 'Action: keyboard F/G/R/T/H + ⇧ or a gamepad, or the buttons above.<br>'
     + 'Anchors: click = move handle · shift-click = rotate · drop binds it to the '
-    + 'nearest geometry so it rides that part. Fire in Action mode to preview.';
+    + 'nearest geometry so it rides that part. Animation freezes while a point is '
+    + 'held (firing still previews from it); release the point to resume.';
   panel.appendChild(help);
 
   // ---- helpers ----
@@ -730,7 +765,22 @@ export async function runPoseTool(startId) {
         d.yaw = d.targetYaw = Math.PI;
       }
       world.update(dt);      // dt pre-scaled by engine.timeScale
-      floorClamp(glbF, dt); floorClamp(procF, dt);  // keep GLB rigid-limb overshoot on the floor
+      if (selAnchor) {
+        // ANCHOR EDITING: hold both mechs at the deterministic rest so the
+        // geometry under the handle stays still while you place the point.
+        // poseStatic only rewrites the visual pose — the action state machine
+        // keeps running underneath, so firing still previews from the anchor.
+        for (const [f, x] of [[procF, -PAIR_X], [glbF, PAIR_X]]) {
+          if (!f) continue;
+          f.pos.set(x, 0, 0); f.vel.set(0, 0, 0);
+          f.yaw = f.targetYaw = f.torsoYaw = 0;
+          f._floorLift = 0; f.mech.visualFloorLift?.(0);
+          f.animator.poseStatic();
+        }
+        idleT = 0;
+      } else {
+        floorClamp(glbF, dt); floorClamp(procF, dt);  // keep GLB rigid-limb overshoot on the floor
+      }
       input.endFrame();
       // settle-reset: snap home a few REAL seconds after everything is at
       // rest (slow-mo doesn't stretch the wait) — 2s after the stick is
@@ -754,9 +804,12 @@ export async function runPoseTool(startId) {
     // spawn point stays visible while the mech moves
     const anchors = glbF?.mech?.anchors;
     if (anchors) {
+      // only the SELECTED anchor shows a marker — the rest would just clutter
+      // the model while you work on one point
       for (const m of anchorMarks.children) {
         const a = anchors[m._anchor];
-        if (a) { a.getWorldPosition(m.position); m.visible = true; } else m.visible = false;
+        m.visible = !!a && m._anchor === selAnchor;
+        if (m.visible) a.getWorldPosition(m.position);
       }
     }
   };
