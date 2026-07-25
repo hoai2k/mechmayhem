@@ -2460,3 +2460,23 @@ controllers via Gamepad API), AI opponents.
   instead of fighting it); dash driven through a real fighter in-battle;
   twist probe above; ace soaks crash-free for fenrir/viper, cranky/titanus,
   saurion/nova and under `?debug=fallback`; `vite build` green.
+
+## Fenrir heavy: arms open WIDE, then scythe to the middle (user request, 2026-07-25)
+
+- `fenrirSpike` now opens and CLOSES across the leap, like a bear hug thrown
+  at a sprint. Wind-up (t=0.28): both arms flung as wide and as far back as
+  the joint allows — measured on the rig, the claws sit 6.8 units apart vs
+  3.65 at rest, behind the chest line and raised. Lunge (t=0.42 → the t=0.55
+  hit): they scythe to the MIDDLE and forward — 1.0 apart, 2.8 ahead of the
+  body, converging in front of the chest.
+- The roll sign is not guessable and the old comment would have had it
+  backwards: measured by posing the rig and reading hand positions,
+  NEGATIVE shoulder roll on the left with POSITIVE on the right is what
+  opens the arms outward (a +60/−60 pair CROSSES them instead), and positive
+  shoulder pitch is what carries them back. Noted in the clip comment so the
+  next edit doesn't have to re-derive it.
+- Still the SHARED clip in animations.js, so procedural and GLB both get it.
+- Verified: wind-up and strike frozen at t=0.28 / 0.42 / 0.55 / 0.58 on both
+  routes (VIEWed — arms spread-eagle at the wind-up, converged in front at
+  the hit on each); ace soaks crash-free fenrir/viper and fenrir/titanus
+  under `?debug=fallback`; `vite build` green.
