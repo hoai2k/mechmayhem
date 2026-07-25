@@ -500,10 +500,19 @@ export class World {
       }
     }
     if (aimP) dir.copy(aimP).sub(from).normalize();
+    // The barrel has the last word: a muzzle authored with an explicit `rot`
+    // deflects the finished aim along its own +Z, so a cannon modelled splayed
+    // outward actually fires outward. No-rot muzzles leave the aim untouched.
+    // `dirFrom` gives any OTHER barrel its own deflection off the same base
+    // aim, so a twin-cannon mech's two sides splay independently.
+    const baseDir = dir.clone();
+    const dirFrom = (a, out = new THREE.Vector3()) =>
+      out.copy(baseDir).applyQuaternion(barrelDeflect(f, a, _bOff)).normalize();
+    dirFrom(anchors.muzzleR, dir);
 
     // per-weapon behavior lives in the WEAPONS table below — same
     // aiming context for every handler
-    WEAPONS[mv.type]?.(this, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors });
+    WEAPONS[mv.type]?.(this, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom });
   }
 
 
@@ -534,6 +543,27 @@ export class World {
     this.debris.length = 0;
     this.fleas.clear();
   }
+}
+
+// A muzzle anchor authored with an explicit `rot` in the manifest carries its
+// own BARREL DIRECTION: the anchor's +Z axis (the ?debug=models anchor editor
+// draws that axis, and its exports are what set `rot`). This returns the
+// rotation from the mech's flat facing to that barrel axis, so callers can
+// deflect a finished aim along the barrel — auto-aim, the crosshair and the
+// vertical assist still choose the base direction; the barrel only offsets it.
+// Anchors WITHOUT a rot return identity: their orientation is just whatever
+// their parent bone happens to carry (a raptor skull, a hand bone), which is
+// meaningless as an aim vector, so those mechs shoot exactly as before.
+const _bQ = new THREE.Quaternion(), _bOff = new THREE.Quaternion();
+const _bFwd = new THREE.Vector3(), _bFace = new THREE.Vector3();
+function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
+  out.identity();
+  if (!anchor?.userData?.aimRot) return out;
+  anchor.getWorldQuaternion(_bQ);
+  _bFwd.set(0, 0, 1).applyQuaternion(_bQ);
+  if (_bFwd.lengthSq() < 1e-9) return out;
+  _bFace.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
+  return out.setFromUnitVectors(_bFace, _bFwd.normalize());
 }
 
 // ---- ranged weapon handlers -----------------------------------------------
@@ -790,11 +820,14 @@ const WEAPONS = {
     }
   },
 
-  hose(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // CRANKY: continuous high-pressure FIREHOSE stream —
+  hose(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // CRANKY: continuous high-pressure FIREHOSE stream —
     // ticks alternate cannons so BOTH water arms are visibly blasting
     f._hoseSide = !f._hoseSide;
-    const hFrom = f._hoseSide && anchors.muzzleL
-      ? anchors.muzzleL.getWorldPosition(new THREE.Vector3()) : from;
+    const side = f._hoseSide && anchors.muzzleL ? anchors.muzzleL : anchors.muzzleR;
+    const hFrom = side.getWorldPosition(new THREE.Vector3());
+    // each cannon sprays along ITS OWN barrel, so a splayed pair of water
+    // guns throws two diverging streams instead of one doubled-up jet
+    dir = dirFrom(side);
     // the jet is ONE coherent pressurized tube of water (scrolling-
     // noise stream mesh riding the ballistic arc); droplets and mist
     // are just the breakup spray around it

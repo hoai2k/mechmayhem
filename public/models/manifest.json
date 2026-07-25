@@ -1558,22 +1558,8 @@
     "yawOffset": 270,
     "rig": "cranky",
     "muzzles": {
-      "R": {
-        "joint": "torso",
-        "offset": [
-          1.5,
-          2.05,
-          2.1
-        ]
-      },
-      "L": {
-        "joint": "torso",
-        "offset": [
-          -1.5,
-          2.05,
-          2.1
-        ]
-      }
+      "R": {"bone":"head","offset":[1.177,0.208,-2.86],"rot":[-180,74.56,-180]},
+      "L": {"bone":"head","offset":[1.207,0.216,2.846],"rot":[6.85,67.79,-7.26]}
     },
     "skinOps": [
       {"sel":{"comp":22},"to":"mouth"},

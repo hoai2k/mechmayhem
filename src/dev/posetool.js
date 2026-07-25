@@ -95,6 +95,15 @@ export async function runPoseTool(startId) {
   let selAnchor = null;              // anchor name the anchor gizmo holds
   const anchorBase = {};             // name -> {parent, pos, rot} captured at load
   const anchorMarks = new THREE.Group(); scene.add(anchorMarks);
+  // barrel-direction arrow for the held anchor: its +Z is what combat fires
+  // along once the anchor carries a `rot` (see world.js barrelDeflect)
+  const barrelArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(),
+    2.4, 0xff6a3d, 0.55, 0.3);
+  barrelArrow.visible = false;
+  for (const c of [barrelArrow.line, barrelArrow.cone]) {
+    if (c?.material) { c.material.depthTest = false; c.renderOrder = 999; }
+  }
+  scene.add(barrelArrow);
   let autoBind = true;               // on drop, re-parent to the nearest geometry bone
   let idleT = 0;       // real seconds both fighters have been back at rest
   let lastWasWalk = false; // last displacement came from stick movement (2s reset)
@@ -336,6 +345,7 @@ export async function runPoseTool(startId) {
   // animation. Dragging one here moves the LIVE anchor: fire in ACTION mode and
   // the projectiles come out of the new spot.
   const _nbV = new THREE.Vector3();
+  const _barrelV = new THREE.Vector3(), _barrelQ = new THREE.Quaternion();
   // Nearest bone to a world point, by the GEOMETRY nearest it — sample the
   // posed skin, take the closest vertex, return that vertex's dominant bone.
   // (Bone-origin distance would bind a barrel tip to whatever pivot happens to
@@ -690,7 +700,15 @@ export async function runPoseTool(startId) {
     if (selAnchor) {
       const avail = new Set(Object.keys(mech?.anchors || {}));
       const { role, uses, notes } = anchorUses(ROSTER_BY_ID[curId], selAnchor, avail);
+      const obj = mech.anchors[selAnchor];
+      const bs = anchorBase[selAnchor];
+      const moved = bs && obj.parent !== bs.parent;
       let html = `<div style="font-weight:600;color:#ffd9a0;margin-bottom:3px">${selAnchor} drives</div>`;
+      // which bone/joint it currently rides — flagged when the drag rebound it
+      html += `<div style="font-size:11px;margin-bottom:4px;color:${moved ? '#7ee0a0' : '#cfe0f5'}">`
+        + `Attached to: <b>${parentLabel(mech, obj)}</b>`
+        + (moved ? ` <span style="color:#8a97a8">(was ${parentLabel(mech, { parent: bs.parent })})</span>` : '')
+        + '</div>';
       if (uses.length) {
         for (const u of uses) {
           html += `<div style="color:#cfe0f5;font-size:11px">• ${u.label}`
@@ -810,6 +828,13 @@ export async function runPoseTool(startId) {
         const a = anchors[m._anchor];
         m.visible = !!a && m._anchor === selAnchor;
         if (m.visible) a.getWorldPosition(m.position);
+      }
+      const sel = selAnchor && anchors[selAnchor];
+      barrelArrow.visible = !!sel;
+      if (sel) {
+        sel.getWorldPosition(barrelArrow.position);
+        barrelArrow.setDirection(_barrelV.set(0, 0, 1)
+          .applyQuaternion(sel.getWorldQuaternion(_barrelQ)).normalize());
       }
     }
   };
