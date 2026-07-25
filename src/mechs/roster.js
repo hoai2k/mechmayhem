@@ -344,6 +344,11 @@ export const ROSTER = [
     body: { scale: 1.24, torsoW: 1.22, torsoH: 1.0, headSize: 0.9, armLen: 1.08, legLen: 0.98, hipW: 1.1, bulk: 1.08 },
     stats: { hp: 1200, speed: 7.5, jump: 12, weight: 0.92, armor: 0.2, blockMult: 0.10 },
     ui: { power: 8, speed: 3, defense: 8 },
+    // the icicle launcher IS the ice lance, and he carries it in his LEFT hand
+    // — fire from that barrel with the mirrored shot clip so the barrage
+    // leaves the weapon instead of the empty claw (glbanim levels the lance)
+    rangedClip: 'shootL',
+    rangedMuzzle: 'muzzleL',
     moves: {
       light: { dmg: [38, 42, 58], knock: [5, 6, 13], range: 3.4 },
       heavy: { dmg: 92, knock: 22, range: 3.8, launch: 9 },

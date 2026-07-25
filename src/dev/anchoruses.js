@@ -4,8 +4,9 @@
 //
 // Derived by reading the real call sites, not from memory:
 //   • src/game/world.js  WEAPONS[...]       — every roster `ranged` type. They
-//     all spawn from the shared `from`, which fireRanged reads off muzzleR;
-//     mortar/hose alternate to muzzleL.
+//     all spawn from the shared `from`, which fireRanged reads off muzzleR —
+//     or off the barrel named by roster `rangedMuzzle` when the mech carries
+//     its weapon in the other hand; mortar/hose alternate to muzzleL.
 //   • src/combat/specials.js SPECIALS/ULTS  — muzzle(f) is muzzleR;
 //     muzzle(f,'x') falls back to muzzleR when x is missing.
 //   • src/combat/fighter.js                 — def.heavyFx signature FX, and
@@ -41,8 +42,8 @@ const HEAVY = {
 };
 
 const ROLE = {
-  muzzleR: 'Primary spawn point: fireRanged reads it for EVERY ranged type, and muzzle() falls back to it whenever a named anchor is missing.',
-  muzzleL: 'Second barrel — only the alternating-side weapons and volleys read it. When absent those shots all come from muzzleR.',
+  muzzleR: 'Primary spawn point: fireRanged reads it for EVERY ranged type (unless roster `rangedMuzzle` names the other barrel), and muzzle() falls back to it whenever a named anchor is missing.',
+  muzzleL: 'Second barrel — the alternating-side weapons and volleys read it, and it is the PRIMARY on a mech whose roster sets rangedMuzzle to it. When absent those shots all come from muzzleR.',
   core: 'Chest glow mount: carries the mech\'s core PointLight. Visual only.',
   overhead: 'Marker above the head. Created by both factories; no runtime consumer found.',
   scope: 'Procedural-route anchor (wraith contract). No runtime consumer found.',
@@ -87,7 +88,12 @@ export function anchorUses(def, name, available) {
   };
 
   const mv = def?.moves || {};
-  if (mv.ranged?.type) consider('ranged', `Ranged — ${mv.ranged.name || mv.ranged.type}`, RANGED[mv.ranged.type]);
+  if (mv.ranged?.type) {
+    // roster `rangedMuzzle` re-points the primary barrel for this mech only
+    const spec = RANGED[mv.ranged.type];
+    consider('ranged', `Ranged — ${mv.ranged.name || mv.ranged.type}`,
+      spec && def.rangedMuzzle ? { ...spec, primary: def.rangedMuzzle } : spec);
+  }
   if (mv.special?.id) consider('special', `Special — ${mv.special.name || mv.special.id}`, SPECIAL[mv.special.id]);
   if (mv.ult?.id) consider('ult', `Ult — ${mv.ult.name || mv.ult.id}`, ULT[mv.ult.id]);
   // signature heavy FX lives at the DEF level (roster `heavyFx`), read by
