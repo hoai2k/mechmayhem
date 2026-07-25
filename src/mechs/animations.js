@@ -347,32 +347,40 @@ const CLIPS_RAW = {
   tempestTornado: { // heavy: arms fling wide and the whole frame spins up
     // into a tornado (heavySpin whirls the hips; the aura FX ride along) —
     // two hit beats as the vortex grinds through the target.
-    // The arms PUMP across the spin instead of holding one shape: each pass
-    // launches them back up into a flat T, and they drop between passes.
+    // The arms go OUT, never up: they snap to a flat T the instant the spin
+    // starts (t=0.26, the heavySpin t0) and PUMP there across the whole
+    // whirl — dropping along the body between passes, launching back out
+    // sideways on the next.
     //   T pose   shoulder roll -92 / +92 with ZERO pitch and a straight elbow
     //            is the flat T on this rig, measured on BOTH routes: hands
     //            land at y 1.8-2.0 against shoulders at y 1.64-1.77, at full
-    //            3.6-3.9 horizontal reach. Pitch is what breaks it — the old
-    //            -24 dragged the hands forward and below the shoulder line —
-    //            and roll past ~100 lifts them into a Y, not a T.
+    //            3.6-3.9 horizontal reach. Pitch is what breaks it — a -24
+    //            dragged the hands forward and below the shoulder line — and
+    //            roll past ~100 lifts them into a Y, not a T.
+    //   ease     the launches are outCUBIC, not outBack: outBack overshoots
+    //            ~10% past the key, which on a 16 -> 92 roll peaks near 100
+    //            and reads as the arms going UP over the shoulders. Cubic
+    //            stops them dead flat.
     //   drop     roll ±16 with elbow -22: arms swing back down along the body
     //            between passes, hands at y -0.7, so the next launch reads.
-    // heavySpin runs t 0.26-0.86 at 24 rad/s ≈ 2.3 turns, so the two drops
-    // (0.38, 0.56) and three T's (0.30, 0.46, 0.68) sit one per revolution,
-    // with a T carrying each hit beat.
-    dur: 1.0,
+    // heavySpin runs t 0.26-1.07 at 28.8 rad/s ≈ 3.7 turns (0.22s a turn), so
+    // the T's (0.26, 0.46, 0.68, 0.90) and the drops between them sit about
+    // one pump per revolution, with a T carrying each hit beat.
+    dur: 1.22,
     keys: [
       { t: 0, pose: {} },
       { t: 0.18, ease: 'inOutCubic', pose: { hipsPos: [0, -0.4, 0], torso: [10, 20, 0], head: [0, -10, 0], shoulderL: [-20, 30, -20], shoulderR: [-20, -30, 20], elbowL: [-110, 0, 0], elbowR: [-110, 0, 0], kneeL: [40, 0, 0], kneeR: [40, 0, 0], thighL: [-22, 0, 0], thighR: [-22, 0, 0] } },
-      { t: 0.3, ease: 'outBack', pose: { hipsPos: [0, 0.18, 0], torso: [-6, 0, 0], head: [-8, 0, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0], kneeL: [8, 0, 0], kneeR: [8, 0, 0], thighL: [-4, 0, 0], thighR: [-4, 0, 0] } },
-      { t: 0.38, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
-      { t: 0.46, ease: 'outBack', pose: { hipsPos: [0, 0.18, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
-      { t: 0.56, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
-      { t: 0.68, ease: 'outBack', pose: { hipsPos: [0, 0.2, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
-      { t: 0.85, ease: 'inOutQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [0, 0, -88], shoulderR: [0, 0, 88], elbowL: [-4, 0, 0], elbowR: [-4, 0, 0] } },
-      { t: 1.0, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0] } },
+      { t: 0.26, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], torso: [-6, 0, 0], head: [-8, 0, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0], kneeL: [8, 0, 0], kneeR: [8, 0, 0], thighL: [-4, 0, 0], thighR: [-4, 0, 0] } },
+      { t: 0.36, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.46, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
+      { t: 0.58, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.68, ease: 'outCubic', pose: { hipsPos: [0, 0.2, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
+      { t: 0.8, ease: 'inQuad', pose: { hipsPos: [0, 0.12, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.9, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
+      { t: 1.07, ease: 'inOutQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [0, 0, -88], shoulderR: [0, 0, 88], elbowL: [-4, 0, 0], elbowR: [-4, 0, 0] } },
+      { t: 1.22, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0] } },
     ],
-    events: [{ t: 0.28, type: 'sfx', arg: 'whooshBig' }, { t: 0.45, type: 'hit', arg: 0 }, { t: 0.55, type: 'sfx', arg: 'whoosh' }, { t: 0.68, type: 'hit', arg: 0 }, { t: 0.7, type: 'shake', arg: 0.35 }],
+    events: [{ t: 0.24, type: 'sfx', arg: 'whooshBig' }, { t: 0.46, type: 'hit', arg: 0 }, { t: 0.58, type: 'sfx', arg: 'whoosh' }, { t: 0.68, type: 'hit', arg: 0 }, { t: 0.7, type: 'shake', arg: 0.35 }, { t: 0.9, type: 'sfx', arg: 'whoosh' }],
   },
   fenrirSpike: { // heavy: the mane flares out huge (heavyFlare scales the
     // ruff, porcupine-style) as the wolf coils — then a spiking LEAP

@@ -787,7 +787,14 @@ const WEAPONS = {
     w.audio?.play('mortar', gf > 1.4 ? { pitch: 0.7, vol: 1 } : undefined);
   },
 
-  lightning(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {
+  lightning(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // TEMPEST: the arc
+    // bolts trade hands shot to shot — doRanged toggled the side + mirrored
+    // clip; the off emitter aims along ITS OWN barrel axis (dirFrom)
+    const a = f._altSide && anchors.muzzleL ? anchors.muzzleL : anchors.muzzleR;
+    if (a !== anchors.muzzleR) {
+      from = a.getWorldPosition(new THREE.Vector3());
+      dir = dirFrom(a);
+    }
     w.projectiles.lightningZap(f, from, dir, {
       dmg: mv.dmg * f.dmgMult(), chainRange: mv.chainRange, color: 0x8fe8ff,
     });
