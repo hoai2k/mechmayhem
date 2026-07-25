@@ -68,8 +68,15 @@ export const CONTRACT = {
     joints: ['mortars'],                // animator pitches when firing
   },
   wraith: {
-    joints: ['rifle'],                  // railgun carried in handR
-    anchors: ['scope', 'eye'],          // eye: DEATH SWARM flare origin
+    joints: ['rifle'],                  // the railgun, carried in the gun hand
+    glbBones: ['rifle'],                // GLB: same name in rigs/wraith.rig.js —
+                                        // the gun is a rigid body on handL there,
+                                        // and its muzzle/scope anchors ride it
+    // eye: DEATH SWARM flare origin. The GLB reinstates both through its
+    // manifest `muzzles` extras (pinned to the `eye` / `scope` rig bones) —
+    // not listed under glbAnchors so the legacy `alt` build, which has
+    // neither, still reports them as known losses rather than violations.
+    anchors: ['scope', 'eye'],
   },
   inferno: {},                          // dual flamethrowers: universal muzzles suffice
   glacier: {},

@@ -89,6 +89,93 @@ function wraithMats(def) {
   return (_wraithMats ??= makeMaterials(def));
 }
 
+// ---- WRAITH helpers (shared by the custom-rig build and its `alt`) --------
+// Attach the PROCEDURAL cloak (cloak/cloakL/cloakR + blade strips + wing0..5
+// emitters, from designs/wraith.js) to the GLB's virtual torso. Hidden until
+// the wing-laser heavy grows it in (wraithCapeGrow).
+function wraithBuild(mech, def) {
+  const A = new Assembler();
+  wraithCloak(A, mech.dims, mech.joints, mech.anchors);
+  A.build(mech.joints, wraithMats(def));
+  // wrapper between torso and cloak: the grow-in scale lives here so it
+  // never fights heavyFlare, which SETS the cloak joint's own scale
+  const capeRoot = new THREE.Group();
+  mech.joints.torso.add(capeRoot);
+  capeRoot.add(mech.joints.cloak);
+  capeRoot.visible = false;
+  mech.capeRoot = capeRoot;
+}
+function wraithCapeGrow(anim, dt) {
+  const cr = anim.mech.capeRoot;
+  if (!cr) return;
+  const act = anim.action;
+  const playing = !!act && !act.fadingOut && act.clip.name === 'wraithLasers';
+  const k = lerp(anim._capeK || 0, playing ? 1 : 0, 1 - Math.exp(-10 * dt));
+  anim._capeK = k;
+  cr.visible = k > 0.03;
+  if (cr.visible) cr.scale.setScalar(Math.max(0.001, k));
+}
+
+// The rifle hangs MUZZLE-DOWN in the gun hand, so its barrel sits ~90° below
+// the horizon at rest — and combat throws every shot along the muzzle anchor's
+// +Z (world.js barrelDeflect), which now IS the rifle's tip bone. Left alone,
+// the sniper shot would fly into the floor. Same shape as the RHINO fix: a
+// combined shoulder+elbow PITCH that puts the barrel dead level, with a lead
+// angle that cancels the animator's pose-chase lag at the fire frame (the
+// shot leaves 20% into `shoot`, while the arm is still climbing).
+// Measured on this rig with tools/aimprobe.mjs: the rifle's tip anchor sits
+// 99.5° below the shoulder+elbow pitch sum, so that sum puts it on the horizon.
+const WRAITH_LEVEL = -99.5 * Math.PI / 180;
+const WRAITH_LEAD = 26 * Math.PI / 180;
+const WRAITH_SHOTS = new Set(['shoot', 'aim']);
+function levelBarrel(anim, tgt) {
+  const act = anim.action;
+  if (!act || act.fadingOut || !WRAITH_SHOTS.has(act.clip.name)) return;
+  // gun arm = LEFT (the model carries the rifle there; mirrorArms has already
+  // routed the clip's right-arm tracks onto it)
+  const sh = tgt.shoulderL, el = tgt.elbowL;
+  if (!sh || !el) return;
+  const ph = Math.min(1, act.t / act.clip.dur);
+  const k = ph < 0.1 ? ph / 0.1 : ph > 0.45 ? Math.max(0, 1 - (ph - 0.45) / 0.35) : 1;
+  const level = WRAITH_LEVEL - el[0] - (ph < 0.3 ? WRAITH_LEAD * (1 - ph / 0.3) : 0);
+  // pull onto the line fast, then hold; max() is the ceiling at the horizon so
+  // the clip's overshoot can't swing the muzzle up past it (see rhino)
+  sh[0] = Math.max(lerp(sh[0], level, k), level);
+  sh[1] *= 1 - 0.8 * k;                            // square the gun onto the target line
+  sh[2] *= 1 - 0.8 * k;
+}
+
+// Cloak sway. The custom rig hangs the drape off the torso as four columns of
+// three bones (rigs/wraith.rig.js); none of them is a game joint, so the
+// retarget never writes them and this hook owns them outright. Bone-local axes
+// are the model's bind axes: +x forward, +y up, +z the model's left — so a
+// rotation about LOCAL Z pitches a column back (negative) or forward, and one
+// about LOCAL X fans it sideways. Rows compound down the chain, so row 1 does
+// most of the work and the fringe follows.
+const CLOAK_COLS = ['R', 'MR', 'ML', 'L'];
+const CLOAK_ROW_K = [1, 0.62, 0.38];
+function swayCloak(anim, dt, ctx) {
+  const rb = anim.mech.rigBones;
+  if (!rb) return;
+  const t = (anim._cloakT = (anim._cloakT || 0) + dt);
+  const spd = Math.min(1, (ctx.speed || 0) / (ctx.maxSpeed || 10));
+  // trail back with speed; in the air the drag lifts it further
+  let trail = -0.30 * spd;
+  if (!ctx.grounded) trail -= Math.min(0.35, 0.02 * Math.max(0, -(ctx.vy || 0)));
+  const rate = 2.0 + 3.0 * spd;
+  for (let c = 0; c < CLOAK_COLS.length; c++) {
+    const wave = Math.sin(t * rate + c * 0.8);
+    const swing = trail + (0.03 + 0.075 * spd) * wave;
+    const fan = (0.02 + 0.05 * spd) * Math.sin(t * rate * 0.7 + c * 1.3);
+    for (let r = 0; r < 3; r++) {
+      const b = rb[`cape${CLOAK_COLS[c]}${r + 1}`];
+      if (!b) continue;
+      b.rotation.z = swing * CLOAK_ROW_K[r];
+      b.rotation.x = fan * CLOAK_ROW_K[r];
+    }
+  }
+}
+
 // helper for post hooks: is an attack clip (non-looping action) playing?
 function attacking(anim) {
   return !!(anim.action && !anim.action.fadingOut && !anim.action.clip.loop);
@@ -216,27 +303,37 @@ export const GLB_ANIM = {
   },
   colossus: {},  // artillery biped — direct map (mortars procedural-only)
 
-  // WRAITH — the GLB's own cape geometry is a static drape (its punch-worthy
-  // arm chain is remapped in the manifest), so the WING-LASER heavy wears the
-  // PROCEDURAL cape instead: build() attaches the same cloak/cloakL/cloakR
-  // rig + blade strips + wing0..5 emitters from designs/wraith.js onto the
-  // virtual torso joint. It stays hidden in normal play and GROWS out while
-  // the heavy runs (heavyFlare/heavyRaise then spread and fan it exactly as
-  // on the procedural mech, and heavyImpactFx fires from the same wing tips).
-  // The body itself swaps the lift-off hover clip for a grounded forward lean.
+  // WRAITH — hand-placed CUSTOM RIG (src/mechs/rigs/wraith.rig.js), so this
+  // profile reads very differently from the old Tripo build kept as `alt`
+  // (wraith_alt below):
+  //   • the rifle is in the model's LEFT hand and the rig is named
+  //     anatomically, so `mirrorArms` plays the right-arm clip tracks on the
+  //     arm that actually holds the gun — no crossed bones, no hand-written
+  //     punch fixup (the alt still needs one; see wraith_alt).
+  //   • the gun hangs MUZZLE-DOWN, so a ranged shot levels the barrel first
+  //     (levelBarrel) — the muzzle anchor rides the rifle's own tip bone.
+  //   • the model's cloak is a real four-column chain now, so it SWAYS.
+  // The WING-LASER heavy still wears the PROCEDURAL cape: build() attaches the
+  // cloak/cloakL/cloakR rig + blade strips + wing0..5 emitters from
+  // designs/wraith.js onto the virtual torso joint. It stays hidden in normal
+  // play and GROWS out while the heavy runs (heavyFlare/heavyRaise spread and
+  // fan it exactly as on the procedural mech, and heavyImpactFx fires from the
+  // same wing tips). The body swaps the lift-off hover clip for a grounded lean.
   wraith: {
-    build(mech, def) {
-      const A = new Assembler();
-      wraithCloak(A, mech.dims, mech.joints, mech.anchors);
-      A.build(mech.joints, wraithMats(def));
-      // wrapper between torso and cloak: the grow-in scale lives here so it
-      // never fights heavyFlare, which SETS the cloak joint's own scale
-      const capeRoot = new THREE.Group();
-      mech.joints.torso.add(capeRoot);
-      capeRoot.add(mech.joints.cloak);
-      capeRoot.visible = false;
-      mech.capeRoot = capeRoot;
+    mirrorArms: true,
+    build: wraithBuild,
+    clipOverrides: { wraithLasers: GLB_CLIP_VARIANTS.wraithLasersGlb },
+    post(anim, dt, ctx, tgt) {
+      levelBarrel(anim, tgt);
+      swayCloak(anim, dt, ctx);
+      wraithCapeGrow(anim, dt);
     },
+  },
+  // WRAITH (alt) — the original Tripo auto-rig build, kept for comparison.
+  // Its manifest CROSSES the arms (handR mapped onto the gun arm), so it must
+  // NOT mirror, and its splayed bind needs the punch fixup below.
+  wraith_alt: {
+    build: wraithBuild,
     clipOverrides: { wraithLasers: GLB_CLIP_VARIANTS.wraithLasersGlb },
     post(anim, dt, ctx, tgt) {
       // LEFT (claw / non-gun) arm: this GLB's left-arm bones sit splayed
@@ -254,14 +351,7 @@ export const GLB_ANIM = {
         const ep = tgt.elbowL;
         if (ep) { ep[1] *= 1 - 0.9 * k; ep[2] *= 1 - 0.9 * k; }
       }
-      const cr = anim.mech.capeRoot;
-      if (!cr) return;
-      const act = anim.action;
-      const playing = !!act && !act.fadingOut && act.clip.name === 'wraithLasers';
-      const k = lerp(anim._capeK || 0, playing ? 1 : 0, 1 - Math.exp(-10 * dt));
-      anim._capeK = k;
-      cr.visible = k > 0.03;
-      if (cr.visible) cr.scale.setScalar(Math.max(0.001, k));
+      wraithCapeGrow(anim, dt);
     },
   },
   inferno: {},   // flamer biped — direct map (levelHands is shape-shared)
