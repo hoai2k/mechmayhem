@@ -16,9 +16,14 @@
 // clip registry. Keep in sync when a new clip gets played somewhere.
 import { CLIPS } from '../mechs/animations.js';
 
-// played for every mech regardless of loadout
+// Played for every mech regardless of loadout. 'heavy' is here on purpose even
+// for mechs with their own heavyClip: an AIRBORNE heavy is the generic ground
+// smash (fighter.doHeavy plays 'heavy' at 1.5x when plunging), and 'groundPound'
+// is the landing of that plunge. 'hangGrab' is the ledge catch.
 const UNIVERSAL = ['intro', 'victory', 'taunt', 'block', 'hitFlinch',
-  'launched', 'knockdown', 'getup', 'dead', 'heavy'];
+  'launched', 'knockdown', 'getup', 'dead', 'heavy', 'groundPound', 'hangGrab'];
+// channel weapons hold one looping clip instead of a per-shot one
+const CHANNEL_TYPES = new Set(['gatling', 'flame', 'hose']);
 
 // roster moves.special.id -> clips that special casts
 const SPECIAL_CLIPS = {
@@ -58,24 +63,63 @@ const RANGED_BY_TYPE = { mortar: ['brace', 'braceL'], railgun: ['aim'], groundpo
 // The set of clips `def` can play. `profile` is the mech's glbanim profile
 // (its clipOverrides swap a clip's CONTENT under the same action name, and
 // its lightClips replace the light-attack chain).
-export function mechClips(def, profile) {
+// [{ name, role }] for every clip `def` can play, sorted by name. `role` says
+// what that clip IS for this mech ("Heavy", "Ranged", "Ult — TSUNAMI"), because
+// the clip NAMES alone are misleading: picking the one called "heavy" on cranky
+// gets you the generic airborne smash, while his actual heavy is "clawSnap".
+// `profile` is the mech's glbanim profile (its clipOverrides swap a clip's
+// CONTENT under the same action name; its lightClips replace the light chain).
+export function mechClipList(def, profile) {
   if (!def) return [];
-  const out = new Set(UNIVERSAL);
-  const add = (list) => { for (const c of list || []) if (c) out.add(c); };
+  const roles = new Map();   // name -> Set(role)
+  const add = (list, role) => {
+    for (const c of list || []) {
+      if (!c) continue;
+      if (!roles.has(c)) roles.set(c, new Set());
+      if (role) roles.get(c).add(role);
+    }
+  };
+  add(['intro', 'victory', 'taunt'], 'Emote');
+  add(['block', 'hitFlinch', 'launched', 'knockdown', 'getup', 'dead'], 'Reaction');
+  // an AIRBORNE heavy is the generic smash whatever the mech's own heavy is,
+  // and groundPound is that plunge landing
+  add(['heavy'], 'Heavy (airborne smash)');
+  add(['groundPound'], 'Plunge landing');
+  add(['hangGrab'], 'Ledge grab');
 
-  add(profile?.lightClips || def.lightClips || ['light1', 'light2', 'light3']);
-  add([def.heavyClip, def.heavyReleaseClip, def.channelClip || 'shootLoop']);
+  // LIGHT: a punchHold mech (titanus/colossus) never plays its lightClips —
+  // doLight swaps the whole chain for the charge/release pair.
+  if (def.punchHold) {
+    add(['punchHold1', 'punchHold2'], 'Light charge');
+    add(['punchRelease1', 'punchRelease2'], 'Light release');
+  } else {
+    add(profile?.lightClips || def.lightClips || ['light1', 'light2', 'light3'], 'Light');
+  }
+  add([def.heavyClip], def.heavyHold ? 'Heavy charge' : 'Heavy');
+  add([def.heavyReleaseClip], 'Heavy release');
 
   const mv = def.moves || {};
   if (mv.ranged) {
-    if (def.rangedClip) add([def.rangedClip]);
-    else add(RANGED_BY_TYPE[mv.ranged.type] || ['shoot']);
+    // doRanged: a channel weapon loops ONE clip; everything else fires a
+    // per-shot clip, and only one of these branches can ever run.
+    if (CHANNEL_TYPES.has(mv.ranged.type)) add([def.channelClip || 'shootLoop'], 'Ranged (channel)');
+    else if (def.rangedClip) add([def.rangedClip], 'Ranged');
+    else add(RANGED_BY_TYPE[mv.ranged.type] || ['shoot'], 'Ranged');
+    if (mv.ranged.type === 'fist') add(['fistCatch'], 'Catch fist');
   }
-  add(SPECIAL_CLIPS[mv.special?.id]);
-  add(ULT_CLIPS[mv.ult?.id]);
-  add(FINISHER_CLIPS[def.id]);
+  add(SPECIAL_CLIPS[mv.special?.id], `Special — ${mv.special?.name || mv.special?.id}`);
+  add(ULT_CLIPS[mv.ult?.id], `Ult — ${mv.ult?.name || mv.ult?.id}`);
+  add(FINISHER_CLIPS[def.id], 'Finisher');
 
   // only names that resolve to a real clip (or a profile override of one)
   const over = profile?.clipOverrides || {};
-  return [...out].filter((n) => CLIPS[n] || over[n]).sort();
+  return [...roles.entries()]
+    .filter(([n]) => CLIPS[n] || over[n])
+    .map(([name, r]) => ({ name, role: [...r].join(' · ') }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// names only — the filter the skin workbench matches bones against
+export function mechClips(def, profile) {
+  return mechClipList(def, profile).map((c) => c.name);
 }
