@@ -360,12 +360,6 @@ export class ProjectileSystem {
       // fighters (nearest-image distance across the seam)
       for (const f of world.fighters) {
         if (f === p.owner || !f.alive || p.hitSet.has(f)) continue;
-        // projectilePhantom: the ?debug=models workbench parks invisible AIM
-        // targets a couple of metres in front of each mech. A fast round
-        // (Viper's 55 u/s thrown blade) covers that gap inside a single frame,
-        // so the shot died on spawn and only its impact particles were ever
-        // drawn. Phantoms steer the aim; they never eat the projectile.
-        if (f.projectilePhantom) continue;
         if (f.iframes > 0) continue;
         const c = f.center();
         const rr = f.hitRadius + 0.5;

@@ -6,8 +6,9 @@
 //    projectiles, so you can compare the two renderings in motion. A speed
 //    slider slow-mos everything; a status panel names the current action and
 //    its known characteristics, tagging any that apply to only one version.
-//    Each model faces an invincible dummy stood just in front (attacks that
-//    need a target engage it; ground attacks hit the floor here too).
+//    The stage is EMPTY of opponents: attacks aim at combat's own no-target
+//    phantom (Fighter.aimPhantom), so a preview shows the exact trajectory the
+//    move takes in a real match with nothing in front of the mech.
 //  • POSE — both models frozen at the deterministic rest. A per-bone gizmo
 //    poses the GLB to match the procedural; "Output config" emits a manifest
 //    patch (boneCorrections / bonePos). A head-height guide shows the
@@ -25,7 +26,6 @@ import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
 import { buildGlbForTool, fetchRawManifest, measureHeadTop } from '../mechs/gltf.js';
 import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
-import { applyColorScheme } from '../mechs/colorscheme.js';
 import { JOINT_ORDER } from '../mechs/rigadapter.js';
 import { describeAction, ACTIONS } from './actionchars.js';
 import { anchorUses } from './anchoruses.js';
@@ -84,13 +84,12 @@ export async function runPoseTool(startId) {
   let timeScale = 1;
 
   // ---- live state ----
-  let procF = null, glbF = null, procDummy = null, glbDummy = null;
+  let procF = null, glbF = null;
   let selJoint = null;
   const base = {};                         // gizmo baseline (pose mode)
   const refGroup = new THREE.Group(); scene.add(refGroup);
   const scratch = blankIntent(), pad = blankIntent(), prev = {};
   let lastAction = 'idle';
-  let dummyPost = 8;   // z distance of the invisible aim targets
   // ---- anchor editor state ----
   let selAnchor = null;              // anchor name the anchor gizmo holds
   const anchorBase = {};             // name -> {parent, pos, rot} captured at load
@@ -207,7 +206,7 @@ export async function runPoseTool(startId) {
     gizmo.detach(); selJoint = null;
     anchorGizmo.detach(); selAnchor = null;
     for (const k of Object.keys(base)) delete base[k];
-    for (const f of [procF, glbF, procDummy, glbDummy]) disposeFighter(f);
+    for (const f of [procF, glbF]) disposeFighter(f);
     world.fighters.length = 0;
     if (Array.isArray(world.projectiles)) world.projectiles.length = 0;
 
@@ -226,22 +225,16 @@ export async function runPoseTool(startId) {
     glbF = makeFighter(def, PAIR_X, { pi: 1, mech: built.mech });
     altRow.style.display = manifest[id]?.alt?.url ? 'flex' : 'none';
     altCheck.checked = !!useAlt;
-    // dummies stand just in front (heavy reach + a hair) as attack targets
-    const drange = (def.moves?.heavy?.range ?? 4) + 1.5;
-    const ddef = applyColorScheme(ROSTER_BY_ID.titanus, 3);
-    procDummy = new Fighter(world, ddef, { pos: new THREE.Vector3(-PAIR_X, 0, drange), yaw: Math.PI, playerIndex: 2, isAI: true });
-    glbDummy = new Fighter(world, ddef, { pos: new THREE.Vector3(PAIR_X, 0, drange), yaw: Math.PI, playerIndex: 3, isAI: true });
-    procDummy.controlsLocked = glbDummy.controlsLocked = true;
-    // the dummies are pure AIM TARGETS: never rendered, pinned to their posts
-    // every frame (dummyPost) so targeted attacks aim as if an enemy stood
-    // just in front — without an enemy cluttering the comparison view.
-    // They must not SWALLOW ranged shots either: parked at melee reach, they
-    // sat inside the first frame of a fast projectile's flight, so the round
-    // spawned and died on the same tick and only its impact sparks rendered.
-    procDummy.group.visible = glbDummy.group.visible = false;
-    procDummy.projectilePhantom = glbDummy.projectilePhantom = true;
-    dummyPost = drange;
-    world.fighters.push(procF, glbF, procDummy, glbDummy);
+    // NO stand-in enemies on the stage. Attacks aim at the combat code's own
+    // no-target phantom (Fighter.aimPhantom): an imagined opponent dead ahead
+    // at the move's ideal distance — close for melee, out at working range for
+    // a gun. That is the same trajectory the mech takes in a real match with
+    // nothing in front of it, so what the workbench previews is the shipping
+    // behaviour rather than a rig-only special case. The two previewed mechs
+    // are flagged ALLIES of each other so neither counts as the other's
+    // nearest enemy and slews to aim across the stage.
+    procF.allyOf = glbF;
+    world.fighters.push(procF, glbF);
 
     window.__poseDebug = { proc: procF.mech, glb: glbF.mech, procF, glbF, world, engine, camera, scene,
       // anchor-editor hooks (scripting / automated checks)
@@ -780,15 +773,6 @@ export async function runPoseTool(startId) {
         copyIntent(f.intent, scratch);
         f.hp = f.maxHp; f.ult = 1; f.specialCd = 0; f.rangedCd = 0; f.iframes = 0;
         if (f.ammoMax !== undefined) f.ammo = f.ammoMax;
-      }
-      // pin the invisible aim targets to their posts (knockback would drift
-      // them, and a drifted target skews the next attack's aim)
-      for (const [d, x] of [[procDummy, -PAIR_X], [glbDummy, PAIR_X]]) {
-        d.hp = d.maxHp;
-        if (!d.alive) { d.alive = true; d.hp = d.maxHp; d.state = 'normal'; }
-        d.pos.set(x, 0, dummyPost);
-        d.vel.set(0, 0, 0);
-        d.yaw = d.targetYaw = Math.PI;
       }
       world.update(dt);      // dt pre-scaled by engine.timeScale
       if (selAnchor) {
