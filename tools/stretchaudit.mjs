@@ -50,7 +50,14 @@ for (const id of ids) {
     // ancestors) — so sweep those, and flags = what can actually tear in play
     const { fetchRawManifest } = await import('/src/mechs/gltf.js');
     const manifest = await fetchRawManifest();
-    const mappedNames = new Set(Object.values(manifest[id]?.boneOverrides || {}));
+    // CUSTOM-RIG entries (manifest `rig`) carry no boneOverrides — their bones
+    // ARE the game joints, so the driven set is JOINT_ORDER by name. Without
+    // this the mapped set comes out empty and the audit sweeps nothing,
+    // reporting a vacuous "0 flagged" for every re-rigged mech.
+    const { JOINT_ORDER } = await import('/src/mechs/rigadapter.js');
+    const mappedNames = manifest[id]?.rig
+      ? new Set(JOINT_ORDER)
+      : new Set(Object.values(manifest[id]?.boneOverrides || {}));
     const t = window.__skinTool;
     if (!t?.mesh) return { error: 'workbench not ready' };
     const mesh = t.mesh;
