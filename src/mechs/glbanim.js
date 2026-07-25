@@ -206,17 +206,15 @@ export const GLB_ANIM = {
       const m = anim.mech;
       if (attacking) {
         tgt.hipsRot[1] *= 0.2; tgt.torso[1] *= 0.2; tgt.torso[2] *= 0.4;
-        // STRONG attack (clawSnap): the shared "clamp" swings each shoulder so
-        // far inboard the giant pincers CROSS past the centerline. Cap the
-        // inward yaw so the two claws MEET and smash together in the middle
-        // instead of passing through each other. (Left inward yaw is +, right
-        // is -, so min/max only clips the clamp, not the wind-up spread.)
+        // clawSnap is a straight-ahead CLAP — the clip reaches the arms
+        // outstretched wide then drives them together at the centerline. Square
+        // the body up HARD through it so the giant pincers travel straight in
+        // instead of sweeping across the torso (which reads as a body turn).
+        // Overlapping pincers at the peak are fine; the lateral travel is the move.
         if (act.clip.name === 'clawSnap') {
-          const CAP = 0.20;
-          tgt.shoulderL[1] = Math.min(tgt.shoulderL[1], CAP);
-          tgt.shoulderR[1] = Math.max(tgt.shoulderR[1], -CAP);
-          tgt.handL[1] = Math.min(tgt.handL[1], CAP);
-          tgt.handR[1] = Math.max(tgt.handR[1], -CAP);
+          tgt.hipsRot[1] *= 0.1;
+          tgt.torso[1] *= 0.1;
+          tgt.torso[2] *= 0.25;
         }
       }
       // Pincer clench — drives the clawL/clawR jaw bones (not game joints, so
@@ -259,11 +257,17 @@ export const GLB_ANIM = {
         ['legMLhip', 1, 1, 0.5], ['thighR', 1, -1, 1.0],
       ].map(([n, g, sx, amp]) => ({ b: byName[n], g, sx, amp })).filter((l) => l.b);
       for (const l of legs) { l.bx = l.b.rotation.x; l.by = l.b.rotation.y; l.bz = l.b.rotation.z; }
-      // movable pincer jaws (custom-rig claw bones, children of the hands) —
-      // swung open/closed by _clawClench about local X (the jaws gape down at
-      // rest, so +X opens wider and -X clamps them shut; both claws same sign).
-      const claws = ['clawL', 'clawR']
-        .map((n) => ({ b: byName[n], rx: byName[n]?.rotation.x || 0 })).filter((c) => c.b);
+      // Movable pincer jaws (custom-rig claw bones, children of the hands).
+      // Each claw's MOVABLE jaw is isolated onto claw*/ the fixed jaw + palm onto
+      // hand* by the jaw-split skinOps in the manifest — without that split the
+      // whole pincer head sits on one bone and rotating it just flicks the claw
+      // as a rigid lump instead of opening it.
+      // The two pincers are MIRRORED, so they clamp on OPPOSITE local-X
+      // directions (measured on the skinned mesh: left jaw closes on +X, right
+      // on -X). A single shared sign would open one claw while closing the other.
+      const claws = [['clawL', 1], ['clawR', -1]]
+        .map(([n, close]) => ({ b: byName[n], close, rx: byName[n]?.rotation.x || 0 }))
+        .filter((c) => c.b);
       mech.postDress = () => {
         const k = mech._walkK || 0;
         const ph = mech._gaitPhase || 0;
@@ -276,10 +280,13 @@ export const GLB_ANIM = {
             l.b.rotation.set(l.bx + lift * l.sx, l.by, l.bz + sweep);
           }
         }
-        // pincer open/close: -X clamps the jaw shut, +X gapes it open
+        // pincer open/close: clench +1 clamps shut, negative gapes open. The two
+        // jaws are ONE connected shell, so the split boundary shears as the jaw
+        // swings — keep the angle modest: enough to read as a snap, small enough
+        // that the knuckle doesn't visibly tear.
         const cc = mech._clawClench || 0;
-        const A = 0.55;                                               // full-clench angle
-        for (const c of claws) c.b.rotation.x = c.rx - cc * A;
+        const A = 0.30;                                               // full-clench angle
+        for (const c of claws) c.b.rotation.x = c.rx + cc * A * c.close;
       };
     },
   },

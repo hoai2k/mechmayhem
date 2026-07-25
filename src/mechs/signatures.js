@@ -260,15 +260,14 @@ export const SIGNATURES = {
       const jw = J['jaw' + sd];
       if (jw) jw.rotation.x = lerp(jw.rotation.x, -gape, dt * (striking ? 22 : 8));
     }
-    // STRONG attack (clawSnap): the shared "clamp" swings each shoulder so far
-    // inboard the giant pincers CROSS past the centerline. Cap the inward yaw
-    // (min/max — the wind-up spread is untouched) so the claws MEET at the
-    // middle instead of passing through each other. Mirrors the GLB fix in
-    // glbanim.js's cranky profile.
+    // clawSnap is a straight-ahead CLAP: the clip reaches the arms outstretched
+    // wide, then drives them together at the centerline. Keep the body square
+    // through it (no boxer twist) so the read is "stretch out, smash in the
+    // middle" and never a cross-body sweep. Overlapping pincers at the peak are
+    // fine — the sideways travel IS the move.
     if (striking && act.clip.name === 'clawSnap') {
-      const CAP = 0.20;
-      tgt.shoulderL[1] = Math.min(tgt.shoulderL[1], CAP);
-      tgt.shoulderR[1] = Math.max(tgt.shoulderR[1], -CAP);
+      tgt.hipsRot[1] *= 0.15;
+      tgt.torso[1] *= 0.15;
     }
     // crab SCUTTLE: stride-synced shell roll + waddle yaw so the walk
     // reads sideways-crabby (via tgt — the smoother owns hips/torso)
