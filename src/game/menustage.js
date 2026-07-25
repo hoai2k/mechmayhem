@@ -4,6 +4,7 @@
 // preview rings.
 import * as THREE from 'three';
 import { ROSTER_BY_ID, playableRoster, isPlayable } from '../mechs/roster.js';
+import { randomLineup } from './lineup.js';
 import { applyColorScheme } from '../mechs/colorscheme.js';
 import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
@@ -96,8 +97,9 @@ export class MenuStage {
     return mech;
   }
 
-  // title line-up: three hero mechs
-  showLineup(ids = ['titanus', 'viper', 'nova']) {
+  // title line-up: three hero mechs, freshly dealt on every visit to the
+  // title screen (boot.js calls this each time the title comes up)
+  showLineup(ids = randomLineup()) {
     this.clearMechs();
     // a hidden (work-in-progress) hero is swapped for a playable stand-in
     // so the title screen never advertises a mech the game won't offer
