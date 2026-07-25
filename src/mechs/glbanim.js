@@ -62,6 +62,8 @@ const CRANKY_CARRY = {
   elbowL: [-0.34, 0, 0], elbowR: [-0.34, 0, 0],
   handL: [0, 0.14, 0], handR: [0, -0.14, 0],
 };
+// Extra shoulder yaw cocked back/out on the wind-up of every Cranky attack.
+const CRANKY_WINDBACK = 0.5;
 
 export function mirrorJointName(j) {
   if (j.endsWith('L')) return j.slice(0, -1) + 'R';
@@ -226,7 +228,28 @@ export const GLB_ANIM = {
           tgt.torso[1] *= 0.1;
           tgt.torso[2] *= 0.25;
         }
+        // WIND BACK: before the strike goes forward, cock BOTH shoulders far
+        // back/out to the sides — a crab loads its pincers wide, it doesn't jab
+        // from a neutral guard. Triangular envelope: swells to a peak just
+        // before the strike frame, then unwinds as the claws drive in. Yaw only,
+        // so it stacks on the clip's own swing without touching the pitch the
+        // no-droop clamp below owns.
+        const wph = Math.min(1, act.t / act.clip.dur);
+        const wind = wph < 0.34 ? wph / 0.34 : Math.max(0, 1 - (wph - 0.34) / 0.24);
+        tgt.shoulderL[1] -= CRANKY_WINDBACK * wind;
+        tgt.shoulderR[1] += CRANKY_WINDBACK * wind;
       }
+      // SHELL LOCK: head + torso are one rigid carapace on this crab, so the
+      // head never rotates relative to the torso — pin it to its rest carriage
+      // and let the torso carry it. (The mouth plate rides the shell too, but
+      // it hangs off `hips` in the rig, so postDress re-seats it on the torso.)
+      for (let i = 0; i < 3; i++) tgt.head[i] = anim.rest.head[i];
+      // NO-DROOP: his neutral already rests the claws ON the floor, so ANY
+      // downward arm travel drives them through it — which is what had the idle
+      // arm propping the body up during a light. Positive shoulder pitch lowers
+      // the arm here, so neutral is a hard floor: arms may only rise from rest.
+      tgt.shoulderL[0] = Math.min(tgt.shoulderL[0], anim.rest.shoulderL[0]);
+      tgt.shoulderR[0] = Math.min(tgt.shoulderR[0], anim.rest.shoulderR[0]);
       // Pincer clench — drives the clawL/clawR jaw bones (not game joints, so
       // the retarget never touches them) via postDress below. Jaws spread OPEN
       // on the wind-up, SNAP shut through the strike, then ease back open.
@@ -291,6 +314,18 @@ export const GLB_ANIM = {
       const claws = [['clawL', 1], ['clawR', -1]]
         .map(([n, close]) => ({ b: byName[n], close, rx: byName[n]?.rotation.x || 0 }))
         .filter((c) => c.b);
+      // SHELL LOCK (mouth): the mouth plate is part of the same carapace as the
+      // torso, but the rig hangs it off `hips`, so a torso tilt tore it away
+      // from the shell. Bank its bind transform IN TORSO SPACE now, then re-seat
+      // it there every frame — a rigid parent constraint without re-parenting
+      // the rig (which would change what the skinning binds to).
+      const torsoB = byName.torso, mouthB = byName.mouth;
+      let mouthOffset = null;
+      if (torsoB && mouthB && mouthB.parent) {
+        mech.group.updateMatrixWorld(true);
+        mouthOffset = new THREE.Matrix4().copy(torsoB.matrixWorld).invert().multiply(mouthB.matrixWorld);
+      }
+      const _mm = new THREE.Matrix4(), _pinv = new THREE.Matrix4();
       mech.postDress = () => {
         const k = mech._walkK || 0;
         const ph = mech._gaitPhase || 0;
@@ -310,6 +345,14 @@ export const GLB_ANIM = {
         const cc = mech._clawClench || 0;
         const A = 0.30;                                               // full-clench angle
         for (const c of claws) c.b.rotation.x = c.rx + cc * A * c.close;
+        // re-seat the mouth plate rigidly on the torso (see build)
+        if (mouthOffset) {
+          torsoB.updateMatrixWorld(true);
+          _mm.multiplyMatrices(torsoB.matrixWorld, mouthOffset);       // want, in world
+          _pinv.copy(mouthB.parent.matrixWorld).invert();
+          _mm.premultiply(_pinv);                                      // -> parent space
+          _mm.decompose(mouthB.position, mouthB.quaternion, mouthB.scale);
+        }
       };
     },
   },
