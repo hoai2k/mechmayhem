@@ -73,6 +73,17 @@ const RHINO_LEVEL = -82.7 * Math.PI / 180;
 // Lead angle that cancels the animator's pose-chase lag at the fire frame.
 const RHINO_LEAD = 14 * Math.PI / 180;
 
+// GLACIER (GLB): same idea for the ICE LANCE in his LEFT hand. Measured on
+// this rig by sweeping shoulderL+elbowL pitch and reading the muzzleL axis:
+// the lance's authored +Z tracks the joint-pitch sum exactly (muzzle pitch =
+// −62.1° − sum), so a sum of −62.1° puts the lance tip on the horizon. The
+// shared shot clip drives the arm to −104/−18 = −122°, which would throw the
+// whole barrage ~44° into the sky.
+const GLACIER_LEVEL = -62.1 * Math.PI / 180;
+// Lead past level while the arm is still climbing — the animator chases pose
+// targets at a finite rate and the first icicle leaves at 20% into the clip.
+const GLACIER_LEAD = 12 * Math.PI / 180;
+
 export function mirrorJointName(j) {
   if (j.endsWith('L')) return j.slice(0, -1) + 'R';
   if (j.endsWith('R')) return j.slice(0, -1) + 'L';
@@ -358,7 +369,34 @@ export const GLB_ANIM = {
   // reinterpretation is the flame channel: his torches are forearm barrels, so
   // the shared shootLoop's folded elbows pointed them at the sky.
   inferno: { clipOverrides: { shootLoop: GLB_CLIP_VARIANTS.infernoFlameGlb } },
-  glacier: {},   // heavy biped — direct map
+  // GLACIER — heavy biped, direct map except for the shot. The Icicle Barrage
+  // fires from the ICE LANCE in his LEFT hand (roster rangedMuzzle/rangedClip),
+  // and this GLB's bind hangs that arm straight down with the lance angled
+  // further down still, so the shared shootL clip swings it past level and the
+  // barrage sprays skyward. Hold the lance arm on the level line (with a hard
+  // ceiling, so the clip's overshoot can't lift it again) for the length of the
+  // shot, and counter-steer the shoulder yaw against the recoil twist so the
+  // icicles fly parallel to the facing. Only the lance arm is touched — the off
+  // arm keeps the clip's counter-pose, and every other clip is untouched.
+  glacier: {
+    post(anim, dt, ctx, tgt) {
+      const act = anim.action;
+      if (!act || act.fadingOut || act.clip.name !== 'shootL') return;
+      const sh = tgt.shoulderL, el = tgt.elbowL;
+      if (!sh || !el) return;
+      // ramp in/out so the hold doesn't pop at the clip seams
+      const ph = Math.min(1, act.t / act.clip.dur);
+      const k = ph < 0.12 ? ph / 0.12 : ph > 0.62 ? Math.max(0, 1 - (ph - 0.62) / 0.3) : 1;
+      const level = GLACIER_LEVEL - el[0] - (ph < 0.3 ? GLACIER_LEAD * (1 - ph / 0.3) : 0);
+      sh[0] = Math.max(lerp(sh[0], level, k), level);
+      // The shot clip twists the torso into the recoil, and with the lance now
+      // held level that twist reads straight through to the barrel's yaw — it
+      // walked the fan out to 11° off the facing across the barrage. Counter-
+      // steer the shoulder by the same yaw so the body still rocks but the
+      // lance keeps pointing where the mech is pointing (peak drift 3°).
+      sh[1] -= (tgt.torso?.[1] || 0) * k;
+    },
+  },
   // CRANKY — the Tripo auto-rig welded both giant claws onto one leg bone and
   // buried the arm chains in the thin walking-legs, so the shipped rig swung a
   // back leg on attacks while the claws sat dead (the reported bug). It's fixed

@@ -878,8 +878,8 @@
   },
   "glacier": {
     "muzzles": {
-      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[12,0,0]},
-      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[12,0,0]}
+      "R": {"bone":"handR","offset":[-0.304,0.92,-0.079],"rot":[101.33,23.46,-88.65]},
+      "L": {"bone":"handL","offset":[0.972,-0.356,0.091],"rot":[79.43,39.93,-92.21]}
     },
     "url": "models/mech_glacier.glb",
     "modelScale": 8.9336,

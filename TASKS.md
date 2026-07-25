@@ -2682,3 +2682,54 @@ controllers via Gamepad API), AI opponents.
   that re-rig — measured, the re-rig would have grown him 5.3% (h 6.73 -> 7.09)
   under the old derived path, and the pin held him at his size of record with no
   intervention. wraith's new `alt` slot was pinned too (21 slots now).
+## Glacier: new rig/anchors, child-span re-skin, and the lance shoots (user request, 2026-07-25)
+
+- `rigs/glacier.rig.js` rebuilt on the user's new bone positions (the whole
+  skeleton sits higher — hips 0.42→0.56, shoulders 0.62→0.78, knees 0.22→0.37),
+  and the manifest `muzzles` replaced with the user's bone-mounted pair:
+  `handR`/`handL` with authored offsets + rots (was the generic in-hand
+  `joint` pair). muzzleL now rides the ICE LANCE, and its authored +Z is the
+  lance axis — measured 6° off the geometric hand→blade-tip line, at rest and
+  through the shot.
+- **Skinning**: switched the rig to `skinSpan: 'child'` (the fenrir treatment).
+  Under the old default 'parent' spans every bone owned the slice ABOVE it —
+  the upper arm was on `elbow`, the thigh on `knee`, the shin on `ankle`, the
+  forearm on `hand` — so every bend swung the segment on the wrong side of the
+  joint. Added the tip bones that mode needs (`lanceL`, `clawR`, `footL/R`,
+  `crest`, `backSpine`): static, non-joint bones that exist only to give the
+  last driven joint of each chain a span to reach along. Re-tuned bias against
+  the new spans — notably shoulders at 0.7, BELOW the torso's 0.8, because the
+  spiked pauldrons sit above the shoulder joint (outside shoulder→elbow) and
+  the torso→shoulder span ends at the same point, so without the tie-break the
+  pauldrons weld to the chest and the arms raise out of them.
+- Result A/B'd on an isolated raised-arm pose: 'parent' sheared the left
+  pauldron into a wedge stretched across the chest; 'child' keeps it whole and
+  carries it up with the arm. Vertex ownership now reads correctly per bone
+  (shoulder = upper arm, elbow = forearm, hand = hand + lance, knee = shin,
+  ankle = foot, head = skull at 3046 verts instead of 196).
+- **Ranged attack moved to the armed hand.** `fireRanged` (world.js) took the
+  primary barrel off a hard-coded `anchors.muzzleR`; a mech can now name it
+  with roster `rangedMuzzle`, and the anchor is passed to the weapon handlers
+  as ctx `muzzle` so `shard` re-reads the LIVE barrel each of its 6 ticks.
+  Glacier gets `rangedMuzzle: 'muzzleL'` + `rangedClip: 'shootL'` (the existing
+  mirror of `shoot`), so the Icicle Barrage leaves the lance instead of the
+  empty claw. No-op for every other mech (default is still muzzleR).
+- **And it points forward.** New `GLB_ANIM.glacier` post hook (the rhino
+  pattern): while `shootL` plays, hold shoulderL+elbowL pitch on the
+  lance-horizontal line — `GLACIER_LEVEL = -62.1°`, measured by sweeping the
+  joint-pitch sum against the muzzle axis (muzzle pitch = −62.1° − sum, dead
+  linear) — with a hard `max()` ceiling and a 12° lead for the animator's
+  pose-chase lag. Also counter-steers shoulder yaw against the clip's recoil
+  twist, which with a level lance was walking the fan sideways.
+- Measured on the GLB: muzzle pitch at the fire frame **+44° → +1.3°**, and
+  within +1.6..−4.9° across the whole 6-icicle burst; yaw drift 11° → 3°.
+  Live ace battle: all 12 shards spawn AT muzzleL (distance 0.00), launch
+  pitch −15.5..−19.5° tracking a shorter target, yaw −0.6..−8.4° off facing.
+  Procedural route (`?debug=fallback`) also fires from muzzleL: pitch −1.8°
+  mean, yaw +0.8° mean.
+- Verified: idle/walk/block/heavy/punch frames VIEWed (no tearing, pauldrons
+  and lance intact), lance confirmed straight and undeformed from a top-down
+  view of the fire frame, lineup coherent; ace soaks crash-free
+  glacier/viper (GLB), glacier/cranky (GLB), glacier/titanus
+  (`?debug=fallback`); `?rigedit=glacier` and `?rigtest` clean; no new
+  contract violations; `vite build` green.

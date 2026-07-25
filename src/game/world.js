@@ -476,7 +476,13 @@ export class World {
   // ranged attack dispatch (single shots and channel ticks)
   fireRanged(f, mv) {
     const anchors = f.mech.anchors;
-    const from = anchors.muzzleR.getWorldPosition(new THREE.Vector3());
+    // THE PRIMARY BARREL. Almost every mech shoots from the right hand, so
+    // muzzleR is the default. A mech that carries its weapon in the OTHER hand
+    // (GLACIER's ice lance) names its barrel with roster `rangedMuzzle` and
+    // pairs it with the mirrored clip (`rangedClip: 'shootL'`) — otherwise the
+    // shot would leave an empty fist while the armed arm hangs at his side.
+    const muzzle = anchors[f.def.rangedMuzzle] || anchors.muzzleR;
+    const from = muzzle.getWorldPosition(new THREE.Vector3());
     const e = f.nearestEnemy();
     // AIMED shot (human held RB): fly straight at the crosshair's world
     // point — full manual control, including pitch. No assist.
@@ -528,11 +534,11 @@ export class World {
     const baseDir = dir.clone();
     const dirFrom = (a, out = new THREE.Vector3()) =>
       out.copy(baseDir).applyQuaternion(barrelDeflect(f, a, _bOff)).normalize();
-    dirFrom(anchors.muzzleR, dir);
+    dirFrom(muzzle, dir);
 
     // per-weapon behavior lives in the WEAPONS table below — same
     // aiming context for every handler
-    WEAPONS[mv.type]?.(this, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom });
+    WEAPONS[mv.type]?.(this, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom, muzzle });
   }
 
 
@@ -824,13 +830,15 @@ const WEAPONS = {
     f.animator.addImpulse('shoulderR', [0.4, 0, 0], 30, 10);
   },
 
-  shard(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // GLACIER: a BARRAGE of icicles — a rapid scattered fan
+  shard(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, muzzle }) { // GLACIER: a BARRAGE of icicles — a rapid scattered fan
     // of frozen spikes off the launcher instead of one lone shard
     const nIce = mv.count || 6;
     for (let i = 0; i < nIce; i++) {
       w.schedule(i * 0.055, () => {
         if (!f.alive) return;
-        const from2 = f.mech.anchors.muzzleR.getWorldPosition(new THREE.Vector3());
+        // re-read the live barrel each tick so the fan pours out of the lance
+        // wherever the recoil/aim has carried it, not the t=0 snapshot
+        const from2 = muzzle.getWorldPosition(new THREE.Vector3());
         const d2 = dir.clone();
         d2.x += rand(-0.055, 0.055);
         d2.y += rand(-0.015, 0.045);
