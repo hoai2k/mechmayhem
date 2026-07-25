@@ -11,14 +11,23 @@
 //
 //   ?debug=skin[&id=<mechId>]
 //
+// Wiggle can run a REAL game clip instead of the synthetic single-bone shake:
+// the "Wiggle animation" dropdown lists every clip that actually drives the
+// selected bone's rig joint, and plays it at 10% speed so the skin deformation
+// is readable. The choice is sticky across bone switches when the new bone has
+// that clip too, else it falls back to Default.
+//
 // Controls: orbit = drag · zoom = wheel · pan = right-drag
 //   click patch = select island · T = textures on/off · W = wiggle bone
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Engine } from '../core/engine.js';
 import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
-import { loadRawGlbScene, fetchRawManifest, skinnedBox } from '../mechs/gltf.js';
+import { loadRawGlbScene, fetchRawManifest, skinnedBox, buildGlbForTool } from '../mechs/gltf.js';
 import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson } from '../mechs/skinops.js';
+import { CLIPS } from '../mechs/animations.js';
+
+const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
 
 export async function runSkinTool(startId) {
   const engine = new Engine(document.getElementById('game-canvas'));
@@ -59,7 +68,20 @@ export async function runSkinTool(startId) {
   let selComp = null;        // selected island (from pristine analysis)
   let mode = 'select';       // select | picktarget
   let texturedMat = null, boneMat = null, showTex = false;
-  let wiggle = null;         // {bone, orig} while wiggling
+  let wiggle = null;         // {bone, orig, clip} while wiggling
+  // ---- real-animation driver ----
+  // The workbench renders the RAW GLB (private geometry, pristine weights), so
+  // it has no rig or animator of its own. To wiggle a bone with an ACTUAL game
+  // clip we build a second, never-rendered mech from the same GLB and use it
+  // purely as a pose source: its Animator + RigAdapter pose its bones, and we
+  // copy those LOCAL rotations onto the raw skeleton by name each frame.
+  let animMech = null;       // hidden driver build
+  let animBones = null;      // Map bone name -> driver bone
+  let jointOfBone = null;    // Map raw bone name -> canonical joint it retargets from
+  let selBone = null;        // the bone Wiggle would move (drives the clip list)
+  let clipNames = [];        // clips that actually animate selBone
+  let preferredClip = null;  // sticky choice, kept across bone switches when possible
+  let clipRestore = null;    // raw bone rotations to put back when a clip stops
   let wigglePaused = false;  // SPACE freezes the wiggle so you can click a
                              // stretched-out piece of geometry
   let hoverInfo = '';
@@ -178,6 +200,8 @@ export async function runSkinTool(startId) {
     if (holder) { scene.remove(holder); holder = null; }
     selComp = null; wiggle = null; wigglePaused = false; ops = []; colorAttr = null;
     undoStack = []; redoStack = [];
+    animMech = null; animBones = null; jointOfBone = null;
+    selBone = null; clipNames = []; clipRestore = null;   // preferredClip is sticky across mechs
     // reset paint mode for the new mesh (indices/islands differ per mech)
     paintMode = false; paintPhase = 'off'; painting = false;
     paintBone = null; paintRegion = null; regionSet = null; regionWorld = null;
@@ -216,6 +240,19 @@ export async function runSkinTool(startId) {
     texturedMat = mesh.material;
     boneMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05 });
     mesh.material = showTex ? texturedMat : boneMat;
+    // Animation driver: same GLB, full rig + Animator, never added to the
+    // scene. Built with skinOps stripped so it can't touch the shared cached
+    // geometry the raw scene was cloned from (it only ever supplies poses).
+    try {
+      const built = await buildGlbForTool(ROSTER_BY_ID[id], { skinOps: [] });
+      if (built?.mech?.isGLB && built.mech.boneMap && built.mech.premadeAnimator) {
+        animMech = built.mech;
+        animBones = new Map();
+        animMech.group.traverse((o) => { if (o.isBone) animBones.set(o.name, o); });
+        jointOfBone = new Map();
+        for (const [j, b] of Object.entries(animMech.boneMap)) if (b?.name) jointOfBone.set(b.name, j);
+      }
+    } catch (e) { console.warn('skintool: animation driver unavailable —', e); }
     // preload the mech's committed ops so Export is a full replacement
     ops = (raw.entry.skinOps || []).map((o) => ({ ...o }));
     applyAllOps();
@@ -339,6 +376,7 @@ export async function runSkinTool(startId) {
       return;
     }
     selComp = hit.comp;
+    setSelBone(bones[selComp.boneIndex]);   // clip list follows the island's bone
     stopWiggle();
     rebuildColors();
     setStatus(`Selected: island #${selComp.id} of ${selComp.boneName}` +
@@ -566,14 +604,60 @@ export async function runSkinTool(startId) {
   }
 
   // ---- bone wiggle (verify what moves) ----
+  // Which real clips actually drive this bone? A clip animates canonical
+  // JOINTS; the RigAdapter retargets a joint onto one GLB bone, so a clip is
+  // listed only when it has a track for the joint THIS bone is mapped from.
+  // (Descendant bones ride along rigidly and don't deform, so they're not
+  // listed — the point is to see the joint that actually bends.)
+  function clipsForBone(bone) {
+    if (!bone || !animMech || !jointOfBone) return [];
+    const joint = jointOfBone.get(bone.name);
+    if (!joint) return [];
+    const all = { ...CLIPS, ...(animMech.animProfile?.clipOverrides || {}) };
+    const out = [];
+    for (const [name, clip] of Object.entries(all)) {
+      if (clip?.tracks?.[joint]) out.push(name);
+    }
+    return out.sort();
+  }
+  // The sticky choice, honoured only when this bone actually has that clip.
+  function activeClipChoice() {
+    return preferredClip && clipNames.includes(preferredClip) ? preferredClip : null;
+  }
+  // Point the clip dropdown at a bone (null clears it)
+  function setSelBone(bone) {
+    selBone = bone || null;
+    clipNames = clipsForBone(selBone);
+    renderClipOptions();
+  }
+
   function startWiggle(bone) {
     stopWiggle();
-    wiggle = { bone, orig: bone.quaternion.clone(), t: 0 };
+    if (bone !== selBone) setSelBone(bone);
+    const clip = activeClipChoice();
+    wiggle = { bone, orig: bone.quaternion.clone(), t: 0, clip };
     wigglePaused = false;
-    setStatus(`Wiggling ${bone.name} — watch what moves. SPACE pauses · W stops.`);
+    if (clip) {
+      // snapshot every raw bone: a real clip moves the whole body, not one bone
+      clipRestore = bones.map((b) => b.quaternion.clone());
+      animMech.premadeAnimator.play(clip, { speed: CLIP_SPEED });
+      setStatus(`Playing "${clip}" on ${bone.name} at ${CLIP_SPEED * 100}% speed.`
+        + `\nThe mech drops into its in-game stance while it runs. SPACE pauses · W stops.`);
+    } else {
+      setStatus(`Wiggling ${bone.name} — watch what moves. SPACE pauses · W stops.`);
+    }
   }
   function stopWiggle() {
-    if (wiggle) { wiggle.bone.quaternion.copy(wiggle.orig); wiggle = null; }
+    if (wiggle) {
+      if (wiggle.clip && clipRestore) {
+        bones.forEach((b, i) => b.quaternion.copy(clipRestore[i]));
+        if (animMech?.premadeAnimator) animMech.premadeAnimator.action = null;
+      } else {
+        wiggle.bone.quaternion.copy(wiggle.orig);
+      }
+      wiggle = null;
+    }
+    clipRestore = null;
     wigglePaused = false;
   }
 
@@ -616,7 +700,7 @@ export async function runSkinTool(startId) {
       mode = mode === 'picktarget' ? 'select' : 'picktarget';
       updateModeUI();
     } else if (ev.key === 'Escape') {
-      selComp = null; mode = 'select'; stopWiggle(); rebuildColors(); updateModeUI();
+      selComp = null; mode = 'select'; stopWiggle(); setSelBone(null); rebuildColors(); updateModeUI();
     }
   });
 
@@ -659,10 +743,45 @@ export async function runSkinTool(startId) {
   }));
   texRow.appendChild(actionBtn('Wiggle bone (W)', () => {
     if (wiggle) stopWiggle();
+    else if (selBone) startWiggle(selBone);
     else if (selComp) startWiggle(bones[selComp.boneIndex]);
     else setStatus('Select an island first, then Wiggle shows what its bone moves.');
   }));
   panel.appendChild(texRow);
+
+  // ---- wiggle animation picker (per mech + per selected bone) ----
+  panel.appendChild(label('Wiggle animation'));
+  const clipSel = document.createElement('select');
+  clipSel.style.cssText = 'width:100%;margin-bottom:2px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px';
+  clipSel.onchange = () => {
+    // '' = Default; picking it explicitly clears the sticky choice
+    preferredClip = clipSel.value || null;
+    if (wiggle) { const b = wiggle.bone; stopWiggle(); startWiggle(b); }   // restart under the new pick
+    renderClipOptions();
+  };
+  panel.appendChild(clipSel);
+  const clipNote = document.createElement('div');
+  clipNote.style.cssText = 'color:#69788c;font-size:10px;margin-bottom:4px;line-height:1.4';
+  panel.appendChild(clipNote);
+  function renderClipOptions() {
+    const chosen = activeClipChoice();
+    clipSel.innerHTML = '';
+    const mk = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; clipSel.appendChild(o); };
+    mk('', 'Default (single-bone wiggle)');
+    for (const n of clipNames) mk(n, n);
+    clipSel.value = chosen || '';
+    clipSel.disabled = !selBone;
+    if (!selBone) clipNote.textContent = 'Select an island or a bone to list its animations.';
+    else if (!animMech) clipNote.textContent = 'Animation driver unavailable — Default only.';
+    else if (!clipNames.length) {
+      clipNote.textContent = `No clip animates ${selBone.name}`
+        + (jointOfBone?.get(selBone.name) ? '' : ' (no rig joint maps to it)') + ' — Default only.';
+    } else {
+      clipNote.textContent = `${clipNames.length} clip(s) drive ${selBone.name}`
+        + (preferredClip && !clipNames.includes(preferredClip)
+          ? ` · "${preferredClip}" kept for bones that have it` : '');
+    }
+  }
 
   // rebind the selected island 100% to its own bone (drop secondary weights)
   panel.appendChild(actionBtn('Bind selected 100% to own bone (B)', rebindSelfHard));
@@ -836,7 +955,11 @@ export async function runSkinTool(startId) {
       row.onmouseleave = () => { row.style.background = ''; };
       row.onclick = () => {
         if (paintMode) { setPaintBone(name); return; }   // in paint mode the list is the color palette
-        const b = bones[bi]; if (b) (wiggle?.bone === b) ? stopWiggle() : startWiggle(b);
+        const b = bones[bi];
+        if (!b) return;
+        if (wiggle?.bone === b) { stopWiggle(); return; }
+        setSelBone(b);          // list this bone's clips before starting
+        startWiggle(b);
       };
       row.ondblclick = () => { if (!paintMode && selComp) addOp(selComp, name); };
       boneList.appendChild(row);
@@ -854,6 +977,8 @@ export async function runSkinTool(startId) {
     + '1. Click a wrong-colored patch (selects it, turns white)<br>'
     + '2. “Rebind → click target” (Q), then click the part it should move with<br>'
     + '3. Wiggle (W) to verify · SPACE pauses a wiggle to click a stretched piece<br>'
+    + '&nbsp;&nbsp;&nbsp;“Wiggle animation” swaps the shake for a real game clip that drives '
+    + 'that bone, played at 10% speed.<br>'
     + '4. “Bind 100% to own bone” (B) drops a patch’s secondary weights.<br>'
     + '5. “Paint geometry” (P): click a patch to pick the COLOR (its bone), click '
     + 'the REGION to solo it (others fade), then LEFT-drag on the region to paint '
@@ -883,10 +1008,22 @@ export async function runSkinTool(startId) {
   engine.onUpdate = (dt) => {
     orbit.update();
     if (wiggle && !wigglePaused) {
-      wiggle.t += dt;
-      const a = Math.sin(wiggle.t * 3.2) * 0.55;
-      wiggle.bone.quaternion.copy(wiggle.orig)
-        .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(a, 0, 0)));
+      if (wiggle.clip) {
+        // drive the hidden rig with the real clip, then mirror its bone
+        // rotations onto the raw skeleton we're actually rendering
+        const an = animMech.premadeAnimator;
+        if (!an.action || an.action.fadingOut) an.play(wiggle.clip, { speed: CLIP_SPEED });  // loop it
+        an.update(dt);                       // ends in postAnimate -> adapter.sync()
+        for (const b of bones) {
+          const src = animBones.get(b.name);
+          if (src) b.quaternion.copy(src.quaternion);
+        }
+      } else {
+        wiggle.t += dt;
+        const a = Math.sin(wiggle.t * 3.2) * 0.55;
+        wiggle.bone.quaternion.copy(wiggle.orig)
+          .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(a, 0, 0)));
+      }
     }
   };
   engine.start();
@@ -896,6 +1033,14 @@ export async function runSkinTool(startId) {
     addOpByComp: (cid, to) => { const c = analysis.comps[cid]; if (c) addOp(c, to); },
     selectComp: (cid) => { const c = analysis.comps[cid]; if (c) { selComp = c; rebuildColors(); } },
     bindSelfHard: rebindSelfHard, undo, redo, load, applyAllOps,
+    // wiggle-animation hooks (scripting / automated checks)
+    anim: { setBone: setSelBone, start: startWiggle, stop: stopWiggle,
+      clipsFor: clipsForBone, pick: (n) => { preferredClip = n || null; renderClipOptions(); },
+      get state() {
+        return { bone: selBone?.name || null, clips: clipNames.slice(),
+          preferred: preferredClip, active: activeClipChoice(),
+          running: wiggle ? (wiggle.clip || 'default') : null, driver: !!animMech };
+      } },
     // paint-mode hooks (for testing/scripting)
     paint: { enter: enterPaintMode, exit: exitPaintMode, bone: setPaintBone,
       region: (cid) => { const c = liveAnalysis.comps[cid]; if (c) enterRegion(c); },
