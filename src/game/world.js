@@ -487,17 +487,37 @@ export class World {
     // the barrel, the shot pitches to their height so airborne/short
     // targets aren't unhittable with yaw-only controls.
     const dir = new THREE.Vector3(Math.sin(f.yaw), 0.02, Math.cos(f.yaw));
+    // How squarely the real enemy sits down the barrel, and how far off they
+    // are. Stays enemy-only (-1 / 0 with nobody around): handlers read these as
+    // "there is a live target down the barrel", and a phantom must not fake it.
     let barrelDot = -1, flatDist = 0;
-    if (e) {
-      const to = e.center().sub(from);
+    const toTarget = (t) => {
+      const to = t.center().sub(from);
       to.x = this.wrapDelta(to.x);   // aim through the arena seam
       to.z = this.wrapDelta(to.z);
+      return to;
+    };
+    if (e) {
+      const to = toTarget(e);
       flatDist = Math.hypot(to.x, to.z) || 1;
       barrelDot = (to.x / flatDist) * dir.x + (to.z / flatDist) * dir.z;
-      if (!aimP && barrelDot > 0.86) {
-        dir.y = clamp(to.y / flatDist, -0.7, 0.7);
-        dir.normalize();
-      }
+    }
+    // THE DEFAULT TRAJECTORY. With no enemy at all — or one who isn't down the
+    // barrel, so nothing is effectively targeted — the pitch ranges onto a
+    // PHANTOM instead: an opponent of our own build standing dead ahead at the
+    // move's working distance (Fighter.aimPhantom / idealAimDist, the same
+    // stand-in the melee strike tracker swings at — close for a fist, far for a
+    // gun). Every unaimed shot then leaves the barrel on the trajectory it
+    // would take against a real target, instead of sailing dead flat out of a
+    // muzzle that sits well above head height. This is the game's own
+    // no-target behaviour; ?debug=models previews it rather than parking
+    // stand-in bodies on the stage.
+    if (!aimP) {
+      const onTarget = barrelDot > 0.86;
+      const to = onTarget ? toTarget(e) : toTarget(f.aimPhantom(f.idealAimDist(mv)));
+      const d = Math.hypot(to.x, to.z) || 1;
+      dir.y = clamp(to.y / d, -0.7, 0.7);
+      dir.normalize();
     }
     if (aimP) dir.copy(aimP).sub(from).normalize();
     // The barrel has the last word: a muzzle authored with an explicit `rot`
@@ -574,7 +594,9 @@ function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
 // shared aiming context it computed: from (muzzle world pos), dir (aim,
 // already vertical-assisted / crosshair-overridden), e (nearest enemy or
 // null), aimP (manual crosshair point or null), barrelDot/flatDist (how
-// squarely the enemy sits down the barrel + flat range to them), anchors
+// squarely the target sits down the barrel + flat range to it — measured
+// against the aim phantom when there is no enemy, so a blind shot still
+// carries a real range instead of zero), anchors
 // (the mech's anchor map). Handlers are (w, f, mv, ctx) — w is the World.
 // Adding a weapon = adding an entry here + a `type` in roster.js.
 const WEAPONS = {

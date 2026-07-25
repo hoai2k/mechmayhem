@@ -21,6 +21,10 @@ const ULT_RATE = 2;      // ult meter fills 2x faster (ultimates balance pass)
 const WALK_MULT = 1.2;   // global ground-speed boost over roster stats
 const JUMP_MULT = 1.18;  // global jump boost
 const CHARGE_DASH_MAX = 3; // seconds of crouch that fully winds a charged dash
+// Where an unaimed ranged weapon assumes its target stands (world units). This
+// is the gap a duel actually settles at — matches the artillery lob's own
+// default so a blind mortar shell still lands where it always did.
+const DEFAULT_ENGAGE_DIST = 25;
 const SPRINT_MULT = 1.6;   // ground-speed multiplier while sprinting (hold B on the move)
 const SPRINT_MAX = 3.2;    // seconds of sprint in a full tank
 const SPRINT_REGEN = 0.6;  // tank refill rate (per second) while not sprinting
@@ -861,23 +865,44 @@ export class Fighter {
     if (this.def.punchHold) this.trackStrikeVictim(mv.range, dur);
   }
 
-  // A stand-in for "an enemy in the ideal spot": dead ahead, squared up, at a
-  // comfortable fraction of the move's reach. Aiming attacks steer toward their
-  // victim, so with nobody actually there they used to either skip the tracking
-  // entirely or chase whatever distant thing existed — which is what slewed the
-  // body round in the test rigs. Swinging at this phantom instead keeps the
-  // move's intended shape when it hits thin air.
-  phantomPrey(range) {
-    const d = range * this.scale * 0.75;
+  // A stand-in for "an enemy in the ideal spot": dead ahead, squared up, at
+  // `dist` world units, standing on the same floor. Aiming attacks steer toward
+  // their victim, so with nobody actually there they used to either skip the
+  // tracking entirely or chase whatever distant thing existed — which is what
+  // slewed the body round in the test rigs. It carries the same surface the
+  // aiming code reads off a real fighter (pos / center() / vel / hitRadius), so
+  // melee tracking and ranged aim can both steer at it unchanged.
+  aimPhantom(dist) {
+    const pos = new THREE.Vector3(
+      this.pos.x + Math.sin(this.yaw) * dist,
+      this.pos.y,
+      this.pos.z + Math.cos(this.yaw) * dist);
+    // chest height on a body the same size as ours — the same fraction
+    // Fighter.center() uses, so a shot ranged onto the phantom pitches exactly
+    // as it would onto a real opponent of matching build
+    const mid = pos.clone().setY(pos.y + this.height * 0.55);
     return {
+      phantom: true,
       alive: true,
       hitRadius: this.baseHitRadius,
-      pos: new THREE.Vector3(
-        this.pos.x + Math.sin(this.yaw) * d,
-        this.pos.y,
-        this.pos.z + Math.cos(this.yaw) * d),
+      pos,
+      vel: new THREE.Vector3(),
+      center: () => mid.clone(),
     };
   }
+
+  // Where that phantom stands for a given move: melee wants one just inside
+  // reach, a ranged weapon one out at its working distance — the move's own
+  // `range` when it declares one (flamethrower, hose, rocket fist), else the
+  // generic mid-arena engagement gap. A colossal form ranges out with its size.
+  idealAimDist(mv, melee = false) {
+    if (melee) return (mv?.range ?? 4) * this.scale * 0.75;
+    const gf = Math.max(1, this.scale / (this.def.body.scale || 1));
+    return (mv?.range || DEFAULT_ENGAGE_DIST) * gf;
+  }
+
+  // melee keeps its own entry point: the reach-relative phantom above
+  phantomPrey(range) { return this.aimPhantom(this.idealAimDist({ range }, true)); }
 
   // aim the strike at whoever is in front: post-pose torso steer + palm
   // convergence (aimStrikeAt) rides the rest of the swing. With no enemy in
