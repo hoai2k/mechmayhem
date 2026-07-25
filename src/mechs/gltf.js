@@ -518,6 +518,12 @@ function buildGlbMech(def, entry, gltf) {
   function applyRot(anchor, spec) {
     const r = spec?.rot;
     anchor.rotation.set((r?.[0] || 0) * Math.PI / 180, (r?.[1] || 0) * Math.PI / 180, (r?.[2] || 0) * Math.PI / 180);
+    // An explicitly-authored rot means the anchor's +Z IS the barrel: combat
+    // deflects the shot along it (world.js barrelDeflect). Opt-in on purpose —
+    // an anchor with no rot hangs off whatever orientation its parent bone
+    // happens to carry (a raptor skull, a hand bone), which is meaningless as
+    // an aim vector, so those stay position-only exactly as before.
+    anchor.userData.aimRot = !!r;
     return anchor;
   }
   mech.anchors.muzzleR = installMuzzle('R');
