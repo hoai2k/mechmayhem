@@ -53,6 +53,16 @@ import { wraithCloak } from './designs/wraith.js';
 import { GLB_CLIP_VARIANTS } from './animations.js';
 
 export const ARM_JOINTS = ['shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'handL', 'handR'];
+
+// CRANKY (GLB) claw carriage while scuttling: pincers held HIGH and out to the
+// sides, cocked forward — never hanging muzzle-down at the floor. Radians in the
+// virtual-joint space the retarget reads; negative shoulder pitch lifts the arm.
+const CRANKY_CARRY = {
+  shoulderL: [-0.72, -0.26, -0.22], shoulderR: [-0.72, 0.26, 0.22],
+  elbowL: [-0.34, 0, 0], elbowR: [-0.34, 0, 0],
+  handL: [0, 0.14, 0], handR: [0, -0.14, 0],
+};
+
 export function mirrorJointName(j) {
   if (j.endsWith('L')) return j.slice(0, -1) + 'R';
   if (j.endsWith('R')) return j.slice(0, -1) + 'L';
@@ -233,14 +243,27 @@ export const GLB_ANIM = {
       const wantK = grounded ? ratio : 0;
       m._walkK = (m._walkK ?? 0) + (wantK - (m._walkK ?? 0)) * Math.min(1, dt * 8);
       m._gaitPhase = (m._gaitPhase || 0) + (2 + 6 * ratio) * dt;
-      // A crab carries its claws steady while scuttling — damp the shared walk's
-      // humanoid arm counter-swing so the heavy pincers don't wag (and shear).
+      // ---- CRUSTACEAN WALK (GLB only — this body is far less bipedal than the
+      // procedural one, which keeps the shared humanoid stride) ----
+      // The shared walk swings the arms as pendulums and strides the legs like a
+      // biped: on this crab that dumps both giant pincers muzzle-down at the
+      // floor and lifts the shell off its feet. Instead: CARRY the claws high,
+      // out and cocked forward, hold the shell level, and let the hexapod tripod
+      // gait in postDress be the ONLY thing that moves — he walks on legs alone.
       if (!attacking && ratio > 0.03) {
-        const keep = Math.max(0.08, 1 - 2.2 * ratio); // freeze the claws by mid-speed
-        const r = anim.rest;
-        for (const j of ['shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'handL', 'handR']) {
-          for (let i = 0; i < 3; i++) tgt[j][i] = r[j][i] + (tgt[j][i] - r[j][i]) * keep;
+        const k = Math.min(1, ratio * 2.4);          // fully carried by mid speed
+        for (const [j, v] of Object.entries(CRANKY_CARRY)) {
+          if (!tgt[j]) continue;
+          for (let i = 0; i < 3; i++) tgt[j][i] += (v[i] - tgt[j][i]) * k;
         }
+        // legs: unwind the biped stride back to rest so the tripod gait owns them
+        const r = anim.rest;
+        for (const j of ['thighL', 'thighR', 'kneeL', 'kneeR', 'ankleL', 'ankleR']) {
+          if (!tgt[j] || !r[j]) continue;
+          for (let i = 0; i < 3; i++) tgt[j][i] += (r[j][i] - tgt[j][i]) * k;
+        }
+        tgt.hipsPos[1] += (0 - tgt.hipsPos[1]) * k;   // no stride bob: stay level
+        tgt.hipsRot[0] += (0 - tgt.hipsRot[0]) * k;   // no run-lean pitch
       }
     },
     build(mech) {
