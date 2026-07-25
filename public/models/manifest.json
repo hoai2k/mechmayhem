@@ -389,8 +389,8 @@
   },
   "tempest": {
     "muzzles": {
-      "R": {"bone":"tripo0_Right_Limb_6","offset":[-0.162,-0.116,-0.068],"rot":[-14.3,-34.01,-95.86]},
-      "L": {"bone":"elbowL","offset":[-0.05,1.337,0.009],"rot":[-87.38,-15.08,-134.87]}
+      "R": {"bone":"tripo0_Right_Limb_6","offset":[-0.162,-0.116,-0.068],"rot":[-21.66,-53.52,-99.77]},
+      "L": {"bone":"elbowL","offset":[-0.05,1.337,0.009],"rot":[-93.89,-22.56,-137.64]}
     },
     "url": "models/mech_tempest.glb",
     "modelScale": 7.18053,
