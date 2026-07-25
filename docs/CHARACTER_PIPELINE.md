@@ -53,10 +53,47 @@ from the canonical images (generation, rigging, download, manifest update).
 | `url` | — | path under `public/` |
 | `bindPose` | `"tpose"` | `"tpose"`, `"apose"`, `"native"` (already arms-down), or a custom `{joint:[x,y,z]}` degree map |
 | `boneOverrides` | `{}` | force joint→bone mapping, e.g. `{"torso": "Spine2"}` |
-| `heightScale` | `1.0` | multiply the mech's gameplay height for the visual |
+| `modelScale` | — | **the model's size of record.** Absolute scale on the GLB's native units. Set it (see below) and it is the ONLY input to the model's size |
+| `rig` | — | use a hand-authored skeleton from `src/mechs/rigs/<name>.rig.js` instead of the file's own (see MECH_ART_GUIDE §7) |
+| `heightScale` | `1.0` | deliberate artist tweak multiplied on TOP of `modelScale` — "make viper 10% bigger" |
 | `yawOffset` | `0` | degrees, if the model doesn't face +Z |
 | `emissiveBoost` | — | multiply emissive intensity (make cores/visors pop with bloom) |
 | `stretch` | `{}` | lengthen limb segments, e.g. `{"elbowL": 1.2, "handL": 1.2}`: multiplies that joint's bone offset from its parent (skin follows) — for models whose proportions undershoot the mech (measure bone-chain vs `computeDims` before guessing) |
+
+### Model scale is FROZEN, never derived from the rig
+
+**Rule: a GLB's rendered size must be a function of the FILE plus its
+`modelScale` number — never of where its rig's bones sit, or of which bone owns
+which vertices.** Re-rigging or re-skinning a character must not resize it.
+
+There is history here. `gltf.js` originally auto-sized every GLB by matching its
+rendered *head-region* top to the procedural mech's canonical head top. That
+reads bone positions **and** skin weights, so the model's size was a live
+function of its rig. It bit us on TITANUS: his old auto-rig's `head` bone owned
+the tall back exhaust towers, so the "head top" being matched was really the
+tower tips (which happened to land on the canonical height). Giving him a
+correct skeleton moved that region onto his actual head — a low block sunk
+between the pauldrons — the match clamped at its `1.12` ceiling and he rendered
+**5.7% bigger**. A measured rig-perturbation test showed the unpinned path
+resizing him by up to **14%** from bone moves alone.
+
+So the head match is only a **bootstrap** for sizing a brand-new GLB. Capture
+what it produced and pin it:
+
+```bash
+node tools/pin-modelscale.mjs            # pin every unpinned entry (idempotent)
+node tools/pin-modelscale.mjs --check    # CI: exit 1 if anything is unpinned
+```
+
+Once `modelScale` is present, gltf.js **skips both head-match passes entirely**,
+so rig edits can never change height. An unpinned entry logs a one-time console
+warning with the exact number to paste. `--repin` re-derives and overwrites, and
+is almost always the wrong tool: the pinned number is the size of record, so
+re-deriving it after a rig change *is* the silent resize this mechanism exists to
+prevent. Change size deliberately by editing `modelScale` (or `heightScale`).
+
+`?debug=models` and `tools/pin-modelscale.mjs` both cover `alt` sub-entries, so a
+model variant carries its own pin.
 
 ## Verifying a model
 

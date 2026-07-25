@@ -39,17 +39,22 @@
 // the nearest span otherwise is head→crown, which would make the whole back
 // gear swivel with every animator head turn-lead.
 //
-// NOTE the manifest carries `heightScale: 0.946` alongside this rig, and it is
-// load-bearing. gltf.js auto-sizes a GLB by matching its rendered HEAD-REGION
-// top to the procedural canonical head top. Under the old rig the head bone's
-// geometry included those back towers, so the "head top" it measured was really
-// the tower tips — which happened to land on the canonical height. Titanus's
-// actual head is a low block sunk between the pauldrons with the towers rising
-// well above it, so once the towers correctly ride the torso the measured head
-// top drops ~12%, the match clamps at its 1.12 ceiling, and the whole mech
-// renders 5.7% larger. The heightScale pins him back to the exact silhouette
-// size he has always had (bbox 9.04 x 7.36 x 3.67). Re-measure it (see the
-// head-match block in gltf.js) if the head or stack bones ever move.
+// Moving these bones CANNOT change how big Titanus renders, and that is now
+// guaranteed rather than incidental: his manifest entry carries
+// `modelScale: 9.04432`, and gltf.js treats a pinned modelScale as the model's
+// size of record and skips head-height matching entirely (see the FROZEN MODEL
+// SCALE block there, and CHARACTER_PIPELINE.md).
+//
+// This mech is why that mechanism exists. gltf.js used to auto-size a GLB by
+// matching its rendered HEAD-REGION top to the procedural canonical head top —
+// which reads bone positions AND skin weights. Under the old auto-rig the head
+// bone's geometry included the back exhaust towers, so the "head top" being
+// matched was really the tower tips, which happened to land on the canonical
+// height. Titanus's real head is the low block sunk between the pauldrons with
+// the towers well above it, so once the towers correctly ride the torso the
+// measured head top dropped ~12%, the match clamped at its 1.12 ceiling, and he
+// rendered 5.7% larger. Tuning this rig freely is safe now; if you ever want to
+// change his SIZE, edit modelScale deliberately (do not --repin).
 export const TITANUS_RIG = {
   skinSpan: 'child',
   bones: [

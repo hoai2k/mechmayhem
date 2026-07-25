@@ -2634,3 +2634,51 @@ controllers via Gamepad API), AI opponents.
   light3/knockdown/heavy frames VIEWed against the same frames rendered from
   the `alt` entry — the old rig collapses the cloak onto a leg and folds the
   rifle in half mid-stride, the new one holds both.
+
+## GLB model scale is FROZEN, never derived from the rig (user request, 2026-07-25)
+
+- Rule established: a GLB's rendered size must be a function of the FILE plus one
+  manifest number, never of where its rig's bones sit or which bone owns which
+  vertices. Re-rigging or re-skinning a mech must not resize it.
+- The old behaviour: gltf.js auto-sized every GLB by matching its rendered
+  HEAD-REGION top to the procedural canonical head top — twice, once on the head
+  BONE and once on `measureHeadTop` (the verts the head bone owns). Both read the
+  rig, so model size was a live function of it. That is what bit the Titanus
+  re-rig: his old auto-rig's `head` owned the tall back exhaust towers, so the
+  "head top" being matched was really the tower tips, which happened to land on
+  the canonical height. A correct skeleton moved that region onto his actual head
+  (a low block sunk between the pauldrons), the match clamped at its 1.12 ceiling
+  and he rendered 5.7% larger — patched at the time with `heightScale: 0.946`.
+- New manifest field `modelScale`: the absolute scale on the GLB's native units,
+  and the model's size of record. When present, gltf.js SKIPS both head-match
+  passes entirely. `heightScale` still multiplies on top as the artist knob
+  (viper 1.1, jerry 0.59 etc. keep their meaning).
+- `tools/pin-modelscale.mjs` pins it: builds each entry with the derivation
+  forced, reads the scale, and text-edits the manifest (targeted, so the rest of
+  the file keeps its formatting; refuses to write if anything but `modelScale`
+  changed). Idempotent — an already-pinned entry is left alone, because the
+  pinned number is the size of record and re-deriving it after a rig change IS
+  the silent resize the mechanism prevents. `--check` for CI, `--repin` to
+  deliberately re-baseline. All 20 slots (18 mechs + jerry/aegis/titanus alts)
+  are pinned.
+- Titanus's `heightScale: 0.946` band-aid is gone, folded into
+  `modelScale: 9.04432` so his entry states his size honestly.
+- Unpinned entries now log a one-time console warning with the exact number to
+  paste, so a newly dropped GLB still bootstraps and then gets frozen.
+- Verified: all 20 slots measured before and after — rendered bbox identical to
+  within 0.002 on every one (h/w/d), so nothing on the roster changed size;
+  lineup screenshot VIEWed and unchanged; rig-perturbation proof (move head +0.125,
+  drop both shoulders, splay both thighs) → PINNED height change 0.0000 vs
+  UNPINNED 1.3276 (9.56 -> 8.23, a 14% resize), which is the regression this
+  closes; pin tool idempotent on re-run and `--check` exits 0; titanus stretch
+  audit still 2 flagged / 12.3x; ace soaks crash-free titanus/viper and
+  aegis/jerry; `vite build` green.
+- Documented as a hard rule at the top of MECH_ART_GUIDE §0 (the file every
+  agent reads first), in its pitfalls list, and in full in CHARACTER_PIPELINE.md
+  ("Model scale is FROZEN, never derived from the rig") + the manifest field
+  table.
+- It caught a live one on the way in. Merging this onto main picked up another
+  session's WRAITH custom rig, whose `modelScale` was already pinned from before
+  that re-rig — measured, the re-rig would have grown him 5.3% (h 6.73 -> 7.09)
+  under the old derived path, and the pin held him at his size of record with no
+  intervention. wraith's new `alt` slot was pinned too (21 slots now).
