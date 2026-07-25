@@ -2380,3 +2380,38 @@ controllers via Gamepad API), AI opponents.
   islands); showcase idle + quad lope clean with no tearing; no skinOps
   warnings on build; fenrir-vs-viper ace soak crash-free; `vite build`
   green.
+
+## Fenrir: GLB tail wag, claws-forward Heavy, hand muzzles (user request, 2026-07-25)
+
+- TAIL WAG ON THE GLB. `signatures.fenrir` wags `J.tail0..2`, which only
+  exist when `designs/fenrir.js` ran — so the GLB body had a dead tail
+  (contract §5 logged it as a known loss). `buildGlbMech` now hands every
+  custom-rig bone to the mech as `mech.rigBones` (not just the 15 mapped
+  game joints), and a new `glbanim` fenrir profile wags the rig's own
+  6-bone `tail0..tail5` chain from its `post` hook. adapter.sync() only
+  writes mapped joints, so those locals survive to the draw. Same wave as
+  the procedural signature — faster and wider above walking speed — with
+  per-bone amplitude and phase step halved so 6 bones trace the same total
+  sweep 3 did. Measured: tail yaw sweeps ±0.10 idle / ±0.14 running with a
+  travelling phase down the chain; tip moves ~0.8u side to side.
+- `contract.js` gained `glbBones`: joints a custom rig reinstates as BONES
+  of the same name, counted as present on GLB builds while they exist.
+  Fenrir's tail0/1/2 are no longer reported as a GLB loss (clawL/clawR
+  still are). Reverts to reporting if the bones leave the rig.
+- HEAVY (`fenrirSpike`) now leads with the CLAWS. Shoulder pitch was +10 →
+  +30 through the leap, which in this rig means both arms swept BEHIND him
+  (negative = forward/up; cf. the jab's −98), so the pounce landed
+  chest-first with the talons trailing. Now: chambered high and folded on
+  the coil (−46, elbows −92), thrown out ahead of the body on the drive
+  (−104, elbows −20, wrists cocked so the talons rake), still reaching at
+  −84 through the t=0.55 hit window. Edited in `animations.js`, the SHARED
+  clip, so procedural and GLB both get it (per the glbanim factoring
+  contract).
+- Fenrir muzzle anchors from `?debug=models` merged into the manifest:
+  muzzleR/L now ride the `handR`/`handL` bones with the supplied offsets +
+  90° barrel yaw, so ranged fire and specials spawn from the claws.
+- Verified: tail probe above; heavy frozen at t=0.30 and t=0.50 on BOTH
+  routes (claws lead in each); contract log now lists only the claw
+  anchors; battle console clean of skinOps/manifest complaints; ace soaks
+  crash-free with GLBs default-on and under `?debug=fallback`; `vite build`
+  green.

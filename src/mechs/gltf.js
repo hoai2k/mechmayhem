@@ -319,12 +319,14 @@ function buildGlbMech(def, entry, gltf) {
   // ?debug=models "Compare Alternate GLB" toggle then shows old vs new rig.
   const customRig = entry.rig ? rigFor(entry.rig) : null;
   let boneMap;
+  let rigBones = null;   // custom-rig bones by name (see mech.rigBones below)
   if (customRig) {
     const sk = meshes.find((m) => m.isSkinnedMesh);
     boneMap = {};
     if (sk) {
       const { byName } = applyCustomRig(sk, customRig);
       for (const j of JOINT_ORDER) if (byName[j]) boneMap[j] = byName[j];
+      rigBones = byName;
       buildRigPosts(byName, customRig); // black rods through `post` bones (jerry's back legs)
       // skinOps refine the CUSTOM rig's proximity skinning too: the ?debug=skin
       // workbench shows this exact custom-rig skinning (see loadRawGlbScene), so
@@ -472,6 +474,12 @@ function buildGlbMech(def, entry, gltf) {
   });
   mech.postAnimate = () => { adapter.sync(); mech.postDress?.(); };
   mech.boneMap = boneMap;   // pose tool reaches bones by virtual-joint name
+  // Every custom-rig bone by name, including the ones that are NOT game joints
+  // (fenrir's tail0..5, claws, paws). adapter.sync() only writes the 15 mapped
+  // joints, so these are free for a glbanim profile's post hook to animate —
+  // that's how a GLB gets back a personality joint the procedural design
+  // creates and the retarget has no route for. Undefined on stock auto-rigs.
+  mech.rigBones = rigBones;
   mech.adapter = adapter;
 
   // Muzzle (projectile-spawn) anchors — the SINGLE source of every ranged /

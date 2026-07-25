@@ -359,13 +359,18 @@ const CLIPS_RAW = {
   },
   fenrirSpike: { // heavy: the mane flares out huge (heavyFlare scales the
     // ruff, porcupine-style) as the wolf coils — then a spiking LEAP
-    // (heavyDrive) that rams the whole bladed body through the target
+    // (heavyDrive) that rams the whole bladed body through the target.
+    // The claws LEAD the leap: shoulder pitch is negative all the way through
+    // (negative = arm forward/up; the old +10/+30 swept both arms behind him,
+    // so the pounce landed chest-first with the talons trailing). Chambered
+    // high and folded on the coil, thrown out ahead of the body on the drive,
+    // still reaching through the hit window at t=0.55.
     dur: 0.9,
     keys: [
       { t: 0, pose: {} },
-      { t: 0.28, ease: 'inOutCubic', pose: { hipsPos: [0, -0.7, 0], hipsRot: [6, 0, 0], torso: [24, 0, 0], head: [-22, 0, 0], shoulderL: [10, 0, -24], shoulderR: [10, 0, 24], elbowL: [-60, 0, 0], elbowR: [-60, 0, 0], kneeL: [70, 0, 0], kneeR: [70, 0, 0], thighL: [-40, 0, 0], thighR: [-40, 0, 0], ankleL: [-32, 0, 0], ankleR: [-32, 0, 0] } },
-      { t: 0.42, ease: 'outCubic', pose: { hipsPos: [0, 0.2, 0], hipsRot: [22, 0, 0], torso: [14, 0, 0], head: [-16, 0, 0], shoulderL: [30, 0, -34], shoulderR: [30, 0, 34], elbowL: [-24, 0, 0], elbowR: [-24, 0, 0], thighL: [-30, 0, -4], thighR: [-30, 0, 4], kneeL: [26, 0, 0], kneeR: [26, 0, 0], ankleL: [-24, 0, 0], ankleR: [-24, 0, 0] } },
-      { t: 0.68, ease: 'inOutQuad', pose: { hipsPos: [0, 0.1, 0], hipsRot: [16, 0, 0] } },
+      { t: 0.28, ease: 'inOutCubic', pose: { hipsPos: [0, -0.7, 0], hipsRot: [6, 0, 0], torso: [24, 0, 0], head: [-22, 0, 0], shoulderL: [-46, 8, -18], shoulderR: [-46, -8, 18], elbowL: [-92, 0, 0], elbowR: [-92, 0, 0], handL: [18, 0, 0], handR: [18, 0, 0], kneeL: [70, 0, 0], kneeR: [70, 0, 0], thighL: [-40, 0, 0], thighR: [-40, 0, 0], ankleL: [-32, 0, 0], ankleR: [-32, 0, 0] } },
+      { t: 0.42, ease: 'outCubic', pose: { hipsPos: [0, 0.2, 0], hipsRot: [22, 0, 0], torso: [14, 0, 0], head: [-16, 0, 0], shoulderL: [-104, -10, -16], shoulderR: [-104, 10, 16], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0], handL: [-24, 0, 0], handR: [-24, 0, 0], thighL: [-30, 0, -4], thighR: [-30, 0, 4], kneeL: [26, 0, 0], kneeR: [26, 0, 0], ankleL: [-24, 0, 0], ankleR: [-24, 0, 0] } },
+      { t: 0.68, ease: 'inOutQuad', pose: { hipsPos: [0, 0.1, 0], hipsRot: [16, 0, 0], shoulderL: [-84, -6, -14], shoulderR: [-84, 6, 14], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0], handL: [-14, 0, 0], handR: [-14, 0, 0] } },
       { t: 0.9, ease: 'inOutQuad', pose: REST_FULL },
     ],
     events: [{ t: 0.08, type: 'sfx', arg: 'howl' }, { t: 0.38, type: 'sfx', arg: 'jump' }, { t: 0.55, type: 'hit', arg: 0 }, { t: 0.57, type: 'shake', arg: 0.35 }],

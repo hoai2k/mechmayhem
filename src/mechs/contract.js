@@ -29,6 +29,9 @@ const UNIVERSAL_ANCHORS = ['muzzleR', 'muzzleL', 'core'];
 //   anchors    — named anchors the design must place (procedural)
 //   glbAnchors — subset of `anchors` the GLB manifest reinstates (via
 //                `muzzles` extras), therefore required on GLB builds too
+//   glbBones   — subset of `joints` a custom rig reinstates as BONES of the
+//                same name (rigs/<id>.rig.js), animated by the mech's glbanim
+//                profile; counted as present on GLB builds while they exist
 //   materials  — named material slots the engine animates (both routes;
 //                GLB route must reinstate them via GLB_DRESS)
 export const CONTRACT = {
@@ -57,6 +60,8 @@ export const CONTRACT = {
   },
   fenrir: {
     joints: ['tail0', 'tail1', 'tail2'], // animator wags the chain
+    glbBones: ['tail0', 'tail1', 'tail2'], // GLB: same names in rigs/fenrir.rig.js,
+                                        // wagged by the glbanim fenrir profile
     anchors: ['clawL', 'clawR'],
   },
   colossus: {
@@ -106,6 +111,12 @@ export function validateMech(mech) {
   }
   for (const j of c.joints || []) {
     if (mech.joints[j]) continue;
+    // A GLB can REINSTATE a design joint as a custom-rig bone of the same
+    // name, animated by its glbanim profile's post hook instead of by the
+    // retarget (fenrir's tail wag). That's compensated, not lost — but only
+    // while the bone is actually in the rig, so it still reports if someone
+    // deletes it.
+    if (mech.isGLB && c.glbBones?.includes(j) && mech.rigBones?.[j]) continue;
     (mech.isGLB ? glbLosses : violations).push(`joint '${j}' missing`);
   }
   const glbRequired = new Set(c.glbAnchors || []);
