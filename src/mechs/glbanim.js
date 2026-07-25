@@ -264,7 +264,10 @@ export const GLB_ANIM = {
       if (cr.visible) cr.scale.setScalar(Math.max(0.001, k));
     },
   },
-  inferno: {},   // flamer biped — direct map (levelHands is shape-shared)
+  // INFERNO — flamer biped, direct map (levelHands is shape-shared). The only
+  // reinterpretation is the flame channel: his torches are forearm barrels, so
+  // the shared shootLoop's folded elbows pointed them at the sky.
+  inferno: { clipOverrides: { shootLoop: GLB_CLIP_VARIANTS.infernoFlameGlb } },
   glacier: {},   // heavy biped — direct map
   // CRANKY — the Tripo auto-rig welded both giant claws onto one leg bone and
   // buried the arm chains in the thin walking-legs, so the shipped rig swung a
