@@ -26,6 +26,16 @@ const SPRINT_MAX = 3.2;    // seconds of sprint in a full tank
 const SPRINT_REGEN = 0.6;  // tank refill rate (per second) while not sprinting
 const PUNCH_HOLD_CAP = 1.8; // seconds to fully bank a held haymaker
 const HEAVY_HOLD_CAP = 2.4; // seconds to fully bank a held heavy
+// Minimum wind-up on a charge attack. Every other melee clip in the game opens
+// with a chamber/pull-back beat (0.10-0.34s) before its hit frame, but a
+// charge attack's RELEASE clip starts already cocked — correct after a real
+// hold (the hold clip IS the chamber), yet a bare TAP released it the same
+// frame it began, so the mech snapped from rest straight into the impact pose
+// with no punch visible. Holding the chamber on screen for this long first
+// gives every tap the same telegraph the hand-authored clips have. The forced
+// time is discounted from the banked charge, so a tap still throws the
+// weakest version and the charge curve above it is unchanged.
+const CHARGE_MIN_WINDUP = 0.15;
 
 // ---- hit-reaction tuning (see takeHit) ----
 const BLOCK_LEAK_DEFAULT = 0.12; // damage fraction leaking through a guard when roster sets no blockMult
@@ -764,10 +774,14 @@ export class Fighter {
       this[o.slot] = null;
       return null;
     }
-    if (o.held) {
-      this[o.slot] = Math.min(o.cap, this[o.slot] + dt);
+    // the wind-up beat runs even after the button is let go (see
+    // CHARGE_MIN_WINDUP), so the timer advances whether or not we're held
+    const t = (this[o.slot] = Math.min(o.cap + CHARGE_MIN_WINDUP, this[o.slot] + dt));
+    // charge banked so far, with the forced wind-up discounted: a tap lands on
+    // exactly k=0 (the weakest strike) and a full hold still reaches k=1
+    const k = clamp01((t - CHARGE_MIN_WINDUP) / o.cap);
+    if (o.held || t < CHARGE_MIN_WINDUP) {
       this.stateT = Math.max(this.stateT, 0.3); // stay in the hold
-      const k = this[o.slot] / o.cap;
       this[o.fxSlot] = (this[o.fxSlot] ?? 0) - dt;
       if (this[o.fxSlot] <= 0) {
         this[o.fxSlot] = o.fxInterval(k);
@@ -780,7 +794,6 @@ export class Fighter {
       }
       return null;
     }
-    const k = clamp01(this[o.slot] / o.cap);
     this[o.slot] = null;
     return k;
   }
