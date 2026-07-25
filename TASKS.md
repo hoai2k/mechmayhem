@@ -2415,3 +2415,48 @@ controllers via Gamepad API), AI opponents.
   anchors; battle console clean of skinOps/manifest complaints; ace soaks
   crash-free with GLBs default-on and under `?debug=fallback`; `vite build`
   green.
+
+## Fenrir heavy squares up + a real DASH move (user request, 2026-07-25)
+
+- FENRIR'S HEAVY NO LONGER LUNGES SIDEWAYS. The slew was the strike servo:
+  `aimStrikeAt` twists the torso up to ±0.7 rad to steer the palms onto the
+  victim, and for a leap where the whole BODY is the weapon that reads as
+  the shell slewing round and staying there. The roster already has the
+  mechanism for this (`noTwistClips`, which cranky uses for `clawSnap`) —
+  fenrir's `fenrirSpike` now joins it.
+- ...but `twistLocked()` was a STEP: the frame the clip starts, whatever
+  twist the servos had banked vanished in one frame. Added
+  `fighter.updateTwistLock(dt)`, a ramped 0..1 version of it, and both twist
+  sources (the strike servo AND the torso-leads-the-legs turn lag) now scale
+  by `1 - lock`. Measured on fenrir with the prey parked off to one side:
+  torso yaw eases −13° → 0 by clip t≈0.5, i.e. he ROTATES BACK to centre
+  through the wind-up and lunges square, well before the t=0.55 hit. Cranky
+  gets the same easing on `clawSnap`.
+- DASH IS A MOVE NOW, not a slide. It was two lines of torso lean over a big
+  velocity change. `animator.update` gained a three-beat dash layer, additive
+  over the locomotion and placed AFTER the gait blocks (which assign rather
+  than accumulate) so it survives them and mixes into a run instead of
+  replacing it:
+    1. COIL — standing on a held dash button: sink onto the back leg, weight
+       back, arms cocked. Deepens as the charge winds (`ctx.dashCoil`).
+    2. GATHER — the compression at the head of the burst, so an uncharged
+       dash, and one thrown mid-run where there IS no coil, still crouches
+       before it goes.
+    3. DRIVE — hips low and pitched in, legs SPLIT (lead knee up and tucked,
+       trailing leg extended off the toe), arms counter-swinging, easing out
+       over the back half.
+  Leg folds reuse the duck layer's derivation (thigh pitched A, shin
+  countertilted B−A, hips dropped by the exact loss of vertical reach) so the
+  feet stay planted instead of punching through the floor.
+- `ctx` gained `dashCoil` (0..1 wind while the standing coil charges) and
+  `dashP` (progress 0→1 through a burst). `dashT` alone couldn't shape a
+  gather-then-extend pose — it only counts down, so the animator couldn't
+  tell a launch from a recovery; `doDash` now records `_dashDur` for it.
+  The existing charge/release/sprint MECHANIC was already there
+  (CHARGE_DASH_MAX, `_dashCharging`, sprint-on-hold) — only the pose was
+  missing.
+- Verified: coil/gather/drive judged from the showcase camera on titanus
+  (biped) and fenrir (quad gallop — the layer rides on top of the bound
+  instead of fighting it); dash driven through a real fighter in-battle;
+  twist probe above; ace soaks crash-free for fenrir/viper, cranky/titanus,
+  saurion/nova and under `?debug=fallback`; `vite build` green.

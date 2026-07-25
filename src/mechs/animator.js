@@ -252,12 +252,6 @@ export class Animator {
       }
     }
 
-    if (ctx.dashT > 0) { // brief dash lean
-      const d = clamp01(ctx.dashT / 0.25);
-      tgt.torso[0] += 0.4 * d;
-      tgt.head[0] += -0.25 * d;
-    }
-
     // ===== quadruped gallop (gait: 'quad' — FENRIR the wolf) =====
     // A sprinting-wolf rotary gallop: the two HINDS drive as a pair EXACTLY
     // half a cycle against the two FRONTS (a slight rotary lag inside each
@@ -298,6 +292,71 @@ export class Animator {
         tgt.kneeR[0] += (0.3 + Math.max(0, hind2) * 1.0) * q;
         tgt.ankleL[0] += (-0.28 - Math.max(0, -hind) * 0.75) * q;
         tgt.ankleR[0] += (-0.28 - Math.max(0, -hind2) * 0.75) * q;
+      }
+    }
+
+    // ===== dash: coil, gather, LUNGE =====
+    // A dash used to be a 2-line torso lean over a big velocity change, so it
+    // read as the mech SLIDING rather than pushing off. Now it's a real
+    // three-beat move, all additive over whatever locomotion is underneath so
+    // it mixes into a run instead of replacing it (and placed AFTER the gait
+    // blocks above, which assign rather than accumulate, so it survives them).
+    //
+    //   1. COIL   — standing on a held dash button: sink onto the back leg,
+    //      weight loaded, arms drawn back. Deepens as the charge winds.
+    //   2. GATHER — the compression at the head of the burst itself, so an
+    //      uncharged dash (and one thrown mid-run, where there IS no coil)
+    //      still crouches before it goes.
+    //   3. DRIVE  — the push-off: hips low and pitched into the run, legs
+    //      SPLIT (lead knee up and tucked, trailing leg extended off the toe),
+    //      arms counter-swinging. Eases out over the back half of the burst.
+    // Leg folds use the duck layer's derivation below (thigh pitched A, shin
+    // countertilted B−A) so the feet don't punch through the floor.
+    const coil = ctx.dashCoil || 0;
+    if (coil > 0.01) {
+      const c = 0.45 + 0.55 * clamp01(coil);   // a held button already sinks
+      const A = 0.55 * c, B = 1.05 * c;
+      tgt.hipsPos[1] -= this.D.thighLen * (1 - Math.cos(A)) + this.D.shinLen * (1 - Math.cos(B - A));
+      tgt.hipsPos[2] -= 0.30 * c * this.s;     // weight back over the heels
+      tgt.hipsRot[0] += 0.16 * c;
+      tgt.thighL[0] += -A; tgt.thighR[0] += -A;
+      tgt.kneeL[0] += B; tgt.kneeR[0] += B;
+      tgt.ankleL[0] += -(B - A); tgt.ankleR[0] += -(B - A);
+      tgt.torso[0] += 0.34 * c;
+      tgt.head[0] += -0.30 * c;                // eyes stay up on the target
+      tgt.shoulderL[0] += 0.42 * c; tgt.shoulderR[0] += 0.42 * c;  // arms cocked back
+      tgt.elbowL[0] += -0.55 * c; tgt.elbowR[0] += -0.55 * c;
+    }
+    if (ctx.dashT > 0) {
+      const p = clamp01(ctx.dashP ?? 0);
+      // gather peaks a fifth of the way in and is gone by a third; drive
+      // takes over and humps across the rest — sin(x·π) rises and eases 0→1→0
+      const gather = p < 0.30 ? Math.sin((p / 0.30) * Math.PI) : 0;
+      const drive = p < 0.16 ? 0 : Math.sin(clamp01((p - 0.16) / 0.84) * Math.PI);
+      if (gather > 0.01) {
+        const A = 0.5 * gather, B = 0.95 * gather;
+        tgt.hipsPos[1] -= this.D.thighLen * (1 - Math.cos(A)) + this.D.shinLen * (1 - Math.cos(B - A));
+        tgt.thighL[0] += -A; tgt.thighR[0] += -A;
+        tgt.kneeL[0] += B; tgt.kneeR[0] += B;
+        tgt.ankleL[0] += -(B - A); tgt.ankleR[0] += -(B - A);
+        tgt.torso[0] += 0.30 * gather;
+        tgt.head[0] += -0.26 * gather;
+      }
+      if (drive > 0.01) {
+        tgt.hipsPos[1] -= this.D.hipHeight * 0.16 * drive;   // stays low through it
+        tgt.hipsPos[2] += 0.22 * drive * this.s;             // hips shove forward
+        tgt.hipsRot[0] += 0.24 * drive;
+        tgt.torso[0] += 0.34 * drive;
+        tgt.head[0] += -0.36 * drive;                        // head level, eyes up
+        // split stance: lead leg folds up under the chest, trailing leg
+        // extends behind off the toe
+        tgt.thighL[0] += -0.92 * drive; tgt.kneeL[0] += 0.80 * drive;
+        tgt.ankleL[0] += -0.30 * drive;
+        tgt.thighR[0] += 0.62 * drive; tgt.kneeR[0] += -0.10 * drive;
+        tgt.ankleR[0] += 0.42 * drive;                       // toe-off
+        // arms counter-swing the legs
+        tgt.shoulderR[0] += -0.60 * drive; tgt.elbowR[0] += -0.45 * drive;
+        tgt.shoulderL[0] += 0.50 * drive; tgt.elbowL[0] += -0.30 * drive;
       }
     }
 

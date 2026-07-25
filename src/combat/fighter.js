@@ -460,6 +460,17 @@ export class Fighter {
     return !!(a && !a.fadingOut && clips.includes(a.clip.name));
   }
 
+  // twistLocked() is a step: the frame a no-twist clip starts, the shell
+  // would SNAP square from whatever twist the servos had banked. Ramp it
+  // instead, so a mech that entered the attack mid-turn visibly ROTATES BACK
+  // to centre over the wind-up and lunges square. Returns 0..1 (1 = locked).
+  updateTwistLock(dt) {
+    const want = this.twistLocked() ? 1 : 0;
+    const cur = this._twistLock || 0;
+    this._twistLock = cur + (want - cur) * (1 - Math.exp(-(want ? 9 : 14) * dt));
+    return this._twistLock;
+  }
+
   aimStrikeAt(prey) {
     const J = this.mech.joints;
     const w = this.world;
@@ -473,21 +484,28 @@ export class Fighter {
         J.handR.getWorldPosition(_palmTmp).y);
       striking = hy < J.shoulderL.getWorldPosition(_palmTmp).y + 0.1 * this.scale;
     }
-    if (J.torso && this.twistLocked()) {
-      this._aimYaw = 0;   // arm-only aim: never twist the shell to steer
-    } else if (J.torso) {
-      this.palmsMid(_palmTmp);
-      const pmx = _palmTmp.x - this.pos.x, pmz = _palmTmp.z - this.pos.z;
-      const vx = w.wrapDelta(prey.pos.x - this.pos.x);
-      const vz = w.wrapDelta(prey.pos.z - this.pos.z);
+    // `lock` is the ramped noTwistClips gate: while it climbs, the servo
+    // stops chasing AND what it already banked is scaled away, so the shell
+    // eases back to square rather than dropping the twist in one frame.
+    const lock = this._twistLock || 0;
+    if (J.torso) {
       let fix = this._aimYaw || 0;
-      const dAz = (pmx * pmx + pmz * pmz > 0.09)
-        ? angleDiff(Math.atan2(pmx, pmz), Math.atan2(vx, vz)) : 99;
-      if (striking && Math.abs(dAz) < 1.1) { // fists driving through the front arc
-        fix = clamp(fix + clamp(dAz - fix, -0.22, 0.22), -0.7, 0.7);
+      if (lock < 0.999) {
+        this.palmsMid(_palmTmp);
+        const pmx = _palmTmp.x - this.pos.x, pmz = _palmTmp.z - this.pos.z;
+        const vx = w.wrapDelta(prey.pos.x - this.pos.x);
+        const vz = w.wrapDelta(prey.pos.z - this.pos.z);
+        const dAz = (pmx * pmx + pmz * pmz > 0.09)
+          ? angleDiff(Math.atan2(pmx, pmz), Math.atan2(vx, vz)) : 99;
+        if (striking && Math.abs(dAz) < 1.1) { // fists driving through the front arc
+          fix = clamp(fix + clamp(dAz - fix, -0.22, 0.22), -0.7, 0.7);
+        } else {
+          fix *= 0.75; // windup: don't chase, unwind
+        }
       } else {
-        fix *= 0.75; // windup: don't chase, unwind
+        fix *= 0.75;   // fully locked: arm-only aim, keep unwinding
       }
+      fix *= 1 - lock;
       J.torso.rotation.y += fix;
       this._aimYaw = fix;
     }
@@ -600,6 +618,7 @@ export class Fighter {
     }
     this.dashCd = DASH_COOLDOWN;
     this.dashT = 0.3 + 0.32 * k;
+    this._dashDur = this.dashT;   // animator reads progress = 1 - dashT/dur
     this.iframes = Math.max(this.iframes, 0.26 + 0.28 * k);
     this.setState('dash', this.dashT);
     this.world.audio?.play('dash');
@@ -2102,6 +2121,13 @@ export class Fighter {
       hovering: this.hovering,
       duck: dk,
       charging: this._charging,
+      // dash tells (animator draws the crouch + lunge from these):
+      //   dashCoil — standing B-hold winding the coil, 0..1 by how wound
+      //   dashP    — progress THROUGH a dash burst, 0 at launch → 1 at rest
+      // dashT alone can't shape a gather-then-extend pose: it only counts
+      // down, so the animator can't tell the launch from the recovery.
+      dashCoil: this._dashCharging ? Math.max(0.14, (this._dashCharge || 0) / CHARGE_DASH_MAX) : 0,
+      dashP: this.dashT > 0 && this._dashDur ? 1 - this.dashT / this._dashDur : 1,
     });
     // GLB: while downed/rising, floor-clamp the prone body so it neither
     // floats nor sinks (the shared clip's hips-drop is tuned to procedural
@@ -2138,8 +2164,10 @@ export class Fighter {
     this.torsoYaw = angleDamp(this.torsoYaw, this.targetYaw, lerp(18, 12, runK), dt);
     this.group.rotation.y = this.yaw;
     // twist = how far the torso leads the legs, folded into the pose the
-    // animator just applied (clamped so the waist never looks snapped)
-    const twist = this.twistLocked() ? 0 : clamp(angleDiff(this.yaw, this.torsoYaw), -0.6, 0.6);
+    // animator just applied (clamped so the waist never looks snapped), and
+    // faded out by the same ramped lock the strike servo uses
+    const twist = clamp(angleDiff(this.yaw, this.torsoYaw), -0.6, 0.6)
+      * (1 - this.updateTwistLock(dt));
     const J = this.mech.joints;
     if (J.torso) J.torso.rotation.y += twist;
     // `rigidShell` (GLB): head/mouth/torso are one carapace, so the head must

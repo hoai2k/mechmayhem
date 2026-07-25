@@ -229,6 +229,10 @@ export const ROSTER = [
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.18, 0], hipsRot: [8, 0, 0], torso: [10, 0, 0], head: [-10, 0, 0], shoulderL: [-42, 6, -10], shoulderR: [-42, -6, 10], elbowL: [-56, 0, 0], elbowR: [-56, 0, 0], handL: [24, 0, 0], handR: [24, 0, 0], thighL: [-14, 0, -7], thighR: [-2, 0, 7], kneeL: [20, 0, 0], kneeR: [10, 0, 0] },
     gait: 'quad', // wolf lope: fronts reach, hinds drive together
+    // the spike LEAP is the whole body as the weapon: let the strike servo
+    // steer the claws through the arms only, never by slewing the shell, or
+    // he lunges off at an angle and stays there (see fighter.twistLocked)
+    noTwistClips: ['fenrirSpike'],
     // heavy: he leaps first and the spiked mane flares out DURING the jump —
     // porcupine-style, growing all flight long and peaking exactly at the
     // moment of impact — so the target meets the ruff at its biggest
