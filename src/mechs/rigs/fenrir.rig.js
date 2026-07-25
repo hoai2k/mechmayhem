@@ -9,11 +9,12 @@
 // Positions are MESH-LOCAL (raw GLB bind space): +x FORWARD (snout/toes),
 // +y UP, +z LEFT / -z RIGHT. NOTE: this model's lateral centre line is
 // z = +0.07, not 0 — every left/right pair below is mirrored about that, not
-// about zero. Measured off the bind point cloud (feet at z 0.25 / -0.11,
-// shoulders at z 0.255 / -0.115). Tune live in ?rigedit=fenrir.
+// about zero. Tune live in ?rigedit=fenrir; the positions below are the latest
+// tuning pass exported from it. `skinSpan` and `bias` are re-attached here
+// because the editor's Export emits only name/parent/pos (+ bias/post).
 //
 // `skinSpan: 'child'`: each bone owns the limb slice BELOW it (shoulder→elbow
-// is the upper arm, knee→hock is the shin), which is the slice three.js
+// is the upper arm, knee→ankle is the shin), which is the slice three.js
 // actually pivots around that bone. See reskin.js — the default 'parent'
 // spans put the upper arm on `elbow`, so a bent elbow swings the whole upper
 // arm off the shoulder. Fenrir bends hard (combatPose elbows sit at −56°, the
@@ -31,42 +32,42 @@
 export const FENRIR_RIG = {
   skinSpan: 'child',
   bones: [
-    // ---- spine ---- (torso sits low, at the waist, so the belly rides the
-    //      hips and the whole chest+neck column rides the torso)
+    // ---- spine ---- (torso rides high at the chest, so hips carry the whole
+    //      pelvis + belly column and torso carries the ribcage up to the neck)
     { name: 'hips', parent: null, pos: [0.05, 0.52, 0.07], bias: 0.9 },
-    { name: 'torso', parent: 'hips', pos: [0.07, 0.665, 0.07], bias: 0.9 },
-    { name: 'head', parent: 'torso', pos: [0.05, 0.845, 0.07], bias: 1.1 },
-    { name: 'crest', parent: 'head', pos: [0.05, 0.985, 0.07] },
+    { name: 'torso', parent: 'hips', pos: [0.07, 0.79, 0.07], bias: 0.9 },
+    { name: 'head', parent: 'torso', pos: [0.05, 0.85, 0.07], bias: 1.1 },
+    { name: 'crest', parent: 'head', pos: [0.07, 0.93, 0.07] },
     { name: 'snout', parent: 'head', pos: [0.24, 0.85, 0.07] },
     // ---- LEFT arm (+z) ---- hangs nearly straight down, claw at thigh height
-    { name: 'shoulderL', parent: 'torso', pos: [0.055, 0.765, 0.255], bias: 0.85 },
-    { name: 'elbowL', parent: 'shoulderL', pos: [0.033, 0.61, 0.298] },
-    { name: 'handL', parent: 'elbowL', pos: [0.105, 0.44, 0.315] },
-    { name: 'clawL', parent: 'handL', pos: [0.115, 0.365, 0.305] },
+    { name: 'shoulderL', parent: 'torso', pos: [0.06, 0.78, 0.23], bias: 0.85 },
+    { name: 'elbowL', parent: 'shoulderL', pos: [0.03, 0.63, 0.28] },
+    { name: 'handL', parent: 'elbowL', pos: [0.10, 0.46, 0.32] },
+    { name: 'clawL', parent: 'handL', pos: [0.12, 0.37, 0.31] },
     // ---- RIGHT arm (-z) ----
-    { name: 'shoulderR', parent: 'torso', pos: [0.055, 0.765, -0.115], bias: 0.85 },
-    { name: 'elbowR', parent: 'shoulderR', pos: [0.033, 0.61, -0.158] },
-    { name: 'handR', parent: 'elbowR', pos: [0.105, 0.44, -0.175] },
-    { name: 'clawR', parent: 'handR', pos: [0.115, 0.365, -0.165] },
-    // ---- LEFT leg (+z) ---- digitigrade: knee forward (x 0.105), hock BACK
-    //      (x 0.038), paw forward again. `ankle` is the hock, matching the
-    //      procedural DIGITIGRADE_REST the retarget captures against.
-    { name: 'thighL', parent: 'hips', pos: [0.078, 0.50, 0.168] },
-    { name: 'kneeL', parent: 'thighL', pos: [0.105, 0.37, 0.195] },
-    { name: 'ankleL', parent: 'kneeL', pos: [0.038, 0.215, 0.20] },
-    { name: 'footL', parent: 'ankleL', pos: [0.115, 0.045, 0.245] },
+    { name: 'shoulderR', parent: 'torso', pos: [0.06, 0.78, -0.08], bias: 0.85 },
+    { name: 'elbowR', parent: 'shoulderR', pos: [0.03, 0.63, -0.15] },
+    { name: 'handR', parent: 'elbowR', pos: [0.10, 0.47, -0.18] },
+    { name: 'clawR', parent: 'handR', pos: [0.12, 0.37, -0.17] },
+    // ---- LEFT leg (+z) ---- knee forward, ankle low at the back of the paw,
+    //      foot forward into the toes: three bends the digitigrade shape reads
+    //      through, with the paw itself on `footL`.
+    { name: 'thighL', parent: 'hips', pos: [0.08, 0.50, 0.17] },
+    { name: 'kneeL', parent: 'thighL', pos: [0.10, 0.31, 0.20] },
+    { name: 'ankleL', parent: 'kneeL', pos: [0.07, 0.08, 0.24] },
+    { name: 'footL', parent: 'ankleL', pos: [0.13, 0.03, 0.26] },
     // ---- RIGHT leg (-z) ----
-    { name: 'thighR', parent: 'hips', pos: [0.078, 0.50, -0.028] },
-    { name: 'kneeR', parent: 'thighR', pos: [0.105, 0.37, -0.055] },
-    { name: 'ankleR', parent: 'kneeR', pos: [0.038, 0.215, -0.06] },
-    { name: 'footR', parent: 'ankleR', pos: [0.115, 0.045, -0.105] },
+    { name: 'thighR', parent: 'hips', pos: [0.08, 0.50, -0.03] },
+    { name: 'kneeR', parent: 'thighR', pos: [0.10, 0.32, -0.05] },
+    { name: 'ankleR', parent: 'kneeR', pos: [0.07, 0.07, -0.09] },
+    { name: 'footR', parent: 'ankleR', pos: [0.11, 0.03, -0.09] },
     // ---- tail: a long blade that leaves the pelvis, sweeps back and down and
-    //      curls around the RIGHT leg to the floor (traced off the point cloud)
-    { name: 'tail0', parent: 'hips', pos: [-0.06, 0.505, 0.06] },
-    { name: 'tail1', parent: 'tail0', pos: [-0.145, 0.425, 0.036] },
-    { name: 'tail2', parent: 'tail1', pos: [-0.21, 0.32, -0.05] },
-    { name: 'tail3', parent: 'tail2', pos: [-0.225, 0.24, -0.20] },
-    { name: 'tail4', parent: 'tail3', pos: [-0.155, 0.165, -0.30] },
-    { name: 'tail5', parent: 'tail4', pos: [-0.03, 0.075, -0.31] },
+    //      curls around the RIGHT leg to the floor
+    { name: 'tail0', parent: 'hips', pos: [-0.06, 0.51, 0.06] },
+    { name: 'tail1', parent: 'tail0', pos: [-0.14, 0.43, 0.04] },
+    { name: 'tail2', parent: 'tail1', pos: [-0.23, 0.32, -0.04] },
+    { name: 'tail3', parent: 'tail2', pos: [-0.22, 0.24, -0.20] },
+    { name: 'tail4', parent: 'tail3', pos: [-0.14, 0.18, -0.30] },
+    { name: 'tail5', parent: 'tail4', pos: [-0.03, 0.08, -0.31] },
   ],
 };

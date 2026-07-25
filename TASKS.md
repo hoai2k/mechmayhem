@@ -2354,3 +2354,29 @@ controllers via Gamepad API), AI opponents.
   `?debug=fallback` renders the procedural roster on the same screens; ace
   soaks crash-free with GLBs default-on (fenrir-vs-viper, titanus-vs-nova,
   cranky-vs-saurion) and under `?debug=fallback`; `vite build` green.
+
+## Fenrir rig tuning pass (user ?rigedit export, 2026-07-25)
+
+- `src/mechs/rigs/fenrir.rig.js` updated to the positions exported from
+  `?rigedit=fenrir`: torso lifted to the chest (y 0.665 → 0.79), crest
+  dropped onto the skull (0.985 → 0.93), shoulders/arms nudged in and up,
+  tail re-traced, and — the big one — the legs re-articulated so `ankle`
+  now sits at the PAW (y 0.215 → 0.08) with the knee at y 0.31 instead of
+  the hock-as-ankle placement. `skinSpan: 'child'` re-attached by hand: the
+  editor's Export only emits name/parent/pos (+ bias/post), same caveat the
+  other rig files carry.
+- DROPPED the 9 `comp`-selector skinOps from the fenrir manifest entry,
+  kept all 38 explicit vertex-set ops. Vertex indices are stable per GLB so
+  those re-apply exactly as painted; `comp` ordinals come from
+  `analyzeSkin` of the CURRENT skinning, so moving the rig repointed them.
+  Measured after the move: 2 were out of range entirely (comps 55/57 — the
+  mesh now has 50 components), 3 were no-ops, and 4 would have rebound
+  1–10 stray verts each to a bone they no longer sit on (comp 29 wanted
+  thighL but now names a tail2 island, comp 32 wanted torso but names a
+  shoulderL island near the floor). Re-export them from `?debug=skin`
+  against the new rig if those slivers still need fixing.
+- Verified: weight report shows the chain still reads correctly per bone
+  (thigh y 0.30–0.49, shin y 0.01–0.32, paw y 0–0.09, tail its own 5
+  islands); showcase idle + quad lope clean with no tearing; no skinOps
+  warnings on build; fenrir-vs-viper ace soak crash-free; `vite build`
+  green.
