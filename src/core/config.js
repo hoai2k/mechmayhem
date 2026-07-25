@@ -14,6 +14,11 @@ export const CONFIG = {
   // Infinite Ultimates: fire ults without a charged meter. Persisted from
   // the settings menu; ?debug=ultimates still forces it on for a session.
   debugUltimates: params.get('debug') === 'ultimates' || readPref('rw.infiniteUlts'),
+  // Show all robots: include work-in-progress mechs (roster entries flagged
+  // `hidden`) in the game's roster. OFF by default — the workbenches
+  // (?showcase, ?rigedit, pose/skin tools, ?battle=...) always show every
+  // mech regardless. Persisted from the settings menu; ?showall=1 forces on.
+  showAllRobots: params.get('showall') === '1' || readPref('rw.showAllRobots'),
 };
 
 function readPref(key) {
@@ -23,4 +28,9 @@ function readPref(key) {
 export function setInfiniteUltimates(on) {
   CONFIG.debugUltimates = on;
   try { localStorage.setItem('rw.infiniteUlts', on ? '1' : '0'); } catch (e) { /* ok */ }
+}
+
+export function setShowAllRobots(on) {
+  CONFIG.showAllRobots = on;
+  try { localStorage.setItem('rw.showAllRobots', on ? '1' : '0'); } catch (e) { /* ok */ }
 }

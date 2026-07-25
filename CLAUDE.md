@@ -15,7 +15,15 @@ audio). Progress history: `TASKS.md`.
 - Debug URLs: `?showcase` (12-mech lineup) · `?showcase=<id>&anim=<clip|walk|none>`
   (single mech, judging camera) · `?battle=<arena>&p1=<id>&p2=<id>[&p3..p4][&auto=1][&diff=ace][&forcesplit=1]`
   · `?rigtest` (GLB retarget math check) · `?rigedit=<id>` (edit a mech's
-  hand-authored rig, `src/mechs/rigs/<id>.rig.js`)
+  hand-authored rig, `src/mechs/rigs/<id>.rig.js`) · `?showall=1` (force
+  SETTINGS → SHOW ALL ROBOTS on for the session)
+- Work-in-progress mechs: a roster def flagged `hidden: true` (currently
+  AEGIS + NOVA) is kept out of the GAME's roster — mech select, RANDOM
+  picks, CPU picks, title line-up — until SETTINGS → SHOW ALL ROBOTS is
+  turned on (persisted in `rw.showAllRobots`). Every workbench (`?showcase`,
+  `?rigedit`, pose/skin tools, `?battle=...`, the level editor) always sees
+  the full `ROSTER`, so iteration is unaffected. Game code that offers mechs
+  must go through `playableRoster()` / `isPlayable()` from `roster.js`.
 - Model set: the GLBs in `public/models/manifest.json` are the DEFAULT for
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).
