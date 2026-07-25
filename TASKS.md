@@ -2834,3 +2834,44 @@ controllers via Gamepad API), AI opponents.
   mirror images; ace soaks crash-free tempest/viper, tempest/titanus
   (fallback) and colossus/frogger (the other twin-side weapons touched);
   `vite build` green.
+
+## Titanus throws ALTERNATE fists (user request, 2026-07-25)
+
+- The rocket fist now swaps hands shot to shot, both the animation and the
+  geometry. It rides the twin-cannon machinery that colossus/frogger/tempest
+  already use: `'fist'` joins the `twin` list in `Fighter.doRanged`, so
+  `_altSide` flips per shot, and the chosen side is stamped on `_fistSide` for
+  the weapon handler.
+- Mirrored clips are generated, not hand-authored: `fistLaunchL` /`fistCatchL`
+  come from the existing `mirrorRaw` helper (swap L/R joint names, negate y/z),
+  the same way `braceL`/`shootL` are made. Roster gains `rangedClipL`, and the
+  clip picker prefers it when `_altSide` — previously `def.rangedClip` short-
+  circuited the whole side-aware branch, so a mech with a named ranged clip
+  could never mirror it.
+  · Measured rather than eyeballed, because a front-on render of a punch aimed
+    at the camera is genuinely ambiguous: at the fire frame `fistLaunch` puts
+    the RIGHT arm at pitch -4.5°/yaw +6.3°/reach 3.28 with the left retracted,
+    and `fistLaunchL` puts the LEFT arm at -4.5°/-6.3°/3.28 with the right
+    retracted. An exact mirror.
+- The GEOMETRY follows the side too — `fistsplit.js` already cut both hands, so
+  this is just plumbing the side through: `launchFist(side)`, `catchFist(side)`,
+  `reachForFist(pos, side)` (plays the matching catch), `snapshot(side)`, and
+  `p.fistSide` so the projectile tells the owner which hand to re-dock.
+- `_fistOut` became a Set of sides. A throw is refused only when BOTH fists are
+  away, and if strict alternation lands on a hand that is still in flight he
+  throws the other one instead of skipping the shot. The round-reset restores
+  every side that is out.
+- Fixed on the way: the aim was still ranged off `muzzleR` for a LEFT throw, and
+  mid-clip the right arm is retracted behind him, so his left-hand shot left 7°
+  flatter than his right (-0.8° vs -8°). `fireRanged` now resolves the
+  alternating barrel BEFORE it ranges the shot, extending the existing
+  `rangedMuzzle` primary-barrel lookup from per-mech to per-shot.
+- Verified: four consecutive throws in a REAL battle alternate L,R,L,R with the
+  matching clip each time (`fistLaunchL`/`fistLaunch`), the matching geometry
+  group hidden each time (`[body,fistR,fistL]` = `[t,t,f]` then `[t,f,t]`), the
+  muzzle on the matching side (x -2.7 vs +2.7), and every throw leaving at yaw
+  0.0° with pitch -7.5°..-8° on BOTH hands after the fix; both fists restored
+  and `_fistOut` empty at the end; left punch VIEWed from 3/4 (arm horizontal,
+  knuckles leading); titanus attackmatrix ALL CONNECT; ace soaks crash-free
+  (titanus/viper, and two titanus + glacier so both fighters' splits and both
+  hands are exercised at once); `vite build` green.

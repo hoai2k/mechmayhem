@@ -532,7 +532,9 @@ export class Fighter {
     const mv = this.def.moves.ranged;
     if (this.rangedCd > 0) return;
     this._moveAttack = false;
-    if (mv.type === 'fist' && this._fistOut) return; // fist still in flight
+    // both fists in flight — nothing left to throw (one out is fine, the other
+    // hand takes the shot)
+    if (mv.type === 'fist' && this._fistOut?.size >= 2) return;
     if (this.ammoMax !== undefined && this.ammo <= 0) {
       this.world.audio?.play('uiBack'); // dry click — find an ammo crate
       this.rangedCd = 0.4;
@@ -557,10 +559,18 @@ export class Fighter {
       // mortar (colossus), slime (frogger), lightning (tempest's arc bolts,
       // one emitter per arm). The weapon handler reads _altSide to spawn from
       // the matching muzzle, so the bolt leaves the hand that just moved.
-      const twin = mv.type === 'mortar' || mv.type === 'slime' || mv.type === 'lightning';
+      const twin = mv.type === 'mortar' || mv.type === 'slime' || mv.type === 'lightning'
+        || mv.type === 'fist';   // titanus throws alternate fists
       if (twin && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
+      // A thrown fist is gone until it flies home, so the strict alternation
+      // can land on a hand that is still out there. Take the other one instead
+      // of skipping the shot — doRanged already refused if BOTH are away.
+      if (mv.type === 'fist') {
+        if (this._fistOut?.has(this._altSide ? 'L' : 'R')) this._altSide = !this._altSide;
+        this._fistSide = this._altSide ? 'L' : 'R';   // read by WEAPONS.fist
+      }
       const mirrored = (mv.type === 'slime' || mv.type === 'lightning') && this._altSide;
-      const clip = this.def.rangedClip
+      const clip = (this._altSide && this.def.rangedClipL) || this.def.rangedClip
         || (mv.type === 'mortar' ? (this._altSide ? 'braceL' : 'brace')
         : mv.type === 'railgun' ? 'aim'
         : mv.type === 'groundpound' ? 'groundPound'
@@ -1172,30 +1182,30 @@ export class Fighter {
   // the one skinned mesh (fistsplit.js), so hiding that group + showing the dark
   // wrist cap is what opens the socket. Procedural bodies carry the fist as real
   // children of the hand joint, so scaling the joint away still does it there.
-  launchFist() {
-    if (!this.mech.fistSplit?.detach('R')) this.mech.joints.handR?.scale.setScalar(0.001);
-    this._fistOut = true;
+  launchFist(side = 'R') {
+    if (!this.mech.fistSplit?.detach(side)) this.mech.joints['hand' + side]?.scale.setScalar(0.001);
+    (this._fistOut ||= new Set()).add(side);
   }
 
   // the returning fist is a beat out — square toward it and reach the right
   // arm out open-wristed so the re-dock reads as a deliberate catch
-  reachForFist(fistPos) {
+  reachForFist(fistPos, side = 'R') {
     if (!this.alive || !this.canAct()) return;
     const dx = this.world.wrapDelta(fistPos.x - this.pos.x);
     const dz = this.world.wrapDelta(fistPos.z - this.pos.z);
     this.targetYaw = Math.atan2(dx, dz);
-    this.animator.play('fistCatch');
+    this.animator.play(side === 'L' ? 'fistCatchL' : 'fistCatch');
   }
 
-  catchFist() {
-    if (!this._fistOut) return;
-    this._fistOut = false;
+  catchFist(side = 'R') {
+    if (!this._fistOut?.has(side)) return;
+    this._fistOut.delete(side);
     // onReturn fires on ANY death of the projectile, not just a clean catch, so
-    // this is also the "it expired out there" restore — the fist can never be
+    // this is also the "it expired out there" restore — a fist can never be
     // left missing.
     const split = this.mech.fistSplit;
-    if (split) split.attach('R');
-    const j = this.mech.joints.handR;
+    if (split) split.attach(side);
+    const j = this.mech.joints['hand' + side];
     if (j) {
       if (!split) j.scale.setScalar(1);
       j.getWorldPosition(_v);
@@ -2530,9 +2540,11 @@ export class Fighter {
     this._lockAim = null;
     this._oneArmLift = false;
     this.clearChargeGlow();
-    if (this._fistOut) { // fist projectile died with the round — re-attach
-      this._fistOut = false;
-      if (!this.mech.fistSplit?.attach('R')) this.mech.joints.handR?.scale.setScalar(1);
+    if (this._fistOut?.size) { // fist projectile(s) died with the round — re-attach
+      for (const side of this._fistOut) {
+        if (!this.mech.fistSplit?.attach(side)) this.mech.joints['hand' + side]?.scale.setScalar(1);
+      }
+      this._fistOut.clear();
     }
     this.animator.action = null;
   }
