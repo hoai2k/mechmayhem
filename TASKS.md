@@ -2508,3 +2508,27 @@ controllers via Gamepad API), AI opponents.
 - Verified: fire pose + rest VIEWed in showcase (arms dead horizontal, fists
   forward, no geometry tearing); ace soaks rhino/titanus crash-free;
   `vite build` green.
+## Tempest: updated anchors/skinning + a heavy that PUMPS the T (user request, 2026-07-25)
+
+- Manifest: Tempest's `muzzles` re-authored from the anchor editor — both
+  barrels now ride real GLB bones (`tripo0_Right_Limb_6` on the right,
+  the mapped `elbowL` on the left) with authored offsets/rots, replacing the
+  old generic in-hand `handR`/`handL` pair. `skinOps` refreshed to the new
+  123-op set (one added vertex-list op onto `bone_24`).
+- `tempestTornado` (the shared heavy clip, so BOTH routes get it) now pumps
+  the arms across the spin instead of holding one shape: flat T at t=0.30 /
+  0.46 / 0.68, arms dropped along the body at t=0.38 / 0.56, each launch an
+  `outBack` snap back out. `heavySpin` runs 0.26–0.86 at 24 rad/s ≈ 2.3
+  turns, so it's one drop-and-launch per revolution with a T carrying each
+  hit beat (0.45, 0.68).
+- The T pose was measured, not guessed: shoulder roll −92/+92 with ZERO
+  pitch and a STRAIGHT elbow is flat on this rig on both routes (hands land
+  at y 1.8–2.0 against shoulders at y 1.64–1.77, at full 3.6–3.9 horizontal
+  reach). The old −24 shoulder pitch was what dragged the hands forward and
+  below the shoulder line; roll past ~100 lifts them into a Y, not a T.
+  Recorded in the clip comment.
+- Verified: frames frozen at t=0.30 / 0.38 / 0.46 / 0.56 / 0.68 and VIEWed on
+  the GLB route and t=0.30 / 0.38 / 0.68 under `?debug=fallback` — flat T
+  with hands at shoulder height on both, arms hanging on the drops; ace
+  soaks crash-free tempest/viper (GLB) and tempest/titanus (`?debug=fallback`),
+  no contract violations; `vite build` green.
