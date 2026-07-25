@@ -55,6 +55,7 @@ export const ROSTER = [
     stats: { hp: 950, speed: 9.5, jump: 13, weight: 0.62, armor: 0.1, blockMult: 0.12 },
     ui: { power: 7, speed: 5, defense: 5 },
     levelHands: true, // wrist counter-pitch keeps the hand hardware on the aim line (signatures.js)
+    channelClip: 'gatlingLoop', // gun arm punched forward, torso twist eased — barrel on the aim line
     moves: {
       light: { dmg: [30, 32, 44], knock: [4, 5, 11], range: 2.9 },
       heavy: { dmg: 78, knock: 18, range: 3.2, launch: 7 },

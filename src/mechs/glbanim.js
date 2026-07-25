@@ -608,9 +608,18 @@ export const GLB_ANIM = {
   vulcan: {
     post(anim, dt, ctx, tgt) {
       const n = anim.action && !anim.action.fadingOut ? anim.action.clip.name : '';
-      if (ctx.firing || n === 'shootLoop' || n === 'shoot') {
-        tgt.shoulderR[0] = Math.max(tgt.shoulderR[0], -1.0);
+      if (ctx.firing || n === 'gatlingLoop' || n === 'shootLoop' || n === 'shoot') {
+        // -1.13 rad is where THIS model's gatling barrel comes out level: the
+        // gun is fused along the hand's own axis, so the arm chain's raise is
+        // what pitches the muzzle (checked against the muzzleR anchor's +Z in
+        // ?debug=models). Lower and he hoses the dirt, higher and he shoots sky.
+        tgt.shoulderR[0] = Math.max(tgt.shoulderR[0], -1.13);
         tgt.elbowR[0] = Math.max(tgt.elbowR[0], -0.15);
+        // ...and this model's arm hangs OUTBOARD of the shoulder, so the
+        // barrel line still ran ~10 deg wide of the aim once it was level.
+        // The wrist tucks it back onto the centreline (procedural vulcan
+        // already fires straight, hence GLB-only).
+        tgt.handR[1] = -0.44;
         tgt.shoulderL[0] = Math.max(tgt.shoulderL[0], -0.55);
         tgt.elbowL[0] = Math.max(tgt.elbowL[0], -0.4);
       }

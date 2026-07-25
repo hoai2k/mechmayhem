@@ -23,7 +23,7 @@ const RANGED = {
   mortar: { alt: 'muzzleL' }, hose: { alt: 'muzzleL' }, slime: { alt: 'muzzleL' },
 };
 const SPECIAL = {
-  missileVolley: { primary: 'podL', fallback: 'muzzleR' },
+  missileVolley: { primary: 'podL', alt: 'podR', fallback: 'muzzleR' },
   barrage: { alt: 'muzzleL' },
   fleaSwarm: { alt: 'muzzleL' },
   slimeBarrage: { alt: 'muzzleL' },
@@ -47,8 +47,8 @@ const ROLE = {
   core: 'Chest glow mount: carries the mech\'s core PointLight. Visual only.',
   overhead: 'Marker above the head. Created by both factories; no runtime consumer found.',
   scope: 'Procedural-route anchor (wraith contract). No runtime consumer found.',
-  podL: 'Vulcan\'s left shoulder missile pod — missileVolley\'s launch origin.',
-  podR: 'Decorative twin of podL. No code reads it.',
+  podL: 'Vulcan\'s left shoulder missile pod — missileVolley ripple-fires it on the even missiles of the salvo.',
+  podR: 'Vulcan\'s right shoulder missile pod — missileVolley\'s odd missiles launch from here.',
   shield: 'AEGIS passive cover: the live geometric test for attacks arriving THROUGH the tower shield. Gameplay, not FX — moving it changes what gets blocked.',
   eye: 'Wraith\'s eye — DEATH SWARM flare origin.',
 };

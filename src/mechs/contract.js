@@ -38,8 +38,8 @@ export const CONTRACT = {
   titanus: {},
   vulcan: {
     joints: ['gatlingL', 'gatlingR'],   // animator spins while firing
-    anchors: ['podL'],                  // missile special origin
-    glbAnchors: ['podL'],               // manifest muzzles: podL/podR
+    anchors: ['podL', 'podR'],          // missile special ripple-fires both
+    glbAnchors: ['podL', 'podR'],       // manifest muzzles: podL/podR
   },
   aegis: {
     joints: ['shield'],                 // animator squares it while guarding
