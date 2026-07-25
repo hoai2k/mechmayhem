@@ -1668,8 +1668,8 @@
     },
     "heightScale": 1.05,
     "muzzles": {
-      "R": {"joint":"handR","offset":[0,-0.4,0.85],"rot":[12,0,0]},
-      "L": {"joint":"handL","offset":[0,-0.4,0.85],"rot":[12,0,0]}
+      "R": {"bone":"tripoHead_0","offset":[-1.986,1.043,-1.519],"rot":[-158.27,0,-170]},
+      "L": {"bone":"bone_37","offset":[0.029,1.178,0.049],"rot":[-84.25,-17,175.75]}
     },
     "skinOps": [
       {"sel":{"comp":39},"to":"tripoSpine_1"},

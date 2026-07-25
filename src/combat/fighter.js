@@ -528,11 +528,13 @@ export class Fighter {
       this.world.fireRanged(this, mv);
     } else {
       // twin-cannon mechs alternate sides shot to shot (mirrored animation)
-      if (mv.type === 'mortar' && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
+      const twin = mv.type === 'mortar' || mv.type === 'slime';
+      if (twin && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
       const clip = this.def.rangedClip
         || (mv.type === 'mortar' ? (this._altSide ? 'braceL' : 'brace')
         : mv.type === 'railgun' ? 'aim'
-        : mv.type === 'groundpound' ? 'groundPound' : 'shoot');
+        : mv.type === 'groundpound' ? 'groundPound'
+        : mv.type === 'slime' && this._altSide ? 'shootL' : 'shoot');
       this.rangedCd = mv.cooldown;
       // single-shot weapons spend ammo too (channel weapons decrement in
       // their own loop) — without this they never drain and never refill
@@ -544,7 +546,7 @@ export class Fighter {
         },
       });
       // upper-body clips let you keep moving; only brief lock for heavy shots
-      if (clip !== 'shoot') this.setState('attack', dur * 0.6);
+      if (clip !== 'shoot' && clip !== 'shootL') this.setState('attack', dur * 0.6);
     }
   }
 

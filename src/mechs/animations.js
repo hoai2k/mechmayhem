@@ -921,6 +921,7 @@ function mirrorRaw(raw) {
   };
 }
 CLIPS_RAW.braceL = mirrorRaw(CLIPS_RAW.brace); // colossus fires the OTHER cannon
+CLIPS_RAW.shootL = mirrorRaw(CLIPS_RAW.shoot); // frogger's other gunk cannon
 CLIPS_RAW.bigPunch2 = mirrorRaw(CLIPS_RAW.bigPunch1); // right haymaker, same wind-up
 CLIPS_RAW.punchHold2 = mirrorRaw(CLIPS_RAW.punchHold1); // right-arm charge
 CLIPS_RAW.punchRelease2 = mirrorRaw(CLIPS_RAW.punchRelease1);
@@ -965,7 +966,28 @@ for (const [name, raw] of Object.entries(CLIPS_RAW)) CLIPS[name] = compile(name,
 // his own cloak fans; the GLB body instead just LEANS INTO the mark a little
 // and lets the attached procedural cape (glbanim wraith.build) do the show.
 // Same duration and hit/sfx timings — gameplay identical.
+// frogger for the GLB: the shared `shoot` throws the RIGHT arm out and up as
+// if the gun were in the hand, but this model's gunk cannons are hull mounts
+// (the manifest pins muzzleR/muzzleL to cannon BONES, nowhere near the hands),
+// so raising an arm just waves an empty fist through the shot line. Same
+// duration and the same `fire` event time — only the body sells it now: a
+// twist onto the firing side, then a hard recoil kick back through torso and
+// hips. Arms are left untouched so the combat carriage holds. shootL is the
+// mirror, for the alternating other cannon (fighter.doRanged picks the side).
+const FROGGER_SHOOT_GLB = {
+  dur: 0.5, upper: true,
+  keys: [
+    { t: 0, pose: { torso: [3, -10, -2], head: [0, 7, 0] } },
+    { t: 0.12, ease: 'outBack', pose: { torso: [-6, -5, -1], head: [-6, 4, 0], hipsPos: [0, -0.08, 0] } },
+    { t: 0.3, ease: 'outQuad', pose: { torso: [5, -8, -2], head: [1, 6, 0], hipsPos: [0, -0.02, 0] } },
+    { t: 0.5, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0] } },
+  ],
+  events: [{ t: 0.1, type: 'fire' }],
+};
+
 export const GLB_CLIP_VARIANTS = {
+  froggerShootGlb: compile('shoot', FROGGER_SHOOT_GLB),
+  froggerShootLGlb: compile('shootL', mirrorRaw(FROGGER_SHOOT_GLB)),
   wraithLasersGlb: compile('wraithLasers', {
     dur: 1.45,
     keys: [

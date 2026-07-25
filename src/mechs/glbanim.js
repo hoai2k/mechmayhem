@@ -390,7 +390,16 @@ export const GLB_ANIM = {
   saurion: {
     lightClips: ['saurionKick1', 'saurionClawL', 'saurionKick2', 'saurionClawR'],
   },
-  frogger: {},   // four-arm — lower arms are procedural-only joints
+  // FROGGER — four-arm; the lower arms are procedural-only joints. His gunk
+  // guns are HULL mounts on this model (the manifest pins muzzleR/muzzleL to
+  // cannon bones), so the ranged shot must not raise a hand: swap in the
+  // body-recoil variants, one per cannon (doRanged alternates the side).
+  frogger: {
+    clipOverrides: {
+      shoot: GLB_CLIP_VARIANTS.froggerShootGlb,
+      shootL: GLB_CLIP_VARIANTS.froggerShootLGlb,
+    },
+  },
   jerry: {},     // crustacean — antennae/struts are procedural-only joints
   nullbot: {},   // humanoid — direct map (glitch strobe is material-only)
 

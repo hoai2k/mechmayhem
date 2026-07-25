@@ -913,8 +913,15 @@ const WEAPONS = {
     w.effects.muzzleFlash(from);
   },
 
-  slime(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // FROGGER: a sputtering STREAM of gel wads — a lead
-    // glob followed by trailing spatter, all dripping goo in flight
+  slime(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // FROGGER: a sputtering STREAM of gel wads — a lead
+    // glob followed by trailing spatter, all dripping goo in flight.
+    // The four gunk guns trade shots — doRanged toggled the side + mirrored
+    // clip; each cannon splays the aim along its OWN barrel axis (dirFrom).
+    const a = f._altSide && anchors.muzzleL ? anchors.muzzleL : anchors.muzzleR;
+    if (a !== anchors.muzzleR) {
+      from = a.getWorldPosition(new THREE.Vector3());
+      dir = dirFrom(a);
+    }
     for (let i = 0; i < 3; i++) {
       const d2 = dir.clone();
       d2.x += rand(-0.045, 0.045); d2.y += rand(-0.015, 0.05); d2.z += rand(-0.045, 0.045);
