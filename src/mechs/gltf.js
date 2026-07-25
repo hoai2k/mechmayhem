@@ -549,8 +549,9 @@ function buildGlbMech(def, entry, gltf) {
     let parent = null, k = D.scale;
     // "bone" resolves through the boneMap first (canonical joint keys), then
     // through a CUSTOM rig's extra bones (wraith's `rifleTip` — the gun is a
-    // rigid body on the hand, so its muzzle is a bone, not an offset guess),
-    // then as a RAW bone name — for mounts on bones no combat joint maps to
+    // rigid body on the hand, so its muzzle is a bone, not an offset guess;
+    // viper's `bladeLtip`/`bladeRtip` carry her blade-trail anchors), then as a
+    // RAW bone name — for mounts on bones no combat joint maps to
     if (spec?.bone) {
       const b = boneMap[spec.bone] || rigBones?.[spec.bone] || bones.find((x) => x.name === spec.bone);
       // bone-local units are model-space (pre model.scale); divide so the

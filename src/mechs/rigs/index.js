@@ -6,6 +6,7 @@ import { FENRIR_RIG } from './fenrir.rig.js';
 import { GLACIER_RIG } from './glacier.rig.js';
 import { JERRY_RIG } from './jerry.rig.js';
 import { TITANUS_RIG } from './titanus.rig.js';
+import { VIPER_RIG } from './viper.rig.js';
 import { WRAITH_RIG } from './wraith.rig.js';
 
 export const RIGS = {
@@ -14,6 +15,7 @@ export const RIGS = {
   glacier: GLACIER_RIG,
   jerry: JERRY_RIG,
   titanus: TITANUS_RIG,
+  viper: VIPER_RIG,
   wraith: WRAITH_RIG,
 };
 

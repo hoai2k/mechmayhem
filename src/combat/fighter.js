@@ -25,6 +25,11 @@ const ULT_RATE = 2;      // ult meter fills 2x faster (ultimates balance pass)
 const WALK_MULT = 1.2;   // global ground-speed boost over roster stats
 const JUMP_MULT = 1.18;  // global jump boost
 const CHARGE_DASH_MAX = 3; // seconds of crouch that fully winds a charged dash
+// A thrown weapon (viper's daggers, aegis' lance) re-forges on its empty mount:
+// a beat of nothing, then it grows back over REGROW_TIME. Shared by the regrow
+// animation and by `weaponReady`, which picks which dagger viper still has.
+const REGROW_DELAY = 0.18;
+const REGROW_TIME = 0.5;
 // Where an unaimed ranged weapon assumes its target stands (world units). This
 // is the gap a duel actually settles at — matches the artillery lob's own
 // default so a blind mortar shell still lands where it always did.
@@ -553,25 +558,48 @@ export class Fighter {
       if (this.ammoMax !== undefined) this.ammo--;
       this.world.fireRanged(this, mv);
     } else {
-      // twin-cannon mechs alternate sides shot to shot (mirrored animation) —
+      // Two-weapon mechs alternate sides shot to shot (mirrored animation) —
       // mortar (colossus), slime (frogger), lightning (tempest's arc bolts,
-      // one emitter per arm). The weapon handler reads _altSide to spawn from
-      // the matching muzzle, so the bolt leaves the hand that just moved.
-      const twin = mv.type === 'mortar' || mv.type === 'slime' || mv.type === 'lightning';
+      // one emitter per arm), and VIPER, who throws a forearm dagger: she has
+      // two, so she should not keep flinging the right one while the left hangs
+      // unused. The weapon handler reads _altSide to spawn from the matching
+      // muzzle, so the shot leaves the hand that just moved.
+      const twin = mv.type === 'mortar' || mv.type === 'slime'
+        || mv.type === 'lightning' || mv.type === 'blade';
       if (twin && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
-      const mirrored = (mv.type === 'slime' || mv.type === 'lightning') && this._altSide;
+      // A thrown DAGGER is a physical object, so the side has to be one she
+      // actually HAS: alternate by default, but throw from the more re-forged
+      // arm whenever the sides differ. Plain alternation is not enough on its
+      // own — a clip replaced before its `fire` event toggles without ever
+      // throwing, and under sustained fire the 0.8s cooldown outruns the
+      // re-forge, so both daggers can be away at once. Either way the fix is
+      // the same: never fling the emptier forearm.
+      if (mv.type === 'blade') {
+        const want = this._altSide ? 'bladeL' : 'bladeR';
+        const other = this._altSide ? 'bladeR' : 'bladeL';
+        if (this.weaponReady(other) > this.weaponReady(want) + 0.05) this._altSide = !this._altSide;
+      }
+      const mirrored = (mv.type === 'slime' || mv.type === 'lightning'
+        || mv.type === 'blade') && this._altSide;
       const clip = this.def.rangedClip
         || (mv.type === 'mortar' ? (this._altSide ? 'braceL' : 'brace')
         : mv.type === 'railgun' ? 'aim'
         : mv.type === 'groundpound' ? 'groundPound'
         : mirrored ? 'shootL' : 'shoot');
       this.rangedCd = mv.cooldown;
+      // The side THIS clip was mirrored for. The shot leaves on the clip's
+      // `fire` event, which lands a beat later — by then another press may have
+      // toggled _altSide again, and a handler reading it live would spawn from
+      // the arm the animation isn't using (and, for viper, empty the wrong
+      // forearm). Handlers read this stamp instead.
+      this._shotSide = this._altSide;
       // single-shot weapons spend ammo too (channel weapons decrement in
       // their own loop) — without this they never drain and never refill
       if (this.ammoMax !== undefined) this.ammo--;
+      const shotSide = this._altSide;
       const dur = this.animator.play(clip, {
         onEvent: (type) => {
-          if (type === 'fire') this.world.fireRanged(this, mv);
+          if (type === 'fire') { this._shotSide = shotSide; this.world.fireRanged(this, mv); }
           else if (type === 'shake') this.world.effects.addShake(0.3);
         },
       });
@@ -1206,29 +1234,57 @@ export class Fighter {
 
   // ---- thrown-weapon regrow: hide the weapon group, then rebuild it in the
   // grip over half a second (viper's swords, aegis' javelin) ----
+  // The thrown weapon's mount. A procedural mech carries it as a virtual rig
+  // JOINT (viper's bladeL/bladeR flares, aegis' lance); a GLB on a custom rig
+  // carries it as a real skeleton BONE of the same name, hand-placed off the
+  // limb it hangs from (rigs/viper.rig.js). Collapsing either takes its whole
+  // subtree with it — which is why viper's blade bone owns the entire dagger
+  // and its tip bone: scale the mount and the whole weapon goes.
+  weaponMount(joint) {
+    return this.mech.joints[joint] || this.mech.rigBones?.[joint] || null;
+  }
+
+  // How much of that weapon is back: 1 = whole (never thrown, or done
+  // re-forging), 0 = just thrown, in between while it re-forges.
+  weaponReady(joint) {
+    const rg = this._regrow?.find((r) => r.joint === joint);
+    return rg ? clamp((rg.t - REGROW_DELAY) / REGROW_TIME, 0, 1) : 1;
+  }
+
+  // Throw the weapon on `joint`: collapse the mount, then grow it back over
+  // the next beat. Regrows are tracked PER JOINT — viper alternates daggers, so
+  // she can have the left one in flight while the right is still re-forging,
+  // and a single slot would drop the earlier one and strand that blade at
+  // scale 0 for the rest of the round. Re-throwing a side just restarts it.
   regrowWeapon(joint) {
-    const j = this.mech.joints[joint];
+    const j = this.weaponMount(joint);
     if (!j) return;
     j.scale.setScalar(0.001);
-    this._regrow = { joint, t: 0 };
+    this._regrow = this._regrow || [];
+    const rg = this._regrow.find((r) => r.joint === joint);
+    if (rg) rg.t = 0;
+    else this._regrow.push({ joint, t: 0 });
   }
 
   updateRegrow(dt) {
-    const rg = this._regrow;
-    if (!rg) return;
-    rg.t += dt;
-    const j = this.mech.joints[rg.joint];
-    if (!j) { this._regrow = null; return; }
-    const k = clamp((rg.t - 0.18) / 0.5, 0, 1);
-    j.scale.setScalar(Math.max(0.001, k));
-    if (k > 0.05 && Math.random() < 0.5) {
-      // re-forging shimmer at the grip
-      j.getWorldPosition(_v);
-      this.world.effects.glows.emit(_v.x + rand(-0.4, 0.4), _v.y + rand(-0.3, 0.3), _v.z + rand(-0.4, 0.4),
-        0, rand(0.5, 2), 0,
-        { life: 0.25, size: rand(0.3, 0.7), color: this.def.colors.glow, alpha: 0.9 });
+    const list = this._regrow;
+    if (!list?.length) return;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const rg = list[i];
+      rg.t += dt;
+      const j = this.weaponMount(rg.joint);
+      if (!j) { list.splice(i, 1); continue; }
+      const k = clamp((rg.t - REGROW_DELAY) / REGROW_TIME, 0, 1);
+      j.scale.setScalar(Math.max(0.001, k));
+      if (k > 0.05 && Math.random() < 0.5) {
+        // re-forging shimmer at the grip
+        j.getWorldPosition(_v);
+        this.world.effects.glows.emit(_v.x + rand(-0.4, 0.4), _v.y + rand(-0.3, 0.3), _v.z + rand(-0.4, 0.4),
+          0, rand(0.5, 2), 0,
+          { life: 0.25, size: rand(0.3, 0.7), color: this.def.colors.glow, alpha: 0.9 });
+      }
+      if (k >= 1) list.splice(i, 1);
     }
-    if (k >= 1) this._regrow = null;
   }
 
   // ================= wall grab =================
@@ -2496,6 +2552,10 @@ export class Fighter {
     this._spinFx = null;
     this._scaleFx = null;
     this.mech.joints.shield?.scale.setScalar(1);
+    // a weapon thrown as the round ended is mid-regrow: hand it back whole
+    // rather than starting the next round with a collapsed blade/lance
+    for (const rg of this._regrow || []) this.weaponMount(rg.joint)?.scale.setScalar(1);
+    this._regrow = null;
     if (this._whiteW > 0) { this._whiteW = 0; this.applyWhiteout(0); }
     if (this._charK) { this._charK = 0; this.applyCharring(0); }
     this.pos.copy(pos);
