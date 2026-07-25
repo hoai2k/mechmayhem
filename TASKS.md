@@ -2508,3 +2508,50 @@ controllers via Gamepad API), AI opponents.
 - Verified: fire pose + rest VIEWed in showcase (arms dead horizontal, fists
   forward, no geometry tearing); ace soaks rhino/titanus crash-free;
   `vite build` green.
+
+## Rhino: custom rig + re-skin, replacing the Tripo auto-rig (user request, 2026-07-25)
+
+- `src/mechs/rigs/rhino.rig.js` (new, registered in `rigs/index.js`, manifest
+  `"rig": "rhino"`): 29 hand-placed bones whose names ARE the game joints, so
+  the retarget drives real limbs. Drops 15 `boneOverrides` and **67 skinOps**.
+  The old Tripo config is preserved verbatim as the manifest `alt` entry, so
+  `?debug=models` can still A/B it (and `tools/cliptear.mjs rhino alt` audits it).
+- Shape, per the model and the owner's note: the HEAD is the horned structure
+  on the FRONT of the chest (pivot at the neck, `horn`/`jaw`/`earL`/`earR` tips
+  carry the skull), and the SHOULDERS sit at ear height (y≈0.78). `hump` holds
+  the back spikes, `pauldronL/R` the shoulder caps, `belly`/`hipPadL/R` the
+  waist armour that the arms would otherwise steal.
+- The Tripo mesh is ONE closed shell with the inner arms welded to the hips
+  through a membrane across the air gap. Rigidly split, that membrane fanned
+  into a metre of shards on any raised arm (the uppercut dragged a visible
+  sheet). Three opt-in additions to `reskin.js` handle it, all default-off so
+  cranky/fenrir/glacier/jerry are untouched:
+  - `cutWelds` — drop triangles whose ends sit on bones 3+ links apart (arm to
+    hip, fist to knee): welds no joint can explain. 631 triangles of 250k.
+  - `cutPairs` — the same for pairs the distance rule can't reach
+    (hips↔shoulder is only 2 links, via the torso).
+  - `softSkin: <rings>` — relax weights along mesh CONNECTIVITY (not distance,
+    which blends across the air gap and drags the pauldron on a hip turn) so
+    the REAL joints bend instead of shearing.
+  Orphan scraps left by a cut are dropped too; the cut runs once per geometry
+  so `?rigedit` can't erode the mesh with every gizmo nudge.
+- `tools/cliptear.mjs` (new): tear audit that poses a mech through all 80 game
+  clips and measures seam elongation, with `alt` to compare against the entry a
+  rig replaced. Verdict — worst stretch across every cross-bone seam:
+  **+0.15 mesh units / 76x (new) vs +0.28 / 731x (old Tripo rig)**, and
+  `tools/weightaudit.mjs` reports 0 far-blend verts.
+- `tools/stretchaudit.mjs` swept ZERO bones on every custom-rig mech (it read
+  `boneOverrides`, which a rig entry doesn't have) — fixed to use the game
+  joints for those, so cranky/fenrir/glacier/jerry/rhino are actually audited.
+- Muzzle anchors: the hand-bone anchors were authored against the Tripo hand
+  bones, so they were re-derived numerically for the new bones — same barrel
+  origin and aim axis relative to the geometry (verified: markers still sit on
+  the fists, and the ranged shot still leaves the barrel at +1° with the
+  glbanim leveling hook untouched).
+- Known limit, unchanged from the old rig: the two-handed overhead smash
+  (`heavy` at its peak) still stretches the chin-to-chest surface — that weld
+  is on the model's front centre line, where a cut would open a visible cavity.
+- Verified: rest/back/walk/uppercut/heavy/shoot frames VIEWed; bone-ownership
+  maps checked per limb; `?rigtest` and the 12-mech showcase clean; ace soaks
+  crash-free (rhino/titanus 1v1 and a 4-way with cranky+glacier+viper);
+  `vite build` green; cranky/fenrir spot-checked unchanged.

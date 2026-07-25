@@ -5,12 +5,14 @@ import { CRANKY_RIG } from './cranky.rig.js';
 import { FENRIR_RIG } from './fenrir.rig.js';
 import { GLACIER_RIG } from './glacier.rig.js';
 import { JERRY_RIG } from './jerry.rig.js';
+import { RHINO_RIG } from './rhino.rig.js';
 
 export const RIGS = {
   cranky: CRANKY_RIG,
   fenrir: FENRIR_RIG,
   glacier: GLACIER_RIG,
   jerry: JERRY_RIG,
+  rhino: RHINO_RIG,
 };
 
 export function rigFor(id) { return RIGS[id] || null; }
