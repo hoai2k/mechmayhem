@@ -485,24 +485,41 @@ function buildGlbMech(def, entry, gltf) {
   // The anchor rides the animated joint/bone, so the spawn tracks the weapon
   // through the whole pose. No entry -> generic in-hand muzzle (unchanged for
   // mechs whose weapon really is at the hand).
-  const installMuzzle = (side) => {
+  // Unit factors the offsets above are expressed in, captured at INSTALL time
+  // (later rescales don't move an anchor's local position, so these stay the
+  // exact inverse). ?debug=models' anchor editor divides by them to turn a
+  // dragged local position back into manifest numbers that round-trip.
+  mech.muzzleUnits = { joint: D.scale, bone: D.scale / (scale || 1) };
+  // `existing` re-points an anchor that is ALREADY built (dress-created ones
+  // like `core`, which carries the glow PointLight as a child) instead of
+  // replacing it — a replacement would strand those children at the old spot.
+  const installMuzzle = (side, existing) => {
     const spec = entry.muzzles?.[side];
     const o = spec?.offset || [0, -0.2, 0.4];
+    let parent = null, k = D.scale;
     // "bone" resolves through the boneMap first (canonical joint keys), then
     // as a RAW bone name — for mounts on bones no combat joint maps to
     if (spec?.bone) {
       const b = boneMap[spec.bone] || bones.find((x) => x.name === spec.bone);
-      if (b) {
-        // bone-local units are model-space (pre model.scale); divide so the
-        // world offset matches the mech-scale numbers used for joint muzzles.
-        const k = D.scale / (scale || 1);
-        return addAnchor(b, o[0] * k, o[1] * k, o[2] * k);
-      }
+      // bone-local units are model-space (pre model.scale); divide so the
+      // world offset matches the mech-scale numbers used for joint muzzles.
+      if (b) { parent = b; k = mech.muzzleUnits.bone; }
     }
     // R/L default to the hands; named extras (podL...) fall back to torso
-    const joint = joints[spec?.joint] || joints['hand' + side] || joints.torso;
-    return addAnchor(joint, o[0] * D.scale, o[1] * D.scale, o[2] * D.scale);
+    if (!parent) parent = joints[spec?.joint] || joints['hand' + side] || joints.torso;
+    const anchor = existing || new THREE.Object3D();
+    parent.add(anchor);              // Object3D.add detaches from any old parent
+    anchor.position.set(o[0] * k, o[1] * k, o[2] * k);
+    return applyRot(anchor, spec);
   };
+  // optional orientation (degrees, parent-local). Combat aims from the
+  // fighter's facing, so this drives anchor-oriented FX / future use — it is
+  // carried so the ?debug=models anchor editor's exports round-trip.
+  function applyRot(anchor, spec) {
+    const r = spec?.rot;
+    anchor.rotation.set((r?.[0] || 0) * Math.PI / 180, (r?.[1] || 0) * Math.PI / 180, (r?.[2] || 0) * Math.PI / 180);
+    return anchor;
+  }
   mech.anchors.muzzleR = installMuzzle('R');
   mech.anchors.muzzleL = installMuzzle('L');
   // Any OTHER key in entry.muzzles creates an anchor under its own name —
@@ -511,7 +528,7 @@ function buildGlbMech(def, entry, gltf) {
   // prefers anchors.podL). Same joint/bone + offset semantics as R/L.
   for (const key of Object.keys(entry.muzzles || {})) {
     if (key === 'R' || key === 'L') continue;
-    mech.anchors[key] = installMuzzle(key);
+    mech.anchors[key] = installMuzzle(key, mech.anchors[key]);
   }
 
   // Second-pass head-height match, on the VISIBLE head. The bind-time match

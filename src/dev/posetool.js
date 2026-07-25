@@ -64,6 +64,17 @@ export async function runPoseTool(startId) {
   scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
   gizmo.addEventListener('dragging-changed', (e) => { orbit.enabled = !e.value; });
 
+  // A SECOND gizmo dedicated to anchor editing, independent of the pose-mode
+  // joint gizmo so anchors stay draggable in ACTION mode — where the live
+  // previews (projectiles, muzzle flashes) spawn from the anchor you're moving.
+  const anchorGizmo = new TransformControls(camera, renderer.domElement);
+  anchorGizmo.setSpace('local'); anchorGizmo.setMode('translate'); anchorGizmo.setSize(0.55);
+  scene.add(anchorGizmo.getHelper ? anchorGizmo.getHelper() : anchorGizmo);
+  anchorGizmo.addEventListener('dragging-changed', (e) => {
+    orbit.enabled = !e.value;
+    if (!e.value) onAnchorDrop();   // rebind on release
+  });
+
   const params = new URLSearchParams(location.search);
   const manifest = await fetchRawManifest();
   const glbIds = ROSTER.map((r) => r.id).filter((id) => manifest[id]?.url);
@@ -79,6 +90,11 @@ export async function runPoseTool(startId) {
   const scratch = blankIntent(), pad = blankIntent(), prev = {};
   let lastAction = 'idle';
   let dummyPost = 8;   // z distance of the invisible aim targets
+  // ---- anchor editor state ----
+  let selAnchor = null;              // anchor name the anchor gizmo holds
+  const anchorBase = {};             // name -> {parent, pos, rot} captured at load
+  const anchorMarks = new THREE.Group(); scene.add(anchorMarks);
+  let autoBind = true;               // on drop, re-parent to the nearest geometry bone
   let idleT = 0;       // real seconds both fighters have been back at rest
   let lastWasWalk = false; // last displacement came from stick movement (2s reset)
 
@@ -179,6 +195,7 @@ export async function runPoseTool(startId) {
     u.searchParams.set('mech', id); u.searchParams.set('mode', mode);
     history.replaceState(null, '', u);
     gizmo.detach(); selJoint = null;
+    anchorGizmo.detach(); selAnchor = null;
     for (const k of Object.keys(base)) delete base[k];
     for (const f of [procF, glbF, procDummy, glbDummy]) disposeFighter(f);
     world.fighters.length = 0;
@@ -212,9 +229,18 @@ export async function runPoseTool(startId) {
     dummyPost = drange;
     world.fighters.push(procF, glbF, procDummy, glbDummy);
 
-    window.__poseDebug = { proc: procF.mech, glb: glbF.mech, procF, glbF, world };
+    window.__poseDebug = { proc: procF.mech, glb: glbF.mech, procF, glbF, world, engine, camera, scene,
+      // anchor-editor hooks (scripting / automated checks)
+      anchors: { select: selectAnchor, drop: onAnchorDrop, output: outputAnchors,
+        patch: buildAnchorPatch, reset: resetAnchor, changed: anchorChanged,
+        nearestBone, boneRefName, base: anchorBase,
+        get sel() { return selAnchor; } } };
     applyMode();
     buildJointButtons();
+    captureAnchorBase();
+    buildAnchorButtons();
+    anchorNote.textContent = '';
+    anchorOut.style.display = 'none';
     setStatus('idle');
   }
 
@@ -300,6 +326,147 @@ export async function runPoseTool(startId) {
     if (sizeEl) sizeEl.textContent = sizeReadout;
   }
   let sizeReadout = '';
+
+  // ================= ANCHOR EDITOR =================
+  // Anchors are the mech's named spawn points — muzzleR/muzzleL (every ranged
+  // shot, cannon and most special origins), plus per-mech extras combat reads
+  // by name (vulcan's podL/podR, aegis' shield, wraith's eye/scope). Each is an
+  // Object3D parented to a rig joint or a real GLB bone, so it rides the
+  // animation. Dragging one here moves the LIVE anchor: fire in ACTION mode and
+  // the projectiles come out of the new spot.
+  const _nbV = new THREE.Vector3();
+  // Nearest bone to a world point, by the GEOMETRY nearest it — sample the
+  // posed skin, take the closest vertex, return that vertex's dominant bone.
+  // (Bone-origin distance would bind a barrel tip to whatever pivot happens to
+  // sit near it; the skin is what the user is actually pointing at.)
+  function nearestBone(mech, worldPos) {
+    let best = null, bestD = Infinity;
+    mech.group.traverse((o) => {
+      if (!o.isSkinnedMesh) return;
+      o.skeleton.update();
+      const pos = o.geometry?.attributes?.position;
+      if (!pos) return;
+      const stride = Math.max(1, Math.floor(pos.count / 6000));
+      for (let i = 0; i < pos.count; i += stride) {
+        o.getVertexPosition(i, _nbV); o.localToWorld(_nbV);
+        const d = _nbV.distanceToSquared(worldPos);
+        if (d < bestD) { bestD = d; best = { mesh: o, vi: i }; }
+      }
+    });
+    if (!best) return null;
+    const jnt = best.mesh.geometry.attributes.skinIndex;
+    const wgt = best.mesh.geometry.attributes.skinWeight;
+    let bw = -1, bi = 0;
+    for (let k = 0; k < 4; k++) {
+      const w = wgt.getComponent(best.vi, k);
+      if (w > bw) { bw = w; bi = jnt.getComponent(best.vi, k); }
+    }
+    return best.mesh.skeleton.bones[bi] || null;
+  }
+  // Prefer the canonical boneMap key ("handR") over the raw GLB bone name —
+  // installMuzzle resolves boneMap first, so the canonical key is unambiguous.
+  function boneRefName(mech, bone) {
+    for (const [k, b] of Object.entries(mech.boneMap || {})) if (b === bone) return k;
+    return bone.name;
+  }
+  function jointNameOf(mech, obj) {
+    for (const [k, v] of Object.entries(mech.joints || {})) if (v === obj) return k;
+    return null;
+  }
+  function parentLabel(mech, obj) {
+    const p = obj?.parent;
+    if (!p) return '—';
+    if (p.isBone) return 'bone ' + boneRefName(mech, p);
+    const jn = jointNameOf(mech, p);
+    return jn ? 'joint ' + jn : (p.name || 'unknown');
+  }
+  function anchorChanged(name) {
+    const obj = glbF?.mech?.anchors?.[name], bs = anchorBase[name];
+    if (!obj || !bs) return false;
+    return obj.parent !== bs.parent
+      || obj.position.distanceTo(bs.pos) > 1e-4
+      || Math.abs(obj.rotation.x - bs.rot.x) > 1e-4
+      || Math.abs(obj.rotation.y - bs.rot.y) > 1e-4
+      || Math.abs(obj.rotation.z - bs.rot.z) > 1e-4;
+  }
+  function captureAnchorBase() {
+    for (const k of Object.keys(anchorBase)) delete anchorBase[k];
+    for (const [name, obj] of Object.entries(glbF?.mech?.anchors || {})) {
+      if (!obj?.isObject3D) continue;
+      anchorBase[name] = { parent: obj.parent, pos: obj.position.clone(), rot: obj.rotation.clone() };
+    }
+  }
+  // On release: bind the anchor to whatever geometry it now sits on, so it
+  // rides that part (a cannon barrel, a shoulder pod) through every animation.
+  function onAnchorDrop() {
+    if (!selAnchor || !glbF?.mech) return;
+    const obj = glbF.mech.anchors[selAnchor];
+    if (!obj) return;
+    if (autoBind) {
+      const bone = nearestBone(glbF.mech, obj.getWorldPosition(new THREE.Vector3()));
+      if (bone && obj.parent !== bone) bone.attach(obj);  // attach keeps world transform
+    }
+    refreshAnchorUI();
+  }
+  function selectAnchor(name, mode) {
+    const obj = glbF?.mech?.anchors?.[name];
+    if (!obj) return;
+    if (selAnchor === name && !mode) {      // clicking the held anchor releases it
+      selAnchor = null; anchorGizmo.detach(); refreshAnchorUI(); return;
+    }
+    selAnchor = name;
+    gizmo.detach(); selJoint = null;         // never hold both gizmos at once
+    anchorGizmo.setMode(mode || anchorGizmo.mode || 'translate');
+    anchorGizmo.attach(obj);
+    refreshAnchorUI();
+  }
+  function resetAnchor(name) {
+    const obj = glbF?.mech?.anchors?.[name], bs = anchorBase[name];
+    if (!obj || !bs) return;
+    if (obj.parent !== bs.parent) bs.parent.add(obj);
+    obj.position.copy(bs.pos); obj.rotation.copy(bs.rot); obj.scale.setScalar(1);
+  }
+  // Emits the mech's COMPLETE muzzles block (existing manifest entries carried
+  // through, edited ones replaced) so it can be pasted over the manifest whole
+  // rather than hand-merged.
+  function buildAnchorPatch() {
+    const mech = glbF?.mech;
+    if (!mech) return { changed: [], patch: null };
+    const units = mech.muzzleUnits || { joint: mech.dims.scale, bone: mech.dims.scale };
+    const muzzles = JSON.parse(JSON.stringify(manifest[curId]?.muzzles || {}));
+    const changed = [];
+    for (const name of Object.keys(mech.anchors || {})) {
+      if (!anchorChanged(name)) continue;
+      const obj = mech.anchors[name];
+      const key = name === 'muzzleR' ? 'R' : name === 'muzzleL' ? 'L' : name;
+      const p = obj.parent;
+      const spec = {};
+      if (p?.isBone) spec.bone = boneRefName(mech, p);
+      else {
+        const jn = jointNameOf(mech, p);
+        if (!jn) { console.warn(`anchor ${name}: parent is neither a bone nor a rig joint — skipped`); continue; }
+        spec.joint = jn;
+      }
+      const k = (p?.isBone ? units.bone : units.joint) || 1;
+      spec.offset = [rnd(obj.position.x / k, 3), rnd(obj.position.y / k, 3), rnd(obj.position.z / k, 3)];
+      const r = [obj.rotation.x * R2D, obj.rotation.y * R2D, obj.rotation.z * R2D];
+      if (r.some((v) => Math.abs(v) > 0.05)) spec.rot = [rnd(r[0]), rnd(r[1]), rnd(r[2])];
+      muzzles[key] = spec;
+      changed.push(`${name} → ${spec.bone ? 'bone ' + spec.bone : 'joint ' + spec.joint}`);
+    }
+    return { changed, patch: { [curId]: { muzzles } } };
+  }
+  function outputAnchors() {
+    const { changed, patch } = buildAnchorPatch();
+    if (!changed.length) { anchorNote.textContent = 'No anchor changes to output.'; return; }
+    const json = JSON.stringify(patch, null, 2);
+    anchorOut.style.display = 'block'; anchorOut.value = json; anchorOut.select();
+    navigator.clipboard?.writeText(json).catch(() => {});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = `anchors-${curId}.json`; a.click();
+    anchorNote.textContent = `Exported ${changed.length} change(s): ${changed.join(' · ')}`;
+  }
 
   // ---- UI ----
   const panel = el('div', `position:fixed;top:10px;left:10px;z-index:50;font:12px/1.4 system-ui,sans-serif;
@@ -414,7 +581,11 @@ export async function runPoseTool(startId) {
       const has = !!map[j];
       const b = el('button', `padding:3px 2px;font-size:11px;border-radius:4px;cursor:${has ? 'pointer' : 'not-allowed'};background:${has ? '#1a2433' : '#141821'};color:${has ? '#cfe0f5' : '#55606f'};border:1px solid #2c3648`);
       b.textContent = j; b.disabled = !has;
-      if (has) b.onclick = () => { selJoint = j; gizmo.attach(map[j]); for (const c of jointGrid.children) c.style.outline = ''; b.style.outline = '2px solid #48b0ff'; };
+      if (has) b.onclick = () => {
+        selJoint = j; gizmo.attach(map[j]);
+        anchorGizmo.detach(); selAnchor = null; refreshAnchorUI();  // one gizmo at a time
+        for (const c of jointGrid.children) c.style.outline = ''; b.style.outline = '2px solid #48b0ff';
+      };
       jointGrid.appendChild(b);
     }
   }
@@ -439,9 +610,83 @@ export async function runPoseTool(startId) {
     a.download = `pose-${curId}.json`; a.click();
   }
 
+  // ---------- ANCHOR editor UI (both modes) ----------
+  panel.appendChild(label('Anchors — ranged / special origins (GLB, right)'));
+  const anchorInfo = el('div', 'font:11px ui-monospace,monospace;color:#ffd9a0;margin-bottom:4px;min-height:1.3em');
+  panel.appendChild(anchorInfo);
+  const anchorGrid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px');
+  panel.appendChild(anchorGrid);
+  const aGizRow = el('div', 'display:flex;gap:6px;margin-bottom:5px');
+  const bAMove = toggle('Move', () => { anchorGizmo.setMode('translate'); markAGiz(); });
+  const bARot = toggle('Rotate', () => { anchorGizmo.setMode('rotate'); markAGiz(); });
+  aGizRow.append(bAMove, bARot); panel.appendChild(aGizRow);
+  function markAGiz() {
+    for (const [b, m] of [[bAMove, 'translate'], [bARot, 'rotate']]) {
+      const on = anchorGizmo.mode === m;
+      b.style.background = on ? '#b0702b' : '#1a2433'; b.style.color = on ? '#fff' : '#9fb2c8';
+    }
+  }
+  const bindRow = el('label', 'display:flex;gap:6px;align-items:center;cursor:pointer;margin-bottom:5px;font-size:11px;color:#cfe0f5');
+  const bindCheck = document.createElement('input');
+  bindCheck.type = 'checkbox'; bindCheck.checked = autoBind;
+  bindCheck.onchange = () => { autoBind = bindCheck.checked; };
+  bindRow.appendChild(bindCheck);
+  bindRow.appendChild(document.createTextNode(' Bind to nearest geometry on drop'));
+  panel.appendChild(bindRow);
+  const aResetRow = el('div', 'display:flex;gap:6px;margin-bottom:5px');
+  aResetRow.appendChild(btn('Reset anchor', () => { if (selAnchor) { resetAnchor(selAnchor); refreshAnchorUI(); } }));
+  aResetRow.appendChild(btn('Reset all', () => { for (const n of Object.keys(anchorBase)) resetAnchor(n); refreshAnchorUI(); }));
+  panel.appendChild(aResetRow);
+  panel.appendChild(btn('Output changes ▶', outputAnchors, true));
+  const anchorNote = el('div', 'margin-top:5px;color:#9fb2c8;font-size:10.5px;line-height:1.45');
+  panel.appendChild(anchorNote);
+  const anchorOut = el('textarea', `width:100%;height:110px;margin-top:6px;background:#0b0f16;color:#8fe;
+    border:1px solid #2c3648;font:11px/1.35 ui-monospace,monospace;display:none`);
+  panel.appendChild(anchorOut);
+
+  function buildAnchorButtons() {
+    anchorGrid.innerHTML = '';
+    while (anchorMarks.children.length) {
+      const c = anchorMarks.children.pop(); c.geometry?.dispose?.(); c.material?.dispose?.();
+    }
+    const anchors = glbF?.mech?.anchors || {};
+    for (const name of Object.keys(anchors).sort()) {
+      if (!anchors[name]?.isObject3D) continue;
+      const b = el('button', `padding:4px 3px;font-size:11px;border-radius:4px;cursor:pointer;
+        background:#1a2433;color:#cfe0f5;border:1px solid #2c3648`);
+      b.textContent = name;
+      b._anchor = name;
+      // plain click = move handle · shift-click = rotate handle
+      b.onclick = (ev) => selectAnchor(name, ev.shiftKey ? 'rotate' : (selAnchor === name ? null : 'translate'));
+      anchorGrid.appendChild(b);
+      // a small marker so every anchor is visible in the scene, not just the held one
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffb347, depthTest: false, transparent: true, opacity: 0.9 }));
+      m.renderOrder = 999; m._anchor = name;
+      anchorMarks.add(m);
+    }
+    refreshAnchorUI();
+  }
+  function refreshAnchorUI() {
+    for (const c of anchorGrid.children) {
+      const on = c._anchor === selAnchor;
+      const dirty = anchorChanged(c._anchor);
+      c.style.outline = on ? '2px solid #ffb347' : '';
+      c.style.background = dirty ? '#3a2f1a' : '#1a2433';
+      c.style.color = dirty ? '#ffd9a0' : '#cfe0f5';
+    }
+    const mech = glbF?.mech;
+    anchorInfo.textContent = selAnchor && mech
+      ? `${selAnchor} · on ${parentLabel(mech, mech.anchors[selAnchor])} · ${anchorGizmo.mode}`
+      : 'Click an anchor to grab it · shift-click = rotate';
+    markAGiz();
+  }
+
   const help = el('div', 'margin-top:8px;color:#69788c;font-size:10.5px;line-height:1.5');
   help.innerHTML = 'Orbit: drag empty space · Zoom: wheel<br>Left = procedural · Right = GLB<br>'
-    + 'Action: keyboard F/G/R/T/H + ⇧ or a gamepad, or the buttons above.';
+    + 'Action: keyboard F/G/R/T/H + ⇧ or a gamepad, or the buttons above.<br>'
+    + 'Anchors: click = move handle · shift-click = rotate · drop binds it to the '
+    + 'nearest geometry so it rides that part. Fire in Action mode to preview.';
   panel.appendChild(help);
 
   // ---- helpers ----
@@ -503,7 +748,18 @@ export async function runPoseTool(startId) {
       input.endFrame();
     }
   };
-  engine.onRender = () => { orbit.update(); };
+  engine.onRender = () => {
+    orbit.update();
+    // markers ride the live anchors (which ride the animated bones), so every
+    // spawn point stays visible while the mech moves
+    const anchors = glbF?.mech?.anchors;
+    if (anchors) {
+      for (const m of anchorMarks.children) {
+        const a = anchors[m._anchor];
+        if (a) { a.getWorldPosition(m.position); m.visible = true; } else m.visible = false;
+      }
+    }
+  };
   engine.start();
   return engine;
 }
