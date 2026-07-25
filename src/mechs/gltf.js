@@ -518,11 +518,15 @@ function buildGlbMech(def, entry, gltf) {
   function applyRot(anchor, spec) {
     const r = spec?.rot;
     anchor.rotation.set((r?.[0] || 0) * Math.PI / 180, (r?.[1] || 0) * Math.PI / 180, (r?.[2] || 0) * Math.PI / 180);
-    // An explicitly-authored rot means the anchor's +Z IS the barrel: combat
-    // deflects the shot along it (world.js barrelDeflect). Opt-in on purpose —
-    // an anchor with no rot hangs off whatever orientation its parent bone
-    // happens to carry (a raptor skull, a hand bone), which is meaningless as
-    // an aim vector, so those stay position-only exactly as before.
+    // An authored rot means the anchor's +Z IS the barrel: combat deflects the
+    // shot along it (world.js barrelDeflect). EVERY muzzle in the manifest now
+    // carries one — the straight-ahead mechs have a baked rot that puts their
+    // +Z on the mech's facing at rest, so they aim exactly as they always did
+    // while going through the same path as a deliberately-splayed gun.
+    // The flag stays conditional as a safety net: a muzzle added later WITHOUT
+    // a rot would otherwise aim down whatever its parent bone happens to carry
+    // (a raptor skull, a hand bone), which is meaningless as an aim vector —
+    // so it falls back to today's straight-ahead behaviour until authored.
     anchor.userData.aimRot = !!r;
     return anchor;
   }

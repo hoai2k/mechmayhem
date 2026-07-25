@@ -460,8 +460,12 @@ export async function runPoseTool(startId) {
       }
       const k = (p?.isBone ? units.bone : units.joint) || 1;
       spec.offset = [rnd(obj.position.x / k, 3), rnd(obj.position.y / k, 3), rnd(obj.position.z / k, 3)];
+      // ALWAYS emit rot for a muzzle: its presence is what tells the loader the
+      // orientation is authored, so combat may aim along the barrel. Dropping a
+      // near-zero rot would silently turn barrel-aiming off for that muzzle.
       const r = [obj.rotation.x * R2D, obj.rotation.y * R2D, obj.rotation.z * R2D];
-      if (r.some((v) => Math.abs(v) > 0.05)) spec.rot = [rnd(r[0]), rnd(r[1]), rnd(r[2])];
+      const isMuzzle = key === 'R' || key === 'L' || mech.anchors[name]?.userData?.aimRot;
+      if (isMuzzle || r.some((v) => Math.abs(v) > 0.05)) spec.rot = [rnd(r[0]), rnd(r[1]), rnd(r[2])];
       muzzles[key] = spec;
       changed.push(`${name} → ${spec.bone ? 'bone ' + spec.bone : 'joint ' + spec.joint}`);
     }

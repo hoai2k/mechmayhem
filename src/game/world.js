@@ -551,9 +551,12 @@ export class World {
 // rotation from the mech's flat facing to that barrel axis, so callers can
 // deflect a finished aim along the barrel — auto-aim, the crosshair and the
 // vertical assist still choose the base direction; the barrel only offsets it.
-// Anchors WITHOUT a rot return identity: their orientation is just whatever
-// their parent bone happens to carry (a raptor skull, a hand bone), which is
-// meaningless as an aim vector, so those mechs shoot exactly as before.
+// EVERY muzzle in the manifest now carries a rot, so every mech aims by
+// barrel: the straight-ahead ones have a baked rot putting their +Z on the
+// mech's facing at rest, which makes this deflection identity there (same
+// shots as before), while a deliberately-splayed gun — cranky's water cannons
+// — throws along its own axis. A muzzle with NO rot still returns identity, so
+// one added later behaves as it always did until its orientation is authored.
 const _bQ = new THREE.Quaternion(), _bOff = new THREE.Quaternion();
 const _bFwd = new THREE.Vector3(), _bFace = new THREE.Vector3();
 function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
