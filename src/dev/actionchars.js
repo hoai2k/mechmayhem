@@ -21,7 +21,8 @@ const NOTES = {
   nova: [{ a: '*', t: 'Broken halo spins; glow swells to a power apex tell', v: 'proc' }],
   vulcan: [
     { a: 'ranged', t: 'Gatling barrels spin up while firing', v: 'proc' },
-    { a: 'special', t: 'Missile pod salvo (podL)', v: 'proc' },
+    { a: 'ranged', t: 'Gun arm punched forward on its own channel clip (gatlingLoop)' },
+    { a: 'special', t: 'Missile salvo ripple-fires alternating shoulder pods (podL/podR)' },
   ],
   colossus: [{ a: 'ranged', t: 'Shoulder mortar tubes pitch and alternate', v: 'proc' }],
   fenrir: [
@@ -42,7 +43,7 @@ const NOTES = {
 };
 
 // action key -> the game intent field(s) it maps to
-export const ACTIONS = ['light', 'heavy', 'ranged', 'special', 'block', 'dash'];
+export const ACTIONS = ['light', 'heavy', 'ranged', 'special', 'ult', 'block', 'dash', 'fall'];
 
 export function describeAction(def, action) {
   const m = def.moves || {};
@@ -78,6 +79,19 @@ export function describeAction(def, action) {
     if (s.knock) push(`knockback ${s.knock}`);
     if (s.guard) push(`guard ${s.guard}s`);
     push('Signature move — usually engages the enemy ahead');
+  } else if (action === 'ult') {
+    const u = m.ult || {};
+    title = u.name || 'Ultimate';
+    if (u.id) push(`id: ${u.id}`);
+    if (u.dmg) push(`${u.dmg} dmg`);
+    if (u.count) push(`${u.count} hits/projectiles`);
+    if (u.duration) push(`runs ${u.duration}s`);
+    push('Meter is held full here, so it fires on every press');
+  } else if (action === 'fall') {
+    title = 'Falling down';
+    push('Launch → land → knockdown → get-up, the full floored reaction');
+    push('Plays launched / knockdown / getup back to back');
+    push('Not an input in the game — knockback with launch puts you here');
   } else if (action === 'block') {
     title = 'Block';
     push('Hold to guard — deflects/reduces frontal damage');

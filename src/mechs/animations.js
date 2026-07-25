@@ -652,6 +652,17 @@ const CLIPS_RAW = {
       { t: 0.36, ease: 'inOutQuad', pose: { shoulderR: [-86, 0, 4], torso: [4, -14, 0] } },
     ],
   },
+  gatlingLoop: { // VULCAN's held gatling burst — same beat as shootLoop, but
+    // the gun arm is punched further FORWARD and the shooter's-blade torso
+    // twist is eased off, so the barrel line runs down the aim instead of
+    // across it (the generic shootLoop's -14 deg twist threw his rounds wide).
+    dur: 0.36, upper: true, loop: true,
+    keys: [
+      { t: 0, pose: { shoulderR: [-90, 0, 4], elbowR: [-5, 0, 0], torso: [3, -5, 0], head: [0, 3, 0], shoulderL: [-30, 25, -6], elbowL: [-70, 0, 0] } },
+      { t: 0.18, ease: 'inOutQuad', pose: { shoulderR: [-94, 0, 4], torso: [2, -4, 0] } },
+      { t: 0.36, ease: 'inOutQuad', pose: { shoulderR: [-90, 0, 4], torso: [3, -5, 0] } },
+    ],
+  },
   shootLow: { // hip-level channel (CRANKY's hose cannons): arms level/DOWN,
     // shell braced low — never raised overhead
     dur: 0.4, upper: true, loop: true,

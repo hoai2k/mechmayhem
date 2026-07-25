@@ -33,7 +33,7 @@ import { anchorUses } from './anchoruses.js';
 const R2D = 180 / Math.PI;
 const PAIR_X = 6;              // half-separation of the two models
 const INTENT_BTNS = ['light', 'lightHeld', 'heavy', 'heavyHeld', 'ranged', 'rangedHeld',
-  'special', 'specialHeld', 'block', 'dash', 'jump', 'jumpHeld', 'duck'];
+  'special', 'specialHeld', 'ult', 'block', 'dash', 'jump', 'jumpHeld', 'duck'];
 
 export async function runPoseTool(startId) {
   const engine = new Engine(document.getElementById('game-canvas'));
@@ -122,6 +122,22 @@ export async function runPoseTool(startId) {
       f._floorLift = 0; f.mech.visualFloorLift?.(0); // clear the pose-tool floor lift
     }
     idleT = 0;
+  }
+  // FALLING DOWN: the floored reaction, driven exactly the way a launching hit
+  // drives it (fighter.takeHit) — kick the body up and backwards into
+  // 'launched' and let the state machine carry it through landing, the
+  // knockdown loop and the get-up. Both models take it at the same instant.
+  function knockBothDown() {
+    for (const f of [procF, glbF]) {
+      if (!f || !f.alive || f.state === 'launched' || f.state === 'knockdown') continue;
+      f.vel.x = -Math.sin(f.yaw) * 5;
+      f.vel.z = -Math.cos(f.yaw) * 5;
+      f.vel.y = 9;
+      f.grounded = false;
+      f.firing = false;
+      f.setState('launched', 3);
+      f.animator.play('launched');
+    }
   }
   function fighterBusy(f) {
     return !!f && (f.state !== 'normal' || (f.animator.action && !f.animator.action.fadingOut));
@@ -294,8 +310,9 @@ export async function runPoseTool(startId) {
   }
   const ACTION_FROM_INTENT = [
     ['walk', (s) => Math.abs(s.moveX) + Math.abs(s.moveZ) > 0.1],
-    ['special', (s) => s.special], ['heavy', (s) => s.heavy], ['light', (s) => s.light],
+    ['ult', (s) => s.ult], ['special', (s) => s.special], ['heavy', (s) => s.heavy], ['light', (s) => s.light],
     ['dash', (s) => s.dash], ['ranged', (s) => s.ranged || s.rangedHeld], ['block', (s) => s.block],
+    ['fall', () => pulse.fall],
   ];
   function detectAction() {
     let pressed = false;
@@ -535,10 +552,16 @@ export async function runPoseTool(startId) {
   actionModeUI.appendChild(label('Trigger action'));
   const btnGrid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px');
   const BTNS = [['walk', 'Walk (W/stick) — hold'], ['light', 'Light (F/✕)'], ['heavy', 'Heavy (G/△)'], ['ranged', 'Ranged (R/RB)'],
-    ['special', 'Special (T/RT)'], ['block', 'Block (H/LB)'], ['dash', 'Dash (⇧/B)']];
+    ['special', 'Special (T/RT)'], ['ult', 'Ultimate (Y/DPad↑)'], ['block', 'Block (H/LB)'], ['dash', 'Dash (⇧/B)'],
+    ['fall', 'Falling down']];
+  // ONE-SHOT actions fire on press and clear themselves the next frame: an ult
+  // held down would relaunch the moment the last one ends, and knockdown is a
+  // direct state kick, not an intent at all.
+  const ONE_SHOT = new Set(['ult', 'fall']);
   for (const [act, txt] of BTNS) {
     const b = el('button', `padding:5px 3px;font-size:11px;border-radius:4px;cursor:pointer;background:#1a2433;color:#cfe0f5;border:1px solid #2c3648`);
     b.textContent = txt;
+    if (ONE_SHOT.has(act)) { b.onclick = () => { pulse[act] = true; }; btnGrid.appendChild(b); continue; }
     // hold-to-fire so held moves (block/ranged) behave; tap fires once
     b.onpointerdown = () => { uiPress[act] = true; };
     const up = () => { uiPress[act] = false; };
@@ -547,6 +570,7 @@ export async function runPoseTool(startId) {
   }
   actionModeUI.appendChild(btnGrid);
   const uiPress = {};
+  const pulse = {};   // one-shot presses, consumed by the next update
 
   actionModeUI.appendChild(label('Animation time scale'));
   const spdRow = el('div', 'display:flex;gap:6px;align-items:center;margin-bottom:6px');
@@ -773,6 +797,9 @@ export async function runPoseTool(startId) {
         else if (k === 'block') scratch.block = true;
         else { scratch[k] = true; scratch[k + 'Held'] = true; }
       }
+      // one-shot presses: the ult rides the intent, the knockdown is applied
+      // to the fighters directly further down
+      if (pulse.ult) scratch.ult = true;
       // a NEW action press snaps everyone home first, so the move plays out
       // from the reference spot (translation from the previous move is temporary)
       if (detectAction()) { resetPositions(); lastWasWalk = false; }
@@ -781,6 +808,8 @@ export async function runPoseTool(startId) {
         f.hp = f.maxHp; f.ult = 1; f.specialCd = 0; f.rangedCd = 0; f.iframes = 0;
         if (f.ammoMax !== undefined) f.ammo = f.ammoMax;
       }
+      if (pulse.fall) knockBothDown();
+      pulse.ult = pulse.fall = false;
       // pin the invisible aim targets to their posts (knockback would drift
       // them, and a drifted target skews the next attack's aim)
       for (const [d, x] of [[procDummy, -PAIR_X], [glbDummy, PAIR_X]]) {

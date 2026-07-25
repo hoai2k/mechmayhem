@@ -84,9 +84,14 @@ export const SPECIALS = {
   missileVolley(f, sp) {
     cast(f, 'shoot', { stateT: (dur) => dur * 0.7 });
     const target = f.nearestEnemy();
+    let side = 0;
     volley(f.world, f, sp.count, 0.08, () => {
-      const origin = f.mech.anchors.podL
-        ? f.mech.anchors.podL.getWorldPosition(new THREE.Vector3())
+      // ripple-fire ALTERNATING shoulder pods (both routes carry podL/podR)
+      // so the salvo reads as a twin-rack launch, not one pod doing all the
+      // work; a model with only one pod keeps firing from it.
+      const pod = f.mech.anchors[side++ % 2 ? 'podR' : 'podL'] || f.mech.anchors.podL;
+      const origin = pod
+        ? pod.getWorldPosition(new THREE.Vector3())
         : muzzle(f);
       const d = new THREE.Vector3(rand(-0.35, 0.35), rand(0.7, 1), rand(-0.35, 0.35)).normalize();
       f.world.projectiles.spawn('missile', f, origin, d, {
