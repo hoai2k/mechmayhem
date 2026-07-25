@@ -2591,3 +2591,46 @@ controllers via Gamepad API), AI opponents.
   `titanus ranged: 0` case reproduces identically on the OLD rig here (the
   known flake in this log, not a regression); ace soaks crash-free
   titanus/viper and titanus/colossus; `vite build` green.
+## Wraith: custom rig + skinning, Tripo rig kept as `alt` (user request, 2026-07-25)
+
+- `src/mechs/rigs/wraith.rig.js` (new, 39 bones, `skinSpan:'child'`) replaces
+  the Tripo auto-rig: that rig mapped `hips`/`torso` onto two LIMB roots,
+  pulled the two arms out of unrelated `bone_N` runs, and spread the cloak +
+  rifle — two thirds of the silhouette — across a dozen junk bones. 44
+  `skinOps` were patching the fallout and the cloak still tore every step.
+  Manifest primary is now `"rig": "wraith"` with no boneOverrides/skinOps; the
+  whole old entry is preserved verbatim as `alt` (+ `profileKey:"wraith_alt"`).
+- The two parts proximity skinning can't get right on its own now have their
+  own bones: the RIFLE (`rifle`/`rifleButt`/`rifleTip`/`scope`, a rigid body on
+  the gun hand — its barrel reaches the floor, so nearest-bone was welding the
+  lower half to the shin) and the CLOAK (`cape0` + four columns of three, hung
+  off the torso — the drape wraps outside the legs). Also `hood`/`eye` so the
+  head carries the hood, and `mantleL/R` on the torso so the shoulder capes
+  don't swing with the arms.
+- Handedness fixed at the source: the rifle is in the model's LEFT hand, so the
+  bones are named anatomically and the glbanim profile sets `mirrorArms` —
+  right-arm clip tracks play on the arm that holds the gun, properly mirrored.
+  The old rig CROSSED the bones (handR on the gun arm), which reversed every
+  lateral arm motion and needed a hand-written punch fixup (kept in the new
+  `wraith_alt` profile, which still runs the crossed rig).
+- The gun hangs muzzle-DOWN, and combat throws each shot along the muzzle
+  anchor's +Z — so `levelBarrel` (rhino-style) puts the barrel on the horizon
+  through `shoot`/`aim`. Measured with the new `tools/aimprobe.mjs`: the tip
+  sits 99.5° below the shoulder+elbow pitch sum, and with a 26° lead the fire
+  frame lands at ele +0.5° / azi -1.3° (was -11.9° into the floor).
+- Cloak sway: `swayCloak` rotates the four cloak columns from speed (trail
+  back), air time (drag lift) and a phase-offset flutter. The columns are
+  static bones, so the retarget never fights them.
+- Contract: `rifle` reinstated as a GLB rig bone (`glbBones`) and `eye`/`scope`
+  as manifest muzzle extras — wraith is now the first GLB build with ZERO
+  contract losses. DEATH SWARM flares from the hood instead of the mech centre.
+- New tools: `rigscout.mjs` (mesh-local island contact sheets + `--skin` bone
+  ownership view — how this rig was placed headlessly), `aimprobe.mjs` (muzzle
+  world direction per clip frame), `variantcheck.mjs` (primary vs alt build
+  report). `?showcase` gained `&cam=<zoom>[,<yaw>[,<targetY>]]` and
+  `tools/pose.mjs` a `cam` argument, for close-up judging.
+- Verified: skinaudit 0 flagged, weightaudit 0 far-blend verts, contract clean,
+  ace soak wraith/viper crash-free, `vite build` green; idle/walk/shoot/light2/
+  light3/knockdown/heavy frames VIEWed against the same frames rendered from
+  the `alt` entry — the old rig collapses the cloak onto a leg and folds the
+  rifle in half mid-stride, the new one holds both.

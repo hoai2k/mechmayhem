@@ -108,8 +108,17 @@ export async function runShowcase(which) {
   }
 
   if (defs.length === 1) {
-    camera.position.set(4.2, 5.6, 12.2);
-    camera.lookAt(0, 4.3, 0);
+    // &cam=<zoom>[,<yaw°>[,<targetY>]] — pull the judging camera in (or push
+    // it out) and orbit it, for reading skinning/rig detail that the default
+    // full-body framing is too far away to show. cam=2 = twice as close.
+    const [zoom = 1, yawDeg = 0, ty] = (params.get('cam') || '').split(',').map(Number);
+    const z = zoom > 0 ? zoom : 1;
+    const base = new THREE.Vector3(4.2, 5.6, 12.2);
+    const target = new THREE.Vector3(0, ty || 4.3, 0);
+    const off = base.clone().sub(new THREE.Vector3(0, 4.3, 0)).divideScalar(z);
+    if (yawDeg) off.applyAxisAngle(new THREE.Vector3(0, 1, 0), yawDeg * Math.PI / 180);
+    camera.position.copy(target).add(off);
+    camera.lookAt(target);
   } else {
     camera.position.set(0, 9, 38);
     camera.lookAt(0, 5, -4);

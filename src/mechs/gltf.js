@@ -512,9 +512,11 @@ function buildGlbMech(def, entry, gltf) {
     const o = spec?.offset || [0, -0.2, 0.4];
     let parent = null, k = D.scale;
     // "bone" resolves through the boneMap first (canonical joint keys), then
-    // as a RAW bone name — for mounts on bones no combat joint maps to
+    // through a CUSTOM rig's extra bones (wraith's `rifleTip` — the gun is a
+    // rigid body on the hand, so its muzzle is a bone, not an offset guess),
+    // then as a RAW bone name — for mounts on bones no combat joint maps to
     if (spec?.bone) {
-      const b = boneMap[spec.bone] || bones.find((x) => x.name === spec.bone);
+      const b = boneMap[spec.bone] || rigBones?.[spec.bone] || bones.find((x) => x.name === spec.bone);
       // bone-local units are model-space (pre model.scale); divide so the
       // world offset matches the mech-scale numbers used for joint muzzles.
       if (b) { parent = b; k = mech.muzzleUnits.bone; }

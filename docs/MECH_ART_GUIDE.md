@@ -37,6 +37,28 @@ in-engine model. A failed GLB load also falls back. The game never breaks.
 3. Verify (§4). The runtime retargets the game's ENTIRE animation set onto
    the model — incoming GLBs need **no animations of their own**.
 
+**Route A+ — replace a scrambled auto-rig with a hand-placed one.** Tripo's
+skeletons are opaque and often wrong (a crab with both claws welded to one leg
+bone; a sniper whose cloak and rifle hang off junk bones). When remapping
+(`boneOverrides` + `skinOps`) stops paying, author a CUSTOM RIG instead — a
+clean skeleton whose bones ARE the game joints, plus static extras for the
+parts a humanoid rig has no route for (a tail, a cloak, a gun):
+
+1. `node tools/rigscout.mjs <id> /tmp/<id>` — contact sheets of the raw mesh in
+   MESH-LOCAL space with each geometry island numbered and a 0.1 ruler grid, so
+   bone positions are read off the picture. `--only=3,25` isolates parts,
+   `--focus=x,y,z:size` zooms, `--skin` recolors by the bone that would own
+   each vertex (the headless twin of `?rigedit`'s color view).
+2. Write `src/mechs/rigs/<id>.rig.js` (`{ skinSpan: 'child', bones: [...] }`),
+   register it in `rigs/index.js`, and point the manifest entry at it with
+   `"rig": "<id>"` — that supersedes `boneOverrides`/`skinOps`.
+3. Tune live in `?rigedit=<id>` (drag bones, Export pastes back).
+4. Keep the OLD entry verbatim as `alt` (+ `profileKey` if it needs its own
+   glbanim profile) so the two builds can be compared: `?rigedit=<id>&alt=1`,
+   the pose tool's *Compare Alternate GLB*, `node tools/variantcheck.mjs <id>`.
+
+Precedents: `cranky`, `fenrir`, `glacier`, `jerry`, `titanus`, `wraith`.
+
 **Route B steps** (also see IMAGE_TO_MECH.md): §1–§4 below.
 
 ---
@@ -152,6 +174,13 @@ retargeting math itself.)
 Iterate 2–3 times; first passes always have texture-scale or proportion
 surprises.
 
+Aim check — where a muzzle anchor actually points at the fire frame (the
+number a `levelBarrel`-style fix is tuned against; combat throws the shot along
+the anchor's +Z):
+```bash
+node tools/aimprobe.mjs <id> shoot 0.09,0.1,0.15
+```
+
 Logic soak (fast-forwards 120 s of Ace-AI combat synchronously, catches
 crashes in specials/ults — forces every fighter's special+ult repeatedly):
 ```bash
@@ -176,7 +205,7 @@ mechs), `anchors.core` (chest; carries the colored point light).
 | nova | `halo` (child of torso; geometry centered on it) | — | animator spins `.z` constantly |
 | fenrir | `tail0→tail1→tail2` chain (tail0 child of hips) | `clawL/clawR` | animator wags tails |
 | viper | `bladeL`/`bladeR` (children of hands) | `bladeL/bladeR` | animator flares blades |
-| wraith | `rifle` (child of handR) | `muzzleR`+`scope` on `J.rifle` | railgun fires from muzzleR |
+| wraith | `rifle` (child of handR; on the GLB a custom-rig BONE on handL — the gun is in the model's left hand) | `muzzleR`+`scope` on the rifle, `eye` in the hood | railgun fires from muzzleR; the GLB levels the muzzle-down barrel on the shot (glbanim `levelBarrel`) |
 | tempest | — | `coilL`/`coilR` at coil tips | static-field lightning FX |
 | nullbot | — | `muzzleR` at right palm; `core` behind the chest sigil | animator strobes the `glow2` corruption shards; fighter.updateNullbotAura pops glitch flecks off the joints |
 | aegis | `shield` (child of elbowL) | `shield` | reserved for shield FX |
