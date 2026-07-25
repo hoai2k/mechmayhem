@@ -826,17 +826,26 @@ const CLIPS_RAW = {
       { t: 0.9, ease: 'inOutQuad', pose: { torso: [6, 8, 0], shoulderR: [-84, -14, 4], shoulderL: [-84, 14, -4] } },
     ],
   },
-  clawSnap: { // CRANKY heavy — both claws spread WIDE to the sides, then
-    // CLAMP together at the centerline like one giant pincer
+  clawSnap: { // CRANKY heavy — the arms reach OUTSTRETCHED wide to the sides
+    // (elbows straight, pincers gaping), then SMASH together at the centerline
+    // like one giant pincer. Deliberately symmetric with NO body yaw/twist: a
+    // wide crab squares up and claps, it doesn't wind up like a boxer.
+    //
+    // The inward yaw at the smash is generous on purpose — how far the claws can
+    // actually travel before they'd pass THROUGH each other depends on the
+    // model's arm proportions, so each body caps it to its own geometry
+    // (armClampYaw in the cranky signature / GLB profile). Lateral travel is
+    // driven almost entirely by shoulder YAW; pitch barely moves the claws
+    // sideways, so pitch stays free to sell the lunge.
     dur: 0.55,
     keys: [
       { t: 0, pose: {} },
-      { t: 0.16, ease: 'outCubic', pose: { torso: [6, 0, 0], head: [-6, 0, 0], shoulderL: [-52, -34, -34], shoulderR: [-52, 34, 34], elbowL: [-14, 0, 0], elbowR: [-14, 0, 0], hipsPos: [0, -0.06, 0] } },
-      { t: 0.3, ease: 'inCubic', pose: { torso: [12, 0, 0], head: [2, 0, 0], shoulderL: [-64, 40, 10], shoulderR: [-64, -40, -10], elbowL: [-38, 0, 0], elbowR: [-38, 0, 0], hipsPos: [0, -0.1, 0.14] } },
-      { t: 0.42, ease: 'outQuad', pose: { torso: [10, 0, 0] } },
+      { t: 0.18, ease: 'outCubic', pose: { torso: [5, 0, 0], head: [-7, 0, 0], shoulderL: [-34, -52, -10], shoulderR: [-34, 52, 10], elbowL: [-5, 0, 0], elbowR: [-5, 0, 0], hipsPos: [0, -0.06, -0.04] } },
+      { t: 0.32, ease: 'inCubic', pose: { torso: [12, 0, 0], head: [2, 0, 0], shoulderL: [-58, 44, 8], shoulderR: [-58, -44, -8], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0], hipsPos: [0, -0.1, 0.15] } },
+      { t: 0.44, ease: 'outQuad', pose: { torso: [10, 0, 0] } },
       { t: 0.55, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], hipsPos: [0, 0, 0] } },
     ],
-    events: [{ t: 0.28, type: 'sfx', arg: 'whooshBig' }, { t: 0.3, type: 'hit', arg: 0 }, { t: 0.31, type: 'sfx', arg: 'block' }, { t: 0.32, type: 'shake', arg: 0.5 }],
+    events: [{ t: 0.29, type: 'sfx', arg: 'whooshBig' }, { t: 0.32, type: 'hit', arg: 0 }, { t: 0.33, type: 'sfx', arg: 'block' }, { t: 0.34, type: 'shake', arg: 0.5 }],
   },
   pounceLeap: { // SAURION pounce airtime — legs cocked under the body, sickle claws
     // raised to strike, arms swept back, head locked on prey (values are deltas
