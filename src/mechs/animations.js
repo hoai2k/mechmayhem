@@ -519,10 +519,12 @@ const CLIPS_RAW = {
       { t: 0.26, ease: 'outQuad', pose: { shoulderL: [-88, 4, -6], shoulderR: [-98, -10, 6], elbowL: [-14, 0, 0], elbowR: [-36, 0, 0], handL: [-6, 0, 10], handR: [-6, 0, -10], torso: [-2, 0, 0] } },
       { t: 0.44, ease: 'inOutQuad', pose: { shoulderL: [-34, 0, -7], shoulderR: [-34, 0, 7], elbowL: [-62, 0, 0], elbowR: [-62, 0, 0], handL: [28, 0, 10], handR: [28, 0, -10], torso: [0, 0, 0], head: [0, 0, 0] } },
     ],
-    // fire on the settle just past the outBack overshoot — measured there the
-    // GLB's muzzleR sits 2.2 deg up / 1.1 deg off the aim line (it is 8 deg
-    // high two frames earlier, at the peak of the whip)
-    events: [{ t: 0.17, type: 'fire' }],
+    // Fire once the arms have arrived, not at the peak of the whip (8 deg high
+    // there). Sampled across the fire window muzzleR sits on the aim line to
+    // within a few degrees of frame-sampling noise — 0.1 / -1.3 / 4.7 deg up at
+    // t=0.16 / 0.17 / 0.18, all off a barrel that hangs 47 deg DOWN in his
+    // resting claw carry. Yaw holds ~1 deg off-axis throughout.
+    events: [{ t: 0.18, type: 'fire' }],
   },
 
   nullBackhand: { // NULLBOT heavy: a contemptuous one-arm BACKHAND — the
