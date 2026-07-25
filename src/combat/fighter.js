@@ -438,6 +438,18 @@ export class Fighter {
   // azimuth of the palms' midpoint vs the victim's azimuth is the exact
   // angle the torso must twist (rate-limited, capped at +-0.6 rad so the
   // pose never contorts). Fist separation then narrows via the palm clamp.
+  // Some attacks must stay ARM-driven: a wide crab claps its claws together,
+  // and twisting the shell to steer reads as the whole body slewing round.
+  // `noTwistClips` in the roster names those clips — while one is playing the
+  // torso/head yaw servos are held off (the strike still tracks laterally
+  // through the palms, via clampPalmsTo's shoulder roll).
+  twistLocked() {
+    const clips = this.def.noTwistClips;
+    if (!clips) return false;
+    const a = this.animator?.action;
+    return !!(a && !a.fadingOut && clips.includes(a.clip.name));
+  }
+
   aimStrikeAt(prey) {
     const J = this.mech.joints;
     const w = this.world;
@@ -451,7 +463,9 @@ export class Fighter {
         J.handR.getWorldPosition(_palmTmp).y);
       striking = hy < J.shoulderL.getWorldPosition(_palmTmp).y + 0.1 * this.scale;
     }
-    if (J.torso) {
+    if (J.torso && this.twistLocked()) {
+      this._aimYaw = 0;   // arm-only aim: never twist the shell to steer
+    } else if (J.torso) {
       this.palmsMid(_palmTmp);
       const pmx = _palmTmp.x - this.pos.x, pmz = _palmTmp.z - this.pos.z;
       const vx = w.wrapDelta(prey.pos.x - this.pos.x);
@@ -813,18 +827,38 @@ export class Fighter {
     if (this.def.punchHold) this.trackStrikeVictim(mv.range, dur);
   }
 
+  // A stand-in for "an enemy in the ideal spot": dead ahead, squared up, at a
+  // comfortable fraction of the move's reach. Aiming attacks steer toward their
+  // victim, so with nobody actually there they used to either skip the tracking
+  // entirely or chase whatever distant thing existed — which is what slewed the
+  // body round in the test rigs. Swinging at this phantom instead keeps the
+  // move's intended shape when it hits thin air.
+  phantomPrey(range) {
+    const d = range * this.scale * 0.75;
+    return {
+      alive: true,
+      hitRadius: this.baseHitRadius,
+      pos: new THREE.Vector3(
+        this.pos.x + Math.sin(this.yaw) * d,
+        this.pos.y,
+        this.pos.z + Math.cos(this.yaw) * d),
+    };
+  }
+
   // aim the strike at whoever is in front: post-pose torso steer + palm
-  // convergence (aimStrikeAt) rides the rest of the swing
+  // convergence (aimStrikeAt) rides the rest of the swing. With no enemy in
+  // reach/arc it aims at the phantom above, so the swing still reads correctly.
   trackStrikeVictim(range, dur) {
     const prey = this.nearestEnemy();
-    if (!prey) return;
-    const dx = this.world.wrapDelta(prey.pos.x - this.pos.x);
-    const dz = this.world.wrapDelta(prey.pos.z - this.pos.z);
-    if (Math.hypot(dx, dz) < range * this.scale * 2 &&
-        Math.abs(angleDiff(this.yaw, Math.atan2(dx, dz))) < 1.1) {
-      this._strikeAim = { f: prey, t: dur * 0.95 };
-      this._aimYaw = 0;
+    let target = null;
+    if (prey) {
+      const dx = this.world.wrapDelta(prey.pos.x - this.pos.x);
+      const dz = this.world.wrapDelta(prey.pos.z - this.pos.z);
+      if (Math.hypot(dx, dz) < range * this.scale * 2 &&
+          Math.abs(angleDiff(this.yaw, Math.atan2(dx, dz))) < 1.1) target = prey;
     }
+    this._strikeAim = { f: target || this.phantomPrey(range), t: dur * 0.95 };
+    this._aimYaw = 0;
   }
 
   // ---- hold-to-charge haymaker (TITANUS/COLOSSUS): same contract as the
@@ -2090,7 +2124,7 @@ export class Fighter {
     this.group.rotation.y = this.yaw;
     // twist = how far the torso leads the legs, folded into the pose the
     // animator just applied (clamped so the waist never looks snapped)
-    const twist = clamp(angleDiff(this.yaw, this.torsoYaw), -0.6, 0.6);
+    const twist = this.twistLocked() ? 0 : clamp(angleDiff(this.yaw, this.torsoYaw), -0.6, 0.6);
     const J = this.mech.joints;
     if (J.torso) J.torso.rotation.y += twist;
     if (J.head) J.head.rotation.y += twist * 0.35;

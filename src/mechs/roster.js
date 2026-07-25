@@ -367,6 +367,9 @@ export const ROSTER = [
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.1, 0], torso: [6, 0, 0], head: [-4, 0, 0], shoulderL: [-38, 0, -14], shoulderR: [-38, 0, 14], elbowL: [-26, 0, 0], elbowR: [-26, 0, 0], thighL: [-6, 0, -6], thighR: [-6, 0, 6] },
     heavyClip: 'clawSnap', // giant pincer SNAP, not a pound
+    // the pincer clap is ARM-driven: hold off the torso/head aim twist so the
+    // claws yaw out and back in without the shell slewing round (fighter.js)
+    noTwistClips: ['clawSnap'],
     channelClip: 'shootLow', // hose cannons fire from the hip, never raised
     moves: {
       light: { dmg: [40, 44, 60], knock: [6, 7, 14], range: 3.6 },
