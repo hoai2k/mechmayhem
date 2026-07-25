@@ -26,7 +26,7 @@ import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
 import { loadRawGlbScene, fetchRawManifest, skinnedBox, buildGlbForTool } from '../mechs/gltf.js';
 import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson } from '../mechs/skinops.js';
 import { CLIPS } from '../mechs/animations.js';
-import { mechClips } from './mechclips.js';
+import { mechClipList } from './mechclips.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
 
@@ -80,7 +80,7 @@ export async function runSkinTool(startId) {
   let animBones = null;      // Map bone name -> driver bone
   let jointOfBone = null;    // Map raw bone name -> canonical joint it retargets from
   let selBone = null;        // the bone Wiggle would move (drives the clip list)
-  let clipNames = [];        // clips that actually animate selBone
+  let clipOpts = [];         // [{name, role}] for clips that animate selBone
   let preferredClip = null;  // sticky choice, kept across bone switches when possible
   let clipRestore = null;    // raw bone rotations to put back when a clip stops
   let wigglePaused = false;  // SPACE freezes the wiggle so you can click a
@@ -202,7 +202,7 @@ export async function runSkinTool(startId) {
     selComp = null; wiggle = null; wigglePaused = false; ops = []; colorAttr = null;
     undoStack = []; redoStack = [];
     animMech = null; animBones = null; jointOfBone = null;
-    selBone = null; clipNames = []; clipRestore = null;   // preferredClip is sticky across mechs
+    selBone = null; clipOpts = []; clipRestore = null;   // preferredClip is sticky across mechs
     // reset paint mode for the new mesh (indices/islands differ per mech)
     paintMode = false; paintPhase = 'off'; painting = false;
     paintBone = null; paintRegion = null; regionSet = null; regionWorld = null;
@@ -634,24 +634,24 @@ export async function runSkinTool(startId) {
     if (!tracks.size) return [];
     const over = animMech.animProfile?.clipOverrides || {};
     const out = [];
-    for (const name of mechClips(ROSTER_BY_ID[curId], animMech.animProfile)) {
-      const clip = over[name] || CLIPS[name];
+    for (const c of mechClipList(ROSTER_BY_ID[curId], animMech.animProfile)) {
+      const clip = over[c.name] || CLIPS[c.name];
       if (!clip?.tracks) continue;
-      for (const t of tracks) if (clip.tracks[t]) { out.push(name); break; }
+      for (const t of tracks) if (clip.tracks[t]) { out.push(c); break; }
     }
-    return out.sort();
+    return out;
   }
   // the skeleton root: no bone parent (Tripo rigs hang theirs off an Armature
   // Object3D, so "parent isn't a bone" is the reliable test)
   function isRootBone(b) { return !b?.parent?.isBone; }
   // The sticky choice, honoured only when this bone actually has that clip.
   function activeClipChoice() {
-    return preferredClip && clipNames.includes(preferredClip) ? preferredClip : null;
+    return preferredClip && clipOpts.some((c) => c.name === preferredClip) ? preferredClip : null;
   }
   // Point the clip dropdown at a bone (null clears it)
   function setSelBone(bone) {
     selBone = bone || null;
-    clipNames = clipsForBone(selBone);
+    clipOpts = clipsForBone(selBone);
     renderClipOptions();
   }
 
@@ -779,7 +779,7 @@ export async function runSkinTool(startId) {
   clipSel.style.cssText = 'width:100%;margin-bottom:2px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px';
   // recompute right before the list drops open, so it always reflects the
   // mech + bone selected right now (ops can rebind an island under you)
-  const refreshClips = () => { clipNames = clipsForBone(selBone); renderClipOptions(); };
+  const refreshClips = () => { clipOpts = clipsForBone(selBone); renderClipOptions(); };
   clipSel.onmousedown = refreshClips;
   clipSel.onfocus = refreshClips;
   clipSel.onchange = () => {
@@ -797,17 +797,17 @@ export async function runSkinTool(startId) {
     clipSel.innerHTML = '';
     const mk = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; clipSel.appendChild(o); };
     mk('', 'Default (single-bone wiggle)');
-    for (const n of clipNames) mk(n, n);
+    for (const c of clipOpts) mk(c.name, c.role ? `${c.name} — ${c.role}` : c.name);
     clipSel.value = chosen || '';
     clipSel.disabled = !selBone;
     if (!selBone) clipNote.textContent = 'Select an island or a bone to list its animations.';
     else if (!animMech) clipNote.textContent = 'Animation driver unavailable — Default only.';
-    else if (!clipNames.length) {
+    else if (!clipOpts.length) {
       clipNote.textContent = `No clip animates ${selBone.name}`
         + (jointOfBone?.get(selBone.name) ? '' : ' (no rig joint maps to it)') + ' — Default only.';
     } else {
-      clipNote.textContent = `${clipNames.length} of ${curId}'s clips move ${selBone.name} (or its parent/grandparent)`
-        + (preferredClip && !clipNames.includes(preferredClip)
+      clipNote.textContent = `${clipOpts.length} of ${curId}'s clips move ${selBone.name} (or its parent/grandparent)`
+        + (preferredClip && !clipOpts.some((c) => c.name === preferredClip)
           ? ` · "${preferredClip}" kept for bones that have it` : '');
     }
   }
@@ -1064,9 +1064,9 @@ export async function runSkinTool(startId) {
     bindSelfHard: rebindSelfHard, undo, redo, load, applyAllOps,
     // wiggle-animation hooks (scripting / automated checks)
     anim: { setBone: setSelBone, start: startWiggle, stop: stopWiggle,
-      clipsFor: clipsForBone, pick: (n) => { preferredClip = n || null; renderClipOptions(); },
+      clipsFor: (b) => clipsForBone(b).map((c) => c.name), clipDetail: clipsForBone, pick: (n) => { preferredClip = n || null; renderClipOptions(); },
       get state() {
-        return { bone: selBone?.name || null, clips: clipNames.slice(),
+        return { bone: selBone?.name || null, clips: clipOpts.map((c) => c.name),
           preferred: preferredClip, active: activeClipChoice(),
           running: wiggle ? (wiggle.clip || 'default') : null, driver: !!animMech };
       } },
