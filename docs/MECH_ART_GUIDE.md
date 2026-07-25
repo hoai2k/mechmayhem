@@ -26,6 +26,14 @@ Route A models **override** route B automatically: any mech with an entry in
 `public/models/manifest.json` uses the GLB; everything else falls back to the
 in-engine model. A failed GLB load also falls back. The game never breaks.
 
+> **Hard rule for any GLB work — model scale is frozen, not derived.** A GLB's
+> rendered size must depend only on the FILE plus its manifest `modelScale`
+> number. **Re-rigging or re-skinning a mech must never resize it.** After
+> touching any rig, run `node tools/pin-modelscale.mjs --check` (see
+> CHARACTER_PIPELINE.md → "Model scale is FROZEN"). The old head-height
+> auto-match is a bootstrap for brand-new GLBs only; leaving it live let bone
+> moves resize a character by up to 14%.
+
 **Route A steps** (also see CHARACTER_PIPELINE.md):
 1. Get a rigged humanoid GLB from the image: Meshy/Tripo web UI (upload →
    generate → auto-rig → download), their APIs (`tools/img2glb.mjs` is a
@@ -208,6 +216,17 @@ Also preserve: the function signature `(A, D, J, anchors, def)`, the mech's
   noreply@anthropic.com && git config user.name Claude`.
 - **Never edit `roster.js`, `parts.js`, `factory.js`, `animator.js` from
   parallel agents** — those are shared; fan out only over `designs/<id>.js`.
+- **A re-rig silently resizing the mech**: model size used to be derived from
+  the `head` bone's position + the verts it owns, so moving bones changed
+  height (14% on a measured test). Fixed by freezing `modelScale` in the
+  manifest — after any rig work run `node tools/pin-modelscale.mjs --check`.
+- **Custom-rig mechs and audit tools**: `tools/stretchaudit.mjs` picks the
+  bones to sweep from the entry's `boneOverrides`, which a `rig` entry has
+  none of. Tools that select driven bones must fall back to `JOINT_ORDER` for
+  custom rigs or they silently measure nothing and report a vacuous pass.
+- **Leaf bones get zero weight under `skinSpan: 'child'`** — a leaf's span is a
+  point its parent's span already ends at, so it can never win a vertex. End
+  every driven chain in a static tip bone (see `rigs/titanus.rig.js`).
 
 ## 7. Current state (2026-07-06)
 

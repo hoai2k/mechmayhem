@@ -42,7 +42,7 @@ let manifestPromise = null;
 const KNOWN_ENTRY_KEYS = new Set([
   'url', 'bindPose', 'boneOverrides', 'heightScale', 'yawOffset',
   'emissiveBoost', 'stretch', 'bonePos', 'boneCorrections', 'noHeadMatch',
-  'skinOps', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig',
+  'skinOps', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
 ]);
 const _entryWarned = new Set(); // "<id>|<msg>" — each complaint fires once per entry
 function warnEntryOnce(id, msg) {
@@ -406,6 +406,20 @@ function buildGlbMech(def, entry, gltf) {
   const targetH = (D.hipHeight + D.torsoH + D.headSize * 2); // heightScale applied once, at the end
   const box = skinnedBox(model);
   const size = box.getSize(new THREE.Vector3());
+  // ---- FROZEN MODEL SCALE -------------------------------------------------
+  // `modelScale` is the absolute scale applied to the GLB's native units, and
+  // when it is set it is the ONLY thing that decides the model's size: both
+  // head-height matching passes below are skipped. That is deliberate and it is
+  // the rule for this pipeline — a GLB's rendered size must be a function of
+  // the FILE plus this number, never of where the rig's bones sit or of which
+  // bone owns which vertices. The head match was only ever a bootstrap for
+  // sizing a brand-new GLB; leaving it live meant any re-rig silently resized
+  // the character (re-rigging TITANUS moved his "head region" off the back
+  // exhaust towers and onto his actual head, which grew him 5.7%). Pin the
+  // scale once with tools/pin-modelscale.mjs and rig edits can never change
+  // height again. `heightScale` still multiplies on top as the artist knob.
+  const pinnedScale = typeof entry.modelScale === 'number' && entry.modelScale > 0
+    ? entry.modelScale : null;
   let scale = 1;
   const container = new THREE.Group();
   container.add(model);
@@ -426,7 +440,7 @@ function buildGlbMech(def, entry, gltf) {
     model.position.y -= rb.min.y;
     model.position.z -= c.z;
   };
-  rescaleAndReground(size.y > 0.01 ? targetH / size.y : 1);
+  rescaleAndReground(pinnedScale ?? (size.y > 0.01 ? targetH / size.y : 1));
   if (entry.yawOffset) container.rotation.y = entry.yawOffset * Math.PI / 180;
   root.add(container);
 
@@ -456,7 +470,8 @@ function buildGlbMech(def, entry, gltf) {
   // general size — a raised tail, weapon, or crystal spire no longer shrinks
   // the whole body to fit under the height cap. entry.heightScale still
   // scales this target for manual per-mech tuning.
-  if (boneMap.head && !entry.noHeadMatch) {
+  // Skipped entirely for a pinned `modelScale` — see FROZEN MODEL SCALE above.
+  if (!pinnedScale && boneMap.head && !entry.noHeadMatch) {
     root.updateWorldMatrix(true, true);
     const targetHeadY = joints.head.getWorldPosition(new THREE.Vector3()).y;
     const glbHeadY = boneMap.head.getWorldPosition(new THREE.Vector3()).y; // feet grounded at 0
@@ -561,7 +576,10 @@ function buildGlbMech(def, entry, gltf) {
   // procedural mech's rendered head-region top — the SAME canonical size in
   // every view (pose tool, showcase, battle, menus). Matching visible tops
   // (not the neck joint) is what makes the heads actually line up.
-  if (boneMap.head && !entry.noHeadMatch) {
+  // Skipped entirely for a pinned `modelScale` — see FROZEN MODEL SCALE above.
+  // This is the pass that made size depend on the SKINNING (measureHeadTop
+  // reads the verts the head bone owns), so it must not run once pinned.
+  if (!pinnedScale && boneMap.head && !entry.noHeadMatch) {
     mech.premadeAnimator.poseStatic(); // deterministic neutral pose + postAnimate
     root.updateWorldMatrix(true, true);
     const targetHeadY = proceduralHeadTop(def) ?? joints.head.getWorldPosition(new THREE.Vector3()).y;
@@ -586,9 +604,17 @@ function buildGlbMech(def, entry, gltf) {
   // tweak on TOP of that (uncapped) — e.g. "make viper 10% bigger". Applied
   // once, here, so it composes cleanly with the auto-match in every view.
   const hs = entry.heightScale ?? 1;
+  const baseScale = scale;              // everything except heightScale
   if (Math.abs(hs - 1) > 1e-3) {
     rescaleAndReground(hs);
     adapter.hipsScale = 1 / (scale || 1);
+  }
+  // Expose the scale so tools/pin-modelscale.mjs can freeze it, and nag once
+  // per entry while it is still being DERIVED (i.e. still rig-dependent).
+  mech.modelScaleInfo = { base: baseScale, final: scale, pinned: !!pinnedScale };
+  if (!pinnedScale && !entry.noHeadMatch) {
+    warnEntryOnce(def.id, `modelScale not pinned — size is still derived from the rig `
+      + `(add "modelScale": ${baseScale.toFixed(5)} to freeze it; see tools/pin-modelscale.mjs)`);
   }
 
   // ---- prone / dead floor clamp (GLB) -----------------------------------
