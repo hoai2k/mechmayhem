@@ -370,6 +370,9 @@ export const ROSTER = [
     // the pincer clap is ARM-driven: hold off the torso/head aim twist so the
     // claws yaw out and back in without the shell slewing round (fighter.js)
     noTwistClips: ['clawSnap'],
+    // GLB: head + mouth + torso are one crab carapace — the head never rotates
+    // against the shell (fighter.js turn-lead; glbanim pins the pose side)
+    rigidShell: true,
     channelClip: 'shootLow', // hose cannons fire from the hip, never raised
     moves: {
       light: { dmg: [40, 44, 60], knock: [6, 7, 14], range: 3.6 },

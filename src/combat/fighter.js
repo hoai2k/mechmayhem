@@ -2142,7 +2142,11 @@ export class Fighter {
     const twist = this.twistLocked() ? 0 : clamp(angleDiff(this.yaw, this.torsoYaw), -0.6, 0.6);
     const J = this.mech.joints;
     if (J.torso) J.torso.rotation.y += twist;
-    if (J.head) J.head.rotation.y += twist * 0.35;
+    // `rigidShell` (GLB): head/mouth/torso are one carapace, so the head must
+    // not lead the turn — that extra 0.35 twist is the one thing that still
+    // rotated it against the shell (the animator holds it at rest, this ran
+    // after). The torso twist above carries the whole shell instead.
+    if (J.head && !(this.def.rigidShell && this.mech.isGLB)) J.head.rotation.y += twist * 0.35;
 
     // ---- hold-to-charge heavy (whirl banking power until release) ----
     if (this._whirlHold != null) this.updateHeavyHold(dt);
