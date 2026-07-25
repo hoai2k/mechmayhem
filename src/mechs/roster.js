@@ -202,8 +202,12 @@ export const ROSTER = [
     // drive while whirling, two hit beats (dmg per-beat), and the hits
     // launch/knock down like any other heavy
     heavyClip: 'tempestTornado',
-    heavySpin: { joint: 'hips', axis: 'y', rate: 24, t0: 0.26, t1: 0.86 },
-    heavyDrive: { t0: 0.3, t1: 0.82, speed: 18 },
+    // spin: 20% faster than the original 24 rad/s and the whirl runs 35%
+    // longer (0.6s -> 0.81s), so the clip carries a longer recovery tail;
+    // the drive window stretches with it so the tornado keeps travelling for
+    // as long as it keeps turning
+    heavySpin: { joint: 'hips', axis: 'y', rate: 28.8, t0: 0.26, t1: 1.07 },
+    heavyDrive: { t0: 0.3, t1: 1.03, speed: 18 },
     heavyAura: 'tornado',
     moves: {
       light: { dmg: [28, 30, 44], knock: [4, 4, 10], range: 3.2 },

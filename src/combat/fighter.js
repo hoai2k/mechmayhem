@@ -553,14 +553,18 @@ export class Fighter {
       if (this.ammoMax !== undefined) this.ammo--;
       this.world.fireRanged(this, mv);
     } else {
-      // twin-cannon mechs alternate sides shot to shot (mirrored animation)
-      const twin = mv.type === 'mortar' || mv.type === 'slime';
+      // twin-cannon mechs alternate sides shot to shot (mirrored animation) —
+      // mortar (colossus), slime (frogger), lightning (tempest's arc bolts,
+      // one emitter per arm). The weapon handler reads _altSide to spawn from
+      // the matching muzzle, so the bolt leaves the hand that just moved.
+      const twin = mv.type === 'mortar' || mv.type === 'slime' || mv.type === 'lightning';
       if (twin && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
+      const mirrored = (mv.type === 'slime' || mv.type === 'lightning') && this._altSide;
       const clip = this.def.rangedClip
         || (mv.type === 'mortar' ? (this._altSide ? 'braceL' : 'brace')
         : mv.type === 'railgun' ? 'aim'
         : mv.type === 'groundpound' ? 'groundPound'
-        : mv.type === 'slime' && this._altSide ? 'shootL' : 'shoot');
+        : mirrored ? 'shootL' : 'shoot');
       this.rangedCd = mv.cooldown;
       // single-shot weapons spend ammo too (channel weapons decrement in
       // their own loop) — without this they never drain and never refill
@@ -1143,7 +1147,8 @@ export class Fighter {
       }
     }
 
-    if (def.heavyAura === 'tornado' && playing && t > 0.24 && t < 0.9) {
+    // window tracks tempest's heavySpin (0.26-1.07) with a hair either side
+    if (def.heavyAura === 'tornado' && playing && t > 0.24 && t < 1.1) {
       // storm debris spiraling up around the spinning frame
       this._auraT = (this._auraT ?? 0) - dt;
       if (this._auraT <= 0) {
@@ -1163,8 +1168,12 @@ export class Fighter {
 
   // ---- ROCKET FIST (TITANUS): the punching fist detaches and flies as a
   // boomerang projectile; the hand stays hidden until it thunks back on ----
+  // The fist LEAVES the body: on a GLB the fist is a cut-out geometry group in
+  // the one skinned mesh (fistsplit.js), so hiding that group + showing the dark
+  // wrist cap is what opens the socket. Procedural bodies carry the fist as real
+  // children of the hand joint, so scaling the joint away still does it there.
   launchFist() {
-    this.mech.joints.handR?.scale.setScalar(0.001);
+    if (!this.mech.fistSplit?.detach('R')) this.mech.joints.handR?.scale.setScalar(0.001);
     this._fistOut = true;
   }
 
@@ -1181,9 +1190,14 @@ export class Fighter {
   catchFist() {
     if (!this._fistOut) return;
     this._fistOut = false;
+    // onReturn fires on ANY death of the projectile, not just a clean catch, so
+    // this is also the "it expired out there" restore — the fist can never be
+    // left missing.
+    const split = this.mech.fistSplit;
+    if (split) split.attach('R');
     const j = this.mech.joints.handR;
     if (j) {
-      j.scale.setScalar(1);
+      if (!split) j.scale.setScalar(1);
       j.getWorldPosition(_v);
       this.world.effects.impactSparks(_v, this.def.colors.glow, 8, 5);
     }
@@ -2518,7 +2532,7 @@ export class Fighter {
     this.clearChargeGlow();
     if (this._fistOut) { // fist projectile died with the round — re-attach
       this._fistOut = false;
-      this.mech.joints.handR?.scale.setScalar(1);
+      if (!this.mech.fistSplit?.attach('R')) this.mech.joints.handR?.scale.setScalar(1);
     }
     this.animator.action = null;
   }
