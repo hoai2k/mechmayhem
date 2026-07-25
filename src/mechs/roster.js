@@ -423,6 +423,7 @@ export const ROSTER = [
     // plumage — no ammo)
     lightClips: ['saurionKick1', 'saurionKick2', 'saurionKick3'],
     heavyClip: 'saurionBite',
+    rangedClip: 'saurionQuillFan', // both arms slung forward — see animations.js
     heavyDrive: { t0: 0.32, t1: 0.56, speed: 22, up: 5 },
     moves: {
       light: { dmg: [32, 34, 48], knock: [4, 5, 12], range: 3.5 },

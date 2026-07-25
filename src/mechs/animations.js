@@ -457,11 +457,16 @@ const CLIPS_RAW = {
     keys: [
       { t: 0, pose: {} },
       { t: 0.3, ease: 'inOutCubic', pose: { hipsPos: [0, -0.4, -0.12], hipsRot: [-4, 0, 0], torso: [14, 0, 0], head: [-30, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0], kneeL: [14, 0, 0], kneeR: [14, 0, 0], ankleL: [-6, 0, 0], ankleR: [-6, 0, 0], shoulderL: [-16, 0, -14], shoulderR: [-16, 0, 14], elbowL: [-70, 0, 0], elbowR: [-70, 0, 0], handL: [34, 0, 12], handR: [34, 0, -12] } },
-      // the claws REACH with the jaws: arms thrown forward beside the head
-      // during the lunge (they used to stay tucked back in the raptor carry,
-      // which read as biting with the hands held behind him)
-      { t: 0.44, ease: 'outCubic', pose: { hipsPos: [0, 0.14, 0.28], hipsRot: [10, 0, 0], torso: [-12, 0, 0], head: [40, 0, 0], thighL: [18, 0, 0], thighR: [18, 0, 0], kneeL: [-30, 0, 0], kneeR: [-30, 0, 0], ankleL: [12, 0, 0], ankleR: [12, 0, 0], shoulderL: [-76, 0, -12], shoulderR: [-76, 0, 12], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0], handL: [-8, 0, 6], handR: [-8, 0, -6] } },
-      { t: 0.58, ease: 'inOutQuad', pose: { hipsPos: [0, 0.04, 0.2], head: [30, 0, 0], shoulderL: [-66, 0, -10], shoulderR: [-66, 0, 10], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0], handL: [2, 0, 8], handR: [2, 0, -8] } },
+      // THE POUNCE. Both claws come UP and OVER as the jaws drive in — the
+      // predator rearing over the kill, not reaching for it. Shoulders swing
+      // well past horizontal so the arms clear the head, elbows stay folded
+      // and the wrists cock forward so the sickle claws hang over the target
+      // ready to come down. (They used to be thrown out level beside the head,
+      // which read as a shove; before that they stayed tucked in the raptor
+      // carry, which read as biting with his hands held behind him.)
+      { t: 0.44, ease: 'outCubic', pose: { hipsPos: [0, 0.14, 0.28], hipsRot: [10, 0, 0], torso: [-12, 0, 0], head: [40, 0, 0], thighL: [18, 0, 0], thighR: [18, 0, 0], kneeL: [-30, 0, 0], kneeR: [-30, 0, 0], ankleL: [12, 0, 0], ankleR: [12, 0, 0], shoulderL: [-104, 0, -16], shoulderR: [-104, 0, 16], elbowL: [-56, 0, 0], elbowR: [-56, 0, 0], handL: [28, 0, 12], handR: [28, 0, -12] } },
+      // claws start their descent as the bite lands — still high, coming over
+      { t: 0.58, ease: 'inOutQuad', pose: { hipsPos: [0, 0.04, 0.2], head: [30, 0, 0], shoulderL: [-92, 0, -14], shoulderR: [-92, 0, 14], elbowL: [-44, 0, 0], elbowR: [-44, 0, 0], handL: [22, 0, 12], handR: [22, 0, -12] } },
       { t: 0.9, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], ankleL: [0, 0, 0], ankleR: [0, 0, 0], shoulderL: [-34, 0, -7], shoulderR: [-34, 0, 7], elbowL: [-62, 0, 0], elbowR: [-62, 0, 0], handL: [28, 0, 10], handR: [28, 0, -10] } },
     ],
     events: [{ t: 0.1, type: 'sfx', arg: 'charge' }, { t: 0.4, type: 'sfx', arg: 'whooshBig' }, { t: 0.48, type: 'hit', arg: 0 }, { t: 0.5, type: 'shake', arg: 0.35 }],
@@ -491,6 +496,33 @@ const CLIPS_RAW = {
       { t: 0.46, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsRot: [0, 0, 0], hipsPos: [0, 0, 0], shoulderL: [-34, 0, -7], elbowL: [-62, 0, 0], handL: [28, 0, 10], shoulderR: [-34, 0, 7], elbowR: [-62, 0, 0] } },
     ],
     events: [{ t: 0.16, type: 'sfx', arg: 'whoosh' }, { t: 0.22, type: 'hit', arg: 1 }],
+  },
+
+  saurionQuillFan: { // ranged: he SLINGS the quills, both arms whipping
+    // straight out down the aim line. The shared `shoot` raises one arm and
+    // leaves the other in the raptor carry — fine for a mech with a gun in
+    // its right hand, wrong here: the quills come off BOTH forearms, and on
+    // the GLB the muzzle anchors ride the left hand / right forearm bones, so
+    // a carried arm aimed the fan at his own feet. Both arms thrown forward,
+    // elbows nearly straight, so the barrels sit on the aim line at the fire
+    // frame; the torso uncoils behind the throw and recoils back to carry.
+    dur: 0.44, upper: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.06, ease: 'outCubic', pose: { shoulderL: [-52, 10, -14], shoulderR: [-52, -10, 14], elbowL: [-74, 0, 0], elbowR: [-74, 0, 0], handL: [34, 0, 12], handR: [34, 0, -12], torso: [6, 0, 0], head: [-4, 0, 0] } },
+      // FIRE FRAME. The two arms don't carry matching numbers because the two
+      // anchors don't ride matching bones: muzzleR is pinned to the left HAND
+      // and muzzleL out along the right FOREARM, each with its own authored
+      // rot, so each barrel squares up at a different joint angle. Solved by
+      // measurement (see the deg readouts below), not by eye.
+      { t: 0.14, ease: 'outBack', pose: { shoulderL: [-96, 4, -6], shoulderR: [-108, -10, 6], elbowL: [-6, 0, 0], elbowR: [-30, 0, 0], handL: [-13, 0, 11], handR: [-13, 0, -11], torso: [-8, 0, 0], head: [8, 0, 0] } },
+      { t: 0.26, ease: 'outQuad', pose: { shoulderL: [-88, 4, -6], shoulderR: [-98, -10, 6], elbowL: [-14, 0, 0], elbowR: [-36, 0, 0], handL: [-6, 0, 10], handR: [-6, 0, -10], torso: [-2, 0, 0] } },
+      { t: 0.44, ease: 'inOutQuad', pose: { shoulderL: [-34, 0, -7], shoulderR: [-34, 0, 7], elbowL: [-62, 0, 0], elbowR: [-62, 0, 0], handL: [28, 0, 10], handR: [28, 0, -10], torso: [0, 0, 0], head: [0, 0, 0] } },
+    ],
+    // fire on the settle just past the outBack overshoot — measured there the
+    // GLB's muzzleR sits 2.2 deg up / 1.1 deg off the aim line (it is 8 deg
+    // high two frames earlier, at the peak of the whip)
+    events: [{ t: 0.17, type: 'fire' }],
   },
 
   nullBackhand: { // NULLBOT heavy: a contemptuous one-arm BACKHAND — the
@@ -1022,7 +1054,62 @@ const INFERNO_FLAME_GLB = {
   ],
 };
 
+// SAURION for the GLB: this model's arms are SHORT next to its long skull and
+// deep chest, so the shared raptor forms — authored against the procedural
+// body's reach — land well behind the enemy. Measured against a target at the
+// light move's own range (3.5), the claw rakes stopped ~1.8 units short: the
+// jaws arrived, the claws swiped the air in front of his own chest.
+// Both variants below drive the strike THROUGH the target instead of across
+// the body: the shoulder opens to nearly straight-out, the elbow extends at
+// the impact frame instead of staying folded, and the hips shift forward so
+// the whole frame commits to the reach. Chamber and recovery are untouched, so
+// the rake still reads as a rake.
+const SAURION_CLAW_R_GLB = {
+  dur: 0.46,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.12, ease: 'outCubic', pose: { torso: [6, -12, 0], head: [-4, 8, 0], hipsRot: [0, -10, 0], hipsPos: [0, -0.08, -0.1], shoulderR: [-76, 26, 24], elbowR: [-78, 0, 0], handR: [-18, 0, -14], shoulderL: [-30, 0, -8], elbowL: [-58, 0, 0] } },
+    { t: 0.22, ease: 'outBack', pose: { torso: [-8, 10, 0], head: [10, -12, 0], hipsRot: [0, 12, 0], hipsPos: [0, 0.02, 0.46], shoulderR: [-100, -6, 6], elbowR: [-6, 0, 0], handR: [-4, 0, -6], shoulderL: [-52, 0, -10], elbowL: [-34, 0, 0] } },
+    { t: 0.33, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0.16], shoulderR: [-70, -24, 0], elbowR: [-28, 0, 0], handR: [10, 0, -8] } },
+    { t: 0.46, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsRot: [0, 0, 0], hipsPos: [0, 0, 0], shoulderR: [-34, 0, 7], elbowR: [-62, 0, 0], handR: [28, 0, -10], shoulderL: [-34, 0, -7], elbowL: [-62, 0, 0] } },
+  ],
+  events: [{ t: 0.16, type: 'sfx', arg: 'whoosh' }, { t: 0.22, type: 'hit', arg: 1 }],
+};
+// The sickle kicks already arrived at range, but with the leg still folded —
+// the toe-claw got there and the shin didn't. Straighten the knee through the
+// snap and drive the hips forward with it, so the kick reads as full-stretch
+// and the claw carries past the target instead of stopping on it.
+const SAURION_KICK1_GLB = {
+  dur: 0.5,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.12, ease: 'outCubic', pose: { torso: [4, -6, 0], head: [-2, 4, 0], hipsPos: [0, -0.14, -0.1], hipsRot: [0, -8, 0], thighR: [-62, 0, -4], kneeR: [38, 0, 0], ankleR: [-12, 0, 0], shoulderL: [-40, 0, -10], elbowL: [-66, 0, 0], handL: [30, 0, 10], shoulderR: [-26, 0, 10], elbowR: [-56, 0, 0], handR: [26, 0, -10] } },
+    { t: 0.22, ease: 'outBack', pose: { torso: [-20, 6, 0], head: [16, -4, 0], hipsPos: [0, 0.04, 0.6], hipsRot: [0, 6, 0], thighR: [-64, 0, -8], kneeR: [-72, 0, 0], ankleR: [64, 0, 0], shoulderL: [-56, 0, -12], elbowL: [-30, 0, 0], shoulderR: [-46, 0, 12], elbowR: [-34, 0, 0] } },
+    { t: 0.32, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0.18], thighR: [-48, 0, -6], kneeR: [-46, 0, 0], ankleR: [42, 0, 0] } },
+    { t: 0.5, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], thighR: [0, 0, 0], kneeR: [0, 0, 0], ankleR: [0, 0, 0], shoulderL: [-34, 0, -7], elbowL: [-62, 0, 0], handL: [28, 0, 10], shoulderR: [-34, 0, 7], elbowR: [-62, 0, 0], handR: [28, 0, -10] } },
+  ],
+  events: [{ t: 0.18, type: 'sfx', arg: 'whoosh' }, { t: 0.22, type: 'hit', arg: 0 }],
+};
+// left eagle kick — written out rather than mirrorRaw'd off kick1 because it
+// carries its OWN timing and combo index (dur 0.52, hit arg 1), and mirrorRaw
+// copies `events` and key times through verbatim
+const SAURION_KICK2_GLB = {
+  dur: 0.52,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.12, ease: 'outCubic', pose: { torso: [4, 6, 0], head: [-2, -4, 0], hipsPos: [0, -0.14, -0.1], hipsRot: [0, 8, 0], thighL: [-52, 0, 4], kneeL: [34, 0, 0], ankleL: [-12, 0, 0], shoulderR: [-40, 0, 10], elbowR: [-66, 0, 0], handR: [30, 0, -10], shoulderL: [-26, 0, -10], elbowL: [-56, 0, 0], handL: [26, 0, 10] } },
+    { t: 0.24, ease: 'outBack', pose: { torso: [-20, -6, 0], head: [16, 4, 0], hipsPos: [0, 0.04, 0.4], hipsRot: [0, -6, 0], thighL: [-66, 0, 8], kneeL: [-86, 0, 0], ankleL: [68, 0, 0], shoulderR: [-56, 0, 12], elbowR: [-30, 0, 0], shoulderL: [-46, 0, -12], elbowL: [-34, 0, 0] } },
+    { t: 0.34, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0.18], thighL: [-46, 0, 6], kneeL: [-58, 0, 0], ankleL: [46, 0, 0] } },
+    { t: 0.52, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], thighL: [0, 0, 0], kneeL: [0, 0, 0], ankleL: [0, 0, 0], shoulderL: [-34, 0, -7], elbowL: [-62, 0, 0], handL: [28, 0, 10], shoulderR: [-34, 0, 7], elbowR: [-62, 0, 0], handR: [28, 0, -10] } },
+  ],
+  events: [{ t: 0.2, type: 'sfx', arg: 'whoosh' }, { t: 0.24, type: 'hit', arg: 1 }],
+};
+
 export const GLB_CLIP_VARIANTS = {
+  saurionClawRGlb: compile('saurionClawR', SAURION_CLAW_R_GLB),
+  saurionClawLGlb: compile('saurionClawL', mirrorRaw(SAURION_CLAW_R_GLB)),
+  saurionKick1Glb: compile('saurionKick1', SAURION_KICK1_GLB),
+  saurionKick2Glb: compile('saurionKick2', SAURION_KICK2_GLB),
   infernoFlameGlb: compile('shootLoop', INFERNO_FLAME_GLB),
   froggerShootGlb: compile('shoot', FROGGER_SHOOT_GLB),
   froggerShootLGlb: compile('shootL', mirrorRaw(FROGGER_SHOOT_GLB)),

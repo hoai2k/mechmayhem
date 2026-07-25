@@ -16,6 +16,10 @@ const _carryTmp = new THREE.Vector3();
 const _carryOff = new THREE.Vector3();
 const _white = new THREE.Color(0xf4faff);
 const _charBlack = new THREE.Color(0x14100d); // burnt-out carbon shell
+// Ranged clips that DON'T plant the mech: the shot plays over the top half
+// while movement keeps its legs. Everything else (braced artillery, the
+// sniper's aim, a ground pound) locks him down for the duration.
+const RUN_AND_GUN_CLIPS = new Set(['shoot', 'shootL', 'saurionQuillFan']);
 const GRAVITY = 34;
 const ULT_RATE = 2;      // ult meter fills 2x faster (ultimates balance pass)
 const WALK_MULT = 1.2;   // global ground-speed boost over roster stats
@@ -567,8 +571,10 @@ export class Fighter {
           else if (type === 'shake') this.world.effects.addShake(0.3);
         },
       });
-      // upper-body clips let you keep moving; only brief lock for heavy shots
-      if (clip !== 'shoot' && clip !== 'shootL') this.setState('attack', dur * 0.6);
+      // light hip-fire clips let you keep moving; only brief lock for heavy
+      // shots. (Not simply `clip.upper`: the sniper `aim` is upper-body too
+      // and is MEANT to plant him for the shot.)
+      if (!RUN_AND_GUN_CLIPS.has(clip)) this.setState('attack', dur * 0.6);
     }
   }
 
