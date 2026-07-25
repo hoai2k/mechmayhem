@@ -2801,3 +2801,36 @@ controllers via Gamepad API), AI opponents.
   VIEWed; two-titanus + viper ace soak crash-free (each fighter's split is
   independent — geometry and materials are cloned per build); titanus-only
   attackmatrix ALL CONNECT; `vite build` green.
+## Tempest: alternating arc bolts, an outward-only T, faster/longer spin (user request, 2026-07-25)
+
+- Manifest: Tempest's muzzle `rot`s re-authored again from the anchor editor
+  (offsets/bones unchanged) — R `[-21.66, -53.52, -99.77]`, L
+  `[-93.89, -22.56, -137.64]`.
+- **Ranged trades hands.** `lightning` joins `mortar`/`slime` as a twin-side
+  weapon in `doRanged`: each shot toggles `_altSide` and plays the mirrored
+  `shootL` clip, and the `lightning` handler in world.js now spawns from
+  `muzzleL` on those shots with its own `dirFrom` barrel deflection (the
+  frogger/cranky pattern). Measured over 8 shots on BOTH routes: bolt origin
+  is exactly on the firing hand's muzzle (distance 0.000 to it, ~5.0 to the
+  other) and the clip alternates `shoot`/`shootL` every shot.
+- **The heavy raises OUTWARD, not up, and does it on the first turn.** The T
+  now lands at t=0.26 — the same frame `heavySpin` starts — instead of 0.30,
+  and every launch eased `outCubic` instead of `outBack`: outBack overshoots
+  ~10% past the key, which on a 16 -> 92 roll peaked near 100 and read as the
+  arms swinging UP over the shoulders. The T itself is unchanged (roll
+  −92/+92, zero pitch, straight elbow — measured flat on both routes).
+- **Spin +20% faster, +35% longer.** `heavySpin` rate 24 -> 28.8 rad/s and
+  the window 0.26–0.86 -> 0.26–1.07 (0.60s -> 0.81s). Clip `dur` 1.0 -> 1.22
+  to carry the recovery, four pumps instead of three (T at 0.26 / 0.46 / 0.68
+  / 0.90), an extra whoosh at 0.90, and hit beats re-seated on T frames
+  (0.46, 0.68 — still two, damage untouched). `heavyDrive` stretched to match
+  (t1 0.82 -> 1.03) so the tornado travels for as long as it turns, and the
+  hardcoded tornado-aura window in fighter.js widened to 1.1.
+- Measured in a live battle: 2.29 -> 4.0 total turns over the move; the
+  attack-state lock (clip dur × 0.9 = 1.10s) still outlasts the drive window.
+- Verified: T frames frozen and VIEWed at t=0.26 / 0.30 / 0.68 / 0.90 on GLB
+  and 0.26 / 0.90 under `?debug=fallback` — dead flat, hands at shoulder
+  height, no rise over the shoulders; `shoot` / `shootL` poses VIEWed as
+  mirror images; ace soaks crash-free tempest/viper, tempest/titanus
+  (fallback) and colossus/frogger (the other twin-side weapons touched);
+  `vite build` green.

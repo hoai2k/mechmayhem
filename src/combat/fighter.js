@@ -553,14 +553,18 @@ export class Fighter {
       if (this.ammoMax !== undefined) this.ammo--;
       this.world.fireRanged(this, mv);
     } else {
-      // twin-cannon mechs alternate sides shot to shot (mirrored animation)
-      const twin = mv.type === 'mortar' || mv.type === 'slime';
+      // twin-cannon mechs alternate sides shot to shot (mirrored animation) —
+      // mortar (colossus), slime (frogger), lightning (tempest's arc bolts,
+      // one emitter per arm). The weapon handler reads _altSide to spawn from
+      // the matching muzzle, so the bolt leaves the hand that just moved.
+      const twin = mv.type === 'mortar' || mv.type === 'slime' || mv.type === 'lightning';
       if (twin && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
+      const mirrored = (mv.type === 'slime' || mv.type === 'lightning') && this._altSide;
       const clip = this.def.rangedClip
         || (mv.type === 'mortar' ? (this._altSide ? 'braceL' : 'brace')
         : mv.type === 'railgun' ? 'aim'
         : mv.type === 'groundpound' ? 'groundPound'
-        : mv.type === 'slime' && this._altSide ? 'shootL' : 'shoot');
+        : mirrored ? 'shootL' : 'shoot');
       this.rangedCd = mv.cooldown;
       // single-shot weapons spend ammo too (channel weapons decrement in
       // their own loop) — without this they never drain and never refill
@@ -1143,7 +1147,8 @@ export class Fighter {
       }
     }
 
-    if (def.heavyAura === 'tornado' && playing && t > 0.24 && t < 0.9) {
+    // window tracks tempest's heavySpin (0.26-1.07) with a hair either side
+    if (def.heavyAura === 'tornado' && playing && t > 0.24 && t < 1.1) {
       // storm debris spiraling up around the spinning frame
       this._auraT = (this._auraT ?? 0) - dt;
       if (this._auraT <= 0) {
