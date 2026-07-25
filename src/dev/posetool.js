@@ -234,8 +234,12 @@ export async function runPoseTool(startId) {
     procDummy.controlsLocked = glbDummy.controlsLocked = true;
     // the dummies are pure AIM TARGETS: never rendered, pinned to their posts
     // every frame (dummyPost) so targeted attacks aim as if an enemy stood
-    // just in front — without an enemy cluttering the comparison view
+    // just in front — without an enemy cluttering the comparison view.
+    // They must not SWALLOW ranged shots either: parked at melee reach, they
+    // sat inside the first frame of a fast projectile's flight, so the round
+    // spawned and died on the same tick and only its impact sparks rendered.
     procDummy.group.visible = glbDummy.group.visible = false;
+    procDummy.projectilePhantom = glbDummy.projectilePhantom = true;
     dummyPost = drange;
     world.fighters.push(procF, glbF, procDummy, glbDummy);
 
