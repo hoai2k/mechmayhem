@@ -16,6 +16,7 @@ const _carryTmp = new THREE.Vector3();
 const _carryOff = new THREE.Vector3();
 const _white = new THREE.Color(0xf4faff);
 const _charBlack = new THREE.Color(0x14100d); // burnt-out carbon shell
+const _woundRed = new THREE.Color(0xd8202e); // poison wound flush
 // Ranged clips that DON'T plant the mech: the shot plays over the top half
 // while movement keeps its legs. Everything else (braced artillery, the
 // sniper's aim, a ground pound) locks him down for the duration.
@@ -1511,6 +1512,74 @@ export class Fighter {
     }
   }
 
+  // POISON: a venom wound biting through the shell — the whole frame flushes
+  // red for an instant. Same lerp off the same _matBase cache as the other
+  // whole-body tints; w=0 restores the exact originals.
+  applyWoundFlash(w) {
+    if (w <= 0 && !this._woundTinted) return;
+    if (!this._matBase) this.applyWhiteout(0); // builds the material cache
+    this._woundTinted = w > 0;
+    for (const b of this._matBase) {
+      b.m.color.copy(b.color).lerp(_woundRed, w);
+      if (b.emissive) b.m.emissive.copy(b.emissive).lerp(_woundRed, w * 0.5);
+    }
+  }
+
+  // Drop the flush and hand the materials back to whoever else owns them —
+  // clearing straight to the base colors would wipe a charred or frozen body
+  // for a frame. Corruption repaints itself in updateGlitch.
+  clearWoundFlash() {
+    if (!this._woundTinted) return;
+    this._woundTinted = false;
+    if (this._charK > 0) this.applyCharring(this._charK);
+    else this.applyWhiteout(this._whiteW || 0);
+  }
+
+  // Venom doesn't burn steadily, it BITES: every so often another wound opens.
+  // Each one flushes the shell red for a beat and shudders the body, so a
+  // poisoned fighter reads as taking repeated hits instead of just standing in
+  // a green cloud while their bar drains.
+  //
+  // Runs POST-POSE (with the other joint FX, before the GLB re-sync) so the
+  // flinch lands on top of whatever clip is playing. The tint YIELDS to any
+  // stronger whole-body one — frost, charring, corruption all own the same
+  // materials, and a fight over them would strobe.
+  updatePoisonWounds(dt) {
+    const blocked = this._whiteW > 0.001 || this._charK > 0 || this._glitchTinted;
+    if (this.status.poison && this.alive && !blocked) {
+      this._woundNext = (this._woundNext ?? rand(0.15, 0.5)) - dt;
+      if (this._woundNext <= 0) {
+        this._woundNext = rand(0.55, 1.05);
+        this._wound = { t: 0, dur: 0.26, phase: rand(0, TAU), lean: rand(-1, 1) < 0 ? -1 : 1 };
+        // the bite itself: a spurt of venom off the spot it opened
+        const c = this.center();
+        this.world.effects.glows.emit(
+          c.x + rand(-0.5, 0.5) * this.scale, c.y + rand(-0.6, 0.6) * this.scale,
+          c.z + rand(-0.5, 0.5) * this.scale, rand(-2, 2), rand(1, 4), rand(-2, 2),
+          { life: 0.4, size: 1.5 * this.scale, color: 0x8cff3a, alpha: 0.95, drag: 0.4 });
+      }
+    } else {
+      this._woundNext = null;
+    }
+    const w = this._wound;
+    if (!w) { this.clearWoundFlash(); return; }
+    w.t += dt;
+    const k = 1 - clamp(w.t / w.dur, 0, 1);
+    if (blocked || !this.alive || k <= 0) {
+      this._wound = null;
+      this.clearWoundFlash();
+      return;
+    }
+    // hard in, fading out, stuttered so it reads as a FLICKER not a fade
+    this.applyWoundFlash(0.5 * k * k * (0.72 + 0.28 * Math.sin(w.t * 95)));
+    // and a damped shudder through the spine — small, fast, gone
+    const s = Math.sin(w.t * 48 + w.phase) * 0.055 * k;
+    const J = this.mech.joints;
+    if (J.hips) { J.hips.rotation.z += s * w.lean; J.hips.rotation.x += s * 0.55; }
+    if (J.torso) { J.torso.rotation.z -= s * 0.8; J.torso.rotation.x += s * 0.45; }
+    if (J.head) J.head.rotation.z += s * 0.5;
+  }
+
   // ================= NULLBOT corruption =================
   // lerp every body material toward one hard glitch color (w=0 restores
   // the exact originals) — the whole shell "renders wrong" for a beat
@@ -1726,6 +1795,10 @@ export class Fighter {
     this.setState('dead', 999);
     this.blocking = false;
     this.firing = false;
+    // a poison wound mid-flush would leave the wreck stuck red: update()
+    // early-outs once alive is false, so nothing would clear it
+    this._wound = null;
+    this.clearWoundFlash();
     this.animator.play('dead');
     this.world.audio?.play('explosionBig');
     const c = this.center();
@@ -2319,6 +2392,8 @@ export class Fighter {
     this.updateSpecialFx(dt);
     // ---- thrown weapons re-forging in the grip ----
     this.updateRegrow(dt);
+    // ---- poison bites: red flush + a flinch each time a wound opens ----
+    this.updatePoisonWounds(dt);
     // GLB rigs: everything above (heavy spins, palm clamps, scripted whirls)
     // wrote to the VIRTUAL joints — but the adapter already synced the bones
     // inside animator.update(), so those writes never reached the model
@@ -2567,7 +2642,12 @@ export class Fighter {
     // rather than starting the next round with a collapsed blade/lance
     for (const rg of this._regrow || []) this.weaponMount(rg.joint)?.scale.setScalar(1);
     this._regrow = null;
-    if (this._whiteW > 0) { this._whiteW = 0; this.applyWhiteout(0); }
+    this._wound = null;
+    this._woundNext = null;
+    this._woundTinted = false;
+    // unconditional: clears a frost white-out AND any lingering poison flush
+    this._whiteW = 0;
+    this.applyWhiteout(0);
     if (this._charK) { this._charK = 0; this.applyCharring(0); }
     this.pos.copy(pos);
     this.vel.set(0, 0, 0);

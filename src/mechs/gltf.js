@@ -383,10 +383,20 @@ function buildGlbMech(def, entry, gltf) {
     o.material = c;
     return c;
   };
+  // Own EVERY material, not just the ones a recolor/boost is about to edit.
+  // The whole-body tints (Fighter.applyWhiteout for the cryo freeze,
+  // applyCharring for the flame finisher, applyGlitchTint for corruption, the
+  // poison wound flush) all drive `mech.materials`, which the GLB route used to
+  // leave empty — so on a GLB body they silently did nothing, and any that DID
+  // reach a shared cached material would have tinted every other fighter using
+  // the same model at the same time. One clone set per build fixes both: the
+  // tints work on GLB bodies and stay local to one fighter. Textures are shared
+  // by reference, so a clone set is cheap.
+  const glbMats = {};
+  let matN = 0;
   for (const o of meshes) {
     o.castShadow = true;
     o.frustumCulled = false; // skinned bounds are unreliable mid-animation
-    if (!recolor && !(entry.emissiveBoost && o.material?.emissive)) continue;
     const mat = ownMat(o);
     if (!mat) continue;
     if (recolor && !mat.userData.__recolored) {
@@ -396,6 +406,11 @@ function buildGlbMech(def, entry, gltf) {
     if (entry.emissiveBoost && mat.emissive && !mat.userData.__eBoosted) {
       mat.emissiveIntensity = (mat.emissiveIntensity || 1) * entry.emissiveBoost;
       mat.userData.__eBoosted = true;
+    }
+    // register once per distinct material (ownMat dedups by source uuid)
+    if (!mat.userData.__slot) {
+      mat.userData.__slot = 'glb' + matN++;
+      glbMats[mat.userData.__slot] = mat;
     }
   }
 
@@ -464,7 +479,9 @@ function buildGlbMech(def, entry, gltf) {
   if (entry.yawOffset) container.rotation.y = entry.yawOffset * Math.PI / 180;
   root.add(container);
 
-  const mech = { group: root, joints, anchors: {}, materials: {}, dims: D, def, isGLB: true };
+  // `materials` carries this build's OWN material clones (see glbMats above) so
+  // the whole-body tints reach a GLB body; GLB_DRESS may add named slots on top.
+  const mech = { group: root, joints, anchors: {}, materials: glbMats, dims: D, def, isGLB: true };
   mech.fistSplit = fistSplit;   // Fighter.launchFist/catchFist + WEAPONS.fist
   // reinterpret shared anims for this model. entry.profileKey lets a model
   // VARIANT (e.g. an alt whose weapon sits in the other hand) carry its own
