@@ -17,9 +17,9 @@
 const RANGED = {
   gatling: {}, flame: {}, rocket: {}, fist: {}, plasma: {}, dart: {}, blade: {},
   spear: {}, wave: {}, shell: {}, lightning: {}, railgun: {}, shard: {},
-  glitch: {}, bats: {}, groundpound: {}, spikes: {}, flea: {}, slime: {},
+  glitch: {}, bats: {}, groundpound: {}, spikes: {}, flea: {},
   // alternate sides shot to shot; muzzleL absent -> both barrels use muzzleR
-  mortar: { alt: 'muzzleL' }, hose: { alt: 'muzzleL' },
+  mortar: { alt: 'muzzleL' }, hose: { alt: 'muzzleL' }, slime: { alt: 'muzzleL' },
 };
 const SPECIAL = {
   missileVolley: { primary: 'podL', fallback: 'muzzleR' },
