@@ -3,7 +3,7 @@
 // display mechs (procedural or GLB), the RANDOM "?" sprite and per-player
 // preview rings.
 import * as THREE from 'three';
-import { ROSTER_BY_ID } from '../mechs/roster.js';
+import { ROSTER_BY_ID, playableRoster, isPlayable } from '../mechs/roster.js';
 import { applyColorScheme } from '../mechs/colorscheme.js';
 import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
@@ -99,6 +99,15 @@ export class MenuStage {
   // title line-up: three hero mechs
   showLineup(ids = ['titanus', 'viper', 'nova']) {
     this.clearMechs();
+    // a hidden (work-in-progress) hero is swapped for a playable stand-in
+    // so the title screen never advertises a mech the game won't offer
+    const shown = new Set(ids.filter(isPlayable));
+    ids = ids.map((id) => {
+      if (isPlayable(id)) return id;
+      const sub = playableRoster().find((m) => !shown.has(m.id));
+      if (sub) shown.add(sub.id);
+      return sub ? sub.id : id;
+    });
     ids.forEach((id, i) => {
       this.spawnUnit(ROSTER_BY_ID[id], new THREE.Vector3((i - 1) * 10, 0, i === 1 ? 0 : -4), (i - 1) * -0.4);
     });

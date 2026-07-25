@@ -1,6 +1,6 @@
 // Menu screens: Title → Setup → Mech Select → Arena Select → (battle) → Results.
 // Each screen builds DOM into #ui-root and consumes aggregated menu events.
-import { ROSTER } from '../mechs/roster.js';
+import { playableRoster } from '../mechs/roster.js';
 import { SCHEME_NAMES, SCHEME_COUNT, schemeSwatch } from '../mechs/colorscheme.js';
 import { THEMES } from '../arena/themes.js';
 import { isTouchDevice } from '../core/utils.js';
@@ -15,7 +15,7 @@ export const RANDOM_PICK = {
   colors: { primary: 0x3a4a5e, glow: 0x9fd8ef },
   blurb: 'A different robot every round — dealt fresh at each bell. Pick a color scheme; it carries onto whatever shows up.',
 };
-const pickAt = (cursor) => (cursor >= ROSTER.length ? RANDOM_PICK : ROSTER[cursor]);
+const pickFrom = (list, cursor) => (cursor >= list.length ? RANDOM_PICK : list[cursor]);
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -175,8 +175,12 @@ export class MechSelectScreen {
     this.finished = false;
     this._padCount = this.input.connectedPadCount();
 
+    // the grid only offers the playable roster — work-in-progress mechs
+    // appear when SETTINGS → SHOW ALL ROBOTS is on (CONFIG.showAllRobots)
+    this.roster = playableRoster();
+
     this.grid = el('div', 'roster-grid');
-    this.cells = [...ROSTER, RANDOM_PICK].map((m, i) => {
+    this.cells = [...this.roster, RANDOM_PICK].map((m, i) => {
       const c = el('div', 'roster-cell');
       c.innerHTML = m === RANDOM_PICK
         ? `<div class="cell-tint" style="background:linear-gradient(150deg, #2a3a52, transparent)"></div>
@@ -420,7 +424,7 @@ export class MechSelectScreen {
       if (s.kind !== 'human') return;
       let p = keep.get(i);
       if (!p || p.device !== s.device) {
-        p = { slotIdx: i, device: s.device, cursor: this.pickers.length % ROSTER.length, locked: false, variant: 0 };
+        p = { slotIdx: i, device: s.device, cursor: this.pickers.length % this.roster.length, locked: false, variant: 0 };
       }
       this.pickers.push(p);
     });
@@ -432,6 +436,9 @@ export class MechSelectScreen {
       this.disarmReady();
     }
   }
+
+  // what a cursor is parked on (last cell in the grid is RANDOM)
+  pickAt(cursor) { return pickFrom(this.roster, cursor); }
 
   refresh() {
     this.cells.forEach((c, i) => {
@@ -453,7 +460,7 @@ export class MechSelectScreen {
     this.renderCard();
     this.renderPlayers();
     this.onPreview?.(this.pickers.map((pk) => ({
-      id: pickAt(pk.cursor).id, slotIdx: pk.slotIdx, locked: pk.locked, variant: pk.variant,
+      id: this.pickAt(pk.cursor).id, slotIdx: pk.slotIdx, locked: pk.locked, variant: pk.variant,
     })));
   }
 
@@ -495,7 +502,7 @@ export class MechSelectScreen {
         return;
       }
       const pk = this.pickers.find((p) => p.slotIdx === i);
-      const m = pickAt(pk.cursor);
+      const m = this.pickAt(pk.cursor);
       const mc = hexCss(m.colors.glow);
       pc.classList.toggle('locked', pk.locked);
       pc.innerHTML = `<div class="pc-role" style="color:${col}">PLAYER ${i + 1} · ${this.deviceLabel(s.device)}</div>
@@ -519,7 +526,7 @@ export class MechSelectScreen {
   renderCard() {
     if (this.pickers.length === 1) {
       const pk = this.pickers[0];
-      const m = pickAt(pk.cursor);
+      const m = this.pickAt(pk.cursor);
       if (m === RANDOM_PICK) { // mystery unit: no stats to show
         this.card.innerHTML = `
           <div class="mi-name" style="color:#9fd8ef">❓ ${m.name}</div>
@@ -545,7 +552,7 @@ export class MechSelectScreen {
     }
     // multi-player: one compact card per picker, tinted with player color
     this.card.innerHTML = this.pickers.map((pk) => {
-      const m = pickAt(pk.cursor);
+      const m = this.pickAt(pk.cursor);
       const pc = COLOR_CSS[pk.slotIdx % 4];
       const movesLine = m === RANDOM_PICK
         ? 'a different robot every round'
@@ -578,7 +585,7 @@ export class MechSelectScreen {
       pk.variant = (pk.variant + 1) % SCHEME_COUNT;
     }
     pk.locked = true;
-    this.picks[pk.slotIdx] = pickAt(pk.cursor).id;
+    this.picks[pk.slotIdx] = this.pickAt(pk.cursor).id;
     this.variants[pk.slotIdx] = pk.variant;
     this.audio?.play('uiSelect');
     if (pk.device.startsWith('pad')) this.input.rumble(+pk.device[3], 0.45, 130);
@@ -609,8 +616,9 @@ export class MechSelectScreen {
     const taken = new Set(this.picks.filter(Boolean));
     this.slots.forEach((s, i) => {
       if (s.kind === 'ai') {
-        const pool = ROSTER.filter((m) => !taken.has(m.id));
-        const m = (pool.length ? pool : ROSTER)[(Math.random() * (pool.length ? pool.length : ROSTER.length)) | 0];
+        const pool = this.roster.filter((m) => !taken.has(m.id));
+        const src = pool.length ? pool : this.roster;
+        const m = src[(Math.random() * src.length) | 0];
         this.picks[i] = m.id;
         taken.add(m.id);
       }
@@ -687,7 +695,7 @@ export class MechSelectScreen {
       }
 
       if (!pk.locked) {
-        const N = ROSTER.length + 1, cols = 4; // +1: the RANDOM cell
+        const N = this.roster.length + 1, cols = 4; // +1: the RANDOM cell
         let moved = false;
         if (left) { pk.cursor = (pk.cursor + N - 1) % N; moved = true; }
         if (right) { pk.cursor = (pk.cursor + 1) % N; moved = true; }

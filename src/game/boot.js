@@ -4,14 +4,14 @@ import * as THREE from 'three';
 import { Engine } from '../core/engine.js';
 import { Input } from './input.js';
 import { THEMES_BY_ID } from '../arena/themes.js';
-import { ROSTER_BY_ID, ROSTER } from '../mechs/roster.js';
+import { ROSTER_BY_ID, playableRoster } from '../mechs/roster.js';
 import { applyColorScheme, SCHEME_COUNT } from '../mechs/colorscheme.js';
 import { Fighter } from '../combat/fighter.js';
 import { AIController } from './ai.js';
 import { Match } from './match.js';
 import { Hud, toast } from '../ui/hud.js';
 import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen } from '../ui/menus.js';
-import { CONFIG, setInfiniteUltimates } from '../core/config.js';
+import { CONFIG, setInfiniteUltimates, setShowAllRobots } from '../core/config.js';
 import { GameAudio } from '../core/audio.js';
 import { createMech, preloadMechModels, loadManifest, is3dMode } from '../mechs/gltf.js';
 import { TouchControls, installTouchZoomGuards } from './touch.js';
@@ -77,6 +77,12 @@ export async function bootGame() {
     {
       label: () => (CONFIG.debugUltimates ? 'INFINITE ULTIMATES: ON' : 'INFINITE ULTIMATES: OFF'),
       fn: () => setInfiniteUltimates(!CONFIG.debugUltimates),
+    },
+    {
+      // work-in-progress mechs (roster `hidden`) join the game roster; the
+      // workbenches (?showcase, ?rigedit, ?battle=...) always show them
+      label: () => (CONFIG.showAllRobots ? 'SHOW ALL ROBOTS: ON' : 'SHOW ALL ROBOTS: OFF'),
+      fn: () => setShowAllRobots(!CONFIG.showAllRobots),
     },
     // controller-reachable page reload (via LB/RB → settings → this item)
     { label: () => 'RELOAD PAGE', fn: () => window.location.reload() },
@@ -292,7 +298,8 @@ export async function bootGame() {
     // Each fighter wears its chosen paint scheme; anyone sharing a mech id
     // with an identical scheme (e.g. random AI picks) gets auto-bumped.
     const defs = active.map((a) => {
-      const base = ROSTER_BY_ID[S.picks[a.slotIdx]] || ROSTER[(Math.random() * ROSTER.length) | 0];
+      const roster = playableRoster();
+      const base = ROSTER_BY_ID[S.picks[a.slotIdx]] || roster[(Math.random() * roster.length) | 0];
       return { base, variant: S.variants?.[a.slotIdx] || 0 };
     });
     defs.forEach((d, i) => {
@@ -366,9 +373,10 @@ export async function bootGame() {
       for (const i of randomIdx) {
         const old = fighters[i];
         const exclude = new Set(fighters.filter((f) => f !== old).map((f) => f.def.id));
-        const pool = ROSTER.filter((m) => !exclude.has(m.id));
-        const base = pool.length ? pool[(Math.random() * pool.length) | 0]
-          : ROSTER[(Math.random() * ROSTER.length) | 0];
+        const roster = playableRoster();
+        const pool = roster.filter((m) => !exclude.has(m.id));
+        const src = pool.length ? pool : roster;
+        const base = src[(Math.random() * src.length) | 0];
         let variant = S.variants?.[old.playerIndex] || 0;
         for (let t = 0; fighters.some((o) => o !== old && o.def.id === base.id && (o.def.variant || 0) === variant) && t < SCHEME_COUNT; t++) {
           variant = (variant + 1) % SCHEME_COUNT;

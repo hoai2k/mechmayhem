@@ -1,3 +1,5 @@
+import { CONFIG } from '../core/config.js';
+
 // The roster: proportions, palettes, stats, personalities, move sets.
 // All combat numbers live here so balance is tuned in one place.
 // (Color-scheme math lives in colorscheme.js — this file stays data.)
@@ -62,7 +64,7 @@ export const ROSTER = [
     },
   },
   {
-    id: 'aegis', name: 'AEGIS', title: 'The Bastion of Dawn', icon: '🛡️', seed: 33,
+    id: 'aegis', name: 'AEGIS', title: 'The Bastion of Dawn', icon: '🛡️', seed: 33, hidden: true,
     blurb: 'A knight-errant forged from cathedral steel. Sworn to protect the innocent, the outnumbered, and anyone standing behind that enormous shield.',
     quotes: { win: '"Honor is the finest armor. Yield with grace, friend."', intro: '"By dawn\'s light — I shall not falter!"' },
     colors: { primary: 0xd0d4da, accent: 0xc9a542, glow: 0x3f8cff, stripes: false },
@@ -137,7 +139,7 @@ export const ROSTER = [
     },
   },
   {
-    id: 'nova', name: 'NOVA', title: 'The Starborn Oracle', icon: '✨', seed: 55,
+    id: 'nova', name: 'NOVA', title: 'The Starborn Oracle', icon: '✨', seed: 55, hidden: true,
     blurb: 'Built around a fragment of a collapsed star. Speaks in riddles, fights in constellations. Gravity is more of a suggestion to her.',
     quotes: { win: '"The stars foretold this. They usually do."', intro: '"Come — witness the light between worlds."' },
     colors: { primary: 0xd2d6de, accent: 0x3e7a78, glow: 0xff3ce8, stripes: false },
@@ -537,3 +539,17 @@ export const ROSTER = [
 ];
 
 export const ROSTER_BY_ID = Object.fromEntries(ROSTER.map((m) => [m.id, m]));
+
+// Work-in-progress mechs carry `hidden: true`. The workbenches (?showcase,
+// ?rigedit, the pose/skin tools, ?battle=...) always see the FULL ROSTER so
+// they can keep iterating; the game itself only offers the playable set
+// unless SETTINGS → SHOW ALL ROBOTS is on.
+export function playableRoster() {
+  return CONFIG.showAllRobots ? ROSTER : ROSTER.filter((m) => !m.hidden);
+}
+
+// Is this mech id offerable in the game right now?
+export function isPlayable(id) {
+  const m = ROSTER_BY_ID[id];
+  return !!m && (CONFIG.showAllRobots || !m.hidden);
+}
