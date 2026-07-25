@@ -26,20 +26,51 @@ function segDist2(px, py, pz, a, b) {
   return dx * dx + dy * dy + dz * dz;
 }
 
+// The spans a rig's bones compete over — every vertex joins the bone whose
+// span it sits nearest. Which span a bone gets depends on `rig.skinSpan`:
+//
+//   'parent' (DEFAULT) — one span per bone, bone→its parent. The original
+//     behaviour; cranky/glacier/jerry are placed and bias-tuned against it.
+//   'child' — one span per bone→child pair (a leaf gets a point at its own
+//     position), so a bone owns the limb hanging BELOW it.
+//
+// 'child' is the one that deforms correctly. three.js pivots a bone's
+// vertices about that bone's OWN origin, so the slice a joint should carry is
+// the one on the far side of it from the body: under 'parent' the upper arm
+// belongs to `elbow`, and bending the elbow swings the upper arm around the
+// elbow — the shoulder end flies off the body — instead of swinging the
+// forearm. Opt in per rig; it changes which bone every vertex lands on, so an
+// existing rig can't be switched without re-tuning its `bias` values.
+function skinSpans(rig) {
+  const index = Object.fromEntries(rig.bones.map((b, i) => [b.name, i]));
+  const span = (b, other) => ({ idx: index[b.name], a: b.pos, b: other, bias: b.bias || 1 });
+  if (rig.skinSpan !== 'child') {
+    return rig.bones.map((b) => span(b,
+      b.parent && index[b.parent] !== undefined ? rig.bones[index[b.parent]].pos : b.pos));
+  }
+  const kids = new Map();
+  for (const b of rig.bones) {
+    if (!b.parent || index[b.parent] === undefined) continue;
+    if (!kids.has(b.parent)) kids.set(b.parent, []);
+    kids.get(b.parent).push(b);
+  }
+  const spans = [];
+  for (const b of rig.bones) {
+    const cs = kids.get(b.name);
+    if (!cs?.length) spans.push(span(b, b.pos));            // leaf: a point at the tip
+    else for (const c of cs) spans.push(span(b, c.pos));    // one span per limb below it
+  }
+  return spans;
+}
+
 // Compute a rigid per-vertex bone assignment for `rig` against `mesh`
-// geometry (mesh-local positions). Each vertex → the bone whose segment
-// (bone→parent) is nearest. Returns Int available as {skinIndex, skinWeight}.
+// geometry (mesh-local positions). Each vertex → the bone whose span (see
+// skinSpans) is nearest. Returns {skinIndex, skinWeight}.
 export function computeWeights(mesh, rig) {
   const pos = mesh.geometry.attributes.position;
   const n = pos.count;
-  const byName = Object.fromEntries(rig.bones.map((b, i) => [b.name, i]));
-  const segs = rig.bones.map((b) => ({
-    idx: byName[b.name],
-    a: b.pos,
-    b: b.parent && byName[b.parent] !== undefined ? rig.bones[byName[b.parent]].pos : b.pos,
-    // a bone may over-reach: `grab` widens/narrows its win radius (optional tuning)
-    bias: b.bias || 1,
-  }));
+  // a bone may over-reach: `bias` widens (<1) / narrows (>1) its win radius
+  const segs = skinSpans(rig);
   const skinIndex = new Uint16Array(n * 4);
   const skinWeight = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) {
@@ -152,6 +183,13 @@ export function applyCustomRig(mesh, rig) {
   // keeps the re-skin local to this build.
   mesh.geometry = mesh.geometry.clone();
   const { bones, byName, root } = buildSkeletonBones(rig);
+  // No root = an empty rig, or every bone naming a parent (typo/cycle). Say so
+  // instead of letting the next line throw on null — callers (createMech, the
+  // ?rigedit preflight) can then report something a human can act on.
+  if (!root) {
+    throw new Error(`custom rig has no root bone (${rig.bones?.length || 0} bones): `
+      + 'exactly one bone must have parent: null');
+  }
 
   // place the bone tree in the SAME space the geometry lives in. mesh.matrix
   // maps mesh-local → parent space; bones authored in mesh-local must be

@@ -2285,3 +2285,41 @@ controllers via Gamepad API), AI opponents.
   (VIEW the shots); `sample-arena` ace soak crash-free; foundry + quarry
   procedural soaks crash-free (no regression); uptown procedural battle
   visually intact; `vite build` green.
+
+## FENRIR custom rig + `?rigedit` bail-out message (user request, 2026-07-25)
+
+- `?rigedit=fenrir` crashed with `Cannot read properties of null (reading
+  'applyMatrix4')`: the editor loads a hand-authored rig from
+  `src/mechs/rigs/<id>.rig.js`, fenrir had none, so `loadRig()` returned
+  `{bones: []}`, `buildSkeletonBones` returned a null root, and
+  `applyCustomRig` dereferenced it. Now a PREFLIGHT runs before the editor
+  builds anything and, when it can't proceed, draws a loud card where the
+  model would be — no rig authored (with the list of editable mechs and the
+  three steps to start one), no manifest/GLB entry, GLB parse failure, no
+  skinned mesh, or a rig with no root bone. `applyCustomRig` also throws a
+  named error instead of null-dereferencing, so the same fault reported
+  through `createMech` (which falls back to procedural) reads clearly.
+- FENRIR re-rigged. His Tripo auto-rig had no leg chain at all below the
+  hip — `kneeL` and `ankleR` both mapped to `bone_32`, and `bone_32/33/34`
+  are zero-weight junk bones sticking out in FRONT of the model — so both
+  legs were one rigid lump and 60 hand-written `skinOps` were patching the
+  fallout. New `src/mechs/rigs/fenrir.rig.js`: 26 bones measured off the
+  bind point cloud (spine, two 4-joint digitigrade legs with the hock as
+  `ankle`, two arms + talons, a 6-bone chain down the sweeping blade-tail),
+  and the manifest entry drops `boneOverrides` + all 60 `skinOps` for
+  `"rig": "fenrir"`.
+- `reskin.js` gained `rig.skinSpan`. The proximity re-skin gave each bone the
+  span bone→PARENT, which is off by one link: three.js pivots a bone's
+  vertices about that bone's OWN origin, so `elbow` owning the upper arm
+  means a bent elbow swings the upper arm off the shoulder instead of
+  swinging the forearm (measured: `kneeL` owned mesh y 0.37–0.51, the THIGH).
+  `skinSpan: 'child'` gives each bone the spans bone→each child (leaves get
+  a point), so `kneeL` owns y 0.20–0.38, the shin. Opt-in per rig — it moves
+  every vertex to a different bone, so cranky/glacier/jerry keep the legacy
+  spans their `bias` values are tuned against.
+- Verified: `?rigedit=fenrir` loads and drags; colour view shows one clean
+  limb per bone; bail-out card shot for a mech with no rig and for an unknown
+  mech; fenrir showcase idle/walk/heavy (the quad lope now plants all four
+  paws — before, the legs never articulated); uptown battle; ace soaks
+  fenrir-vs-viper and cranky-vs-glacier crash-free; cranky/glacier/jerry
+  showcase unchanged; `vite build` green.

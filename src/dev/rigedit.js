@@ -13,7 +13,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { Engine } from '../core/engine.js';
 import { loadRawGlbScene } from '../mechs/gltf.js';
-import { rigFor } from '../mechs/rigs/index.js';
+import { rigFor, rigIds } from '../mechs/rigs/index.js';
 import { applyCustomRig, setWeights, rebindRest, buildRigPosts } from '../mechs/reskin.js';
 import { JOINT_ORDER } from '../mechs/rigadapter.js';
 
@@ -32,8 +32,86 @@ function boneColor(name, i) {
   return [g, g, g * 1.1];
 }
 
+// Loud, centered "can't edit this" card, drawn where the model would be.
+// Every bail-out below goes through here: the editor never starts half-built
+// and never leaves a blank canvas with an exception in the console.
+function showBlocker({ title, detail, hint }) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `position:fixed;inset:0;z-index:200;display:flex;align-items:center;
+    justify-content:center;background:rgba(10,13,18,0.92);font:14px/1.55 system-ui,sans-serif;color:#dfe8f5`;
+  const card = document.createElement('div');
+  card.style.cssText = `max-width:560px;padding:26px 30px;border:1px solid #46324a;border-radius:12px;
+    background:#14181f;box-shadow:0 18px 60px rgba(0,0,0,0.6);text-align:left`;
+  const h = document.createElement('div');
+  h.style.cssText = 'font:600 19px/1.3 system-ui,sans-serif;color:#ffb4a2;margin-bottom:12px';
+  h.textContent = `⚠  ${title}`;
+  const d = document.createElement('div');
+  d.style.cssText = 'color:#c3cede;margin-bottom:14px';
+  d.textContent = detail;
+  const t = document.createElement('div');
+  t.style.cssText = `color:#8fa2ba;font:12.5px/1.6 ui-monospace,monospace;background:#0b0f16;
+    border:1px solid #23303f;border-radius:6px;padding:10px 12px;white-space:pre-wrap`;
+  t.textContent = hint;
+  card.append(h, d, t);
+  wrap.appendChild(card);
+  document.body.appendChild(wrap);
+}
+
 export async function runRigEdit(startId) {
   const id = startId && startId !== 'true' && startId !== '1' ? startId : 'cranky';
+  const useAlt = new URLSearchParams(location.search).get('alt') === '1';
+  const LS_KEY = () => `rigedit:${id}`;
+  function loadRig() {
+    const saved = localStorage.getItem(LS_KEY());
+    if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
+    const r = rigFor(id);
+    return r ? JSON.parse(JSON.stringify(r)) : { bones: [] };
+  }
+
+  // ---- preflight ---------------------------------------------------------
+  // This editor drops a hand-authored skeleton (src/mechs/rigs/<id>.rig.js)
+  // onto a GLB, so it needs BOTH halves. Check them up front and explain
+  // what's missing on screen — previously a mech with no rig file sailed
+  // through to applyCustomRig and died on a null bone root.
+  let raw = null, loadErr = null;
+  try { raw = await loadRawGlbScene(id, { alt: useAlt }); } catch (e) { loadErr = e; }
+  let probeMesh = null;
+  raw?.scene.traverse((o) => { if (o.isSkinnedMesh && !probeMesh) probeMesh = o; });
+  const startRig = loadRig();
+  const editable = rigIds().join(', ');
+  const problem = loadErr
+    ? { title: `${id}'s GLB failed to load`,
+      detail: 'The model file is listed in the manifest but could not be parsed, so there is nothing to rig.',
+      hint: `?rigedit=${id}${useAlt ? ' (alt)' : ''}\n${loadErr.message || loadErr}` }
+    : !raw
+      ? { title: `No GLB for "${id}"`,
+        detail: `The rig editor edits a GLB mech. public/models/manifest.json has no ${useAlt ? '"alt" ' : ''}entry with a url for this mech${useAlt ? '' : ', so it runs on the procedural model and has no rig to edit'}.`,
+        hint: `Editable now: ${editable}\nAdd a GLB + manifest entry for "${id}" first.` }
+      : !probeMesh
+        ? { title: `${id}'s GLB has no skinned mesh`,
+          detail: 'The file loaded but contains no SkinnedMesh, so there is no skin to re-bind to a rig.',
+          hint: `?rigedit=${id}${useAlt ? '&alt=1' : ''}` }
+        : !startRig.bones?.length
+          ? { title: `${id} has no custom rig to edit`,
+            detail: 'This mech runs on its GLB\'s own auto-rig (manifest boneOverrides + skinOps). '
+              + 'The editor only edits hand-authored rigs — the skeletons in src/mechs/rigs/ that REPLACE an auto-rig — so there is nothing here to drag yet.',
+            hint: `Editable now: ${editable}\n\nTo start one for "${id}":\n`
+              + `  1. create src/mechs/rigs/${id}.rig.js exporting\n`
+              + `     { bones: [{ name: 'hips', parent: null, pos: [x, y, z] }, ...] }\n`
+              + `     (positions are MESH-LOCAL, i.e. raw GLB bind space)\n`
+              + `  2. register it in src/mechs/rigs/index.js\n`
+              + `  3. reload ?rigedit=${id} and drag the bones into place` }
+          : !startRig.bones.some((b) => !b.parent || !startRig.bones.some((p) => p.name === b.parent))
+            ? { title: `${id}'s rig has no root bone`,
+              detail: 'Every bone in the rig names a parent, so the skeleton has no root to hang off — usually a typo in a `parent` field, or a cycle.',
+              hint: `Fix src/mechs/rigs/${id}.rig.js: exactly one bone must have parent: null.` }
+            : null;
+  if (problem) {
+    console.warn(`rigedit: ${problem.title}`);
+    showBlocker(problem);
+    return null;
+  }
+
   const engine = new Engine(document.getElementById('game-canvas'));
   const { scene, camera, renderer } = engine;
   scene.background = new THREE.Color(0x1a1f29);
@@ -83,8 +161,6 @@ export async function runRigEdit(startId) {
   let dragSnap = null;             // rig snapshot captured at gizmo drag-start
   let soloMove = false;            // move a joint WITHOUT dragging its subtree
   let soloMoveTargets = null;      // Map childName -> frozen world pos during a solo-move drag
-
-  const LS_KEY = () => `rigedit:${id}`;
 
   // ---- undo/redo (snapshots of rigObj) ----
   const snapshotRig = () => JSON.parse(JSON.stringify(rigObj));
@@ -195,18 +271,10 @@ export async function runRigEdit(startId) {
     pos.needsUpdate = true;
   }
 
-  function loadRig() {
-    const saved = localStorage.getItem(LS_KEY());
-    if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
-    const r = rigFor(id);
-    return r ? JSON.parse(JSON.stringify(r)) : { bones: [] };
-  }
   function saveRig() { localStorage.setItem(LS_KEY(), JSON.stringify(rigObj)); }
 
-  const useAlt = new URLSearchParams(location.search).get('alt') === '1';
-  async function load() {
-    const raw = await loadRawGlbScene(id, { alt: useAlt });
-    if (!raw) { alert(`no GLB for ${id}${useAlt ? ' (alt)' : ''}`); return; }
+  // `raw` / `startRig` came from the preflight above — both are known good.
+  function load() {
     container = new THREE.Group();
     container.scale.setScalar(VIEW);
     container.add(raw.scene);
@@ -216,7 +284,7 @@ export async function runRigEdit(startId) {
     container.updateMatrixWorld(true);
     // ground it: drop so the lowest skinned vertex sits on y=0
     origMat = mesh.material;
-    rigObj = loadRig();
+    rigObj = startRig;
     rebuild(true);
     groundIt();
     buildBoneUI();
@@ -597,7 +665,7 @@ export async function runRigEdit(startId) {
   function btn(t, fn, primary) { const b = el('button', `width:100%;padding:6px;margin-top:4px;border-radius:5px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:${primary ? '#1f7a4d' : '#1a2433'};color:${primary ? '#fff' : '#cfe0f5'}`); b.textContent = t; b.onclick = fn; return b; }
   function round(v) { return Math.round(v * 100) / 100; }
 
-  await load();
+  load();
 
   engine.onUpdate = (dt) => {
     if (swinging && !gizmo.dragging) {
