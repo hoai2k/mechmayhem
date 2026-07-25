@@ -47,17 +47,18 @@ for (const id of ids) {
   const report = await page.evaluate(async ({ STRETCH_R, id }) => {
     // only the MAPPED bones are ever animated by the game (RigAdapter drives
     // just the manifest boneOverrides; everything else rigid-follows its
-    // ancestors) — so sweep those, and flags = what can actually tear in play
+    // ancestors) — so sweep those, and flags = what can actually tear in play.
+    // CUSTOM-RIG entries have no boneOverrides: their bones ARE the game
+    // joints, so the animated set is every rig bone named after one (without
+    // this the audit swept nothing and reported a clean bill for every
+    // hand-rigged mech).
     const { fetchRawManifest } = await import('/src/mechs/gltf.js');
-    const manifest = await fetchRawManifest();
-    // CUSTOM-RIG entries (manifest `rig`) carry no boneOverrides — their bones
-    // ARE the game joints, so the driven set is JOINT_ORDER by name. Without
-    // this the mapped set comes out empty and the audit sweeps nothing,
-    // reporting a vacuous "0 flagged" for every re-rigged mech.
     const { JOINT_ORDER } = await import('/src/mechs/rigadapter.js');
-    const mappedNames = manifest[id]?.rig
+    const manifest = await fetchRawManifest();
+    const entry = manifest[id] || {};
+    const mappedNames = entry.rig
       ? new Set(JOINT_ORDER)
-      : new Set(Object.values(manifest[id]?.boneOverrides || {}));
+      : new Set(Object.values(entry.boneOverrides || {}));
     const t = window.__skinTool;
     if (!t?.mesh) return { error: 'workbench not ready' };
     const mesh = t.mesh;
