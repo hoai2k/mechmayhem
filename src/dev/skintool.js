@@ -26,6 +26,7 @@ import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
 import { loadRawGlbScene, fetchRawManifest, skinnedBox, buildGlbForTool } from '../mechs/gltf.js';
 import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson } from '../mechs/skinops.js';
 import { CLIPS } from '../mechs/animations.js';
+import { mechClips } from './mechclips.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
 
@@ -604,22 +605,45 @@ export async function runSkinTool(startId) {
   }
 
   // ---- bone wiggle (verify what moves) ----
-  // Which real clips actually drive this bone? A clip animates canonical
-  // JOINTS; the RigAdapter retargets a joint onto one GLB bone, so a clip is
-  // listed only when it has a track for the joint THIS bone is mapped from.
-  // (Descendant bones ride along rigidly and don't deform, so they're not
-  // listed — the point is to see the joint that actually bends.)
+  // Which of THIS MECH's clips move this bone?
+  //
+  // Two filters. First the mech: only clips it can actually play (mechclips.js)
+  // — no point offering viper's slashes on colossus. Then the bone: a clip
+  // animates canonical JOINTS, and the RigAdapter retargets each joint onto one
+  // GLB bone, so we look at the joints for the bone ITSELF, its PARENT and its
+  // GRANDPARENT — a parent bending is what stretches the skin across this
+  // bone's region, so those clips matter here too. The skeleton ROOT is skipped:
+  // nearly every clip moves it, which would match everything and tell you
+  // nothing.
+  const JOINT_TRACKS = { hips: ['hipsRot', 'hipsPos'] };   // hips is split in the clip data
   function clipsForBone(bone) {
     if (!bone || !animMech || !jointOfBone) return [];
-    const joint = jointOfBone.get(bone.name);
-    if (!joint) return [];
-    const all = { ...CLIPS, ...(animMech.animProfile?.clipOverrides || {}) };
+    // walk up at most two levels, skipping the root bone
+    const chain = [];
+    let b = bone;
+    for (let i = 0; i < 3 && b?.isBone; i++) {
+      if (!isRootBone(b)) chain.push(b);
+      b = b.parent;
+    }
+    const tracks = new Set();
+    for (const cb of chain) {
+      const joint = jointOfBone.get(cb.name);
+      if (!joint) continue;
+      for (const t of JOINT_TRACKS[joint] || [joint]) tracks.add(t);
+    }
+    if (!tracks.size) return [];
+    const over = animMech.animProfile?.clipOverrides || {};
     const out = [];
-    for (const [name, clip] of Object.entries(all)) {
-      if (clip?.tracks?.[joint]) out.push(name);
+    for (const name of mechClips(ROSTER_BY_ID[curId], animMech.animProfile)) {
+      const clip = over[name] || CLIPS[name];
+      if (!clip?.tracks) continue;
+      for (const t of tracks) if (clip.tracks[t]) { out.push(name); break; }
     }
     return out.sort();
   }
+  // the skeleton root: no bone parent (Tripo rigs hang theirs off an Armature
+  // Object3D, so "parent isn't a bone" is the reliable test)
+  function isRootBone(b) { return !b?.parent?.isBone; }
   // The sticky choice, honoured only when this bone actually has that clip.
   function activeClipChoice() {
     return preferredClip && clipNames.includes(preferredClip) ? preferredClip : null;
@@ -753,6 +777,11 @@ export async function runSkinTool(startId) {
   panel.appendChild(label('Wiggle animation'));
   const clipSel = document.createElement('select');
   clipSel.style.cssText = 'width:100%;margin-bottom:2px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px';
+  // recompute right before the list drops open, so it always reflects the
+  // mech + bone selected right now (ops can rebind an island under you)
+  const refreshClips = () => { clipNames = clipsForBone(selBone); renderClipOptions(); };
+  clipSel.onmousedown = refreshClips;
+  clipSel.onfocus = refreshClips;
   clipSel.onchange = () => {
     // '' = Default; picking it explicitly clears the sticky choice
     preferredClip = clipSel.value || null;
@@ -777,7 +806,7 @@ export async function runSkinTool(startId) {
       clipNote.textContent = `No clip animates ${selBone.name}`
         + (jointOfBone?.get(selBone.name) ? '' : ' (no rig joint maps to it)') + ' — Default only.';
     } else {
-      clipNote.textContent = `${clipNames.length} clip(s) drive ${selBone.name}`
+      clipNote.textContent = `${clipNames.length} of ${curId}'s clips move ${selBone.name} (or its parent/grandparent)`
         + (preferredClip && !clipNames.includes(preferredClip)
           ? ` · "${preferredClip}" kept for bones that have it` : '');
     }
