@@ -2733,3 +2733,71 @@ controllers via Gamepad API), AI opponents.
   glacier/viper (GLB), glacier/cranky (GLB), glacier/titanus
   (`?debug=fallback`); `?rigedit=glacier` and `?rigtest` clean; no new
   contract violations; `vite build` green.
+
+## Titanus rocket fist: punches FORWARD, and the real fist flies off (user request, 2026-07-25)
+
+- User supplied new muzzle anchors and a `?debug=skin` pass painting his fist
+  onto the rig's `fistL`/`fistR` tip bones. Both are in the manifest; the fist
+  ops are 65 of the 71 (my 6 boundary ops kept).
+- **The arm was punching at the sky.** `fistLaunch` carried the wind-up's twist
+  (torso yaw -28, hips -16) straight through the release, so at the fire event
+  the arm left 46° across his chest and 12° up — MEASURED, not eyeballed. Both
+  routes had it, so it was the shared clip, not the retarget: the procedural
+  body did the same thing. The release frame now squares up, and the arm angles
+  come off a sweep — shoulderR pitch -90 with a level torso is dead level and
+  dead forward (armDir [0,0,1]), and each +1° of torso lean costs 1° of arm
+  pitch, so lean 6 pairs with -96. `fistCatch` squared up to match, so the
+  wrist is presented down the line the fist is flying home along.
+  · Watch out: clip poses are DEGREES but `Animator.applyPose` takes RADIANS —
+    a probe that feeds it degrees produces chaos that looks like a rig bug.
+- **The projectile was aiming 78° up.** `barrelDeflect` rotates the shot from
+  the fighter's facing onto the muzzle anchor's world +Z, and a muzzle `rot`
+  authored at REST is wrong for a rocket punch: the arm swings 90° between rest
+  and firing and carries that +Z up with it. The offsets are kept (they place
+  the muzzle on the fist) and the `rot` dropped, which is the fallback gltf.js
+  already documents for exactly this case — "a muzzle on a hand bone is
+  meaningless as an aim vector". Measured after: the fist leaves at yaw 0.0°
+  with velDir [0,-0.11,0.99], pitching gently DOWN onto the target.
+  · Side effect: `titanus ranged` in the attack matrix has been the roster's
+    long-standing "known flake" (0 damage, repeatedly re-run and excused in
+    this log). It was never variance — it was this. The full matrix went from
+    8 failures to 5, and the remaining ones are mechs this work never touched.
+- **The fist now actually leaves** (`src/mechs/fistsplit.js`). The procedural
+  body gets this free — its fist is a real Object3D under handR, so launchFist
+  scales that joint away. A GLB is one skinned mesh, so:
+  · the painted `fistL/fistR` selection is only a SEED. Those tip bones are
+    rigid, never-animated children of the wrists, so painting to them changes
+    nothing about how he deforms — it just means "this is the fist". The cut
+    itself is derived: wrist->fist axis from the two clouds' centroids, the
+    1-D threshold along it that best separates them, a flood fill through the
+    mesh from the seed that never crosses back over that plane, and WHOLE
+    triangles claimed. Feathered edges become a flat cut, nothing is torn, and
+    strays the artist left on a neighbouring bone travel with the fist instead
+    of being left hanging in the open socket (visible as floating fragments
+    until the flood fill went in). 9248 tris right, 9143 left, 92-93% of the
+    painted selection agreeing with the plane.
+  · the cut triangles move into their own geometry GROUP, so detaching is one
+    material's `.visible = false` — no second copy of an 84k-vertex buffer per
+    fighter, body still one draw call.
+  · the break is filled by a dark BACKFACE layer on both halves (same vertex
+    buffers, indexed to the shell around the cut, `side: BackSide`, gunmetal
+    with polygonOffset). Tried capping the rim geometrically first: a mech fist
+    is ~20 separate armour plates, so there is no single rim, and boundary-loop
+    extraction went wrong at every non-manifold junction and threw a big flat
+    sheet across the arm. The backface layer needs no rim geometry and cannot
+    leave a gap however jagged the cut is.
+  · the projectile wears a bake of the fist's CURRENT posed triangles with its
+    original normals and UVs — without the UVs the PBR maps all sample one
+    texel and it flies as a flat dark blob. Baked into a frame whose +Z is the
+    punch axis because the carrier orients itself by faceVel.
+  · `catchFist` restores it, and since `onReturn` fires on ANY death of the
+    projectile (not just a clean catch) the fist can never be left missing;
+    the round-reset path covers it too.
+- Verified: fire frame VIEWed on BOTH routes (fist foreshortened straight at
+  the camera, was up beside his head); flight vector measured at 3 ranges, all
+  yaw 0.0°; full detach->fly->reattach cycle driven in a REAL battle (detach
+  frame 15, socket shown, `[body,fistR,fistL]` visibility `[true,false,true]`,
+  reattach frame 124, all restored); socket + flying fist + attached fist all
+  VIEWed; two-titanus + viper ace soak crash-free (each fighter's split is
+  independent — geometry and materials are cloned per build); titanus-only
+  attackmatrix ALL CONNECT; `vite build` green.

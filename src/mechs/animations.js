@@ -602,26 +602,38 @@ const CLIPS_RAW = {
     ],
     events: [{ t: 0.1, type: 'sfx', arg: 'whooshBig' }, { t: 0.18, type: 'hit', arg: 0 }, { t: 0.2, type: 'shake', arg: 0.5 }],
   },
-  fistLaunch: { // ROCKET FIST: chamber the right fist past the hip, punch
-    // straight out — the fist detaches at full extension (fire event) and
-    // the arm stays punched out a beat while it flies
+  fistLaunch: { // ROCKET FIST: chamber the right fist past the hip, then punch
+    // STRAIGHT DOWN THE LINE — the fist detaches at full extension (the fire
+    // event) and the arm stays punched out a beat while it flies.
+    //
+    // The release frame squares the body up on purpose. The old version carried
+    // the wind-up's twist (torso yaw -28, hips -16) straight through the
+    // release, which threw the arm 46° across his chest and 12° UP — measured,
+    // not eyeballed — so the punch, and the fist that becomes the projectile,
+    // left along a diagonal aimed at the sky. Both routes had it.
+    // Arm angles here are MEASURED (see the shoulder-pitch sweep in the log):
+    // shoulderR pitch -90 with a level torso puts the arm dead level and dead
+    // forward (armDir [0,0,1]); every +1° of torso lean pitches the arm 1°
+    // down, so lean 6 pairs with -96. Do not "tidy" these numbers by eye.
     dur: 0.7,
     keys: [
       { t: 0, pose: {} },
       { t: 0.16, ease: 'outCubic', pose: { torso: [6, 30, 8], hipsRot: [0, 15, 0], hipsPos: [0, -0.14, -0.04], head: [0, -14, 0], shoulderR: [26, -6, 22], elbowR: [-118, 0, 0], shoulderL: [-16, 0, -22], elbowL: [-55, 0, 0], kneeL: [26, 0, 0], kneeR: [26, 0, 0], thighL: [-14, 0, 0], thighR: [-14, 0, 0] } },
-      { t: 0.26, ease: 'outBack', pose: { torso: [10, -28, -8], hipsRot: [0, -16, 0], hipsPos: [0, -0.18, 0.12], head: [0, 12, 0], shoulderR: [-100, 14, -24], elbowR: [-2, 0, 0], shoulderL: [20, 0, -26], elbowL: [-28, 0, 0], kneeL: [36, 0, 0], kneeR: [24, 0, 0], thighL: [2, 0, 0], thighR: [-20, 0, 0] } },
-      { t: 0.48, ease: 'inOutQuad', pose: { torso: [8, -22, -6], shoulderR: [-92, 12, -18] } },
+      { t: 0.26, ease: 'outBack', pose: { torso: [6, 0, 0], hipsRot: [0, 0, 0], hipsPos: [0, -0.18, 0.12], head: [0, 0, 0], shoulderR: [-96, 0, 0], elbowR: [0, 0, 0], shoulderL: [24, 0, -24], elbowL: [-34, 0, 0], kneeL: [36, 0, 0], kneeR: [24, 0, 0], thighL: [2, 0, 0], thighR: [-20, 0, 0] } },
+      { t: 0.48, ease: 'inOutQuad', pose: { torso: [5, 0, 0], shoulderR: [-92, 0, 0], elbowR: [0, 0, 0] } },
       { t: 0.7, ease: 'inOutQuad', pose: REST_UPPER },
     ],
     events: [{ t: 0.18, type: 'sfx', arg: 'whooshBig' }, { t: 0.26, type: 'fire' }, { t: 0.28, type: 'shake', arg: 0.25 }],
   },
   fistCatch: { // the rocket fist is inbound: reach the right arm straight
-    // out and brace — the fist re-docks onto the extended wrist mid-clip
+    // out and brace — the fist re-docks onto the extended wrist mid-clip.
+    // Squared up like fistLaunch's release: the catch has to present the wrist
+    // down the SAME line the fist is flying home along, so the re-dock reads.
     dur: 0.85, upper: true,
     keys: [
       { t: 0, pose: {} },
-      { t: 0.2, ease: 'outCubic', pose: { torso: [4, -14, -4], head: [0, 8, 0], shoulderR: [-86, 4, -4], elbowR: [-8, 0, 0], shoulderL: [6, 0, -14], elbowL: [-24, 0, 0] } },
-      { t: 0.55, ease: 'inOutQuad', pose: { shoulderR: [-84, 4, -4], torso: [3, -12, -3] } },
+      { t: 0.2, ease: 'outCubic', pose: { torso: [4, 0, 0], head: [0, 0, 0], shoulderR: [-94, 0, 0], elbowR: [0, 0, 0], shoulderL: [6, 0, -14], elbowL: [-24, 0, 0] } },
+      { t: 0.55, ease: 'inOutQuad', pose: { shoulderR: [-92, 0, 0], torso: [3, 0, 0] } },
       { t: 0.85, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], shoulderR: [0, 0, 10], elbowR: [-12, 0, 0], shoulderL: [0, 0, -10], elbowL: [-12, 0, 0] } },
     ],
   },

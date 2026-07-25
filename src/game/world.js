@@ -671,13 +671,14 @@ const WEAPONS = {
     // The projectile wears a CLONE of his real fist geometry (PBR
     // materials and all) so it reads as HIS fist, not a glow blob.
     // GLB mechs carry no geometry on the virtual handR joint (the fist is
-    // in the one skinned mesh, driven by a bone), so cloning it yields an
-    // EMPTY group — which still hides the projectile's own knuckle carrier
-    // and leaves nothing visible. Skip the clone for GLBs and let the
-    // built-in chunky-knuckle 'fist' mesh carry the throw instead.
-    let skin = null;
+    // in the one skinned mesh, driven by a bone) — for those, fistsplit.js
+    // bakes the fist's currently-posed triangles (plus the dark cut face) out
+    // of that mesh, which is the SAME geometry that just vanished off his
+    // wrist. Without a split available the built-in chunky-knuckle 'fist'
+    // mesh carries the throw instead, so the move always works.
+    let skin = f.mech.fistSplit?.snapshot('R') || null;
     const hand = f.mech.joints.handR;
-    if (hand && !f.mech.isGLB) {
+    if (!skin && hand && !f.mech.isGLB) {
       const c = hand.clone(true);
       const strip = [];
       c.traverse((o) => { if (o.userData.chargeShell) strip.push(o); });
