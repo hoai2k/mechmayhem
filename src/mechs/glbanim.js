@@ -562,8 +562,19 @@ export const GLB_ANIM = {
   // SAURION — the GLB has big readable arm-claws, so its light cycle
   // alternates sickle KICKS with claw RAKES (right kick, left rake, left
   // kick, right rake); the procedural stays all-kick (def.lightClips).
+  // This model's arms are short against its long skull and deep chest, so the
+  // shared raptor forms (authored on the procedural body) landed behind the
+  // enemy — the jaws arrived, the claws raked the air in front of his own
+  // chest. The overrides drive each strike THROUGH a target at the light
+  // move's range instead of across the body; see animations.js.
   saurion: {
     lightClips: ['saurionKick1', 'saurionClawL', 'saurionKick2', 'saurionClawR'],
+    clipOverrides: {
+      saurionClawR: GLB_CLIP_VARIANTS.saurionClawRGlb,
+      saurionClawL: GLB_CLIP_VARIANTS.saurionClawLGlb,
+      saurionKick1: GLB_CLIP_VARIANTS.saurionKick1Glb,
+      saurionKick2: GLB_CLIP_VARIANTS.saurionKick2Glb,
+    },
   },
   // FROGGER — four-arm; the lower arms are procedural-only joints. His gunk
   // guns are HULL mounts on this model (the manifest pins muzzleR/muzzleL to
