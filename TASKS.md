@@ -2480,3 +2480,31 @@ controllers via Gamepad API), AI opponents.
   routes (VIEWed — arms spread-eagle at the wind-up, converged in front at
   the hit on each); ace soaks crash-free fenrir/viper and fenrir/titanus
   under `?debug=fallback`; `vite build` green.
+
+## Rhino (GLB): ranged shot fires FORWARD, arms level (user request, 2026-07-25)
+
+- New hand-cannon muzzle anchors for `rhino` in `public/models/manifest.json`
+  (user-supplied): both sides now ride the real `handR`/`handL` BONES with an
+  authored `rot`, so each barrel carries its own aim axis and the markers sit
+  on the fists (verified in `?showcase=rhino&muzzle`).
+- That aim axis exposed the bug: this GLB's bind hangs the arms straight down,
+  so the barrels point ~70° at the FLOOR at rest, and the shared `shoot` clip
+  swings the gun arm up past level — measured, the muzzle +Z overshot to
+  **+26° at the fire frame** (peak +32°), which `world.js barrelDeflect`
+  obeyed, lobbing every shell into the sky.
+- Fix is a `GLB_ANIM.rhino` post hook (glbanim.js), the vulcan pattern: while
+  `shoot`/`shootL` plays, hold shoulder+elbow pitch on the barrel-horizontal
+  line (`RHINO_LEVEL = -82.7°`, measured on this rig) with a hard `max()`
+  ceiling so the clip's overshoot can't climb above the horizon, ramp the off
+  arm onto the same line, and unsplay the shoulder roll — he braces BOTH
+  cannons straight ahead instead of firing one-handed from the hip.
+- `RHINO_LEAD` (14°) cancels the animator's ~26/s pose-chase lag: the shell
+  leaves at 20% into the clip, before a plain level target has settled, so the
+  early frames aim a few degrees past level and the lead decays out by mid-clip.
+- Measured: muzzle pitch at the fire frame **+26° → +1.1°**, and within ±3°
+  across the whole hold. Live ace battle, 36 shells: launch pitch was +5.6°..
+  +28° (mean +15, all skyward) before, now -21°..+6° (mean -6.5) — tracking
+  the target. Procedural route untouched (profiles are GLB-only).
+- Verified: fire pose + rest VIEWed in showcase (arms dead horizontal, fists
+  forward, no geometry tearing); ace soaks rhino/titanus crash-free;
+  `vite build` green.

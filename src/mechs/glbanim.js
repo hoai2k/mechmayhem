@@ -65,6 +65,14 @@ const CRANKY_CARRY = {
 // Extra shoulder yaw cocked back/out on the wind-up of every Cranky attack.
 const CRANKY_WINDBACK = 0.5;
 
+// RHINO (GLB): combined shoulder+elbow PITCH (radians, virtual-joint space)
+// that puts his hand-cannon barrels dead level. Measured on this rig: the
+// muzzle's authored +Z sits ~82.7° below that joint sum, so a sum of −82.7°
+// aims it at the horizon. Negative pitch raises the arm.
+const RHINO_LEVEL = -82.7 * Math.PI / 180;
+// Lead angle that cancels the animator's pose-chase lag at the fire frame.
+const RHINO_LEAD = 14 * Math.PI / 180;
+
 export function mirrorJointName(j) {
   if (j.endsWith('L')) return j.slice(0, -1) + 'R';
   if (j.endsWith('R')) return j.slice(0, -1) + 'L';
@@ -169,7 +177,43 @@ export const GLB_ANIM = {
   // future per-model animation work.
   titanus: {},   // heavy biped brawler — direct map
   nova: {},      // slender caster — direct map (halo is procedural-only)
-  rhino: {},     // charger — bull-rush carriage is tgt-driven, shape-shared
+  // RHINO — hand-mounted cannons (manifest muzzles ride the handR/handL BONES,
+  // each with an authored `rot` = that barrel's own aim axis). This GLB's bind
+  // hangs the arms straight down, so at rest those barrels point ~70° at the
+  // FLOOR; the shared `shoot` clip then swings the gun arm up past vertical-ish
+  // (shoulder −94°, and elbow adds more) and the barrel overshoots to ~+32°
+  // ABOVE the horizon — which world.js barrelDeflect faithfully obeys, lobbing
+  // the shell into the sky instead of at the enemy.
+  // Fix: while a shot plays, LEVEL the arms — hold shoulder+elbow pitch at the
+  // barrel-horizontal line (RHINO_LEVEL, measured on this rig) so the muzzle
+  // +Z sits on the horizon at the fire frame. The gun arm is CLAMPED (it may
+  // still swing up from rest and drop back, it just can't climb past level, so
+  // the kick still reads), and the off arm is ramped up to the same line so he
+  // braces both cannons forward instead of firing one-handed from the hip.
+  rhino: {
+    post(anim, dt, ctx, tgt) {
+      const act = anim.action;
+      const n = act && !act.fadingOut ? act.clip.name : '';
+      if (n !== 'shoot' && n !== 'shootL') return;
+      // ramp the off-arm raise in/out so it doesn't pop at the clip seams
+      const ph = Math.min(1, act.t / act.clip.dur);
+      const k = ph < 0.12 ? ph / 0.12 : ph > 0.62 ? Math.max(0, 1 - (ph - 0.62) / 0.3) : 1;
+      for (const s of ['R', 'L']) {
+        const sh = tgt['shoulder' + s], el = tgt['elbow' + s];
+        if (!sh || !el) continue;
+        // Shoulder pitch that levels this arm — LED slightly past level while
+        // the arm is still climbing: the animator chases pose targets at ~26/s
+        // and the shell leaves at 20% into the clip, so a plain level target is
+        // still ~5° short of the horizon at the fire frame. The lead decays out
+        // by mid-clip, leaving the hold exactly on the line.
+        const level = RHINO_LEVEL - el[0] - (ph < 0.3 ? RHINO_LEAD * (1 - ph / 0.3) : 0);
+        // pull onto the line fast, then hold: max() is a hard ceiling at the
+        // horizon so the clip's overshoot can't lift the barrel above it again.
+        sh[0] = Math.max(lerp(sh[0], level, k), level);
+        sh[2] *= 1 - 0.7 * k;                     // unsplay: barrels parallel, forward
+      }
+    },
+  },
   colossus: {},  // artillery biped — direct map (mortars procedural-only)
 
   // WRAITH — the GLB's own cape geometry is a static drape (its punch-worthy
