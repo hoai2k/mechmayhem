@@ -2532,3 +2532,62 @@ controllers via Gamepad API), AI opponents.
   with hands at shoulder height on both, arms hanging on the drops; ace
   soaks crash-free tempest/viper (GLB) and tempest/titanus (`?debug=fallback`),
   no contract violations; `vite build` green.
+## Titanus re-rigged and re-skinned onto a custom skeleton (user request, 2026-07-25)
+
+- Titanus rode a Tripo auto-rig that was scrambled beyond remapping: the 15
+  `boneOverrides` had `hips` on `tripo0_Left_Limb_0`, `torso` on
+  `tripo0_Right_Limb_0` and `shoulderL` on `tripoSpine_0` — the spine wired to
+  limb chains — with 101 hand-written `skinOps` patching the fallout. It still
+  measured badly: 33 stretch-flagged islands, seam elongation to 148x, and one
+  "torso" bone owning 14.8k verts (18% of the mesh).
+- He now uses a hand-authored 26-bone humanoid rig
+  (`src/mechs/rigs/titanus.rig.js`, registered in `rigs/index.js`, selected by
+  `"rig": "titanus"`), so `reskin.js` redraws every weight by proximity onto
+  bones that ARE the game joints. Bone positions were measured off the GLB's
+  bind-space vertex cloud (band/slice profiles + ortho scatter renders), not
+  guessed: thigh y 0.29→0.47, shin 0.13→0.29, boot 0→0.13, fist 0.24→0.47
+  projecting forward to x 0.19, pauldron 0.68→0.90 out to z 0.37.
+- `skinSpan: 'child'` (the spans that deform correctly — see reskin.js). The
+  non-obvious consequence, and the reason for the seven non-joint bones: under
+  'child' a LEAF bone's span degenerates to a point that its parent's span
+  already ends at, so a leaf can never win a vertex and renders zero-weight.
+  Every driven chain therefore ends in a static tip — `fistL/R` (the huge
+  fists), `toeL/R` + `heelL/R` (the long sole, two tips so the boot rides the
+  ankle instead of the shin), `crown` (the skull).
+- `stackL/R` (the twin back exhaust towers) are parented to TORSO on purpose:
+  the nearest span otherwise is head→crown, which would swivel the whole back
+  gear with every animator head turn-lead.
+- `heightScale: 0.946` is load-bearing, not a fudge. gltf.js auto-sizes a GLB by
+  matching its rendered HEAD-REGION top to the procedural canonical head top.
+  Under the old rig the head bone's geometry included those towers, so the
+  "head top" measured was really the tower tips — which happened to land on the
+  canonical height. Titanus's real head is a low block sunk between the
+  pauldrons, so once the towers correctly ride the torso the measured head top
+  drops ~12%, the match clamps at its 1.12 ceiling and the mech renders 5.7%
+  larger. The scale pins him to the exact silhouette he always had
+  (bbox 9.04 x 7.36 x 3.67 vs 9.05 x 7.36 x 3.67 before).
+- 6 `skinOps` refine the proximity result where the fist hangs alongside the
+  thigh with a ~0.01 gap and no rigid split is clean. Two of them came from
+  READING the geometry, not the tool: `stretchaudit` auto-suggested moving
+  comps 37/94 (6 verts and 1 vert) onto the hands, but a boundary-edge
+  histogram showed those islands have ZERO hand neighbours — all thigh/knee —
+  so binding them to the hand made each a lone vert flying off with the punch.
+  They are bound to `thighR`/`thighL`; the visible spikes in the heavy windup
+  disappeared.
+- The superseded Tripo rig is preserved verbatim as the manifest `alt` on the
+  same GLB (`boneOverrides` + all 101 `skinOps`), so `?debug=models` compares
+  old vs new. `?rigedit=titanus` now opens him for live tuning.
+- Tooling fix: `tools/stretchaudit.mjs` picked the bones to sweep from
+  `boneOverrides`, which a custom-rig entry has none of — so it swept nothing
+  and reported a vacuous "0 flagged" for every re-rigged mech (cranky, fenrir,
+  glacier, jerry too). It now falls back to `JOINT_ORDER` when the entry has a
+  `rig`.
+- Verified: stretch audit 33 flagged islands / 148x -> 2 / 12.3x (the residual
+  is 4 edges on the thigh-fist tab, where any rigid split seams); far-blend
+  audit 0 verts (the old rig needed `purgeFar`); skin audit 0 flagged;
+  idle/walk/heavy/battle/lineup screenshots VIEWed (shells intact, arms clear
+  overhead, boots planted, no spikes, coherent next to the other 15); world
+  size unchanged; attackmatrix special+ult connect on both rigs and the
+  `titanus ranged: 0` case reproduces identically on the OLD rig here (the
+  known flake in this log, not a regression); ace soaks crash-free
+  titanus/viper and titanus/colossus; `vite build` green.
