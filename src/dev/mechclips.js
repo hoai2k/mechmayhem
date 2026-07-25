@@ -33,7 +33,10 @@ const SPECIAL_CLIPS = {
   pounce: ['lunge'], grabThrow: ['grabReach', 'liftHold', 'throwHeave'],
   barrage: ['brace'], ghostWalk: ['aim'], napalm: ['shoot'], geyser: ['castRaise'],
   sickleRush: ['pounceLeap', 'biteLatch'], slimeBarrage: ['spray'],
-  fleaSwarm: ['shoot'], segfault: ['lunge'], freezeBeam: ['shootLoop'],
+  fleaSwarm: ['shoot'], segfault: ['lunge'],
+  // freezeBeam channels through the mech's OWN hold-and-pour clip, so it is
+  // resolved from def.channelClip below rather than named here
+  freezeBeam: null,
   cloak: [],
 };
 // roster moves.ult.id -> clips that ult casts
@@ -49,7 +52,7 @@ const ULT_CLIPS = {
 const FINISHER_CLIPS = {
   aegis: ['castRaise'], colossus: ['grabReach', 'liftHold', 'throwHeave'],
   cranky: ['clawSnap', 'castRaise', 'launched'], fenrir: ['lunge', 'flurry', 'launched'],
-  frogger: ['spray', 'pounceLeap'], glacier: ['shootLoop', 'frozenSurrender', 'daintyTap'],
+  frogger: ['spray', 'pounceLeap'], glacier: ['shootLoopL', 'frozenSurrender', 'daintyTap'],
   inferno: ['shootLoop'], jerry: ['shootLoop'], nova: ['castRaise'],
   nullbot: ['grabReach', 'light2'], rhino: ['chargeLean', 'launched'],
   saurion: ['pounceLeap', 'biteLatch'], tempest: ['burst'],
@@ -107,7 +110,8 @@ export function mechClipList(def, profile) {
     else add(RANGED_BY_TYPE[mv.ranged.type] || ['shoot'], 'Ranged');
     if (mv.ranged.type === 'fist') add(['fistCatch'], 'Catch fist');
   }
-  add(SPECIAL_CLIPS[mv.special?.id], `Special — ${mv.special?.name || mv.special?.id}`);
+  add(mv.special?.id === 'freezeBeam' ? [def.channelClip || 'shootLoop']
+    : SPECIAL_CLIPS[mv.special?.id], `Special — ${mv.special?.name || mv.special?.id}`);
   add(ULT_CLIPS[mv.ult?.id], `Ult — ${mv.ult?.name || mv.ult?.id}`);
   add(FINISHER_CLIPS[def.id], 'Finisher');
 

@@ -478,10 +478,10 @@ export class World {
     const anchors = f.mech.anchors;
     // THE PRIMARY BARREL. Almost every mech shoots from the right hand, so
     // muzzleR is the default. A mech that carries its weapon in the OTHER hand
-    // (GLACIER's ice lance) names its barrel with roster `rangedMuzzle` and
+    // (GLACIER's ice lance) names its barrel with roster `primaryMuzzle` and
     // pairs it with the mirrored clip (`rangedClip: 'shootL'`) — otherwise the
     // shot would leave an empty fist while the armed arm hangs at his side.
-    const muzzle = anchors[f.def.rangedMuzzle] || anchors.muzzleR;
+    const muzzle = anchors[f.def.primaryMuzzle] || anchors.muzzleR;
     const from = muzzle.getWorldPosition(new THREE.Vector3());
     const e = f.nearestEnemy();
     // AIMED shot (human held RB): fly straight at the crosshair's world

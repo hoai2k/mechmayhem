@@ -522,5 +522,17 @@ export class Animator {
     // GLB per-model reinterpretation, run after the (procedural-shaped)
     // signature so it can adjust the final tgt for this exact model.
     this.profile?.post?.(this, dt, ctx, tgt);
+    // SHELL LOCK (roster `rigidShell`, GLB only): on these models the skull is
+    // part of the torso block — no neck, no separate head shell — so ANY head
+    // rotation shears it against the body. Pin the head to its rest carriage
+    // and let the torso carry it. This runs LAST, after clip tracks, additive
+    // impulses, the signature and the profile hook, so nothing upstream can
+    // sneak head motion back in; combat's turn-lead drops its head twist on
+    // the same flag (fighter.js). Procedural bodies of the same mech DO have a
+    // neck joint, so they keep every bit of head animation.
+    if (this.mech.def.rigidShell && this.mech.isGLB && tgt.head) {
+      const r = this.rest.head;
+      tgt.head[0] = r[0]; tgt.head[1] = r[1]; tgt.head[2] = r[2];
+    }
   }
 }

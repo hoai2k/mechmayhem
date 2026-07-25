@@ -25,8 +25,14 @@ function fwd(f, dist = 1, y = 0, out = new THREE.Vector3()) {
     f.pos.z + Math.cos(f.yaw) * dist
   );
 }
-function muzzle(f, name = 'muzzleR', out = new THREE.Vector3()) {
-  const a = f.mech.anchors[name] || f.mech.anchors.muzzleR;
+// A special's spawn point. With no name it is the mech's PRIMARY barrel —
+// muzzleR for almost everyone, or whatever roster `primaryMuzzle` names for a
+// mech that carries its weapon in the other hand (GLACIER's ice lance), so a
+// special leaves the same hardware the ranged attack does. Callers that pass a
+// name are asking for that specific barrel (the alternating-side volleys) and
+// still fall back to muzzleR when the build hasn't got it.
+function muzzle(f, name, out = new THREE.Vector3()) {
+  const a = f.mech.anchors[name || f.def.primaryMuzzle || 'muzzleR'] || f.mech.anchors.muzzleR;
   return a.getWorldPosition(out);
 }
 // ground aim point led by the victim's current velocity, for slow drops
@@ -878,7 +884,10 @@ export const SPECIALS = {
 
   // GLACIER: cryo beam channel
   freezeBeam(f, sp) {
-    cast(f, 'shootLoop', { stateT: sp.duration });
+    // the beam pours out of the PRIMARY barrel (muzzle() below), so the raised
+    // arm has to be the one holding it — `channelClip` is the mech's own
+    // hold-and-pour clip, which for Glacier is the mirrored left-arm loop
+    cast(f, f.def.channelClip || 'shootLoop', { stateT: sp.duration });
     const ticks = Math.floor(sp.duration / 0.12);
     volley(f.world, f, ticks, 0.12, (i) => {
       f.firing = true;

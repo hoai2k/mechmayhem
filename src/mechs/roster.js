@@ -268,6 +268,10 @@ export const ROSTER = [
     heavyHold: true,
     heavyReleaseClip: 'poundSlam',
     chargeGlow: 'arms', // both raised pound arms flicker as power banks
+    // GLB: the cockpit head is welded into the chest slab (the retarget maps
+    // `head` onto a spine bone that carries chest geometry), so it never
+    // rotates on its own — the torso turns the whole shell
+    rigidShell: true,
     moves: {
       light: { dmg: [42, 46, 62], knock: [15, 17, 28], range: 3.5 },
       heavy: { dmg: 100, knock: 36, range: 3.9, launch: 9 },
@@ -348,7 +352,11 @@ export const ROSTER = [
     // — fire from that barrel with the mirrored shot clip so the barrage
     // leaves the weapon instead of the empty claw (glbanim levels the lance)
     rangedClip: 'shootL',
-    rangedMuzzle: 'muzzleL',
+    primaryMuzzle: 'muzzleL',
+    channelClip: 'shootLoopL', // the Cryo Beam pours out of the lance, so the LEFT arm holds it up
+    // GLB: the skull is sunk into the chest block — no neck, so the head never
+    // rotates against the torso (animator shell-lock + fighter.js turn-lead)
+    rigidShell: true,
     moves: {
       light: { dmg: [38, 42, 58], knock: [5, 6, 13], range: 3.4 },
       heavy: { dmg: 92, knock: 22, range: 3.8, launch: 9 },

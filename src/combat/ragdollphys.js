@@ -245,7 +245,10 @@ export class RagdollSim {
     aim('thighR', 'hips', p[KR]);
     aim('kneeL', 'thighL', p[FL]);
     aim('kneeR', 'thighR', p[FR]);
-    // head follows its particle off the neck
+    // head follows its particle off the neck — unless this build has no neck
+    // to follow it with (roster `rigidShell` on a GLB: skull fused into the
+    // torso block), in which case it stays welded and rides the torso down
+    if (f.def.rigidShell && f.mech.isGLB) return;
     J.torso.updateWorldMatrix(true, false);
     J.torso.matrixWorld.decompose(_a, _q2, _b);
     J.head.getWorldPosition(_c2);

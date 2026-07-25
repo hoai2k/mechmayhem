@@ -2733,3 +2733,48 @@ controllers via Gamepad API), AI opponents.
   glacier/viper (GLB), glacier/cranky (GLB), glacier/titanus
   (`?debug=fallback`); `?rigedit=glacier` and `?rigtest` clean; no new
   contract violations; `vite build` green.
+## Glacier: skin + anchor update, specials off the lance, fused-head mechs (user request, 2026-07-25)
+
+- Manifest: user-authored `skinOps` (33 ops from the `?debug=skin` workbench)
+  applied on top of the child-span rig, plus re-authored `muzzles` — muzzleR
+  moved onto the `elbowR` bone, muzzleL further back along the lance. Same
+  `rot` on both, so the lance's aim axis (and `GLACIER_LEVEL`) is untouched;
+  re-measured and the calibration is still exactly −62.1°.
+- The ops mostly rebind the forearm/hand split (handL 4449 → 10077 verts,
+  handR 1132 → 5758) and pull the skull onto the torso (head 3046 → 493) —
+  which lines up with the fused-head change below. Lance blade still 97% on
+  `handL`; verified no tearing on idle / walk / raised-arm / beam poses.
+- **SPECIALS NOW FIRE FROM THE WEAPON HAND.** `rangedMuzzle` renamed
+  `primaryMuzzle` (it is no longer ranged-only) and `specials.js muzzle()`
+  defaults to it instead of a hard-coded muzzleR — so the Cryo Beam, and
+  `aimDir`'s origin with it, come off the ice lance. Explicitly-named callers
+  (the alternating-side volleys) are untouched, and no other mech sets the
+  field, so nothing else changes.
+- The raised arm had to follow: added `shootLoopL` (mirror of `shootLoop`),
+  `freezeBeam` now casts `def.channelClip` instead of a literal, and Glacier
+  gets `channelClip: 'shootLoopL'`. His FINISHER hoses the same cryo beam, so
+  it takes the same two lookups. `GLB_ANIM.glacier`'s lance-level hook now
+  covers both `shootL` and `shootLoopL` (loop clips ramp on once and hold
+  instead of ramping out on clip phase).
+- Measured: beam arm settles by t=0.10 and holds muzzle pitch −3.6..−5.3°,
+  yaw +1.4..+2.1° for the whole 1.8 s channel; barrage unchanged (+1.4° at the
+  fire frame). Live ace battle: all 15 special beams and all 38 finisher beams
+  spawn AT muzzleL (0.00), 5.3 units off muzzleR. Shard accuracy also improved
+  with the new anchors — angle between the shot and the line to the enemy went
+  27.0° mean / 59.6° worst → 16.0° / 35.4° over 18 shards.
+- **FUSED-HEAD MECHS.** `rigidShell` (already on cranky, but only implemented
+  as cranky's own bespoke pin plus the fighter.js turn-lead) is now a real
+  shared capability: the Animator pins `tgt.head` to its rest carriage at the
+  very end of `signature()` — after clip tracks, additive impulses, the
+  signature and the profile hook — so no layer can sneak head motion back in.
+  The ragdoll's head aim drops out on the same flag. Glacier and Colossus now
+  carry it, and cranky's duplicate inline pin is gone.
+- Measured: head deviation from rest across heavy / walk / hitFlinch /
+  castRaise / shoot / block is **0.00° on all three** GLB mechs, vs 26.2° on
+  titanus (no flag). GLB-only — procedural Glacier still moves his head the
+  full 26.9°.
+- Verified: idle/walk/raised-arm/beam frames VIEWed for Glacier, walk frames
+  for Colossus and Cranky; glacier finisher forced to completion (38 beams,
+  shatter fires, 18 rubble chunks, no page errors); ace soaks crash-free
+  glacier/viper, colossus/cranky, cranky/glacier and glacier/colossus
+  (`?debug=fallback`); `vite build` green.

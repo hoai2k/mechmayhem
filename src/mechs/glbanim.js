@@ -369,31 +369,40 @@ export const GLB_ANIM = {
   // reinterpretation is the flame channel: his torches are forearm barrels, so
   // the shared shootLoop's folded elbows pointed them at the sky.
   inferno: { clipOverrides: { shootLoop: GLB_CLIP_VARIANTS.infernoFlameGlb } },
-  // GLACIER — heavy biped, direct map except for the shot. The Icicle Barrage
-  // fires from the ICE LANCE in his LEFT hand (roster rangedMuzzle/rangedClip),
-  // and this GLB's bind hangs that arm straight down with the lance angled
-  // further down still, so the shared shootL clip swings it past level and the
-  // barrage sprays skyward. Hold the lance arm on the level line (with a hard
-  // ceiling, so the clip's overshoot can't lift it again) for the length of the
-  // shot, and counter-steer the shoulder yaw against the recoil twist so the
-  // icicles fly parallel to the facing. Only the lance arm is touched — the off
-  // arm keeps the clip's counter-pose, and every other clip is untouched.
+  // GLACIER — heavy biped, direct map except for the two attacks that come out
+  // of the ICE LANCE in his LEFT hand: the Icicle Barrage (`shootL`) and the
+  // Cryo Beam channel (`shootLoopL`), both pointed at roster `primaryMuzzle`.
+  // This GLB's bind hangs that arm straight down with the lance angled further
+  // down still, so the shared clips swing it past level and the barrage sprays
+  // skyward. Hold the lance arm on the level line (with a hard ceiling, so the
+  // clip's overshoot can't lift it again) for as long as the attack runs, and
+  // counter-steer the shoulder yaw against the recoil twist so the shots fly
+  // parallel to the facing. Only the lance arm is touched — the off arm keeps
+  // the clip's counter-pose, and every other clip is untouched. (The head is
+  // held by the shared `rigidShell` lock, not here.)
   glacier: {
     post(anim, dt, ctx, tgt) {
       const act = anim.action;
-      if (!act || act.fadingOut || act.clip.name !== 'shootL') return;
+      const n = act && !act.fadingOut ? act.clip.name : '';
+      if (n !== 'shootL' && n !== 'shootLoopL') return;
       const sh = tgt.shoulderL, el = tgt.elbowL;
       if (!sh || !el) return;
-      // ramp in/out so the hold doesn't pop at the clip seams
+      // ramp in so the hold doesn't pop at the clip seam. The one-shot also
+      // ramps OUT across its recovery; the channel loops for as long as the
+      // beam is pouring, so it ramps on once and then just holds.
       const ph = Math.min(1, act.t / act.clip.dur);
-      const k = ph < 0.12 ? ph / 0.12 : ph > 0.62 ? Math.max(0, 1 - (ph - 0.62) / 0.3) : 1;
-      const level = GLACIER_LEVEL - el[0] - (ph < 0.3 ? GLACIER_LEAD * (1 - ph / 0.3) : 0);
+      const k = act.clip.loop
+        ? Math.min(1, act.t / 0.12)
+        : (ph < 0.12 ? ph / 0.12 : ph > 0.62 ? Math.max(0, 1 - (ph - 0.62) / 0.3) : 1);
+      // lead past level while the arm is still climbing (GLACIER_LEAD) — 0.15s
+      // is the same window as the old ph<0.3 on the 0.5s shot clip
+      const level = GLACIER_LEVEL - el[0] - (act.t < 0.15 ? GLACIER_LEAD * (1 - act.t / 0.15) : 0);
       sh[0] = Math.max(lerp(sh[0], level, k), level);
-      // The shot clip twists the torso into the recoil, and with the lance now
-      // held level that twist reads straight through to the barrel's yaw — it
-      // walked the fan out to 11° off the facing across the barrage. Counter-
-      // steer the shoulder by the same yaw so the body still rocks but the
-      // lance keeps pointing where the mech is pointing (peak drift 3°).
+      // The clips twist the torso into the recoil, and with the lance now held
+      // level that twist reads straight through to the barrel's yaw — it walked
+      // the fan out to 11° off the facing across the barrage. Counter-steer the
+      // shoulder by the same yaw so the body still rocks but the lance keeps
+      // pointing where the mech is pointing (peak drift 3°).
       sh[1] -= (tgt.torso?.[1] || 0) * k;
     },
   },
@@ -441,11 +450,11 @@ export const GLB_ANIM = {
         tgt.shoulderL[1] -= CRANKY_WINDBACK * wind;
         tgt.shoulderR[1] += CRANKY_WINDBACK * wind;
       }
-      // SHELL LOCK: head + torso are one rigid carapace on this crab, so the
-      // head never rotates relative to the torso — pin it to its rest carriage
-      // and let the torso carry it. (The mouth plate rides the shell too, but
-      // it hangs off `hips` in the rig, so postDress re-seats it on the torso.)
-      for (let i = 0; i < 3; i++) tgt.head[i] = anim.rest.head[i];
+      // SHELL LOCK: head + torso are one rigid carapace on this crab. That is
+      // now the shared roster `rigidShell` flag — the animator pins the head to
+      // its rest carriage after this hook runs, so there is nothing to do here.
+      // (The mouth plate rides the shell too, but it hangs off `hips` in the
+      // rig, so postDress re-seats it on the torso.)
       // NO-DROOP: his neutral already rests the claws ON the floor, so ANY
       // downward arm travel drives them through it — which is what had the idle
       // arm propping the body up during a light. Positive shoulder pitch lowers

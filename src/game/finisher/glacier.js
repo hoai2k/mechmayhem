@@ -8,11 +8,16 @@ import { rand } from '../../core/utils.js';
 // once... and the whole statue bursts into a pile of frozen rubble.
 export function glacier(F) {
   const { win, vic, w } = F;
-  F.at(0.35, () => { win.animator.play('shootLoop'); w.audio?.play('freeze'); });
+  // same hardware as the Cryo Beam special: the mech's own channel clip holds
+  // up the arm that actually carries the emitter, and the hose pours out of
+  // its primary barrel (Glacier's is the ice lance in his LEFT hand)
+  const CHANNEL = win.def.channelClip || 'shootLoop';
+  const BARREL = win.mech.anchors[win.def.primaryMuzzle] || win.mech.anchors.muzzleR;
+  F.at(0.35, () => { win.animator.play(CHANNEL); w.audio?.play('freeze'); });
   // the ice takes hold mid-panic: hands go UP and stay up
   F.at(0.9, () => vic.animator.play('frozenSurrender'));
   F.hold(0.45, 2.3, (k, dt) => {
-    const from = win.mech.anchors.muzzleR.getWorldPosition(new THREE.Vector3());
+    const from = BARREL.getWorldPosition(new THREE.Vector3());
     w.effects.beams.spawn(from, vic.center(), { radius: 0.5, dur: 0.14, color: 0x9be8ff });
     if (Math.random() < dt * 12) w.effects.snowCone(from, _dirTo(win, vic));
     vic._beamWhiteT = 0.2; // stays white under the beam
