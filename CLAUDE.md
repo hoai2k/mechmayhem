@@ -57,3 +57,11 @@ that combat silently depends on. Never rebuild a design without it.
   `src/arena/{themes,props}.js` — everything else is shared, single-writer.
 - Verify visually (screenshots) before claiming art changes work; verify
   `npx vite build` + a soak before claiming combat changes work.
+- ALWAYS finish a task by merging your feature branch into `main` and
+  pushing `main` — the owner plays off `main`, so work left on a branch is
+  work they can't see. Push the branch too, then
+  `git fetch origin main && git checkout -B main origin/main &&
+  git merge --no-ff <branch>`, re-run the build, and push. (There is a
+  stale local `main` with an unrelated history in some clones — always
+  re-point at `origin/main` rather than trusting whatever `main` is
+  checked out.)
