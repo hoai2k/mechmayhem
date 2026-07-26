@@ -659,6 +659,12 @@ function buildGlbMech(def, entry, gltf) {
       + `(add "modelScale": ${baseScale.toFixed(5)} to freeze it; see tools/pin-modelscale.mjs)`);
   }
 
+  // Foot depth: the gait's ankle roll / toe-off is authored for the procedural
+  // foot (sole 0.32 * scale under the ankle). Measure this model's real boot now
+  // that the retarget is live, so the walk pushes off the GROUND rather than
+  // driving the sole through it. See Animator.calibrateFeet.
+  mech.premadeAnimator.calibrateFeet();
+
   // ---- prone / dead floor clamp (GLB) -----------------------------------
   // The shared knockdown/death clips drop the hips by an amount tuned to the
   // PROCEDURAL body. Retargeted onto a GLB whose proportions differ, that same
