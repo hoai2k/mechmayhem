@@ -3507,3 +3507,20 @@ Screenshots VIEWED mid-drag (amber outline, Slice outlined amber in the panel)
 and after (the whole soloed thigh block recoloured, both sides). Colossus alt
 opens clean with its new ops in the skin, pose and rig workbenches, no page
 errors, `vite build` green.
+
+## Colossus alt skin, second pass (user-supplied, 2026-07-26)
+
+`colossus.alt.skinOps` replaced with the owner's next pass: 30 ops, up from 14.
+The first 14 are unchanged; the new 16 are all vertex-list selections — the
+shoulder pads split out to `shoulderL`/`shoulderR` (2447 / 2708 verts), a
+20927-vert torso consolidation, eleven small torso patches (1–25 verts each,
+the leftovers a big selection misses) and forearm cleanups onto `elbowL` (772)
+and `elbowR` (296). 31001 verts named across the list. A skinOps export is a
+full replacement, not an append, so the list was swapped whole —
+`tools/manifestfmt.mjs` splice again, 16 lines changed and nothing else.
+
+Verified: 30 ops load in `?debug=skin&mech=colossus&alt=1`, torso reads as one
+green mass with the shoulders now their own colour; default wiggle run on
+shoulderR, elbowL and torso with textures ON — arms swing with their bones,
+shells stay coherent, nothing trails or tears; the alt also opens clean in the
+pose and animation workbenches. No page errors, `vite build` green.
