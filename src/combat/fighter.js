@@ -568,7 +568,8 @@ export class Fighter {
       // handler reads _altSide to spawn from the matching muzzle, so the shot
       // leaves the hand that just moved.
       const twin = mv.type === 'mortar' || mv.type === 'slime'
-        || mv.type === 'lightning' || mv.type === 'blade' || mv.type === 'fist';
+        || mv.type === 'lightning' || mv.type === 'blade' || mv.type === 'fist'
+        || mv.type === 'shell';   // RHINO: a hand cannon per fist
       if (twin && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
       // A thrown DAGGER is a physical object, so the side has to be one she
       // actually HAS: alternate by default, but throw from the more re-forged
@@ -590,7 +591,7 @@ export class Fighter {
         this._fistSide = this._altSide ? 'L' : 'R';   // read by WEAPONS.fist
       }
       const mirrored = (mv.type === 'slime' || mv.type === 'lightning'
-        || mv.type === 'blade') && this._altSide;
+        || mv.type === 'blade' || mv.type === 'shell') && this._altSide;
       // a named ranged clip can still mirror: prefer rangedClipL on the off hand
       const clip = (this._altSide && this.def.rangedClipL) || this.def.rangedClip
         || (mv.type === 'mortar' ? (this._altSide ? 'braceL' : 'brace')
@@ -2224,7 +2225,15 @@ export class Fighter {
     // ---- animation ----
     const spd = Math.hypot(this.vel.x, this.vel.z);
     this.animator.update(dt, {
-      speed: canMove ? spd : 0,
+      // `canMove` is about INPUT, not motion: a rooted state means the player
+      // isn't steering, and zeroing the speed there is what keeps a planted
+      // attack from running on the spot. But a CHARGE (rhino's bull rush)
+      // drives the body forward under its own power while rooted — reporting 0
+      // there made him skate across the arena with dead legs. Feed the real
+      // speed while charging so the locomotion layer runs its speed-matched
+      // stride under him; the charge clip owns the upper body (it keys torso,
+      // head, hips and both arms), so only the LEGS come from the run.
+      speed: canMove || this._charging ? spd : 0,
       maxSpeed: st.speed * WALK_MULT * (this.sprinting ? SPRINT_MULT : 1),
       grounded: this.grounded,
       vy: this.vel.y,

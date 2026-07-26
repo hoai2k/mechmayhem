@@ -2991,3 +2991,34 @@ controllers via Gamepad API), AI opponents.
 - Verified: rest + uppercut frames VIEWed (Tripo skinning back), muzzle aim
   probe +0.6° at the fire frame, ace soak rhino/titanus crash-free,
   `vite build` green.
+
+## Rhino: alternating hand cannons + a striding bull rush (user request, 2026-07-25)
+
+- ALTERNATING RANGED. The twin-weapon machinery already existed (`_altSide`
+  toggle, mirrored clip, `_shotSide` stamp read by the weapon handlers) — rhino's
+  `shell` type simply wasn't in it. Three lines: `shell` joins the `twin` list
+  (alternate side per shot) and the `mirrored` list (left shots play `shootL`),
+  and world.fireRanged picks `muzzleL` on a left shot the way it already does
+  for a thrown fist, so the aim ranges off the barrel that is actually firing.
+  Measured in an ace battle: 33 shots, `LRLRLRLR…`, 17 left / 16 right, both
+  clips playing. Barrel elevation at the fire frame is +0.6° on the right and
+  −0.5° on the left, so the glbanim leveling hook covers both arms unchanged.
+- BULL RUSH LEGS. `chargeLean` only keys the upper body, so the legs came from
+  the locomotion layer — which was fed `speed: canMove ? spd : 0`, and `canMove`
+  is false in a rooted state. He crossed the arena with dead legs. `canMove ||
+  this._charging` fixes it: a charge IS travelling under its own power, so the
+  locomotion layer runs its speed-matched stride while the clip keeps the horn
+  down and the arms cocked (it keys torso/head/hips/shoulders/elbows). Measured
+  mid-rush: thighs alternating −70°/+13°, knees pumping, torso held at +32°.
+- FOOTFALLS. The stride is speed-matched, so the animator's gait phase says
+  exactly when a foot plants — every half cycle. The rush tick watches it and
+  drops a dust burst at the planting ankle plus a thud and a small shake, so
+  the stomps land ON the steps at any charge speed instead of on a timer.
+- STAMPEDE (his ult) drives the body forward in the same carriage with the same
+  clip, so it sets `_charging` too — otherwise the ult would still skate while
+  the special strode.
+- Note for the owner: both hand cannons are authored splayed ~10° OUTWARD (the
+  `rot` on each muzzle anchor), so alternating now scatters shots left/right by
+  that much. Characterful, but say the word and I'll zero the yaw.
+- Verified: both shot poses and two stride phases VIEWed; ace soaks crash-free
+  (rhino/titanus, and a 4-way with nullbot/colossus/viper); `vite build` green.

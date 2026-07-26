@@ -13,6 +13,8 @@ import { cloneMech } from '../mechs/factory.js';
 import { stillCasting, cast, eachEnemy, volley, timedUpdater } from './movekit.js';
 
 const _v = new THREE.Vector3();
+// scratch for bull-rush footfalls (consumed immediately, never retained)
+const _rushFoot = new THREE.Vector3();
 
 // Position helpers allocate a fresh Vector3 by default (safe to retain).
 // Hot per-frame callers (inside addUpdater/schedule ticks) can pass `out`
@@ -222,6 +224,7 @@ export const SPECIALS = {
     cast(f, 'chargeLean', { stateT: 5.2 }); // held-charge ceiling; ended early on release
     f.world.audio?.play('charge');
     f._chargeT = 0;
+    f._rushStep = undefined;   // first tick only records the gait phase
     const endRush = (recovery) => {
       f._charging = false;
       f.animator.stop();
@@ -247,6 +250,20 @@ export const SPECIALS = {
         }
       }
       f.world.effects.dustPuff(f.pos, 2, 0x9a9088);
+      // FOOTFALLS. The legs under the charge are the animator's speed-matched
+      // run cycle, so its gait phase says exactly when a foot plants (every
+      // half cycle). Hang the stomp off that instead of a timer and the dust,
+      // the thud and the shake land ON the step at any charge speed.
+      const ph = f.animator.phase || 0;
+      const step = Math.floor(ph / Math.PI);
+      if (f._rushStep !== undefined && step !== f._rushStep) {
+        const foot = f.mech.joints[step % 2 ? 'ankleL' : 'ankleR'];
+        const at = foot ? foot.getWorldPosition(_rushFoot) : f.pos;
+        f.world.effects.dustPuff(at, 7, 0x9a9088);
+        f.world.effects.addShake(0.12);
+        f.world.audio?.play('land');
+      }
+      f._rushStep = step;
       for (const e of f.world.fighters) {
         if (e === f || !e.alive) continue;
         const dx = f.world.wrapDelta(e.pos.x - f.pos.x), dz = f.world.wrapDelta(e.pos.z - f.pos.z);
@@ -1645,6 +1662,11 @@ export const ULTS = {
         if (f.alive && f.state === 'ult') {
           f.vel.x = dirX * spd;
           f.vel.z = dirZ * spd;
+          // same carriage as the bull rush, so the same legs: `_charging` is
+          // what tells the animator this rooted state is still travelling
+          // under its own power, so the run cycle drives the lower body while
+          // chargeLean holds the horn down. Without it he skates.
+          f._charging = true;
           trample(f.pos.x, f.pos.z);
           if (Math.random() < 0.6) w.effects.dustPuff(f.pos, 2, 0x9a9088);
         }
@@ -1665,6 +1687,7 @@ export const ULTS = {
         return true;
       }, () => {
         for (const s of shells) w.scene.remove(s.g);
+        f._charging = false;              // the gallop is over — legs back to normal
       });
     });
   },
