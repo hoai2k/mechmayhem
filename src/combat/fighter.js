@@ -2739,14 +2739,20 @@ export class Fighter {
       // whatever speed it has reached (vulcan's bullet hurricane).
       const spun = sp.t - (sp.delay || 0);
       sp.vel = spun <= 0 ? 0 : sp.rate * (sp.ramp ? Math.min(1, spun / sp.ramp) : 1);
-      // ...and it can spin DOWN: over the last `brake` seconds the whirl eases
-      // to a stop on a WHOLE TURN, so the joint is back exactly where it started
-      // when the fx is dropped instead of snapping out of a half-revolution. The
-      // landing angle is fixed the moment braking begins (where a natural
-      // coast-down would have ended, rounded to a turn), then eased onto with a
-      // smoothstep — deterministic, so it can't drift. It always rounds the way
-      // the joint is ALREADY turning: a whirl coasts to a halt, it never unwinds
-      // backwards into place.
+      // ...and it can spin DOWN: over the last `brake` seconds the whirl sheds
+      // its rate at a CONSTANT deceleration and stops on a WHOLE TURN, so the
+      // joint is back exactly where it started when the fx is dropped instead of
+      // snapping out of a half-revolution. The landing angle is fixed the moment
+      // braking begins (where the coast-down ends, rounded to a turn), and the
+      // angle is then driven analytically — deterministic, so it can't drift. It
+      // always rounds the way the joint is ALREADY turning: a whirl coasts to a
+      // halt, it never unwinds backwards into place.
+      //
+      // The curve is an ease-OUT, k*(2-k) — the integral of a rate falling
+      // linearly to zero. It leaves the hand-off at exactly the speed it arrived
+      // with, so `brake` and `ramp` of the same length mirror each other. (A
+      // smoothstep was wrong here: its rate STARTS at zero, so the whirl stalled
+      // for a beat at full tilt and then crept through its last turn.)
       const left = sp.dur - sp.t;
       if (sp.brake && left < sp.brake) {
         if (sp.b0 === undefined) {
@@ -2757,8 +2763,8 @@ export class Fighter {
           if (sp.vel < 0 && sp.b1 > sp.b0) sp.b1 -= TAU;
         }
         const k = clamp01(1 - left / sp.brake);
-        sp.acc = lerp(sp.b0, sp.b1, k * k * (3 - 2 * k));
-        sp.vel = (sp.b1 - sp.b0) * 6 * k * (1 - k) / sp.brake;
+        sp.acc = lerp(sp.b0, sp.b1, k * (2 - k));
+        sp.vel = 2 * (sp.b1 - sp.b0) * (1 - k) / sp.brake;
       } else {
         sp.acc = (sp.acc || 0) + sp.vel * dt;
       }
