@@ -374,29 +374,6 @@ export function resolveWeightSlots(bones, weights) {
 
 // Apply ops to a SkinnedMesh's geometry: rigid-bind selected components to
 // the target bone. Mutates skinIndex/skinWeight in place. Returns a summary.
-// Position-welded twins of an explicit vertex set.
-//
-// A GLB shell is split at every UV/normal seam: one surface point becomes 2-4
-// vertices at the SAME position. The ?debug=skin brush selects the ones its
-// ray happened to reach, so binding that raw list rigidly can hand one copy of
-// a seam point to the new bone and leave its twin on the old one. At bind they
-// are coincident — zero-length edge — and the moment the two bones move apart
-// that edge stretches without limit: measured on inferno's alt, a paint that
-// cost +36% absolute stretch showed a 403x RATIO, i.e. gashes opening along
-// the seam. Extending the selection to every vertex at the same position is
-// what the surface actually meant, and it costs nothing when the twins were
-// already included.
-function withWeldMates(mesh, verts) {
-  const pos = mesh.geometry.attributes.position;
-  const key = (i) => `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
-  const wanted = new Set();
-  for (const v of verts) if (v >= 0 && v < pos.count) wanted.add(key(v));
-  if (!wanted.size) return verts;
-  const out = new Set(verts);
-  for (let i = 0; i < pos.count; i++) if (!out.has(i) && wanted.has(key(i))) out.add(i);
-  return [...out];
-}
-
 export function applySkinOps(mesh, ops, analysis = null) {
   if (!ops?.length) return { applied: 0, verts: 0 };
   const a = analysis || analyzeSkin(mesh);
@@ -427,7 +404,7 @@ export function applySkinOps(mesh, ops, analysis = null) {
       const slots = resolveWeightSlots(bones, op.weights);
       if (!slots.length) { console.warn('skinOps: no known bones in weights', JSON.stringify(op.weights)); continue; }
       const verts = op.sel && Array.isArray(op.sel.verts)
-        ? withWeldMates(mesh, op.sel.verts)     // see withWeldMates
+        ? op.sel.verts
         : selectComps(a, op.sel || {}).flatMap((c) => c.verts);
       if (!verts.length) { console.warn('skinOps: selection matched nothing', JSON.stringify(op.sel)); continue; }
       for (const v of verts) {
@@ -449,9 +426,8 @@ export function applySkinOps(mesh, ops, analysis = null) {
     if (op.sel && Array.isArray(op.sel.verts)) {
       const vti = bones.findIndex((b) => b.name === op.to);
       if (vti < 0) { console.warn('skinOps: unknown target bone', op.to); continue; }
-      const verts = withWeldMates(mesh, op.sel.verts);
-      for (const v of verts) { jnt.setXYZW(v, vti, 0, 0, 0); wgt.setXYZW(v, 1, 0, 0, 0); }
-      applied++; total += verts.length;
+      for (const v of op.sel.verts) { jnt.setXYZW(v, vti, 0, 0, 0); wgt.setXYZW(v, 1, 0, 0, 0); }
+      applied++; total += op.sel.verts.length;
       continue;
     }
     const ti = bones.findIndex((b) => b.name === op.to);
