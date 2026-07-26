@@ -28,6 +28,7 @@ import { loadRawGlbScene, fetchRawManifest, skinnedBox, buildGlbForTool } from '
 import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson } from '../mechs/skinops.js';
 import { CLIPS } from '../mechs/animations.js';
 import { mechClipList } from './mechclips.js';
+import { setupDevPanel } from './panelui.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
 
@@ -820,6 +821,7 @@ export async function runSkinTool(startId) {
     color:#dfe8f5;background:rgba(14,18,26,0.94);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:270px;max-height:94vh;overflow:auto;user-select:none`;
   document.body.appendChild(panel);
+  setupDevPanel(panel, { key: 'skin' });
 
   const mechSel = document.createElement('select');
   mechSel.style.cssText = 'width:100%;margin-bottom:6px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px';

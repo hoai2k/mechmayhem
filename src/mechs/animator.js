@@ -199,6 +199,20 @@ export class Animator {
     if (this.action) { this.action.fadingOut = true; this.action.fadeOut = fade; }
   }
 
+  // Re-express a smoothed angle in the WINDING an incoming clip is authored in.
+  // A half turn is the same pose whether you call it +180° or -180°, but the
+  // pose smoother below lerps numbers, not orientations — so handing the body
+  // from a clip authored at +180 to one authored at -180 spins it the long way
+  // round while we're trying to roll it the short way. Shift the banked value
+  // by whole turns instead: nothing moves this frame, the next lerp just goes
+  // the way the clip meant. (See the ROLLOVER clips in animations.js.)
+  rewrap(joint, i, target) {
+    const c = this.cur[joint];
+    if (!c) return;
+    while (c[i] - target > Math.PI) c[i] -= TAU;
+    while (target - c[i] > Math.PI) c[i] += TAU;
+  }
+
   isPlaying(name) {
     return !!this.action && !this.action.fadingOut && (!name || this.action.clip.name === name);
   }

@@ -38,6 +38,7 @@ import { JOINT_ORDER } from '../mechs/rigadapter.js';
 import { CLIPS } from '../mechs/animations.js';
 import { profileFor } from '../mechs/glbanim.js';
 import { mechClipList } from './mechclips.js';
+import { setupDevPanel } from './panelui.js';
 
 const R2D = 180 / Math.PI;
 // Joints whose clip value is read RELATIVE to the mech's rest stance (the
@@ -512,6 +513,7 @@ export async function runPoseWork(startId) {
     background:#121821ee;border:1px solid #2c3648;border-radius:8px;padding:10px;
     font:12px/1.4 system-ui,sans-serif;color:#dfe8f5;z-index:20`;
   document.body.appendChild(panel);
+  setupDevPanel(panel, { key: 'posework' });
   const el = (tag, css) => { const e = document.createElement(tag); e.style.cssText = css; return e; };
   const label = (t) => { const d = el('div', 'color:#7d8ea3;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 2px'); d.textContent = t; return d; };
   const btn = (text, fn, primary) => { const b = el('button', `flex:1;padding:6px;border-radius:5px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:${primary ? '#1f7a4d' : '#1a2433'};color:${primary ? '#fff' : '#cfe0f5'}`); b.textContent = text; b.onclick = fn; return b; };

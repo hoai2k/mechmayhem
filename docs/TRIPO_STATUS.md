@@ -239,3 +239,21 @@ re-run or push again.
   skinOps at all. Worst clip-seam stretch across all 91 clips: **+0.15** vs
   the Tripo primary's **+0.34** (`tools/cliptear.mjs`). Not promoted — compare
   in `?debug=models&mech=colossus&left=alt` and decide.
+
+## Session 8 (2026-07-26): colossus alt rig tuned + anchors pinned to the guns
+
+- colossus alt rig updated from the user's ?rigedit pass (head moved to the
+  front collar block, cannons re-based and leaning forward, arms out to
+  z ±0.25/0.29/0.33, ankles down to y 0.04). Worst clip-seam stretch over all
+  93 clips: **+0.09** (was +0.15 on the first draft, +0.34 on the Tripo
+  primary).
+- The alt's muzzles were re-expressed on the rig's own `cannonR`/`cannonL`
+  bones with `rot: [0,90,0]` — the rest-pose world position and aim axis are
+  bit-identical to the primary's hand-placed ones, but the anchors now ride the
+  barrels: distance muzzle→barrel-tip geometry is a constant 0.36 through every
+  clip, where the virtual-joint parenting wandered 0.23-0.77.
+- New `tools/anchorkeep.mjs` makes that a checkable rule rather than a habit:
+  PASS/FAIL anchor diff between two builds (rest + posed), `--remap` to emit
+  preserved manifest numbers for new bones, `--track` to prove a muzzle is
+  welded to its gun. House rule added to CLAUDE.md + MECH_ART_GUIDE §5.
+

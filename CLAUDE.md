@@ -17,6 +17,10 @@ audio). Progress history: `TASKS.md`.
   · `?rigtest` (GLB retarget math check) · `?rigedit=<id>` (edit a mech's
   hand-authored rig, `src/mechs/rigs/<id>.rig.js`) · `?showall=1` (force
   SETTINGS → SHOW ALL ROBOTS on for the session)
+- Every workbench side panel (skin/models/pose/collider/rigedit + the level
+  editor's two) is RESIZABLE: drag its outer edge, double-click the handle to
+  reset, width remembered per tool (`src/dev/panelui.js`, which also styles
+  their scrollbars). Widen it when a bone/op name ellipsizes.
 - Workbenches: `?debug=models[&mech=<id>]` — procedural-vs-GLB ACTION
   comparison (trigger any move on both at once, slow-mo, live anchor editor).
   `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]` — pose a single
@@ -96,6 +100,13 @@ that combat silently depends on. Never rebuild a design without it.
   `src/arena/{themes,props}.js` — everything else is shared, single-writer.
 - Verify visually (screenshots) before claiming art changes work; verify
   `npx vite build` + a soak before claiming combat changes work.
+- RE-RIGGING NEVER LOSES ANCHORS. Muzzles/anchors in `manifest.json` are
+  hand-placed by the owner: a new or edited rig re-expresses them on the new
+  bones with the SAME rest-pose world position + aim, it never drops them or
+  leaves them on stale numbers. Only a brand-new GLB with no authored muzzles
+  may fall back to auto-generated ones. Prove it with
+  `node tools/anchorkeep.mjs <id>` (`--remap R=<bone>,L=<bone>` emits the
+  preserved numbers) — see MECH_ART_GUIDE §5.
 - ALWAYS finish a task by merging your feature branch into `main` and
   pushing `main` — the owner plays off `main`, so work left on a branch is
   work they can't see. Push the branch too, then

@@ -24,6 +24,7 @@ import { PROPS, PROP_MATS } from '../arena/props.js';
 import { ROSTER } from '../mechs/roster.js';
 import { emptyLevel, LEVEL_VERSION, PLAYTEST_KEY } from '../arena/level.js';
 import { CATALOG, CATALOG_BY_ID, SWATCHES } from './catalog.js';
+import { setupDevPanel } from '../dev/panelui.js';
 
 const WRAP = 1.35;                 // arena wrapHalf = bounds * 1.35
 const LS_PREFIX = 'rw_level:';     // saved-slot keys
@@ -568,6 +569,7 @@ export async function runLevelEditor(params) {
     pal.append(tag('div', 'le-h', 'PALETTE'), search);
     paletteBody = el('div', 'le-palbody'); pal.append(paletteBody);
     root().append(pal);
+    setupDevPanel(pal, { key: 'leveditor.palette' });
     refreshPalette();
 
     // --- right panel ---
@@ -618,6 +620,7 @@ export async function runLevelEditor(params) {
     // stats
     statsEl = el('div', 'le-stats'); right.append(statsEl);
     root().append(right);
+    setupDevPanel(right, { key: 'leveditor.props', edge: 'left' });
 
     // bottom hint
     hintEl = el('div', 'le-hint');

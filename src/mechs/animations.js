@@ -904,6 +904,78 @@ const CLIPS_RAW = {
       { t: 0.75, ease: 'outQuad', pose: REST_FULL },
     ],
   },
+
+  // ---------- ROLLOVER (roster `rollover` — CRANKY) ----------
+  // The shared knockdown sits a mech DOWN — hips back, knees up, propped and
+  // ready to push straight off the floor again. A big enough blow instead
+  // turns a top-heavy shell CLEAN OVER: it BARREL-ROLLS about its own facing
+  // axis until the carapace is on the pavement and every limb is waving at the
+  // sky, and there it stays until it rolls itself back upright. Three clips,
+  // played in sequence by the fighter (see ROLLOVER_* in fighter.js): the FLIP,
+  // a prone loop while he's stranded, and the righting ROLL he gets up with.
+  //
+  // The roll axis is hipsRot.Z — the mech's own facing direction — so the body
+  // ends up inverted while still POINTING where it pointed (unlike a pitch
+  // about X, which would lay a wide flat crab out on his tail-end rather than
+  // his back). Everything below is authored in the body's own frame as usual,
+  // which upside down means: limbs hang toward the SKY, and increasing Z rolls
+  // him toward his LEFT.
+  //
+  // Winding matters. +180 and -180 are the same pose but not the same number,
+  // and the pose smoother lerps numbers — so the prone loop sits at +180, the
+  // right-hand recovery unwinds it 180 -> 0, and the mirrored left-hand one
+  // runs -180 -> 0 after the fighter re-winds the smoother (Animator.rewrap).
+  // Both END at 0: a clip that finished anywhere else would leave the body
+  // standing up facing somewhere other than its own yaw.
+  //
+  // proneBack deliberately keys NO leg joint. With the legs left to the
+  // locomotion layer, a stranded mech's legs still answer the stick and
+  // scuttle uselessly at the sky (fighter.js feeds the stick in as speed).
+  flipOver: {
+    dur: 0.62, hold: true,
+    keys: [
+      // contact: he lands already going over, weight past the outside legs
+      { t: 0, pose: { hipsPos: [0, -0.35, 0.1], hipsRot: [8, 0, 42], torso: [10, 0, -14], head: [6, 0, 0], shoulderL: [-30, 0, -38], shoulderR: [-24, 0, 26], elbowL: [-40, 0, 0], elbowR: [-52, 0, 0], thighL: [-24, 0, -14], thighR: [-16, 0, 10], kneeL: [40, 0, 0], kneeR: [30, 0, 0] } },
+      // past the point of no return — the shell comes round underneath him
+      { t: 0.22, ease: 'inQuad', pose: { hipsPos: [0, -0.95, 0.2], hipsRot: [6, 0, 112], torso: [4, 0, -8], head: [2, 0, 0], shoulderL: [-46, 0, -52], shoulderR: [-36, 0, 34], elbowL: [-52, 0, 0], elbowR: [-60, 0, 0], thighL: [-34, 0, -18], thighR: [-22, 0, 14], kneeL: [52, 0, 0], kneeR: [40, 0, 0] } },
+      // carapace hits and the whole frame rocks PAST level on its curve
+      { t: 0.42, ease: 'outQuad', pose: { hipsPos: [0, -1.35, 0.28], hipsRot: [-4, 0, 198], torso: [-6, 0, 6], head: [-4, 0, 0], shoulderL: [-18, 0, -64], shoulderR: [-14, 0, 58], elbowL: [-70, 0, 0], elbowR: [-66, 0, 0], thighL: [-14, 0, -26], thighR: [-10, 0, 24], kneeL: [64, 0, 0], kneeR: [58, 0, 0] } },
+      // ...and rocks back to rest ON the shell. This key IS proneBack's t=0, so
+      // the fighter's hold->loop handover takes over with no seam. The legs
+      // land near their rest bend, since the loop hands them straight back to
+      // the locomotion layer and anything further out would visibly settle.
+      { t: 0.62, ease: 'inOutQuad', pose: { hipsPos: [0, -1.2, 0.22], hipsRot: [0, 0, 180], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [-24, 0, -56], shoulderR: [-24, 0, 56], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0], thighL: [-6, 0, -10], thighR: [-6, 0, 10], kneeL: [18, 0, 0], kneeR: [18, 0, 0] } },
+    ],
+  },
+  proneBack: { // stranded: the shell rocks on its curve, the claws paw at air
+    dur: 1.5, loop: true,
+    keys: [
+      { t: 0, pose: { hipsPos: [0, -1.2, 0.22], hipsRot: [0, 0, 180], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [-24, 0, -56], shoulderR: [-24, 0, 56], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0] } },
+      { t: 0.5, ease: 'inOutQuad', pose: { hipsPos: [0, -1.22, 0.22], hipsRot: [3, 0, 187], torso: [3, 0, 4], head: [2, 0, 0], shoulderL: [-40, 0, -44], shoulderR: [-12, 0, 66], elbowL: [-34, 0, 0], elbowR: [-74, 0, 0] } },
+      { t: 1.0, ease: 'inOutQuad', pose: { hipsPos: [0, -1.18, 0.22], hipsRot: [-3, 0, 173], torso: [-3, 0, -4], head: [-2, 0, 0], shoulderL: [-10, 0, -68], shoulderR: [-38, 0, 46], elbowL: [-76, 0, 0], elbowR: [-32, 0, 0] } },
+      { t: 1.5, ease: 'inOutQuad', pose: { hipsPos: [0, -1.2, 0.22], hipsRot: [0, 0, 180], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [-24, 0, -56], shoulderR: [-24, 0, 56], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0] } },
+    ],
+  },
+  // Righting roll over his RIGHT side (rollUpL is the mirror, and rolls left).
+  // He heaves the shell round off its back, catches himself on the claws as he
+  // comes onto his flank, folds the legs in underneath and pushes up. The
+  // travel that sells it as a ROLL rather than a spin is real world movement,
+  // driven by the fighter for the length of the clip, not authored here.
+  rollUpR: {
+    dur: 0.85,
+    keys: [
+      { t: 0, pose: { hipsPos: [0, -1.2, 0.22], hipsRot: [0, 0, 180], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [-24, 0, -56], shoulderR: [-24, 0, 56], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], ankleL: [0, 0, 0], ankleR: [0, 0, 0] } },
+      // throw the weight over the right flank — right claw reaches for ground
+      { t: 0.17, ease: 'inOutQuad', pose: { hipsPos: [0, -1.25, 0.2], hipsRot: [4, 0, 146], torso: [6, 0, -10], head: [4, 0, 0], shoulderL: [-52, 0, -30], shoulderR: [-10, 0, 62], elbowL: [-30, 0, 0], elbowR: [-84, 0, 0], thighL: [-30, 0, -16], thighR: [-12, 0, 10], kneeL: [56, 0, 0], kneeR: [34, 0, 0] } },
+      // onto the flank, claws taking the weight, legs gathering under him
+      { t: 0.36, ease: 'inOutQuad', pose: { hipsPos: [0, -1.35, 0.14], hipsRot: [6, 0, 92], torso: [10, 0, -16], head: [-4, 0, 0], shoulderL: [-40, 0, -20], shoulderR: [-6, 0, 40], elbowL: [-56, 0, 0], elbowR: [-58, 0, 0], thighL: [-56, 0, -10], thighR: [-46, 0, 8], kneeL: [86, 0, 0], kneeR: [78, 0, 0], ankleL: [-24, 0, 0], ankleR: [-24, 0, 0] } },
+      // shell comes up off the pavement, legs planting
+      { t: 0.53, ease: 'outCubic', pose: { hipsPos: [0, -1.05, 0.08], hipsRot: [8, 0, 40], torso: [18, 0, -10], head: [-12, 0, 0], shoulderL: [-20, 0, -26], shoulderR: [-14, 0, 26], elbowL: [-46, 0, 0], elbowR: [-46, 0, 0], thighL: [-70, 0, -6], thighR: [-66, 0, 6], kneeL: [104, 0, 0], kneeR: [100, 0, 0], ankleL: [-32, 0, 0], ankleR: [-32, 0, 0] } },
+      // up on the legs, still crouched over them
+      { t: 0.68, ease: 'outQuad', pose: { hipsPos: [0, -0.5, 0.02], hipsRot: [4, 0, 10], torso: [14, 0, -2], head: [-6, 0, 0], shoulderL: [-8, 0, -22], shoulderR: [-8, 0, 22], elbowL: [-40, 0, 0], elbowR: [-40, 0, 0], thighL: [-38, 0, 0], thighR: [-36, 0, 0], kneeL: [68, 0, 0], kneeR: [66, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0] } },
+      { t: 0.85, ease: 'inOutQuad', pose: REST_FULL },
+    ],
+  },
   dead: {
     dur: 1.3, hold: true,
     keys: [
@@ -1100,6 +1172,7 @@ CLIPS_RAW.bigPunch2 = mirrorRaw(CLIPS_RAW.bigPunch1); // right haymaker, same wi
 CLIPS_RAW.punchHold2 = mirrorRaw(CLIPS_RAW.punchHold1); // right-arm charge
 CLIPS_RAW.punchRelease2 = mirrorRaw(CLIPS_RAW.punchRelease1);
 CLIPS_RAW.stomp2 = mirrorRaw(CLIPS_RAW.stomp); // left-foot trample
+CLIPS_RAW.rollUpL = mirrorRaw(CLIPS_RAW.rollUpR); // righting roll the other way
 // Opposite-arm twins of the shared punch trio, so a light combo can be thrown
 // off either lead (see LIGHT_ARM below and Fighter.doLight).
 CLIPS_RAW.light1R = mirrorRaw(CLIPS_RAW.light1); // right jab
@@ -1157,6 +1230,12 @@ function compile(name, raw) {
     events: raw.events || [],
   };
 }
+
+// The ROLLOVER family — anything that has the body over on its back. Code that
+// assumes an UPRIGHT mech has to stand down while one of these plays: a
+// floor-relative arm clamp, a walk carry, an attack wind-up all read the pose
+// as broken otherwise (see the CRANKY profile in glbanim.js).
+export const PRONE_CLIPS = new Set(['flipOver', 'proneBack', 'rollUpR', 'rollUpL']);
 
 export const CLIPS = {};
 for (const [name, raw] of Object.entries(CLIPS_RAW)) CLIPS[name] = compile(name, raw);

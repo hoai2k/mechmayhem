@@ -51,7 +51,7 @@ import { lerp, clamp01 } from '../core/utils.js';
 import { Assembler } from './parts.js';
 import { makeMaterials } from './factory.js';
 import { wraithCloak } from './designs/wraith.js';
-import { GLB_CLIP_VARIANTS } from './animations.js';
+import { GLB_CLIP_VARIANTS, PRONE_CLIPS } from './animations.js';
 
 export const ARM_JOINTS = ['shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'handL', 'handR'];
 
@@ -452,7 +452,13 @@ export const GLB_ANIM = {
     // the leg pose. Attacks still drive the real claw arms via the shared clips.
     post(anim, dt, ctx, tgt) {
       const act = anim.action;
-      const attacking = act && !act.fadingOut && !act.clip.loop;
+      // FLIPPED (roster `rollover`, see fighter.js): while he's over on his
+      // shell every crab rule below is wrong — the walk carry would flatten the
+      // prone hips back to level, the no-droop floor is meaningless on a body
+      // whose claws point at the sky, and the flip and righting-roll clips are
+      // one-shots that would otherwise read as ATTACKS and pick up a wind-up.
+      const prone = !!act && PRONE_CLIPS.has(act.clip.name);
+      const attacking = act && !act.fadingOut && !act.clip.loop && !prone;
       const m = anim.mech;
       if (attacking) {
         tgt.hipsRot[1] *= 0.2; tgt.torso[1] *= 0.2; tgt.torso[2] *= 0.4;
@@ -486,8 +492,10 @@ export const GLB_ANIM = {
       // downward arm travel drives them through it — which is what had the idle
       // arm propping the body up during a light. Positive shoulder pitch lowers
       // the arm here, so neutral is a hard floor: arms may only rise from rest.
-      tgt.shoulderL[0] = Math.min(tgt.shoulderL[0], anim.rest.shoulderL[0]);
-      tgt.shoulderR[0] = Math.min(tgt.shoulderR[0], anim.rest.shoulderR[0]);
+      if (!prone) {
+        tgt.shoulderL[0] = Math.min(tgt.shoulderL[0], anim.rest.shoulderL[0]);
+        tgt.shoulderR[0] = Math.min(tgt.shoulderR[0], anim.rest.shoulderR[0]);
+      }
       // Pincer clench — drives the clawL/clawR jaw bones (not game joints, so
       // the retarget never touches them) via postDress below. Jaws spread OPEN
       // on the wind-up, SNAP shut through the strike, then ease back open.
@@ -511,7 +519,7 @@ export const GLB_ANIM = {
       // floor and lifts the shell off its feet. Instead: CARRY the claws high,
       // out and cocked forward, hold the shell level, and let the hexapod tripod
       // gait in postDress be the ONLY thing that moves — he walks on legs alone.
-      if (!attacking && ratio > 0.03) {
+      if (!attacking && !prone && ratio > 0.03) {
         const k = Math.min(1, ratio * 2.4);          // fully carried by mid speed
         for (const [j, v] of Object.entries(CRANKY_CARRY)) {
           if (!tgt[j]) continue;

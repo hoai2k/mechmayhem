@@ -76,6 +76,26 @@ const DASH_CHARGE_BOOST = 0.95;
 const DASH_COOLDOWN = 0.9;
 const ESCAPE_JUMP_MULT = 2.6;    // knockdown escape spring: ground speed x this
 const ESCAPE_JUMP_VY = 13;
+// ---- ROLLOVER (roster `rollover` — CRANKY) ----
+// A launching blow normally sits a mech DOWN. On a top-heavy shell a big
+// enough one turns it CLEAN OVER instead: past flat, onto its back, legs at
+// the sky, stranded until it rolls itself upright (see the flipOver /
+// proneBack / rollUp* clips). Odds scale with the damage the blow actually
+// DEALT, as a fraction of the victim's max HP — so armour, guard chip and any
+// damage buff are all already in the number, and the curve doesn't need
+// re-tuning per attacker. Calibrated against CRANKY (1300 hp, 0.26 armour):
+//
+//   attacker blow                  raw   dealt   frac    odds
+//   VIPER light3                    40    30    2.3%      0%   never
+//   VIPER heavy                     70    52    4.0%      0%   never
+//   COLOSSUS light3 (uncharged)     62    46    3.5%      0%   never
+//   COLOSSUS light3 (full charge)  130    96    7.4%     50%
+//   COLOSSUS heavy  (full charge)  160   118    9.1%     79%
+const ROLLOVER_MIN_FRAC = 0.046; // damage fraction below which nothing flips him
+const ROLLOVER_RATE = 17.6;      // odds gained per unit of fraction past it
+const ROLLOVER_MAX = 0.9;        // never a certainty, however big the blow
+const ROLLOVER_DOWN_TIME = 1.3;  // stranded on the shell before he rights himself
+const ROLLOVER_ROLL_DRIVE = 0.6; // righting roll travel, as a fraction of walk speed
 // KINETIC IMPACT — momentum physics behind a melee blow. Two quantities drive
 // it, both read from the CLOSING SPEED between the bodies along the attack line
 // (a punch reads forward run speed; a smash also reads the downward dive; both
@@ -242,6 +262,9 @@ export class Fighter {
     this._smashMirror = Math.random() < 0.5;
     this._plungeVy = 0;
     this._moveAttack = false; // basic light/heavy melee lets you keep moving
+    this._onBack = false;     // ROLLOVER: turned right over, stranded on his back
+    this._flipT = 0;          // ...time left in the one-shot flip before the prone loop
+    this._rollUp = null;      // ...the flank he committed the righting roll to
     this.alive = true;
     this.wins = 0;
     this.lastAttacker = null;
@@ -1611,6 +1634,40 @@ export class Fighter {
     this.world.audio?.play('block');
   }
 
+  // Odds a blow that just dealt `dmg` turns this mech clean over onto its back
+  // rather than merely flooring it. Opt-in per mech (roster `rollover`); see
+  // the ROLLOVER_* block for the calibration behind the curve.
+  rolloverChance(dmg) {
+    if (!this.def.rollover) return 0;
+    return clamp((dmg / this.maxHp - ROLLOVER_MIN_FRAC) * ROLLOVER_RATE, 0, ROLLOVER_MAX);
+  }
+
+  // RIGHTING ROLL — how a mech gets off its back (see ROLLOVER above). Upside
+  // down on the shell there is nothing to push against, so he throws himself
+  // over one flank instead, and the PLAYER picks which: whatever direction
+  // they're holding when the recovery comes up is the way he goes over. Only
+  // the LATERAL half of that press can be honoured — a body rolling about its
+  // own facing axis travels sideways and nowhere else — so a straight
+  // forward/back press takes him over his right. The clip only turns him; the
+  // travel that reads as a roll is driven from the movement block in update().
+  startRollUp() {
+    const I = this.intent;
+    // his right, in world (rig convention: the mech's local +X is its right)
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    const side = I.moveX * rx + I.moveZ * rz < 0 ? -1 : 1;
+    this._rollUp = { x: rx * side * ROLLOVER_ROLL_DRIVE, z: rz * side * ROLLOVER_ROLL_DRIVE };
+    this._onBack = false;
+    this._flipT = 0;
+    this.iframes = 0.5;
+    // the prone loop lies at +180° of roll; rolling LEFT out of it unwinds from
+    // -180 instead — same pose, other winding, so re-wind the smoother or it
+    // spins him a full turn the wrong way on the handover (Animator.rewrap)
+    this.animator.rewrap('hipsRot', 2, side > 0 ? Math.PI : -Math.PI);
+    this.setState('getup', this.animator.play(side > 0 ? 'rollUpR' : 'rollUpL') * 0.92);
+    this.world.audio?.play('bodyfall');
+    this.world.effects.dustPuff(this.pos, 7);
+  }
+
   takeHit(dmg, attacker, { knock = 8, launch = 0, srcPos = null, heavy = false, status = null, silent = false, soft = false, unblockable = false, guardBreak = 0 } = {}) {
     if (!this.alive || this.iframes > 0) return;
     if (attacker && this.isAllyOf(attacker)) return; // no friendly fire on a summon team
@@ -1713,6 +1770,11 @@ export class Fighter {
     if (launch > 0 && this.state !== 'launched') {
       this.vel.y = launch * resist + 4;
       this.grounded = false;
+      // ROLLOVER: does this one turn him right over? Rolled at the LAUNCH, so
+      // the whole flight is already committed to the landing that follows.
+      // Sticky — a light poke while he's stranded bounces him around but can
+      // never quietly set him back on his feet.
+      this._onBack = this._onBack || Math.random() < this.rolloverChance(dmg);
       this.setState('launched', 3);
       this.animator.play('launched');
     } else if (soft) {
@@ -2219,13 +2281,35 @@ export class Fighter {
         break;
       case 'launched':
         if (this.grounded) {
-          this.setState('knockdown', 0.75);
-          this.animator.play('knockdown');
+          if (this._onBack) {
+            // ROLLOVER: he doesn't sit down, he goes over. Longer on the floor
+            // than a normal knockdown — a stranded shell is a real penalty.
+            this._flipT = this.animator.play('flipOver');
+            this.setState('knockdown', ROLLOVER_DOWN_TIME);
+            this.world.effects.addShake(0.5);
+          } else {
+            this.setState('knockdown', 0.75);
+            this.animator.play('knockdown');
+          }
           this.world.effects.dustPuff(this.pos, 10);
           this.world.audio?.play('bodyfall');
         }
         break;
       case 'knockdown':
+        // ROLLOVER: hand the one-shot flip over to the prone loop the moment
+        // it settles. fade 0 — the loop's t=0 IS the flip's last key, and a
+        // cross-fade would dip the body back toward standing through the
+        // handover (same rule as the charge holds, see updatePunchHold).
+        if (this._flipT > 0) {
+          this._flipT -= dt;
+          if (this._flipT <= 0) this.animator.play('proneBack', { fade: 0 });
+        }
+        // on his back there is no spring to make and no getup to rush: the
+        // stick and the jump button both go to the righting roll instead
+        if (this._onBack) {
+          if (I.jump || this.stateT <= 0) this.startRollUp();
+          break;
+        }
         // escape jump: mash jump while downed to spring clear instead of
         // eating the same knockdown loop again
         if (I.jump) {
@@ -2250,7 +2334,7 @@ export class Fighter {
         }
         break;
       case 'getup':
-        if (this.stateT <= 0) this.setState('normal');
+        if (this.stateT <= 0) { this._rollUp = null; this.setState('normal'); }
         break;
     }
 
@@ -2541,6 +2625,11 @@ export class Fighter {
       } else if (len > 0.15 && this.state !== 'channel') {
         this.targetYaw = Math.atan2(ax, az);
       }
+    } else if (this._rollUp && this.state === 'getup') {
+      // RIGHTING ROLL: he isn't steering — the roll CARRIES him. Drive the
+      // body over the flank he committed to for the length of the clip, so he
+      // travels out from under whoever floored him (see startRollUp).
+      ax = this._rollUp.x; az = this._rollUp.z;
     }
 
     // ---- target lock (pad LB, held): square up on the locked enemy and
@@ -2578,6 +2667,13 @@ export class Fighter {
 
     // ---- animation ----
     const spd = Math.hypot(this.vel.x, this.vel.z);
+    const maxSpd = st.speed * WALK_MULT * (this.sprinting ? SPRINT_MULT : 1);
+    // STRANDED ON HIS BACK (see ROLLOVER): the body is going nowhere, but the
+    // LEGS still answer the stick — feed the input itself in as speed and the
+    // locomotion layer runs its stride, so he scuttles uselessly at the sky.
+    // The prone clip keys no leg joint precisely so the walk cycle owns them.
+    const proneScuttle = this._onBack && this.state === 'knockdown'
+      ? Math.min(1, Math.hypot(I.moveX, I.moveZ)) * maxSpd : 0;
     this.animator.update(dt, {
       // `canMove` is about INPUT, not motion: a rooted state means the player
       // isn't steering, and zeroing the speed there is what keeps a planted
@@ -2587,8 +2683,8 @@ export class Fighter {
       // speed while charging so the locomotion layer runs its speed-matched
       // stride under him; the charge clip owns the upper body (it keys torso,
       // head, hips and both arms), so only the LEGS come from the run.
-      speed: canMove || this._charging ? spd : 0,
-      maxSpeed: st.speed * WALK_MULT * (this.sprinting ? SPRINT_MULT : 1),
+      speed: canMove || this._charging ? spd : proneScuttle,
+      maxSpeed: maxSpd,
       grounded: this.grounded,
       vy: this.vel.y,
       dashT: this.dashT,
@@ -2739,14 +2835,20 @@ export class Fighter {
       // whatever speed it has reached (vulcan's bullet hurricane).
       const spun = sp.t - (sp.delay || 0);
       sp.vel = spun <= 0 ? 0 : sp.rate * (sp.ramp ? Math.min(1, spun / sp.ramp) : 1);
-      // ...and it can spin DOWN: over the last `brake` seconds the whirl eases
-      // to a stop on a WHOLE TURN, so the joint is back exactly where it started
-      // when the fx is dropped instead of snapping out of a half-revolution. The
-      // landing angle is fixed the moment braking begins (where a natural
-      // coast-down would have ended, rounded to a turn), then eased onto with a
-      // smoothstep — deterministic, so it can't drift. It always rounds the way
-      // the joint is ALREADY turning: a whirl coasts to a halt, it never unwinds
-      // backwards into place.
+      // ...and it can spin DOWN: over the last `brake` seconds the whirl sheds
+      // its rate at a CONSTANT deceleration and stops on a WHOLE TURN, so the
+      // joint is back exactly where it started when the fx is dropped instead of
+      // snapping out of a half-revolution. The landing angle is fixed the moment
+      // braking begins (where the coast-down ends, rounded to a turn), and the
+      // angle is then driven analytically — deterministic, so it can't drift. It
+      // always rounds the way the joint is ALREADY turning: a whirl coasts to a
+      // halt, it never unwinds backwards into place.
+      //
+      // The curve is an ease-OUT, k*(2-k) — the integral of a rate falling
+      // linearly to zero. It leaves the hand-off at exactly the speed it arrived
+      // with, so `brake` and `ramp` of the same length mirror each other. (A
+      // smoothstep was wrong here: its rate STARTS at zero, so the whirl stalled
+      // for a beat at full tilt and then crept through its last turn.)
       const left = sp.dur - sp.t;
       if (sp.brake && left < sp.brake) {
         if (sp.b0 === undefined) {
@@ -2757,8 +2859,8 @@ export class Fighter {
           if (sp.vel < 0 && sp.b1 > sp.b0) sp.b1 -= TAU;
         }
         const k = clamp01(1 - left / sp.brake);
-        sp.acc = lerp(sp.b0, sp.b1, k * k * (3 - 2 * k));
-        sp.vel = (sp.b1 - sp.b0) * 6 * k * (1 - k) / sp.brake;
+        sp.acc = lerp(sp.b0, sp.b1, k * (2 - k));
+        sp.vel = 2 * (sp.b1 - sp.b0) * (1 - k) / sp.brake;
       } else {
         sp.acc = (sp.acc || 0) + sp.vel * dt;
       }
@@ -2990,6 +3092,9 @@ export class Fighter {
     this.rangedCd = 0;
     this.iframes = 0;
     this.comboIdx = 0;
+    this._onBack = false;  // never start a round stranded on the shell
+    this._flipT = 0;
+    this._rollUp = null;
     this.hovering = false;
     this.hoverFuel = this.hoverFuelMax;
     this.sprintEnergy = this.sprintEnergyMax;
