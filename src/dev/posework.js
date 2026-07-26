@@ -30,7 +30,7 @@
 // step them; the key times are listed under the slider with the current one in
 // brackets. `&key=<index>` deep-links one, `&t=<seconds>` snaps to the nearest.
 //   It opens on the LAST key: the pose a hold/loop clip holds, but the RECOVERY
-//   of a one-shot strike — so colossusClap or heavy opens on the rest stance,
+//   of a one-shot strike — so poundSlam or heavy opens on the rest stance,
 //   which is genuinely that clip's last key, not a bug.
 //
 // HOW AN EDIT IS STORED: as the DELTA you dragged, applied to what the clip
@@ -372,7 +372,7 @@ export async function runPoseWork(startId) {
   // The clip clock has to be rewound before each step, not clamped after it:
   // Animator.update advances act.t by dt and samples the result, so pinning
   // afterwards still leaves the pose one dt PAST t. That was a real error — at
-  // dt 0.04 the old loop showed colossusClap's impact key already 40ms into its
+  // dt 0.04 the old loop showed colossus' clap impact key already 40ms into its
   // follow-through, which is why its "authored" 58deg read back as 55.6.
   // 8 steps at dt 0.15 leave the pose smoother (time constant 1/26s) settled to
   // ~1e-13 of the target, and cheap enough to run on every scrub frame.

@@ -509,7 +509,7 @@ export class Fighter {
   // twins compile under the base name, so this catches either side.)
   inTwoFistSmash() {
     const n = this.animator.action?.clip?.name;
-    return n === 'heavy' || n === 'poundSlam' || n === 'colossusClap';
+    return n === 'heavy' || n === 'poundSlam';
   }
 
   doHeavy() {
