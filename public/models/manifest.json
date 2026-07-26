@@ -667,8 +667,8 @@
   },
   "viper": {
     "muzzles": {
-      "R": {"bone":"handR","offset":[0.023,0.464,0.094],"rot":[-79.69,-7.74,-12.18]},
-      "L": {"bone":"elbowL","offset":[0.118,1.607,-0.074],"rot":[-88.66,-0.38,-105.62]},
+      "R": {"bone":"elbowR","offset":[0.117,-0.711,-0.458],"rot":[96.42,10.02,-136.28]},
+      "L": {"bone":"handL","offset":[0.001,-0.068,0.09],"rot":[82.49,11.1,-7.38]},
       "bladeL": {"bone":"bladeLtip","offset":[0,0,0]},
       "bladeR": {"bone":"bladeRtip","offset":[0,0,0]}
     },
@@ -768,108 +768,488 @@
   },
   "rhino": {
     "muzzles": {
-      "R": {"bone":"handR","offset":[0.143,0.146,0.045],"rot":[94.42,19.95,-21.51]},
-      "L": {"bone":"handL","offset":[-0.033,0.106,-0.096],"rot":[84,18.85,-17]}
+      "R": {
+        "bone": "handR",
+        "offset": [
+          0.224,
+          0.102,
+          0.221
+        ],
+        "rot": [
+          -91.5,
+          -27.15,
+          -163.29
+        ]
+      },
+      "L": {
+        "bone": "handL",
+        "offset": [
+          -0.349,
+          0.087,
+          0.042
+        ],
+        "rot": [
+          -104.21,
+          15.35,
+          167.89
+        ]
+      }
     },
     "url": "models/mech_rhino.glb",
     "modelScale": 8.12531,
     "bindPose": "native",
     "yawOffset": 270,
-    "rig": "rhino",
+    "boneOverrides": {
+      "hips": "tripoRoot",
+      "torso": "tripoSpine_2",
+      "head": "tripoHead_0",
+      "shoulderL": "tripo1_Right_Limb_0",
+      "elbowL": "tripo1_Right_Limb_1",
+      "handL": "tripo1_Right_Limb_2",
+      "shoulderR": "tripo1_Left_Limb_0",
+      "elbowR": "tripo1_Left_Limb_1",
+      "handR": "tripo1_Left_Limb_2",
+      "thighL": "tripo0_Right_Limb_0",
+      "kneeL": "tripo0_Right_Limb_1",
+      "ankleL": "tripo0_Right_Limb_2",
+      "thighR": "tripo0_Left_Limb_0",
+      "kneeR": "tripo0_Left_Limb_1",
+      "ankleR": "tripo0_Left_Limb_2"
+    },
+    "skinOps": [
+      {
+        "sel": {
+          "comp": 26
+        },
+        "to": "bone_18"
+      },
+      {
+        "sel": {
+          "comp": 24
+        },
+        "to": "tripo0_Right_Limb_4"
+      },
+      {
+        "sel": {
+          "comp": 1
+        },
+        "to": "tripo0_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 13
+        },
+        "to": "tripo0_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 19
+        },
+        "to": "tripo0_Right_Limb_4"
+      },
+      {
+        "sel": {
+          "comp": 27
+        },
+        "to": "tripo0_Right_Limb_3"
+      },
+      {
+        "purgeFar": true
+      },
+      {
+        "sel": {
+          "comp": 51
+        },
+        "to": "tripo0_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 84
+        },
+        "to": "tripo0_Right_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 49
+        },
+        "to": "tripo1_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 83
+        },
+        "to": "tripo1_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 66
+        },
+        "to": "tripo1_Left_Limb_3"
+      },
+      {
+        "sel": {
+          "comp": 41
+        },
+        "to": "tripo1_Left_Limb_3"
+      },
+      {
+        "sel": {
+          "comp": 20
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 23
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 35
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 36
+        },
+        "to": "bone_16"
+      },
+      {
+        "sel": {
+          "comp": 40
+        },
+        "to": "bone_13"
+      },
+      {
+        "sel": {
+          "comp": 42
+        },
+        "to": "tripo1_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 43
+        },
+        "to": "tripo1_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 45
+        },
+        "to": "bone_18"
+      },
+      {
+        "sel": {
+          "comp": 50
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 52
+        },
+        "to": "tripo0_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 53
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 55
+        },
+        "to": "tripo1_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 59
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 60
+        },
+        "to": "tripo1_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 61
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 62
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 63
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 64
+        },
+        "to": "tripo1_Right_Limb_4"
+      },
+      {
+        "sel": {
+          "comp": 65
+        },
+        "to": "tripo0_Right_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 67
+        },
+        "to": "tripo0_Left_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 69
+        },
+        "to": "bone_5"
+      },
+      {
+        "sel": {
+          "comp": 70
+        },
+        "to": "bone_5"
+      },
+      {
+        "sel": {
+          "comp": 71
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 72
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 73
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 74
+        },
+        "to": "tripo1_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 76
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 77
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 78
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 79
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 80
+        },
+        "to": "tripo1_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 81
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 82
+        },
+        "to": "tripo1_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 85
+        },
+        "to": "tripo0_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 86
+        },
+        "to": "tripo1_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 87
+        },
+        "to": "tripo0_Left_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 89
+        },
+        "to": "bone_18"
+      },
+      {
+        "sel": {
+          "comp": 90
+        },
+        "to": "bone_5"
+      },
+      {
+        "sel": {
+          "comp": 91
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 92
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 93
+        },
+        "to": "tripo1_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 94
+        },
+        "to": "bone_18"
+      },
+      {
+        "sel": {
+          "comp": 95
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 96
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 97
+        },
+        "to": "tripo1_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 99
+        },
+        "to": "tripo0_Right_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 103
+        },
+        "to": "tripo1_Left_Limb_3"
+      },
+      {
+        "sel": {
+          "comp": 104
+        },
+        "to": "tripo1_Left_Limb_3"
+      },
+      {
+        "sel": {
+          "comp": 30
+        },
+        "to": "tripo0_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 38
+        },
+        "to": "tripo0_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 34
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 44
+        },
+        "to": "tripo0_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 47
+        },
+        "to": "tripo0_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 39
+        },
+        "to": "tripo1_Right_Limb_2"
+      }
+    ],
     "alt": {
+      "muzzles": {
+        "R": {
+          "bone": "handR",
+          "offset": [
+            0.143,
+            0.146,
+            0.045
+          ],
+          "rot": [
+            94.42,
+            19.95,
+            -21.51
+          ]
+        },
+        "L": {
+          "bone": "handL",
+          "offset": [
+            -0.033,
+            0.106,
+            -0.096
+          ],
+          "rot": [
+            84,
+            18.85,
+            -17
+          ]
+        }
+      },
       "url": "models/mech_rhino.glb",
       "bindPose": "native",
       "yawOffset": 270,
-      "muzzles": {
-        "R": {"bone":"handR","offset":[0.224,0.102,0.221],"rot":[-91.5,-27.15,-163.29]},
-        "L": {"bone":"handL","offset":[-0.349,0.087,0.042],"rot":[-104.21,15.35,167.89]}
-      },
-      "boneOverrides": {
-        "hips": "tripoRoot",
-        "torso": "tripoSpine_2",
-        "head": "tripoHead_0",
-        "shoulderL": "tripo1_Right_Limb_0",
-        "elbowL": "tripo1_Right_Limb_1",
-        "handL": "tripo1_Right_Limb_2",
-        "shoulderR": "tripo1_Left_Limb_0",
-        "elbowR": "tripo1_Left_Limb_1",
-        "handR": "tripo1_Left_Limb_2",
-        "thighL": "tripo0_Right_Limb_0",
-        "kneeL": "tripo0_Right_Limb_1",
-        "ankleL": "tripo0_Right_Limb_2",
-        "thighR": "tripo0_Left_Limb_0",
-        "kneeR": "tripo0_Left_Limb_1",
-        "ankleR": "tripo0_Left_Limb_2"
-      },
-      "skinOps": [
-        {"sel":{"comp":26},"to":"bone_18"},
-        {"sel":{"comp":24},"to":"tripo0_Right_Limb_4"},
-        {"sel":{"comp":1},"to":"tripo0_Right_Limb_2"},
-        {"sel":{"comp":13},"to":"tripo0_Right_Limb_1"},
-        {"sel":{"comp":19},"to":"tripo0_Right_Limb_4"},
-        {"sel":{"comp":27},"to":"tripo0_Right_Limb_3"},
-        {"purgeFar":true},
-        {"sel":{"comp":51},"to":"tripo0_Left_Limb_1"},
-        {"sel":{"comp":84},"to":"tripo0_Right_Limb_0"},
-        {"sel":{"comp":49},"to":"tripo1_Right_Limb_1"},
-        {"sel":{"comp":83},"to":"tripo1_Right_Limb_1"},
-        {"sel":{"comp":66},"to":"tripo1_Left_Limb_3"},
-        {"sel":{"comp":41},"to":"tripo1_Left_Limb_3"},
-        {"sel":{"comp":20},"to":"tripoSpine_3"},
-        {"sel":{"comp":23},"to":"tripoHead_0"},
-        {"sel":{"comp":35},"to":"tripoSpine_2"},
-        {"sel":{"comp":36},"to":"bone_16"},
-        {"sel":{"comp":40},"to":"bone_13"},
-        {"sel":{"comp":42},"to":"tripo1_Right_Limb_2"},
-        {"sel":{"comp":43},"to":"tripo1_Right_Limb_2"},
-        {"sel":{"comp":45},"to":"bone_18"},
-        {"sel":{"comp":50},"to":"tripoHead_0"},
-        {"sel":{"comp":52},"to":"tripo0_Left_Limb_0"},
-        {"sel":{"comp":53},"to":"tripoHead_0"},
-        {"sel":{"comp":55},"to":"tripo1_Right_Limb_1"},
-        {"sel":{"comp":59},"to":"tripoSpine_3"},
-        {"sel":{"comp":60},"to":"tripo1_Left_Limb_1"},
-        {"sel":{"comp":61},"to":"tripoSpine_2"},
-        {"sel":{"comp":62},"to":"tripoSpine_2"},
-        {"sel":{"comp":63},"to":"tripoHead_0"},
-        {"sel":{"comp":64},"to":"tripo1_Right_Limb_4"},
-        {"sel":{"comp":65},"to":"tripo0_Right_Limb_0"},
-        {"sel":{"comp":67},"to":"tripo0_Left_Limb_2"},
-        {"sel":{"comp":69},"to":"bone_5"},
-        {"sel":{"comp":70},"to":"bone_5"},
-        {"sel":{"comp":71},"to":"tripoSpine_3"},
-        {"sel":{"comp":72},"to":"tripoHead_0"},
-        {"sel":{"comp":73},"to":"tripoHead_0"},
-        {"sel":{"comp":74},"to":"tripo1_Right_Limb_2"},
-        {"sel":{"comp":76},"to":"tripoSpine_2"},
-        {"sel":{"comp":77},"to":"tripoSpine_2"},
-        {"sel":{"comp":78},"to":"tripoHead_0"},
-        {"sel":{"comp":79},"to":"tripoHead_0"},
-        {"sel":{"comp":80},"to":"tripo1_Left_Limb_1"},
-        {"sel":{"comp":81},"to":"tripoSpine_2"},
-        {"sel":{"comp":82},"to":"tripo1_Left_Limb_1"},
-        {"sel":{"comp":85},"to":"tripo0_Left_Limb_0"},
-        {"sel":{"comp":86},"to":"tripo1_Right_Limb_2"},
-        {"sel":{"comp":87},"to":"tripo0_Left_Limb_2"},
-        {"sel":{"comp":89},"to":"bone_18"},
-        {"sel":{"comp":90},"to":"bone_5"},
-        {"sel":{"comp":91},"to":"tripoSpine_3"},
-        {"sel":{"comp":92},"to":"tripoSpine_3"},
-        {"sel":{"comp":93},"to":"tripo1_Left_Limb_0"},
-        {"sel":{"comp":94},"to":"bone_18"},
-        {"sel":{"comp":95},"to":"tripoSpine_3"},
-        {"sel":{"comp":96},"to":"tripoSpine_2"},
-        {"sel":{"comp":97},"to":"tripo1_Right_Limb_1"},
-        {"sel":{"comp":99},"to":"tripo0_Right_Limb_0"},
-        {"sel":{"comp":103},"to":"tripo1_Left_Limb_3"},
-        {"sel":{"comp":104},"to":"tripo1_Left_Limb_3"},
-        {"sel":{"comp":30},"to":"tripo0_Right_Limb_1"},
-        {"sel":{"comp":38},"to":"tripo0_Left_Limb_1"},
-        {"sel":{"comp":34},"to":"tripoSpine_2"},
-        {"sel":{"comp":44},"to":"tripo0_Left_Limb_0"},
-        {"sel":{"comp":47},"to":"tripo0_Left_Limb_0"},
-        {"sel":{"comp":39},"to":"tripo1_Right_Limb_2"}
-      ]
+      "rig": "rhino"
     }
   },
   "glacier": {

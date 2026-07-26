@@ -2926,3 +2926,68 @@ controllers via Gamepad API), AI opponents.
   maps checked per limb; `?rigtest` and the 12-mech showcase clean; ace soaks
   crash-free (rhino/titanus 1v1 and a 4-way with cranky+glacier+viper);
   `vite build` green; cranky/fenrir spot-checked unchanged.
+## Titanus throws ALTERNATE fists (user request, 2026-07-25)
+
+- The rocket fist now swaps hands shot to shot, both the animation and the
+  geometry. It rides the twin-cannon machinery that colossus/frogger/tempest
+  already use: `'fist'` joins the `twin` list in `Fighter.doRanged`, so
+  `_altSide` flips per shot, and the chosen side is stamped on `_fistSide` for
+  the weapon handler.
+- Mirrored clips are generated, not hand-authored: `fistLaunchL` /`fistCatchL`
+  come from the existing `mirrorRaw` helper (swap L/R joint names, negate y/z),
+  the same way `braceL`/`shootL` are made. Roster gains `rangedClipL`, and the
+  clip picker prefers it when `_altSide` — previously `def.rangedClip` short-
+  circuited the whole side-aware branch, so a mech with a named ranged clip
+  could never mirror it.
+  · Measured rather than eyeballed, because a front-on render of a punch aimed
+    at the camera is genuinely ambiguous: at the fire frame `fistLaunch` puts
+    the RIGHT arm at pitch -4.5°/yaw +6.3°/reach 3.28 with the left retracted,
+    and `fistLaunchL` puts the LEFT arm at -4.5°/-6.3°/3.28 with the right
+    retracted. An exact mirror.
+- The GEOMETRY follows the side too — `fistsplit.js` already cut both hands, so
+  this is just plumbing the side through: `launchFist(side)`, `catchFist(side)`,
+  `reachForFist(pos, side)` (plays the matching catch), `snapshot(side)`, and
+  `p.fistSide` so the projectile tells the owner which hand to re-dock.
+- `_fistOut` became a Set of sides. A throw is refused only when BOTH fists are
+  away, and if strict alternation lands on a hand that is still in flight he
+  throws the other one instead of skipping the shot. The round-reset restores
+  every side that is out.
+- Fixed on the way: the aim was still ranged off `muzzleR` for a LEFT throw, and
+  mid-clip the right arm is retracted behind him, so his left-hand shot left 7°
+  flatter than his right (-0.8° vs -8°). `fireRanged` now resolves the
+  alternating barrel BEFORE it ranges the shot, extending the existing
+  `rangedMuzzle` primary-barrel lookup from per-mech to per-shot.
+- Verified: four consecutive throws in a REAL battle alternate L,R,L,R with the
+  matching clip each time (`fistLaunchL`/`fistLaunch`), the matching geometry
+  group hidden each time (`[body,fistR,fistL]` = `[t,t,f]` then `[t,f,t]`), the
+  muzzle on the matching side (x -2.7 vs +2.7), and every throw leaving at yaw
+  0.0° with pitch -7.5°..-8° on BOTH hands after the fix; both fists restored
+  and `_fistOut` empty at the end; left punch VIEWed from 3/4 (arm horizontal,
+  knuckles leading); titanus attackmatrix ALL CONNECT; ace soaks crash-free
+  (titanus/viper, and two titanus + glacier so both fighters' splits and both
+  hands are exercised at once); `vite build` green.
+
+## Rhino: back to the Tripo rig (user call, 2026-07-25)
+
+- Owner judged the hand-authored rig worse in play, so `public/models/manifest.json`
+  puts rhino back on his ORIGINAL config: 15 `boneOverrides` + 67 `skinOps`, no
+  `rig` key, and the muzzle anchors exactly as the owner authored them against
+  the Tripo hand bones (`R` offset [0.224,0.102,0.221] rot [-91.5,-27.15,-163.29],
+  `L` offset [-0.349,0.087,0.042] rot [-104.21,15.35,167.89]).
+- The custom rig is PARKED, not deleted: `src/mechs/rigs/rhino.rig.js` and its
+  registry entry stay, and the whole custom-rig entry now sits in the manifest
+  `alt` block — so `?debug=models` still A/Bs the two and swapping back is one
+  key (`"rig": "rhino"` on the primary, drop boneOverrides/skinOps).
+- `modelScale` is unaffected: the pin (8.12531) was derived from the TRIPO rig,
+  and the pin wins over the head match either way, so rhino's rendered height is
+  identical before and after this revert (the custom rig would have head-matched
+  to 8.96 unpinned — the pin is exactly why a rig swap can't resize him).
+- The ranged-shot arm leveling (glbanim `RHINO_LEVEL`/`RHINO_LEAD`) was measured
+  on this rig originally and still holds: barrel elevation at the fire frame is
+  +0.6°, unchanged from when it was tuned.
+- reskin.js keeps `cutWelds`/`cutPairs`/`softSkin` (all opt-in, all default-off,
+  now used by no shipped rig) and `tools/cliptear.mjs` stays — they cost nothing
+  parked and are what any future re-rig of a welded service GLB will need.
+- Verified: rest + uppercut frames VIEWed (Tripo skinning back), muzzle aim
+  probe +0.6° at the fire frame, ace soak rhino/titanus crash-free,
+  `vite build` green.

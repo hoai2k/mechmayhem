@@ -16,6 +16,7 @@ const _carryTmp = new THREE.Vector3();
 const _carryOff = new THREE.Vector3();
 const _white = new THREE.Color(0xf4faff);
 const _charBlack = new THREE.Color(0x14100d); // burnt-out carbon shell
+const _woundRed = new THREE.Color(0xd8202e); // poison wound flush
 // Ranged clips that DON'T plant the mech: the shot plays over the top half
 // while movement keeps its legs. Everything else (braced artillery, the
 // sniper's aim, a ground pound) locks him down for the duration.
@@ -26,8 +27,12 @@ const WALK_MULT = 1.2;   // global ground-speed boost over roster stats
 const JUMP_MULT = 1.18;  // global jump boost
 const CHARGE_DASH_MAX = 3; // seconds of crouch that fully winds a charged dash
 // A thrown weapon (viper's daggers, aegis' lance) re-forges on its empty mount:
-// a beat of nothing, then it grows back over REGROW_TIME. Shared by the regrow
-// animation and by `weaponReady`, which picks which dagger viper still has.
+// the mount stays EMPTY for a delay, then grows back over REGROW_TIME. The
+// delay is PER THROW (regrowWeapon's second argument) because how long a gap
+// reads well depends on the weapon — viper's daggers want a long, obvious one
+// so you can see which forearm is bare, while aegis' lance is back before his
+// next javelin. Shared by the regrow animation and by `weaponReady`, which
+// picks whichever dagger viper still has.
 const REGROW_DELAY = 0.18;
 const REGROW_TIME = 0.5;
 // Where an unaimed ranged weapon assumes its target stands (world units). This
@@ -537,7 +542,9 @@ export class Fighter {
     const mv = this.def.moves.ranged;
     if (this.rangedCd > 0) return;
     this._moveAttack = false;
-    if (mv.type === 'fist' && this._fistOut) return; // fist still in flight
+    // both fists in flight — nothing left to throw (one out is fine, the other
+    // hand takes the shot)
+    if (mv.type === 'fist' && this._fistOut?.size >= 2) return;
     if (this.ammoMax !== undefined && this.ammo <= 0) {
       this.world.audio?.play('uiBack'); // dry click — find an ammo crate
       this.rangedCd = 0.4;
@@ -560,12 +567,13 @@ export class Fighter {
     } else {
       // Two-weapon mechs alternate sides shot to shot (mirrored animation) —
       // mortar (colossus), slime (frogger), lightning (tempest's arc bolts,
-      // one emitter per arm), and VIPER, who throws a forearm dagger: she has
-      // two, so she should not keep flinging the right one while the left hangs
-      // unused. The weapon handler reads _altSide to spawn from the matching
-      // muzzle, so the shot leaves the hand that just moved.
+      // one emitter per arm), VIPER, who throws a forearm dagger (she has two,
+      // so she should not keep flinging the right one while the left hangs
+      // unused), and TITANUS, who throws alternate rocket fists. The weapon
+      // handler reads _altSide to spawn from the matching muzzle, so the shot
+      // leaves the hand that just moved.
       const twin = mv.type === 'mortar' || mv.type === 'slime'
-        || mv.type === 'lightning' || mv.type === 'blade';
+        || mv.type === 'lightning' || mv.type === 'blade' || mv.type === 'fist';
       if (twin && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
       // A thrown DAGGER is a physical object, so the side has to be one she
       // actually HAS: alternate by default, but throw from the more re-forged
@@ -579,9 +587,17 @@ export class Fighter {
         const other = this._altSide ? 'bladeR' : 'bladeL';
         if (this.weaponReady(other) > this.weaponReady(want) + 0.05) this._altSide = !this._altSide;
       }
+      // Same story for a thrown FIST: it is gone until it flies home, so strict
+      // alternation can land on a hand that is still out there. Take the other
+      // one rather than skip the shot — doRanged already refused if BOTH are away.
+      if (mv.type === 'fist') {
+        if (this._fistOut?.has(this._altSide ? 'L' : 'R')) this._altSide = !this._altSide;
+        this._fistSide = this._altSide ? 'L' : 'R';   // read by WEAPONS.fist
+      }
       const mirrored = (mv.type === 'slime' || mv.type === 'lightning'
         || mv.type === 'blade') && this._altSide;
-      const clip = this.def.rangedClip
+      // a named ranged clip can still mirror: prefer rangedClipL on the off hand
+      const clip = (this._altSide && this.def.rangedClipL) || this.def.rangedClip
         || (mv.type === 'mortar' ? (this._altSide ? 'braceL' : 'brace')
         : mv.type === 'railgun' ? 'aim'
         : mv.type === 'groundpound' ? 'groundPound'
@@ -1200,30 +1216,30 @@ export class Fighter {
   // the one skinned mesh (fistsplit.js), so hiding that group + showing the dark
   // wrist cap is what opens the socket. Procedural bodies carry the fist as real
   // children of the hand joint, so scaling the joint away still does it there.
-  launchFist() {
-    if (!this.mech.fistSplit?.detach('R')) this.mech.joints.handR?.scale.setScalar(0.001);
-    this._fistOut = true;
+  launchFist(side = 'R') {
+    if (!this.mech.fistSplit?.detach(side)) this.mech.joints['hand' + side]?.scale.setScalar(0.001);
+    (this._fistOut ||= new Set()).add(side);
   }
 
   // the returning fist is a beat out — square toward it and reach the right
   // arm out open-wristed so the re-dock reads as a deliberate catch
-  reachForFist(fistPos) {
+  reachForFist(fistPos, side = 'R') {
     if (!this.alive || !this.canAct()) return;
     const dx = this.world.wrapDelta(fistPos.x - this.pos.x);
     const dz = this.world.wrapDelta(fistPos.z - this.pos.z);
     this.targetYaw = Math.atan2(dx, dz);
-    this.animator.play('fistCatch');
+    this.animator.play(side === 'L' ? 'fistCatchL' : 'fistCatch');
   }
 
-  catchFist() {
-    if (!this._fistOut) return;
-    this._fistOut = false;
+  catchFist(side = 'R') {
+    if (!this._fistOut?.has(side)) return;
+    this._fistOut.delete(side);
     // onReturn fires on ANY death of the projectile, not just a clean catch, so
-    // this is also the "it expired out there" restore — the fist can never be
+    // this is also the "it expired out there" restore — a fist can never be
     // left missing.
     const split = this.mech.fistSplit;
-    if (split) split.attach('R');
-    const j = this.mech.joints.handR;
+    if (split) split.attach(side);
+    const j = this.mech.joints['hand' + side];
     if (j) {
       if (!split) j.scale.setScalar(1);
       j.getWorldPosition(_v);
@@ -1248,7 +1264,7 @@ export class Fighter {
   // re-forging), 0 = just thrown, in between while it re-forges.
   weaponReady(joint) {
     const rg = this._regrow?.find((r) => r.joint === joint);
-    return rg ? clamp((rg.t - REGROW_DELAY) / REGROW_TIME, 0, 1) : 1;
+    return rg ? clamp((rg.t - rg.delay) / REGROW_TIME, 0, 1) : 1;
   }
 
   // Throw the weapon on `joint`: collapse the mount, then grow it back over
@@ -1256,14 +1272,14 @@ export class Fighter {
   // she can have the left one in flight while the right is still re-forging,
   // and a single slot would drop the earlier one and strand that blade at
   // scale 0 for the rest of the round. Re-throwing a side just restarts it.
-  regrowWeapon(joint) {
+  regrowWeapon(joint, delay = REGROW_DELAY) {
     const j = this.weaponMount(joint);
     if (!j) return;
     j.scale.setScalar(0.001);
     this._regrow = this._regrow || [];
     const rg = this._regrow.find((r) => r.joint === joint);
-    if (rg) rg.t = 0;
-    else this._regrow.push({ joint, t: 0 });
+    if (rg) { rg.t = 0; rg.delay = delay; }
+    else this._regrow.push({ joint, t: 0, delay });
   }
 
   updateRegrow(dt) {
@@ -1274,7 +1290,7 @@ export class Fighter {
       rg.t += dt;
       const j = this.weaponMount(rg.joint);
       if (!j) { list.splice(i, 1); continue; }
-      const k = clamp((rg.t - REGROW_DELAY) / REGROW_TIME, 0, 1);
+      const k = clamp((rg.t - rg.delay) / REGROW_TIME, 0, 1);
       j.scale.setScalar(Math.max(0.001, k));
       if (k > 0.05 && Math.random() < 0.5) {
         // re-forging shimmer at the grip
@@ -1500,6 +1516,74 @@ export class Fighter {
     }
   }
 
+  // POISON: a venom wound biting through the shell — the whole frame flushes
+  // red for an instant. Same lerp off the same _matBase cache as the other
+  // whole-body tints; w=0 restores the exact originals.
+  applyWoundFlash(w) {
+    if (w <= 0 && !this._woundTinted) return;
+    if (!this._matBase) this.applyWhiteout(0); // builds the material cache
+    this._woundTinted = w > 0;
+    for (const b of this._matBase) {
+      b.m.color.copy(b.color).lerp(_woundRed, w);
+      if (b.emissive) b.m.emissive.copy(b.emissive).lerp(_woundRed, w * 0.5);
+    }
+  }
+
+  // Drop the flush and hand the materials back to whoever else owns them —
+  // clearing straight to the base colors would wipe a charred or frozen body
+  // for a frame. Corruption repaints itself in updateGlitch.
+  clearWoundFlash() {
+    if (!this._woundTinted) return;
+    this._woundTinted = false;
+    if (this._charK > 0) this.applyCharring(this._charK);
+    else this.applyWhiteout(this._whiteW || 0);
+  }
+
+  // Venom doesn't burn steadily, it BITES: every so often another wound opens.
+  // Each one flushes the shell red for a beat and shudders the body, so a
+  // poisoned fighter reads as taking repeated hits instead of just standing in
+  // a green cloud while their bar drains.
+  //
+  // Runs POST-POSE (with the other joint FX, before the GLB re-sync) so the
+  // flinch lands on top of whatever clip is playing. The tint YIELDS to any
+  // stronger whole-body one — frost, charring, corruption all own the same
+  // materials, and a fight over them would strobe.
+  updatePoisonWounds(dt) {
+    const blocked = this._whiteW > 0.001 || this._charK > 0 || this._glitchTinted;
+    if (this.status.poison && this.alive && !blocked) {
+      this._woundNext = (this._woundNext ?? rand(0.15, 0.5)) - dt;
+      if (this._woundNext <= 0) {
+        this._woundNext = rand(0.55, 1.05);
+        this._wound = { t: 0, dur: 0.26, phase: rand(0, TAU), lean: rand(-1, 1) < 0 ? -1 : 1 };
+        // the bite itself: a spurt of venom off the spot it opened
+        const c = this.center();
+        this.world.effects.glows.emit(
+          c.x + rand(-0.5, 0.5) * this.scale, c.y + rand(-0.6, 0.6) * this.scale,
+          c.z + rand(-0.5, 0.5) * this.scale, rand(-2, 2), rand(1, 4), rand(-2, 2),
+          { life: 0.4, size: 1.5 * this.scale, color: 0x8cff3a, alpha: 0.95, drag: 0.4 });
+      }
+    } else {
+      this._woundNext = null;
+    }
+    const w = this._wound;
+    if (!w) { this.clearWoundFlash(); return; }
+    w.t += dt;
+    const k = 1 - clamp(w.t / w.dur, 0, 1);
+    if (blocked || !this.alive || k <= 0) {
+      this._wound = null;
+      this.clearWoundFlash();
+      return;
+    }
+    // hard in, fading out, stuttered so it reads as a FLICKER not a fade
+    this.applyWoundFlash(0.5 * k * k * (0.72 + 0.28 * Math.sin(w.t * 95)));
+    // and a damped shudder through the spine — small, fast, gone
+    const s = Math.sin(w.t * 48 + w.phase) * 0.055 * k;
+    const J = this.mech.joints;
+    if (J.hips) { J.hips.rotation.z += s * w.lean; J.hips.rotation.x += s * 0.55; }
+    if (J.torso) { J.torso.rotation.z -= s * 0.8; J.torso.rotation.x += s * 0.45; }
+    if (J.head) J.head.rotation.z += s * 0.5;
+  }
+
   // ================= NULLBOT corruption =================
   // lerp every body material toward one hard glitch color (w=0 restores
   // the exact originals) — the whole shell "renders wrong" for a beat
@@ -1715,6 +1799,10 @@ export class Fighter {
     this.setState('dead', 999);
     this.blocking = false;
     this.firing = false;
+    // a poison wound mid-flush would leave the wreck stuck red: update()
+    // early-outs once alive is false, so nothing would clear it
+    this._wound = null;
+    this.clearWoundFlash();
     this.animator.play('dead');
     this.world.audio?.play('explosionBig');
     const c = this.center();
@@ -2308,6 +2396,8 @@ export class Fighter {
     this.updateSpecialFx(dt);
     // ---- thrown weapons re-forging in the grip ----
     this.updateRegrow(dt);
+    // ---- poison bites: red flush + a flinch each time a wound opens ----
+    this.updatePoisonWounds(dt);
     // GLB rigs: everything above (heavy spins, palm clamps, scripted whirls)
     // wrote to the VIRTUAL joints — but the adapter already synced the bones
     // inside animator.update(), so those writes never reached the model
@@ -2580,7 +2670,12 @@ export class Fighter {
     // rather than starting the next round with a collapsed blade/lance
     for (const rg of this._regrow || []) this.weaponMount(rg.joint)?.scale.setScalar(1);
     this._regrow = null;
-    if (this._whiteW > 0) { this._whiteW = 0; this.applyWhiteout(0); }
+    this._wound = null;
+    this._woundNext = null;
+    this._woundTinted = false;
+    // unconditional: clears a frost white-out AND any lingering poison flush
+    this._whiteW = 0;
+    this.applyWhiteout(0);
     if (this._charK) { this._charK = 0; this.applyCharring(0); }
     this.pos.copy(pos);
     this.vel.set(0, 0, 0);
@@ -2614,9 +2709,11 @@ export class Fighter {
     this._lockAim = null;
     this._oneArmLift = false;
     this.clearChargeGlow();
-    if (this._fistOut) { // fist projectile died with the round — re-attach
-      this._fistOut = false;
-      if (!this.mech.fistSplit?.attach('R')) this.mech.joints.handR?.scale.setScalar(1);
+    if (this._fistOut?.size) { // fist projectile(s) died with the round — re-attach
+      for (const side of this._fistOut) {
+        if (!this.mech.fistSplit?.attach(side)) this.mech.joints['hand' + side]?.scale.setScalar(1);
+      }
+      this._fistOut.clear();
     }
     this.animator.action = null;
   }

@@ -9,6 +9,9 @@ import { FleaSystem } from '../combat/fleas.js';
 import { rand, clamp } from '../core/utils.js';
 
 const _v = new THREE.Vector3();
+// VIPER's thrown dagger: seconds the forearm stays visibly BARE before the
+// blade starts re-forging (Fighter.regrowWeapon's per-throw delay).
+const BLADE_REGROW_DELAY = 1.18;
 
 class Emitter {
   constructor() { this.map = new Map(); }
@@ -481,7 +484,13 @@ export class World {
     // (GLACIER's ice lance) names its barrel with roster `primaryMuzzle` and
     // pairs it with the mirrored clip (`rangedClip: 'shootL'`) — otherwise the
     // shot would leave an empty fist while the armed arm hangs at his side.
-    const muzzle = anchors[f.def.primaryMuzzle] || anchors.muzzleR;
+    // A mech that ALTERNATES hands shot to shot (TITANUS' rocket fist) picks its
+    // barrel per SHOT rather than per mech: Fighter.doRanged stamps the side it
+    // chose, and the aim has to range off the muzzle that is actually firing.
+    // Mid-clip the other arm is retracted somewhere behind him, and ranging off
+    // that one left his left-hand throw 7° flatter than his right.
+    const muzzle = (mv.type === 'fist' && f._fistSide === 'L' && anchors.muzzleL)
+      || anchors[f.def.primaryMuzzle] || anchors.muzzleR;
     const from = muzzle.getWorldPosition(new THREE.Vector3());
     const e = f.nearestEnemy();
     // AIMED shot (human held RB): fly straight at the crosshair's world
@@ -676,8 +685,15 @@ const WEAPONS = {
     // of that mesh, which is the SAME geometry that just vanished off his
     // wrist. Without a split available the built-in chunky-knuckle 'fist'
     // mesh carries the throw instead, so the move always works.
-    let skin = f.mech.fistSplit?.snapshot('R') || null;
-    const hand = f.mech.joints.handR;
+    // He alternates hands shot to shot (Fighter.doRanged picks the side and
+    // plays the mirrored clip), so everything below — the muzzle it leaves
+    // from, the geometry that detaches, the hand that re-docks it — follows
+    // that side rather than assuming the right.
+    // `from`/`dir` already come off the correct muzzle — fireRanged resolves the
+    // alternating barrel before it ranges the shot.
+    const side = f._fistSide === 'L' && anchors.muzzleL ? 'L' : 'R';
+    let skin = f.mech.fistSplit?.snapshot(side) || null;
+    const hand = f.mech.joints['hand' + side];
     if (!skin && hand && !f.mech.isGLB) {
       const c = hand.clone(true);
       const strip = [];
@@ -697,8 +713,9 @@ const WEAPONS = {
       knock: mv.knock, launch: 5, pierce: true, boomerang: true,
       maxDist: mv.range, life: 6, skin,
     });
-    p.onReturn = () => f.catchFist();
-    f.launchFist();
+    p.fistSide = side;                       // projectiles.js -> reachForFist
+    p.onReturn = () => f.catchFist(side);
+    f.launchFist(side);
     w.audio?.play('missile');
     w.effects.muzzleFlash(from);
   },
@@ -750,7 +767,10 @@ const WEAPONS = {
       dmg: mv.dmg * f.dmgMult(), speed: mv.speed, color: 0x5aff2e, knock: 5,
       status: { slow: 0.85, slowT: 1 },
     });
-    f.regrowWeapon?.(left ? 'bladeL' : 'bladeR');
+    // hold the bare forearm a good beat before it re-forges — long enough to
+    // actually SEE which dagger she just threw (the default beat is too quick
+    // to register on a mech that throws every 0.8s)
+    f.regrowWeapon?.(left ? 'bladeL' : 'bladeR', BLADE_REGROW_DELAY);
     w.audio?.play('slash');
   },
 
