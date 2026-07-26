@@ -23,6 +23,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Engine } from '../core/engine.js';
 import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
+import { altChoice, altCheckbox, reloadWithAlt } from './altpick.js';
 import { loadRawGlbScene, fetchRawManifest, skinnedBox, buildGlbForTool } from '../mechs/gltf.js';
 import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson } from '../mechs/skinops.js';
 import { CLIPS } from '../mechs/animations.js';
@@ -55,6 +56,14 @@ export async function runSkinTool(startId) {
   const manifest = await fetchRawManifest();
   const glbIds = ROSTER.map((r) => r.id).filter((id) => manifest[id]?.url);
   let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || ROSTER[0].id);
+  // ?alt=1 edits the manifest's `alt` entry — a second model (aegis, jerry) or
+  // the same model on a staged custom rig (rhino, inferno). The panel's "Edit
+  // Alternate GLB" box drives it; skinOps belong to whichever entry is loaded,
+  // which is why the export below writes into `alt` when one is.
+  const wantAlt = new URLSearchParams(location.search).get('alt') === '1';
+  // per-mech, because the dropdown switches mechs without a reload and most
+  // mechs have no alternate at all
+  let altOn = wantAlt && !!manifest[curId]?.alt?.url;
 
   // ---- state ----
   let holder = null;         // scaled group containing the raw scene
@@ -192,6 +201,8 @@ export async function runSkinTool(startId) {
 
   async function load(id) {
     curId = id;
+    altOn = wantAlt && !!manifest[id]?.alt?.url;
+    refreshAltRow();
     // keep the URL's ?mech= in sync so a reload / shared link reopens this mech.
     // replaceState (not pushState) avoids cluttering back-button history.
     try {
@@ -211,7 +222,7 @@ export async function runSkinTool(startId) {
     paintOp = null; paintSet = null; paintColorAttr = null;
     bindOpen = false; bindComp = null; bindRows = [];
     setOrbitPaintMode(false); updatePaintUI();
-    const raw = await loadRawGlbScene(id);
+    const raw = await loadRawGlbScene(id, { alt: altOn });
     if (!raw) { setStatus('no GLB for ' + id); return; }
     mesh = null;
     raw.scene.traverse((o) => {
@@ -248,7 +259,7 @@ export async function runSkinTool(startId) {
     // scene. Built with skinOps stripped so it can't touch the shared cached
     // geometry the raw scene was cloned from (it only ever supplies poses).
     try {
-      const built = await buildGlbForTool(ROSTER_BY_ID[id], { skinOps: [] });
+      const built = await buildGlbForTool(ROSTER_BY_ID[id], { skinOps: [] }, { alt: altOn });
       if (built?.mech?.isGLB && built.mech.boneMap && built.mech.premadeAnimator) {
         animMech = built.mech;
         animBones = new Map();
@@ -819,6 +830,16 @@ export async function runSkinTool(startId) {
   mechSel.onchange = () => load(mechSel.value);
   panel.appendChild(label('Mech'));
   panel.appendChild(mechSel);
+  // rebuilt on every mech switch — the control only exists for mechs that
+  // actually have an alternate
+  const altSlot = document.createElement('div');
+  panel.appendChild(altSlot);
+  function refreshAltRow() {
+    altSlot.textContent = '';
+    const row = altCheckbox(altChoice(manifest, curId, altOn), reloadWithAlt);
+    if (row) altSlot.appendChild(row);
+  }
+  refreshAltRow();
 
   const btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:6px;margin:4px 0';
@@ -1104,7 +1125,12 @@ export async function runSkinTool(startId) {
   panel.appendChild(actionBtn('Export ops ▶', () => {
     // export compacted (superseded ops dropped) + one-op-per-line so pasting
     // into manifest.json doesn't re-grow the file the compactor just shrank
-    const json = `{\n  "${curId}": {\n    "skinOps": ${skinOpsToJson(compactSkinOps(ops), '    ')}\n  }\n}`;
+    // the ops belong to the entry they were painted on: nest them under
+    // "alt" when the alternate build is loaded, or the patch would be pasted
+    // onto the wrong model
+    const json = altOn
+      ? `{\n  "${curId}": {\n    "alt": {\n      "skinOps": ${skinOpsToJson(compactSkinOps(ops), '      ')}\n    }\n  }\n}`
+      : `{\n  "${curId}": {\n    "skinOps": ${skinOpsToJson(compactSkinOps(ops), '    ')}\n  }\n}`;
     out.style.display = 'block';
     out.value = json;
     out.select();
@@ -1112,9 +1138,10 @@ export async function runSkinTool(startId) {
     const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `skin-${curId}.json`;
+    a.download = `skin-${curId}${altOn ? '-alt' : ''}.json`;
     a.click();
-    setStatus('Ops copied + downloaded. Merge into manifest.json under "' + curId + '".');
+    setStatus('Ops copied + downloaded. Merge into manifest.json under "'
+      + curId + (altOn ? '.alt' : '') + '".');
   }, true));
 
   const out = document.createElement('textarea');

@@ -67,15 +67,24 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
    A rig can also be TRIALLED the other way round — the primary keeps its
    Tripo intake and the NEW rig ships as the `alt` (`{"rig": "<id>"}` on the
    alt entry), so nothing in the game moves until someone judges the two side
-   by side and promotes it. `colossus` is set up that way.
+   by side and promotes it. `colossus` and `inferno` are set up that way.
+   The workbenches know about this: `?debug=skin` and `?rigedit` show an
+   **Edit Alternate GLB** checkbox for any mech with an `alt` (off by
+   default), and because a mech staged this way has exactly ONE editable
+   build, `?rigedit=<id>` opens the alt on its own — box ticked and disabled —
+   instead of refusing with "no custom rig to edit". Promotion is then a
+   manifest edit only: move `rig` onto the primary, keep the old entry as
+   `alt` (src/dev/altpick.js).
 5. Measure, don't eyeball: `node tools/cliptear.mjs <id> primary 1` vs
    `... <id> alt 1` runs the real Animator over every clip and reports the
    worst seam stretch for each build. Colossus: Tripo +0.34 mesh units,
-   custom rig +0.15.
+   custom rig +0.15. Inferno: Tripo +0.21, custom rig +0.11 — and at the
+   default 3-link rule the custom rig has ZERO far-hierarchy seam edges
+   against the Tripo rig's 19.
 
 Precedents (rig is the PRIMARY): `cranky`, `fenrir`, `glacier`, `jerry`,
-`rhino`, `titanus`, `viper`, `vulcan`, `wraith`. Offered as `alt`, awaiting
-judgment: `colossus`.
+`titanus`, `viper`, `vulcan`, `wraith`. Offered as `alt`, awaiting judgment:
+`colossus`, `inferno`, `rhino`.
 
 **Route B steps** (also see IMAGE_TO_MECH.md): §1–§4 below.
 

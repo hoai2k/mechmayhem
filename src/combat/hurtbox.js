@@ -408,7 +408,10 @@ function measureHurtbox(mech) {
 const _specCache = new Map();
 
 function specKey(mech) {
-  return mech.def.id + (mech.isGLB ? ':glb:' + (mech.glbUrl || '') : ':proc');
+  // gltf.js's glbKey covers every manifest field that moves a bone, so the
+  // primary and `alt` builds of one mech never share measurements even when
+  // they are the same GLB file wearing different rigs.
+  return mech.def.id + (mech.isGLB ? ':glb:' + (mech.glbKey || '') : ':proc');
 }
 
 /**

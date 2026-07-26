@@ -12,10 +12,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { Engine } from '../core/engine.js';
-import { loadRawGlbScene } from '../mechs/gltf.js';
+import { loadRawGlbScene, fetchRawManifest } from '../mechs/gltf.js';
 import { rigFor, rigIds } from '../mechs/rigs/index.js';
 import { applyCustomRig, setWeights, rebindRest, buildRigPosts } from '../mechs/reskin.js';
 import { JOINT_ORDER } from '../mechs/rigadapter.js';
+import { altChoice, altCheckbox, reloadWithAlt } from './altpick.js';
 
 const VIEW = 10;                 // display scale for the small raw model
 const JOINT_SET = new Set(JOINT_ORDER);
@@ -59,7 +60,14 @@ function showBlocker({ title, detail, hint }) {
 
 export async function runRigEdit(startId) {
   const id = startId && startId !== 'true' && startId !== '1' ? startId : 'cranky';
-  const useAlt = new URLSearchParams(location.search).get('alt') === '1';
+  // WHICH BUILD. A mech's custom rig may live on the manifest's `alt` entry
+  // rather than the primary (rhino, inferno — a re-rig staged for judging
+  // before promotion). That build is then the ONLY one with a rig to edit, so
+  // open it instead of bailing out; altpick.altChoice decides, and the panel's
+  // "Edit Alternate GLB" box shows the state (ticked + disabled when forced).
+  const manifest = await fetchRawManifest();
+  const alt = altChoice(manifest, id, new URLSearchParams(location.search).get('alt') === '1', 'rig');
+  const useAlt = alt.useAlt;
   const LS_KEY = () => `rigedit:${id}`;
   function loadRig() {
     const saved = localStorage.getItem(LS_KEY());
@@ -534,7 +542,9 @@ export async function runRigEdit(startId) {
     color:#dfe8f5;background:rgba(16,20,28,0.94);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:260px;max-height:96vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
-  panel.appendChild(hdr(`RIG EDITOR · ${id}`));
+  panel.appendChild(hdr(`RIG EDITOR · ${id}${useAlt ? ' · ALT' : ''}`));
+  const altRow = altCheckbox(alt, reloadWithAlt);
+  if (altRow) panel.appendChild(altRow);
 
   const modeRow = el('div', 'display:flex;gap:6px;margin:6px 0');
   const bMove = tog('Move', () => gizmo.setMode('translate'));

@@ -36,6 +36,13 @@ audio). Progress history: `TASKS.md`.
   are the fit metrics; `node tools/hurtboxfit.mjs` prints them for the whole
   roster on both routes, and `node tools/hitprobe.mjs "<battle url>"` reports
   the new melee test against the old one on a real fight.
+- Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
+  a second model, or the same model on a staged custom rig. `?debug=skin` and
+  `?rigedit` both show an **Edit Alternate GLB** checkbox for any mech that
+  has one (off by default; `&alt=1` in the URL). When a mech's custom rig
+  lives ONLY on its `alt` (inferno, rhino), `?rigedit=<id>` opens that build
+  instead of refusing, with the box ticked and disabled. Shared logic:
+  `src/dev/altpick.js`.
 - Hitboxes: `src/combat/hurtbox.js`. Bone-bound capsules measured off each
   model's own geometry, so they follow the animation; melee resolves on the
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
