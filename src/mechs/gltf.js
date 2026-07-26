@@ -111,7 +111,8 @@ function loadGLTF(url) {
 }
 
 // Force-build a GLB mech straight from the on-disk manifest, bypassing the
-// ?debug=3d gate. Used by the ?debug=models pose tool. `entryOverride` lets
+// ?debug=3d gate. Used by the ?debug=models and ?debug=pose workbenches.
+// `entryOverride` lets
 // the caller preview edited manifest fields (bindPose/boneCorrections/...)
 // without touching the committed file. Pass {alt:true} in opts to build the
 // mech's ALTERNATE model: manifest[id].alt is a complete standalone entry
@@ -181,7 +182,7 @@ function applyReparent(model, reparent) {
   }
 }
 
-// bind-skeleton nudges from the ?debug=models tool: `stretch` lengthens a bone's
+// bind-skeleton nudges from the ?debug=pose workbench: `stretch` lengthens a bone's
 // offset from its parent; `bonePos` translates a bone's rest position. Both act
 // on the mapped bones (in bone-local units) before offset capture / export.
 function applyBoneNudges(boneMap, entry) {
@@ -517,13 +518,13 @@ function buildGlbMech(def, entry, gltf) {
       rescaleAndReground(targetHeadY / glbHeadY);
     }
   }
-  // limb stretch + per-bone rest-position nudge (?debug=models), applied to the
+  // limb stretch + per-bone rest-position nudge (?debug=pose), applied to the
   // bind skeleton before offset capture. Shared with bakeMechScene.
   applyBoneNudges(boneMap, entry);
   const adapter = new RigAdapter(joints, boneMap, {
     bindPose: entry.bindPose ?? 'tpose',
     hipsScale: 1 / (scale || 1),
-    corrections: entry.boneCorrections, // from the ?debug=models pose tool
+    corrections: entry.boneCorrections, // from the ?debug=pose workbench
   });
   mech.postAnimate = () => { adapter.sync(); mech.postDress?.(); };
   mech.boneMap = boneMap;   // pose tool reaches bones by virtual-joint name
@@ -702,7 +703,7 @@ function buildGlbMech(def, entry, gltf) {
     if (minY !== Infinity) container.position.y = clampBaseY + (rootY - minY);
   };
 
-  // Visual-only floor lift for the ?debug=models pose tool. Raises just the
+  // Visual-only floor lift for the ?debug=models workbench. Raises just the
   // rendered model (the container is a CHILD of the physics group), so it never
   // touches the fighter's pos — which IS group.position (aliased), meaning a
   // lift on the group corrupts physics: it accumulates (mech floats up) and

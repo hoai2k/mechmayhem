@@ -110,7 +110,7 @@ lineup, saurion-v-fenrir engage (correct mutual facing), vite build green.
   bone sits at the procedural head-joint height, so GLB + procedural bodies
   read at the same size (raised tails/weapons/crystals no longer shrink the
   body). entry.heightScale still tunes per-mech.
-- `?debug=models` pose-matching tool (src/dev/posetool.js): procedural (left)
+- `?debug=models` action workbench (src/dev/posetool.js): procedural (left)
   vs GLB (right), orbit camera + per-bone rotate/translate gizmo. "Output
   config" emits a manifest patch — `boneCorrections` (local rotation applied
   after retargeting) and `bonePos` (rest-position nudge) — copied to clipboard
@@ -146,7 +146,7 @@ Not yet attempted — ~55 credits each; ~1005 credits remain.
 - Factoring contract (in the file header): shared motion -> animations.js /
   roster def; procedural personality -> animator.signature(); one GLB's
   interpretation -> its profile; a GLB's static bind alignment -> manifest
-  boneCorrections via ?debug=models (kept separate from restPose).
+  boneCorrections via ?debug=pose (kept separate from restPose).
 - Authored reinterpretations: AEGIS (shield rides the left forearm with no
   J.shield joint on the GLB — post presents it square to the front while
   guarding, reproducing the procedural intent); VIPER (blades ride ALONG the

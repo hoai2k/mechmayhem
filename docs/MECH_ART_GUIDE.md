@@ -63,7 +63,7 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
 3. Tune live in `?rigedit=<id>` (drag bones, Export pastes back).
 4. Keep the OLD entry verbatim as `alt` (+ `profileKey` if it needs its own
    glbanim profile) so the two builds can be compared: `?rigedit=<id>&alt=1`,
-   the pose tool's *Compare Alternate GLB*, `node tools/variantcheck.mjs <id>`.
+   `?debug=models`'s *Compare Alternate GLB*, `node tools/variantcheck.mjs <id>`.
 
 Precedents: `cranky`, `fenrir`, `glacier`, `jerry`, `titanus`, `wraith`.
 

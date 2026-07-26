@@ -1,25 +1,24 @@
-// ?debug=models — side-by-side PROCEDURAL vs GLB debugger for a mech.
+// ?debug=models — side-by-side PROCEDURAL vs GLB ACTION debugger for a mech.
 //
-// Two modes (toggle top-left):
-//  • ACTION — both models are live Fighters on a bare stage. A controller or
-//    the keyboard triggers the SAME attack on BOTH at once, with real
-//    projectiles, so you can compare the two renderings in motion. A speed
-//    slider slow-mos everything; a status panel names the current action and
-//    its known characteristics, tagging any that apply to only one version.
-//    The stage is EMPTY of opponents: attacks aim at combat's own no-target
-//    phantom (Fighter.aimPhantom), so a preview shows the exact trajectory the
-//    move takes in a real match with nothing in front of the mech.
-//  • POSE — both models frozen at the deterministic rest. A per-bone gizmo
-//    poses the GLB to match the procedural; "Output config" emits a manifest
-//    patch (boneCorrections / bonePos). A head-height guide shows the
-//    canonical size (GLB head matched to procedural head-top).
-//
-//   ?debug=models[&mech=<id>][&mode=action|pose][&left=proc|alt|solo]
+// Both models are live Fighters on a bare stage. A controller or the keyboard
+// triggers the SAME attack on BOTH at once, with real projectiles, so you can
+// compare the two renderings in motion. A speed slider slow-mos everything; a
+// status panel names the current action and its known characteristics, tagging
+// any that apply to only one version. The stage is EMPTY of opponents: attacks
+// aim at combat's own no-target phantom (Fighter.aimPhantom), so a preview
+// shows the exact trajectory the move takes in a real match with nothing in
+// front of the mech. The anchor editor (below the action buttons) rides along.
 //
 // LEFT SLOT (&left): what stands beside the mech under study — the procedural
 // body (default), the mech's alternate GLB, or nothing at all ('solo', which
 // centres the survivor). Mechs without an alternate get a Solo checkbox
 // instead of the three-way dropdown.
+//
+// POSING lives in its OWN workbench now — ?debug=pose (src/dev/posework.js):
+// joint gizmo, bone display, limb-length constraints, and both the clip-pose
+// and manifest bind-patch (boneCorrections / bonePos) exports.
+//
+//   ?debug=models[&mech=<id>][&left=proc|alt|solo]
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -29,9 +28,8 @@ import { Fighter } from '../combat/fighter.js';
 import { Input } from '../game/input.js';
 import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
-import { buildGlbForTool, fetchRawManifest, measureHeadTop } from '../mechs/gltf.js';
+import { buildGlbForTool, fetchRawManifest } from '../mechs/gltf.js';
 import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
-import { JOINT_ORDER } from '../mechs/rigadapter.js';
 import { describeAction, ACTIONS } from './actionchars.js';
 import { anchorUses } from './anchoruses.js';
 
@@ -65,14 +63,9 @@ export async function runPoseTool(startId) {
   orbit.target.set(0, 4, 2);
   orbit.update();
 
-  const gizmo = new TransformControls(camera, renderer.domElement);
-  gizmo.setSpace('local'); gizmo.setMode('rotate'); gizmo.setSize(0.7);
-  scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
-  gizmo.addEventListener('dragging-changed', (e) => { orbit.enabled = !e.value; });
-
-  // A SECOND gizmo dedicated to anchor editing, independent of the pose-mode
-  // joint gizmo so anchors stay draggable in ACTION mode — where the live
-  // previews (projectiles, muzzle flashes) spawn from the anchor you're moving.
+  // The anchor gizmo: anchors are draggable while the action plays, so the
+  // live previews (projectiles, muzzle flashes) spawn from the point you are
+  // moving. Joint posing lives in ?debug=pose.
   const anchorGizmo = new TransformControls(camera, renderer.domElement);
   anchorGizmo.setSpace('local'); anchorGizmo.setMode('translate'); anchorGizmo.setSize(0.55);
   scene.add(anchorGizmo.getHelper ? anchorGizmo.getHelper() : anchorGizmo);
@@ -85,7 +78,6 @@ export async function runPoseTool(startId) {
   const manifest = await fetchRawManifest();
   const glbIds = ROSTER.map((r) => r.id).filter((id) => manifest[id]?.url);
   let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || ROSTER[0].id);
-  let mode = params.get('mode') === 'pose' ? 'pose' : 'action';
   let timeScale = 1;
 
   // ---- live state ----
@@ -98,9 +90,6 @@ export async function runPoseTool(startId) {
   // where each fighter's home spot is. Solo re-centres the survivor so a lone
   // mech isn't parked off to one side of the camera.
   const homeX = (f) => (f && f === procF ? -PAIR_X : (soloMode ? 0 : PAIR_X));
-  let selJoint = null;
-  const base = {};                         // gizmo baseline (pose mode)
-  const refGroup = new THREE.Group(); scene.add(refGroup);
   const scratch = blankIntent(), pad = blankIntent(), prev = {};
   let lastAction = 'idle';
   // ---- anchor editor state ----
@@ -231,11 +220,9 @@ export async function runPoseTool(startId) {
   async function load(id) {
     curId = id;
     const u = new URL(location.href);
-    u.searchParams.set('mech', id); u.searchParams.set('mode', mode);
+    u.searchParams.set('mech', id);
     history.replaceState(null, '', u);
-    gizmo.detach(); selJoint = null;
     anchorGizmo.detach(); selAnchor = null;
-    for (const k of Object.keys(base)) delete base[k];
     for (const f of [procF, glbF]) disposeFighter(f);
     world.fighters.length = 0;
     if (Array.isArray(world.projectiles)) world.projectiles.length = 0;
@@ -277,34 +264,11 @@ export async function runPoseTool(startId) {
         patch: buildAnchorPatch, reset: resetAnchor, changed: anchorChanged,
         nearestBone, boneRefName, base: anchorBase,
         get sel() { return selAnchor; } } };
-    applyMode();
-    buildJointButtons();
     captureAnchorBase();
     buildAnchorButtons();
     anchorNote.textContent = '';
     anchorOut.style.display = 'none';
     setStatus('idle');
-  }
-
-  // ---- mode handling ----
-  function applyMode() {
-    const poseMode = mode === 'pose';
-    gizmo.visible = poseMode;
-    if (!poseMode) gizmo.detach();
-    refGroup.visible = poseMode;
-    poseModeUI.style.display = poseMode ? 'block' : 'none';
-    actionModeUI.style.display = poseMode ? 'none' : 'block';
-    if (poseMode) {
-      // freeze both at the deterministic rest and capture the gizmo baseline
-      procF?.animator.poseStatic();
-      glbF.animator.poseStatic();
-      for (const f of [procF, glbF]) { if (f) { f._floorLift = 0; f.mech.visualFloorLift?.(0); } }
-      drawSizeRef();
-      for (const [j, b] of Object.entries(glbF.mech.boneMap || {})) {
-        base[j] = { q: b.quaternion.clone(), p: b.position.clone() };
-      }
-    }
-    const u = new URL(location.href); u.searchParams.set('mode', mode); history.replaceState(null, '', u);
   }
 
   // ---- action input ----
@@ -347,29 +311,6 @@ export async function runPoseTool(startId) {
     }
     statusPanel.innerHTML = html;
   }
-
-  // ---- pose-mode size reference ----
-  function drawSizeRef() {
-    while (refGroup.children.length) {
-      const c = refGroup.children.pop(); c.geometry?.dispose?.(); c.material?.dispose?.();
-    }
-    if (!procF?.mech?.joints?.head) return;
-    const procHeadY = measureHeadTop(procF.mech);
-    const glbHeadY = glbF?.mech?.isGLB ? measureHeadTop(glbF.mech) : procHeadY;
-    const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-9, procHeadY, 0), new THREE.Vector3(9, procHeadY, 0)]),
-      new THREE.LineBasicMaterial({ color: 0x48b0ff }));
-    refGroup.add(line);
-    const dot = (x, y, col) => {
-      const mm = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: col }));
-      mm.position.set(x, y, 0); refGroup.add(mm);
-    };
-    if (procF) dot(-PAIR_X, procHeadY, 0x8fd8ff);
-    dot(homeX(glbF), glbHeadY, 0xffd060);
-    sizeReadout = `head top  proc ${procHeadY.toFixed(2)}  ·  glb ${glbHeadY.toFixed(2)}  (Δ ${(glbHeadY - procHeadY >= 0 ? '+' : '') + (glbHeadY - procHeadY).toFixed(2)})`;
-    if (sizeEl) sizeEl.textContent = sizeReadout;
-  }
-  let sizeReadout = '';
 
   // ================= ANCHOR EDITOR =================
   // Anchors are the mech's named spawn points — muzzleR/muzzleL (every ranged
@@ -460,7 +401,6 @@ export async function runPoseTool(startId) {
       selAnchor = null; anchorGizmo.detach(); refreshAnchorUI(); return;
     }
     selAnchor = name;
-    gizmo.detach(); selJoint = null;         // never hold both gizmos at once
     anchorGizmo.setMode(mode || anchorGizmo.mode || 'translate');
     anchorGizmo.attach(obj);
     refreshAnchorUI();
@@ -565,20 +505,7 @@ export async function runPoseTool(startId) {
     soloCheck.checked = slot === 'solo';
   }
 
-  // mode toggle
-  const modeRow = el('div', 'display:flex;gap:6px;margin-bottom:8px');
-  const bAction = toggle('▶ Action', () => setMode('action'));
-  const bPose = toggle('✋ Pose', () => setMode('pose'));
-  modeRow.append(bAction, bPose); panel.appendChild(modeRow);
-  function setMode(m) { mode = m; styleMode(); applyMode(); refreshAnchorUI(); }
-  function styleMode() {
-    for (const [b, m] of [[bAction, 'action'], [bPose, 'pose']]) {
-      const on = mode === m;
-      b.style.background = on ? '#2b6cb0' : '#1a2433'; b.style.color = on ? '#fff' : '#9fb2c8';
-    }
-  }
-
-  // ---------- ACTION-mode UI ----------
+  // ---------- ACTION UI ----------
   const actionModeUI = el('div', '');
   panel.appendChild(actionModeUI);
   actionModeUI.appendChild(label('Trigger action'));
@@ -628,64 +555,7 @@ export async function runPoseTool(startId) {
   const statusPanel = el('div', 'background:#0b0f16;border:1px solid #2c3648;border-radius:5px;padding:7px;min-height:60px');
   actionModeUI.appendChild(statusPanel);
 
-  // ---------- POSE-mode UI ----------
-  const poseModeUI = el('div', 'display:none');
-  panel.appendChild(poseModeUI);
-  const gizRow = el('div', 'display:flex;gap:6px;margin:2px 0 6px');
-  const bRot = toggle('Rotate', () => { gizmo.setMode('rotate'); markGiz(); });
-  const bMov = toggle('Translate', () => { gizmo.setMode('translate'); markGiz(); });
-  const bSpace = toggle('Local', () => { const l = gizmo.space === 'local'; gizmo.setSpace(l ? 'world' : 'local'); bSpace.textContent = l ? 'World' : 'Local'; });
-  gizRow.append(bRot, bMov, bSpace); poseModeUI.appendChild(label('Gizmo')); poseModeUI.appendChild(gizRow);
-  function markGiz() { for (const [b, m] of [[bRot, 'rotate'], [bMov, 'translate']]) { const on = gizmo.mode === m; b.style.background = on ? '#2b6cb0' : '#1a2433'; b.style.color = on ? '#fff' : '#9fb2c8'; } }
-  poseModeUI.appendChild(label('Joint'));
-  const jointGrid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px');
-  poseModeUI.appendChild(jointGrid);
-  const actRow = el('div', 'display:flex;gap:6px;margin:6px 0');
-  actRow.appendChild(btn('Reset joint', () => { if (selJoint && base[selJoint]) { const b = glbF.mech.boneMap[selJoint]; b.quaternion.copy(base[selJoint].q); b.position.copy(base[selJoint].p); } }));
-  actRow.appendChild(btn('Reset all', () => { for (const [j, b] of Object.entries(glbF.mech.boneMap || {})) if (base[j]) { b.quaternion.copy(base[j].q); b.position.copy(base[j].p); } }));
-  poseModeUI.appendChild(actRow);
-  poseModeUI.appendChild(btn('Output config ▶', outputConfig, true));
-  const out = el('textarea', `width:100%;height:130px;margin-top:8px;background:#0b0f16;color:#8fe;border:1px solid #2c3648;font:11px/1.35 ui-monospace,monospace;display:none`);
-  poseModeUI.appendChild(out);
-  const sizeEl = el('div', 'margin-top:8px;color:#9fb2c8;font-size:11px'); poseModeUI.appendChild(sizeEl);
-
-  function buildJointButtons() {
-    jointGrid.innerHTML = '';
-    const map = glbF?.mech?.boneMap || {};
-    for (const j of JOINT_ORDER) {
-      const has = !!map[j];
-      const b = el('button', `padding:3px 2px;font-size:11px;border-radius:4px;cursor:${has ? 'pointer' : 'not-allowed'};background:${has ? '#1a2433' : '#141821'};color:${has ? '#cfe0f5' : '#55606f'};border:1px solid #2c3648`);
-      b.textContent = j; b.disabled = !has;
-      if (has) b.onclick = () => {
-        selJoint = j; gizmo.attach(map[j]);
-        anchorGizmo.detach(); selAnchor = null; refreshAnchorUI();  // one gizmo at a time
-        for (const c of jointGrid.children) c.style.outline = ''; b.style.outline = '2px solid #48b0ff';
-      };
-      jointGrid.appendChild(b);
-    }
-  }
-  function outputConfig() {
-    const boneCorrections = {}, bonePos = {};
-    for (const [j, b] of Object.entries(glbF.mech.boneMap || {})) {
-      const bs = base[j]; if (!bs) continue;
-      const corr = bs.q.clone().invert().multiply(b.quaternion);
-      const e = new THREE.Euler().setFromQuaternion(corr, 'XYZ');
-      const dx = e.x * R2D, dy = e.y * R2D, dz = e.z * R2D;
-      if (Math.abs(dx) > 0.15 || Math.abs(dy) > 0.15 || Math.abs(dz) > 0.15) boneCorrections[j] = [rnd(dx), rnd(dy), rnd(dz)];
-      const pd = b.position.clone().sub(bs.p);
-      if (pd.length() > 1e-3) bonePos[j] = [rnd(pd.x, 4), rnd(pd.y, 4), rnd(pd.z, 4)];
-    }
-    const patch = {};
-    if (Object.keys(boneCorrections).length) patch.boneCorrections = boneCorrections;
-    if (Object.keys(bonePos).length) patch.bonePos = bonePos;
-    const json = JSON.stringify({ [curId]: patch }, null, 2);
-    out.style.display = 'block'; out.value = json; out.select();
-    navigator.clipboard?.writeText(json).catch(() => {});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    a.download = `pose-${curId}.json`; a.click();
-  }
-
-  // ---------- ANCHOR editor UI (both modes) ----------
+  // ---------- ANCHOR editor UI ----------
   panel.appendChild(label('Anchors — ranged / special origins (GLB, right)'));
   const anchorInfo = el('div', 'font:11px ui-monospace,monospace;color:#ffd9a0;margin-bottom:4px;min-height:1.3em');
   panel.appendChild(anchorInfo);
@@ -757,8 +627,7 @@ export async function runPoseTool(startId) {
     }
     const mech = glbF?.mech;
     anchorInfo.textContent = selAnchor && mech
-      ? `${selAnchor} · on ${parentLabel(mech, mech.anchors[selAnchor])} · ${anchorGizmo.mode}`
-        + (mode === 'action' ? ' · ANIM FROZEN' : '')
+      ? `${selAnchor} · on ${parentLabel(mech, mech.anchors[selAnchor])} · ${anchorGizmo.mode} · ANIM FROZEN`
       : 'Click an anchor to grab it · shift-click = rotate';
     // ---- what this anchor drives ----
     if (selAnchor) {
@@ -813,69 +682,65 @@ export async function runPoseTool(startId) {
   function btn(text, fn, primary) { const b = el('button', `width:100%;flex:1;padding:6px;border-radius:5px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:${primary ? '#1f7a4d' : '#1a2433'};color:${primary ? '#fff' : '#cfe0f5'}`); b.textContent = text; b.onclick = fn; return b; }
   function rnd(v, d = 2) { const m = 10 ** d; return Math.round(v * m) / m; }
 
-  styleMode(); markGiz(); setSpeed(100);
+  setSpeed(100);
   await load(curId);
 
   // ---- loop ----
   engine.onUpdate = (dt) => {
     input.poll();
-    if (mode === 'action') {
-      readCombined(scratch);
-      // fold in on-screen button presses (held-style)
-      for (const [k, v] of Object.entries(uiPress)) {
-        if (!v) continue;
-        if (k === 'walk') { scratch.moveZ = 1; }  // hold-to-walk forward
-        else if (k === 'ranged') { scratch.ranged = scratch.rangedHeld = true; }
-        else if (k === 'block') scratch.block = true;
-        else { scratch[k] = true; scratch[k + 'Held'] = true; }
-      }
-      // one-shot presses: the ult rides the intent, the knockdown is applied
-      // to the fighters directly further down
-      if (pulse.ult) scratch.ult = true;
-      // a NEW action press snaps everyone home first, so the move plays out
-      // from the reference spot (translation from the previous move is temporary)
-      if (detectAction()) { resetPositions(); lastWasWalk = false; }
+    readCombined(scratch);
+    // fold in on-screen button presses (held-style)
+    for (const [k, v] of Object.entries(uiPress)) {
+      if (!v) continue;
+      if (k === 'walk') { scratch.moveZ = 1; }  // hold-to-walk forward
+      else if (k === 'ranged') { scratch.ranged = scratch.rangedHeld = true; }
+      else if (k === 'block') scratch.block = true;
+      else { scratch[k] = true; scratch[k + 'Held'] = true; }
+    }
+    // one-shot presses: the ult rides the intent, the knockdown is applied
+    // to the fighters directly further down
+    if (pulse.ult) scratch.ult = true;
+    // a NEW action press snaps everyone home first, so the move plays out
+    // from the reference spot (translation from the previous move is temporary)
+    if (detectAction()) { resetPositions(); lastWasWalk = false; }
+    for (const f of [procF, glbF]) {
+      if (!f) continue;
+      copyIntent(f.intent, scratch);
+      f.hp = f.maxHp; f.ult = 1; f.specialCd = 0; f.rangedCd = 0; f.iframes = 0;
+      if (f.ammoMax !== undefined) f.ammo = f.ammoMax;
+    }
+    if (pulse.fall) knockBothDown();
+    pulse.ult = pulse.fall = false;
+    world.update(dt);      // dt pre-scaled by engine.timeScale
+    if (selAnchor) {
+      // ANCHOR EDITING: hold both mechs at the deterministic rest so the
+      // geometry under the handle stays still while you place the point.
+      // poseStatic only rewrites the visual pose — the action state machine
+      // keeps running underneath, so firing still previews from the anchor.
       for (const f of [procF, glbF]) {
         if (!f) continue;
-        copyIntent(f.intent, scratch);
-        f.hp = f.maxHp; f.ult = 1; f.specialCd = 0; f.rangedCd = 0; f.iframes = 0;
-        if (f.ammoMax !== undefined) f.ammo = f.ammoMax;
+        f.pos.set(homeX(f), 0, 0); f.vel.set(0, 0, 0);
+        f.yaw = f.targetYaw = f.torsoYaw = 0;
+        f._floorLift = 0; f.mech.visualFloorLift?.(0);
+        f.animator.poseStatic();
       }
-      if (pulse.fall) knockBothDown();
-      pulse.ult = pulse.fall = false;
-      world.update(dt);      // dt pre-scaled by engine.timeScale
-      if (selAnchor) {
-        // ANCHOR EDITING: hold both mechs at the deterministic rest so the
-        // geometry under the handle stays still while you place the point.
-        // poseStatic only rewrites the visual pose — the action state machine
-        // keeps running underneath, so firing still previews from the anchor.
-        for (const f of [procF, glbF]) {
-          if (!f) continue;
-          f.pos.set(homeX(f), 0, 0); f.vel.set(0, 0, 0);
-          f.yaw = f.targetYaw = f.torsoYaw = 0;
-          f._floorLift = 0; f.mech.visualFloorLift?.(0);
-          f.animator.poseStatic();
-        }
-        idleT = 0;
-      } else {
-        floorClamp(glbF, dt); floorClamp(procF, dt);  // keep GLB rigid-limb overshoot on the floor
-      }
-      input.endFrame();
-      // settle-reset: snap home a few REAL seconds after everything is at
-      // rest (slow-mo doesn't stretch the wait) — 2s after the stick is
-      // released from a walk, 3s after an action finishes
-      const walking = Math.abs(scratch.moveX) > 0.08 || Math.abs(scratch.moveZ) > 0.08;
-      if (walking) lastWasWalk = true;
-      const busy = walking || fighterBusy(procF) || fighterBusy(glbF);
-      const moved = displaced(procF, homeX(procF)) || displaced(glbF, homeX(glbF));
-      if (busy) idleT = 0;
-      else if (moved) {
-        idleT += dt / (engine.timeScale || 1);
-        if (idleT > (lastWasWalk ? 2 : 3)) resetPositions();
-      } else idleT = 0;
+      idleT = 0;
     } else {
-      input.endFrame();
+      floorClamp(glbF, dt); floorClamp(procF, dt);  // keep GLB rigid-limb overshoot on the floor
     }
+    input.endFrame();
+    // settle-reset: snap home a few REAL seconds after everything is at
+    // rest (slow-mo doesn't stretch the wait) — 2s after the stick is
+    // released from a walk, 3s after an action finishes
+    const walking = Math.abs(scratch.moveX) > 0.08 || Math.abs(scratch.moveZ) > 0.08;
+    if (walking) lastWasWalk = true;
+    const busy = walking || fighterBusy(procF) || fighterBusy(glbF);
+    const moved = displaced(procF, homeX(procF)) || displaced(glbF, homeX(glbF));
+    if (busy) idleT = 0;
+    else if (moved) {
+      idleT += dt / (engine.timeScale || 1);
+      if (idleT > (lastWasWalk ? 2 : 3)) resetPositions();
+    } else idleT = 0;
   };
   engine.onRender = () => {
     orbit.update();
