@@ -667,8 +667,8 @@
   },
   "viper": {
     "muzzles": {
-      "R": {"bone":"elbowR","offset":[0.117,-0.711,-0.458],"rot":[96.42,10.02,-136.28]},
-      "L": {"bone":"handL","offset":[0.001,-0.068,0.09],"rot":[82.49,11.1,-7.38]},
+      "R": {"bone":"elbowR","offset":[0.117,-0.711,-0.458],"rot":[101.91,-5.45,6.71]},
+      "L": {"bone":"handL","offset":[0.001,-0.068,0.09],"rot":[78.08,-5.25,4.26]},
       "bladeL": {"bone":"bladeLtip","offset":[0,0,0]},
       "bladeR": {"bone":"bladeRtip","offset":[0,0,0]}
     },
