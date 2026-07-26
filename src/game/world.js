@@ -9,6 +9,9 @@ import { FleaSystem } from '../combat/fleas.js';
 import { rand, clamp } from '../core/utils.js';
 
 const _v = new THREE.Vector3();
+// VIPER's thrown dagger: seconds the forearm stays visibly BARE before the
+// blade starts re-forging (Fighter.regrowWeapon's per-throw delay).
+const BLADE_REGROW_DELAY = 1.18;
 
 class Emitter {
   constructor() { this.map = new Map(); }
@@ -764,7 +767,10 @@ const WEAPONS = {
       dmg: mv.dmg * f.dmgMult(), speed: mv.speed, color: 0x5aff2e, knock: 5,
       status: { slow: 0.85, slowT: 1 },
     });
-    f.regrowWeapon?.(left ? 'bladeL' : 'bladeR');
+    // hold the bare forearm a good beat before it re-forges — long enough to
+    // actually SEE which dagger she just threw (the default beat is too quick
+    // to register on a mech that throws every 0.8s)
+    f.regrowWeapon?.(left ? 'bladeL' : 'bladeR', BLADE_REGROW_DELAY);
     w.audio?.play('slash');
   },
 

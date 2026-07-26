@@ -27,8 +27,12 @@ const WALK_MULT = 1.2;   // global ground-speed boost over roster stats
 const JUMP_MULT = 1.18;  // global jump boost
 const CHARGE_DASH_MAX = 3; // seconds of crouch that fully winds a charged dash
 // A thrown weapon (viper's daggers, aegis' lance) re-forges on its empty mount:
-// a beat of nothing, then it grows back over REGROW_TIME. Shared by the regrow
-// animation and by `weaponReady`, which picks which dagger viper still has.
+// the mount stays EMPTY for a delay, then grows back over REGROW_TIME. The
+// delay is PER THROW (regrowWeapon's second argument) because how long a gap
+// reads well depends on the weapon — viper's daggers want a long, obvious one
+// so you can see which forearm is bare, while aegis' lance is back before his
+// next javelin. Shared by the regrow animation and by `weaponReady`, which
+// picks whichever dagger viper still has.
 const REGROW_DELAY = 0.18;
 const REGROW_TIME = 0.5;
 // Where an unaimed ranged weapon assumes its target stands (world units). This
@@ -1260,7 +1264,7 @@ export class Fighter {
   // re-forging), 0 = just thrown, in between while it re-forges.
   weaponReady(joint) {
     const rg = this._regrow?.find((r) => r.joint === joint);
-    return rg ? clamp((rg.t - REGROW_DELAY) / REGROW_TIME, 0, 1) : 1;
+    return rg ? clamp((rg.t - rg.delay) / REGROW_TIME, 0, 1) : 1;
   }
 
   // Throw the weapon on `joint`: collapse the mount, then grow it back over
@@ -1268,14 +1272,14 @@ export class Fighter {
   // she can have the left one in flight while the right is still re-forging,
   // and a single slot would drop the earlier one and strand that blade at
   // scale 0 for the rest of the round. Re-throwing a side just restarts it.
-  regrowWeapon(joint) {
+  regrowWeapon(joint, delay = REGROW_DELAY) {
     const j = this.weaponMount(joint);
     if (!j) return;
     j.scale.setScalar(0.001);
     this._regrow = this._regrow || [];
     const rg = this._regrow.find((r) => r.joint === joint);
-    if (rg) rg.t = 0;
-    else this._regrow.push({ joint, t: 0 });
+    if (rg) { rg.t = 0; rg.delay = delay; }
+    else this._regrow.push({ joint, t: 0, delay });
   }
 
   updateRegrow(dt) {
@@ -1286,7 +1290,7 @@ export class Fighter {
       rg.t += dt;
       const j = this.weaponMount(rg.joint);
       if (!j) { list.splice(i, 1); continue; }
-      const k = clamp((rg.t - REGROW_DELAY) / REGROW_TIME, 0, 1);
+      const k = clamp((rg.t - rg.delay) / REGROW_TIME, 0, 1);
       j.scale.setScalar(Math.max(0.001, k));
       if (k > 0.05 && Math.random() < 0.5) {
         // re-forging shimmer at the grip
