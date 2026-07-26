@@ -4,8 +4,12 @@
 //
 // Pick a mech, optionally load one of ITS OWN poses as a starting point (the
 // dropdown lists only the clips that mech can actually play — vulcan's ult
-// pose is in his list because vulcan is the one who casts it), then drag joints
-// with the gizmo and hit "Copy pose". The export is a clip-key pose block in
+// pose is in his list because vulcan is the one who casts it), then CLICK A
+// JOINT IN THE VIEWPORT (the cyan dots, or just the body part you want — the
+// nearest joint wins), drag the gizmo and hit "Copy pose". The joint buttons in
+// the panel do the same thing for joints that are hard to hit on screen.
+// R / T switch the gizmo between rotate and translate, G flips local/world,
+// Esc deselects. The export is a clip-key pose block in
 // DEGREES, the same shape animations.js is authored in, so a pose dialled here
 // can be pasted straight into a clip — or handed to someone as "this is the arm
 // pose I want".
@@ -73,12 +77,19 @@ export async function runPoseWork(startId) {
   orbit.update();
 
   const gizmo = new TransformControls(camera, renderer.domElement);
-  gizmo.setSpace('local'); gizmo.setMode('rotate'); gizmo.setSize(0.8);
+  gizmo.setSpace('local'); gizmo.setMode('rotate'); gizmo.setSize(1.05);
+  // r166 hands you the controls object itself; newer three wants getHelper().
   scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
-  gizmo.addEventListener('dragging-changed', (e) => { orbit.enabled = !e.value; });
+  let dragging = false;      // gizmo has the pointer
+  let swallowClick = false;  // the click that ended a gizmo drag is not a pick
+  gizmo.addEventListener('dragging-changed', (e) => {
+    orbit.enabled = !e.value;
+    dragging = e.value;
+    if (!e.value) swallowClick = true;
+  });
 
   // ---- live state ----
-  let mech = null, animator = null, selJoint = null;
+  let mech = null, animator = null, selJoint = null, hoverJoint = null;
   let restPose = null;          // animator rest — the baseline the export diffs
   const hipsHome = new THREE.Vector3();
   const jointHome = {};         // every joint's rest local position (reset target)
@@ -94,7 +105,7 @@ export async function runPoseWork(startId) {
     u.searchParams.set('mech', id);
     u.searchParams.set('model', useGlb ? 'glb' : 'proc');
     history.replaceState(null, '', u);
-    gizmo.detach(); selJoint = null;
+    gizmo.detach(); selJoint = null; hoverJoint = null;
     if (mech) {
       scene.remove(mech.group);
       mech.group.traverse((o) => {
@@ -137,7 +148,8 @@ export async function runPoseWork(startId) {
     window.__poseWork = {
       get mech() { return mech; }, get animator() { return animator; },
       get sel() { return selJoint; },
-      select: selectJoint, loadClip: applyClipPose, pose: readPose,
+      gizmo, camera, pick: pickJoint,
+      select: selectJoint, deselect, loadClip: applyClipPose, pose: readPose,
       patch: bindPatch, reset: resetAll,
       setConstrain: (v) => { constrain = !!v; conCheck.checked = constrain; applyConstraint(); },
     };
@@ -147,11 +159,20 @@ export async function runPoseWork(startId) {
   // colossus, so a fixed camera either crops the head off or loses him.
   function frameCamera() {
     mech.group.updateWorldMatrix(true, true);
-    // head top, measured off the posed skin (Box3 reads a skinned mesh at its
-    // BIND pose, which is the wrong size for whatever is on screen)
-    const h = Math.max(2, measureHeadTop(mech) || 6);
+    // How tall is this thing, really? measureHeadTop reads the POSED skin (a
+    // Box3 would read a skinned mesh at its BIND pose, the wrong size for
+    // what's on screen) — but it can come back short when a GLB's head bone
+    // owns few verts, and a short answer parks the camera inside the mech.
+    // The joint fan-out is the sanity check: nothing sits above the head, so
+    // the tallest joint is a hard floor on the height.
+    let top = 0;
+    for (const j of JOINT_ORDER) {
+      const o = mech.joints[j];
+      if (o) top = Math.max(top, o.getWorldPosition(_wa).y);
+    }
+    const h = Math.max(3, measureHeadTop(mech) || 0, top * 1.12);
     orbit.target.set(0, h * 0.55, 0);
-    camera.position.set(h * 0.5, h * 0.72, h * 2.1);
+    camera.position.set(h * 0.55, h * 0.78, h * 1.85);
     orbit.update();
   }
 
@@ -212,7 +233,9 @@ export async function runPoseWork(startId) {
     }
     animator.action = null;      // hand the joints over to the gizmo
     loadedFrom = `${name} @ t=${t.toFixed(2)}`;
-    gizmo.detach(); selJoint = null;
+    // keep the selection across a clip load — scrubbing the time slider while
+    // holding a joint is the whole point of the slider
+    if (selJoint && mech.joints[selJoint]) gizmo.attach(mech.joints[selJoint]);
     refreshJointButtons();
     note.textContent = `Loaded ${loadedFrom}`;
   }
@@ -297,15 +320,103 @@ export async function runPoseWork(startId) {
   }
 
   // ================= editing =================
-  function selectJoint(j) {
-    const o = mech.joints[j];
+  function selectJoint(j, toggle = true) {
+    const o = mech?.joints[j];
     if (!o) return;
-    if (selJoint === j) { selJoint = null; gizmo.detach(); refreshJointButtons(); return; }
+    if (toggle && selJoint === j) return deselect();
     selJoint = j;
     gizmo.attach(o);
     applyConstraint();
     refreshJointButtons();
   }
+  function deselect() {
+    selJoint = null;
+    gizmo.detach();
+    refreshJointButtons();
+  }
+
+  // ---- clicking a joint in the 3D view ----
+  // Two ways to hit one, tried in order:
+  //   1. the joint DOTS — nearest joint whose screen position is within
+  //      PICK_PX of the cursor. The dots draw through the model (depthTest
+  //      off), so what you can see is what you can click.
+  //   2. the BODY — raycast the mech and hand the hit to the closest joint.
+  //      Grabbing a forearm and getting the elbow is what you meant anyway.
+  const PICK_PX = 26;
+  const ray = new THREE.Raycaster();
+  const _ndc = new THREE.Vector2();
+  const _pv = new THREE.Vector3();
+  function pickJoint(cx, cy) {
+    if (!mech) return null;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const px = cx - rect.left, py = cy - rect.top;
+    mech.group.updateWorldMatrix(true, true);
+    let best = null, bestD = PICK_PX, bestZ = Infinity;
+    for (const j of JOINT_ORDER) {
+      const o = mech.joints[j];
+      if (!o) continue;
+      o.getWorldPosition(_pv).project(camera);
+      if (_pv.z > 1) continue;                       // behind the camera
+      const sx = (_pv.x * 0.5 + 0.5) * rect.width;
+      const sy = (-_pv.y * 0.5 + 0.5) * rect.height;
+      const d = Math.hypot(sx - px, sy - py);
+      // ties inside the pick radius go to the joint nearest the camera, so a
+      // near shoulder wins over the far one lined up behind it
+      if (d <= bestD && (d < bestD - 4 || _pv.z < bestZ)) { best = j; bestD = d; bestZ = _pv.z; }
+    }
+    if (best) return best;
+    _ndc.set((px / rect.width) * 2 - 1, -(py / rect.height) * 2 + 1);
+    ray.setFromCamera(_ndc, camera);
+    const hits = ray.intersectObject(mech.group, true)
+      .filter((h) => h.object.visible && h.object.type !== 'Line');
+    if (!hits.length) return null;
+    const p = hits[0].point;
+    let jBest = null, jD = Infinity;
+    for (const j of JOINT_ORDER) {
+      const o = mech.joints[j];
+      if (!o) continue;
+      const d = o.getWorldPosition(_pv).distanceTo(p);
+      if (d < jD) { jD = d; jBest = j; }
+    }
+    return jBest;
+  }
+
+  const canvas = renderer.domElement;
+  let downX = 0, downY = 0;
+  canvas.addEventListener('pointerdown', (e) => { downX = e.clientX; downY = e.clientY; });
+  canvas.addEventListener('pointermove', (e) => {
+    if (dragging || gizmo.axis) { hoverJoint = null; canvas.style.cursor = ''; return; }
+    hoverJoint = pickJoint(e.clientX, e.clientY);
+    canvas.style.cursor = hoverJoint ? 'pointer' : '';
+    hoverTag.style.display = hoverJoint ? 'block' : 'none';
+    if (hoverJoint) {
+      hoverTag.textContent = hoverJoint;
+      hoverTag.style.left = `${e.clientX + 12}px`;
+      hoverTag.style.top = `${e.clientY + 12}px`;
+    }
+  });
+  canvas.addEventListener('pointerleave', () => {
+    hoverJoint = null; hoverTag.style.display = 'none';
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    // the gizmo's own listeners run first (it was constructed first), so by
+    // here a finished drag has already cleared `dragging` — swallowClick is
+    // what keeps letting go of a rotate ring from re-picking a joint
+    if (swallowClick) { swallowClick = false; return; }
+    if (e.button !== 0 || dragging || gizmo.axis) return;
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return;   // that was an orbit
+    const j = pickJoint(e.clientX, e.clientY);
+    if (j) { selectJoint(j, false); note.textContent = `Selected ${j}`; } else deselect();
+  });
+  // R rotate · T translate · G local/world · Esc deselect
+  window.addEventListener('keydown', (e) => {
+    if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
+    const k = e.key.toLowerCase();
+    if (k === 'r') { gizmo.setMode('rotate'); markGiz(); }
+    else if (k === 't') { if (!bMov.disabled) { gizmo.setMode('translate'); markGiz(); } }
+    else if (k === 'g') bSpace.onclick();
+    else if (e.key === 'Escape') deselect();
+  });
   // THE CONSTRAINT: clips rotate joints, they never move them — the hips are
   // the one exception. With it on, a limb joint is given no translate handle,
   // so its bone length cannot be changed by accident.
@@ -343,6 +454,7 @@ export async function runPoseWork(startId) {
   // ================= bone display =================
   const boneMat = new THREE.MeshBasicMaterial({ color: 0x62e0ff, depthTest: false });
   const boneSelMat = new THREE.MeshBasicMaterial({ color: 0xffc447, depthTest: false });
+  const boneHoverMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false });
   const linkMat = new THREE.LineBasicMaterial({ color: 0x2f7f9c, depthTest: false });
   const dots = [];
   function buildBoneMarks() {
@@ -351,10 +463,11 @@ export async function runPoseWork(startId) {
       c.geometry?.dispose?.();
     }
     dots.length = 0;
-    const r = (mech.dims?.scale || 1) * 0.1;
     for (const j of JOINT_ORDER) {
       if (!mech.joints[j]) continue;
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), boneMat);
+      // unit sphere, re-scaled per frame by distance — a jerry-sized mech and
+      // colossus both get dots you can actually hit with the mouse
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10), boneMat);
       dot.renderOrder = 998;
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), linkMat);
@@ -371,7 +484,12 @@ export async function runPoseWork(startId) {
       const o = mech.joints[d.j];
       o.getWorldPosition(_wa);
       d.dot.position.copy(_wa);
-      d.dot.material = d.j === selJoint ? boneSelMat : boneMat;
+      const sel = d.j === selJoint, hov = d.j === hoverJoint;
+      d.dot.material = sel ? boneSelMat : (hov ? boneHoverMat : boneMat);
+      // constant on-screen size (~9px radius at this FOV), so the dot is the
+      // same click target whether you're framed on the whole mech or a hand
+      const dist = camera.position.distanceTo(_wa);
+      d.dot.scale.setScalar(dist * (sel || hov ? 0.0145 : 0.011));
       // link back to the nearest ANCESTOR that is itself a posable joint, so
       // the display reads as the rig's own skeleton rather than the raw scene
       let p = o.parent, host = null;
@@ -497,8 +615,16 @@ export async function runPoseWork(startId) {
     border:1px solid #2c3648;font:11px/1.35 ui-monospace,monospace;display:none`);
   panel.appendChild(out);
   const help = el('div', 'color:#7d8ea3;font-size:10px;margin-top:8px');
-  help.textContent = 'Orbit: drag empty space · Zoom: wheel · Click a joint, then drag the gizmo rings.';
+  help.innerHTML = 'Click a joint dot (or the body part) to select it, then drag the gizmo.<br>' +
+    'Orbit: drag empty space · Zoom: wheel · <b>R</b> rotate · <b>T</b> translate · ' +
+    '<b>G</b> local/world · <b>Esc</b> deselect.';
   panel.appendChild(help);
+
+  // cursor-follow name tag for the joint under the pointer
+  const hoverTag = el('div', `position:fixed;display:none;pointer-events:none;z-index:30;
+    background:#0b0f16dd;border:1px solid #2c3648;border-radius:4px;padding:2px 6px;
+    font:11px/1.3 ui-monospace,monospace;color:#8fe`);
+  document.body.appendChild(hoverTag);
 
   markGiz();
   await load(curId);

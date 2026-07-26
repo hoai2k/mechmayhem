@@ -12,6 +12,16 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
+- **Latest:** per-mech HITBOXES (`src/combat/hurtbox.js`). Every mech was one
+  1.7×scale sphere; it is now a set of bone-bound capsules measured off the
+  model's own geometry (GLB: skinned verts bucketed by dominant bone; proc:
+  meshes under each rig joint), so the shape matches the silhouette AND
+  follows the animation. Melee resolves on the STRIKING LIMB — a swept
+  capsule from elbow/knee to just past the fist/foot — instead of a ball
+  hung off the sternum, and bullets/beams test the swept step against the
+  capsules. `hitRadius` is untouched (AoE falloff, camera). New workbench
+  `?debug=collider`, plus `tools/hurtboxfit.mjs` (per-mech fit audit) and
+  `tools/hitprobe.mjs` (new-vs-old melee comparison on a live fight).
 - **Branch:** `claude/3d-mech-battle-game-uxps6q`
 
 ## Tech stack
@@ -3226,3 +3236,88 @@ artifact — the workbench was showing shipping behaviour correctly.
   actually travels down the target line, so its steering reads better too.
 - Verified: strike frame VIEWed front + side on rhino and on nullbot; ace soaks
   crash-free rhino/titanus, nullbot/glacier, fenrir/viper; `vite build` green.
+## Tempest heavy: the T was being flattened by the strike servo (user request, 2026-07-25)
+
+- The T looked right in the showcase and WRONG in battle, and the clip wasn't
+  the reason. Every heavy calls `trackStrikeVictim`, whose `clampPalmsTo`
+  servo converges the palms onto the victim — up to 1.3 rad of shoulder roll,
+  applied AFTER the animator's pose. Traced by instrumenting the shoulder
+  Euler: the animator applied roll −83°, and `aimStrikeAt → clampPalmsTo`
+  dragged it back to −24° in the same frame. That servo is built for a
+  two-fisted pound; on a whirl whose whole shape is arms-out it eats the pose.
+- New roster flag `heavyNoStrikeAim` (tempest only) skips the strike tracking
+  in `doHeavy`. Measured in a live battle, same frames: peak shoulder roll
+  −32° → −88°, hand spread 4.7 → 7.1 units.
+- Each T is now keyed TWICE (0.26+0.30, 0.46+0.50, 0.68+0.72). Without the
+  dwell the target starts falling the instant it arrives and the animator's
+  26/s pose-chase only reaches ~−83 of the −92; with it the pose saturates —
+  full extension at t≈0.30, well inside the first revolution (which ends at
+  0.26 + 2π/28.8 ≈ 0.48). The drop between passes still swings the hands from
+  y 1.7 down to y 0.3.
+- Verified: in-battle frames frozen at t=0.30 / 0.42 / 0.50 with the hip whirl
+  subtracted so the arm pose is judgeable, and VIEWed — dead-flat T at 0.30,
+  arms lowered at 0.42; per-frame roll/spread trace above; ace soaks
+  crash-free tempest/viper, tempest/titanus (`?debug=fallback`) and
+  titanus/aegis (a heavy that still uses the strike servo); `vite build` green.
+## Walk foot-plant: GLB feet stop pushing off air (2026-07-26)
+
+Reported as "Titanus feels like he's floating when walking… as if he were
+pushing off the air instead of the ground". Measured, and he was doing the
+opposite AND the same thing: his sole spent most of the cycle **0.76 units
+UNDER the floor** and then hung in the air on the other beat. Both symptoms are
+one cause — the gait rotates joints and nothing ever checks where the sole
+actually ended up.
+
+- Root cause 1 — **ankle amplitude is authored for the procedural foot.** The
+  engine assumes the sole sits `0.32 * scale` under the ankle (the same number
+  `groundOffset` is derived against). Titanus' boots put it 1.221 there against
+  an assumed 0.410 — 2.98x — so the walk's ~0.66 rad plantar-flex toe-off drove
+  the sole three times as far as intended. Measured over the roster: viper
+  2.89x, rhino 2.58x, colossus 2.13x, aegis 4.14x.
+- Root cause 2 — **a long sole plate can't be pitched at all.** Titanus' foot is
+  3.4 units long and 1.22 deep, pivoting at a joint above and behind it, so ANY
+  pitch (from the ankle, the knee or the body's forward lean) buries a corner
+  ~0.6-0.7 units regardless of direction.
+- Root cause 3 — **no foot ever met the ground on purpose.** `mech.groundClamp`
+  existed but was wired only to prone/dead; the comment claiming "upright
+  stances keep the retarget's own per-foot grounding, which is already correct"
+  was simply false — every GLB was off by 0.1-1.0 units at some point in its
+  cycle.
+
+Fix, all in `Animator` (+ two helpers), procedural bodies untouched by
+construction:
+
+1. `calibrateFeet()` (new, called once from `createMech` after the retarget
+   adapter exists) measures the real ankle->sole depth off the skinned foot
+   geometry — not the bone, which on some rigs sits inside or below the boot —
+   and stores `ankleGain = clamp(0.32*s / depth, 0.25, 1)`, `footFlat`, and a
+   couple of dozen **sole sample points in the ankle bone's own frame**.
+2. The gait scales its ankle roll/toe-off by `ankleGain`, so every body rolls
+   through the same amount of GROUND rather than the same radians.
+3. `footFlat` levels the sole against the pitch the chain above it contributes
+   (`hips + thigh + knee`, deltas over rest), run AFTER `hipsRot` is set so the
+   body's forward lean is included. The authored roll then rides on a level
+   plate. Fades in as the foot outgrows the convention, so a normal foot is
+   unaffected.
+4. **Pelvis follows the feet**: `soleClearance()` transforms the sole samples by
+   the ankle bones' world matrices (~48 point transforms/frame, no skinned-mesh
+   walk) and the walk takes last frame's clearance out of the hip height,
+   damped at 20. 1:1 correction, so no gain to tune. Walk/run only — clips,
+   ducks, dashes and jumps ease the bias back out.
+5. Quadrupeds (`gait: 'quad'`) opt out entirely: a wolf's hock is not a boot.
+
+Measured lower-foot dip / hover over a cycle at speed 4, before -> after:
+titanus -0.779/0.111 -> -0.096/0.081 · rhino -0.444/0.226 -> -0.112/0.084 ·
+colossus -0.326/0.417 -> -0.161/0.050 · aegis -0.323/0.487 -> -0.154/0.081 ·
+jerry -0.978/1.294 -> -0.276/0.566 · nullbot -0.124/0.419 -> -0.148/0.113 ·
+glacier -0.527 -> -0.293 · vulcan -0.608 -> -0.278 · fenrir unchanged (quad).
+Every mech's dip improved; the two stragglers are pre-existing outliers whose
+rigs mis-report a foot (nova's degenerate measurement, saurion's digitigrade
+hock, whose toes are not in the ankle subtree). Verified with walk screenshots
+VIEWED at four phases (sole flush, both feet flat), ace soak crash-free,
+`vite build` green.
+  · Probe notes: `footplant.mjs` (true skinned sole height per frame),
+    `footdepth.mjs` (ankle->sole depth vs the assumed 0.32*s),
+    `plantall.mjs [speed] [raw]` (roster sweep; `raw` resets the calibration
+    in-page so before/after is one run apart), `bootbox.mjs` (the boot's box in
+    its ankle bone's frame), `gaitmap.mjs` (phase -> joint -> sole trace).

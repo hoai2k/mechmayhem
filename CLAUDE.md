@@ -21,11 +21,26 @@ audio). Progress history: `TASKS.md`.
   comparison (trigger any move on both at once, slow-mo, live anchor editor).
   `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]` — pose a single
   mech by joint: load one of THAT mech's own clip poses as a starting point,
-  drag joints, "Copy pose" emits a clip-key pose block in degrees (paste
+  CLICK A JOINT IN THE VIEWPORT (the dots, or just the body part — nearest
+  joint wins; R/T rotate/translate, G local/world, Esc deselect) and drag the
+  gizmo. "Copy pose" emits a clip-key pose block in degrees (paste
   straight into `animations.js`), "Bind patch" emits the GLB manifest
   `boneCorrections`/`bonePos`. "Apply constraints" (default on) is the
   animation framework's rule — rotation only, hips may also translate — so
   limbs can't be stretched into a pose no clip could reproduce.
+  `?debug=collider[&mech=<id>][&model=glb|proc][&clip=<name>][&at=hit]
+  [&dummy=<dist|0>][&ball=0]` — what combat actually HITS: the measured
+  hurtbox capsules (green), the legacy `hitRadius` ball they replaced (red),
+  and the swept striking limb at a clip's hit frame (yellow), against a
+  second mech at an adjustable distance. `contain`/`bloat` in the readout
+  are the fit metrics; `node tools/hurtboxfit.mjs` prints them for the whole
+  roster on both routes, and `node tools/hitprobe.mjs "<battle url>"` reports
+  the new melee test against the old one on a real fight.
+- Hitboxes: `src/combat/hurtbox.js`. Bone-bound capsules measured off each
+  model's own geometry, so they follow the animation; melee resolves on the
+  striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
+  leading furthest forward), and bullets/beams test the swept segment.
+  `Fighter.hitRadius` is unchanged and still owns AoE falloff + broad phase.
 - Work-in-progress mechs: a roster def flagged `hidden: true` (currently
   AEGIS + NOVA) is kept out of the GAME's roster — mech select, RANDOM
   picks, CPU picks, title line-up — until SETTINGS → SHOW ALL ROBOTS is

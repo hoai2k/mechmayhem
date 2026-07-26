@@ -2271,57 +2271,72 @@
     ]
   },
   "vulcan": {
+    "muzzles": {
+      "R": {"bone":"handR","offset":[0.594,-0.601,-0.252],"rot":[112.82,33.3,87.8]},
+      "L": {"bone":"handL","offset":[0.89,-0.65,0.192],"rot":[77.76,31.79,68.88]},
+      "podL": {"joint":"torso","offset":[-1.35,2.2,-0.2],"rot":[0,0,0]},
+      "podR": {"joint":"torso","offset":[1.35,2.2,-0.2],"rot":[0,0,0]}
+    },
     "url": "models/mech_vulcan.glb",
     "modelScale": 7.72826,
     "bindPose": "native",
     "yawOffset": 270,
-    "boneOverrides": {
-      "hips": "tripoRoot",
-      "torso": "tripo1_Left_Limb_1",
-      "head": "tripoHead_0",
-      "shoulderL": "tripo1_Left_Limb_3",
-      "elbowL": "tripo1_Left_Limb_4",
-      "handL": "tripo1_Left_Limb_5",
-      "shoulderR": "bone_5",
-      "elbowR": "bone_6",
-      "handR": "bone_7",
-      "thighL": "tripo0_Right_Limb_0",
-      "kneeL": "tripo0_Right_Limb_1",
-      "ankleL": "tripo0_Right_Limb_2",
-      "thighR": "tripo0_Left_Limb_0",
-      "kneeR": "tripo0_Left_Limb_1",
-      "ankleR": "tripo0_Left_Limb_2"
-    },
     "heightScale": 1.1,
-    "muzzles": {
-      "R": {"bone":"handR","offset":[0.576,1.552,-0.042],"rot":[-90.34,25.19,81.6]},
-      "L": {"bone":"handL","offset":[-0.109,1.67,0.837],"rot":[-67.36,-11.51,-13.87]},
-      "podL": {"joint":"torso","offset":[-1.35,2.2,-0.2],"rot":[0,0,0]},
-      "podR": {"joint":"torso","offset":[1.35,2.2,-0.2],"rot":[0,0,0]}
-    },
-    "skinOps": [
-      {"sel":{"comp":14},"to":"tripo1_Left_Limb_2"},
-      {"purgeFar":true},
-      {"sel":{"comp":26},"to":"tripoRoot"},
-      {"sel":{"comp":17},"to":"bone_5"},
-      {"sel":{"comp":18},"to":"tripo1_Left_Limb_2"},
-      {"sel":{"comp":21},"to":"bone_5"},
-      {"sel":{"comp":22},"to":"bone_5"},
-      {"sel":{"comp":24},"to":"tripo1_Left_Limb_2"},
-      {"sel":{"comp":25},"to":"bone_5"},
-      {"sel":{"comp":28},"to":"bone_6"},
-      {"sel":{"comp":29},"to":"tripo1_Left_Limb_2"},
-      {"sel":{"comp":30},"to":"bone_5"},
-      {"sel":{"comp":31},"to":"tripo0_Left_Limb_1"},
-      {"sel":{"comp":32},"to":"tripo1_Left_Limb_3"},
-      {"sel":{"comp":35},"to":"bone_5"},
-      {"sel":{"comp":37},"to":"bone_5"},
-      {"sel":{"comp":38},"to":"bone_5"},
-      {"sel":{"comp":40},"to":"bone_5"},
-      {"sel":{"comp":42},"to":"bone_5"},
-      {"sel":{"comp":47},"to":"tripo1_Left_Limb_0"},
-      {"sel":{"comp":48},"to":"tripoRoot"}
-    ]
+    "rig": "vulcan",
+    "alt": {
+      "profileKey": "vulcan_tripo",
+      "url": "models/mech_vulcan.glb",
+      "modelScale": 7.72826,
+      "bindPose": "native",
+      "yawOffset": 270,
+      "boneOverrides": {
+        "hips": "tripoRoot",
+        "torso": "tripo1_Left_Limb_1",
+        "head": "tripoHead_0",
+        "shoulderL": "tripo1_Left_Limb_3",
+        "elbowL": "tripo1_Left_Limb_4",
+        "handL": "tripo1_Left_Limb_5",
+        "shoulderR": "bone_5",
+        "elbowR": "bone_6",
+        "handR": "bone_7",
+        "thighL": "tripo0_Right_Limb_0",
+        "kneeL": "tripo0_Right_Limb_1",
+        "ankleL": "tripo0_Right_Limb_2",
+        "thighR": "tripo0_Left_Limb_0",
+        "kneeR": "tripo0_Left_Limb_1",
+        "ankleR": "tripo0_Left_Limb_2"
+      },
+      "heightScale": 1.1,
+      "muzzles": {
+        "R": {"bone":"handR","offset":[0.576,1.552,-0.042],"rot":[-90.34,25.19,81.6]},
+        "L": {"bone":"handL","offset":[-0.109,1.67,0.837],"rot":[-67.36,-11.51,-13.87]},
+        "podL": {"joint":"torso","offset":[-1.35,2.2,-0.2],"rot":[0,0,0]},
+        "podR": {"joint":"torso","offset":[1.35,2.2,-0.2],"rot":[0,0,0]}
+      },
+      "skinOps": [
+        {"sel":{"comp":14},"to":"tripo1_Left_Limb_2"},
+        {"purgeFar":true},
+        {"sel":{"comp":26},"to":"tripoRoot"},
+        {"sel":{"comp":17},"to":"bone_5"},
+        {"sel":{"comp":18},"to":"tripo1_Left_Limb_2"},
+        {"sel":{"comp":21},"to":"bone_5"},
+        {"sel":{"comp":22},"to":"bone_5"},
+        {"sel":{"comp":24},"to":"tripo1_Left_Limb_2"},
+        {"sel":{"comp":25},"to":"bone_5"},
+        {"sel":{"comp":28},"to":"bone_6"},
+        {"sel":{"comp":29},"to":"tripo1_Left_Limb_2"},
+        {"sel":{"comp":30},"to":"bone_5"},
+        {"sel":{"comp":31},"to":"tripo0_Left_Limb_1"},
+        {"sel":{"comp":32},"to":"tripo1_Left_Limb_3"},
+        {"sel":{"comp":35},"to":"bone_5"},
+        {"sel":{"comp":37},"to":"bone_5"},
+        {"sel":{"comp":38},"to":"bone_5"},
+        {"sel":{"comp":40},"to":"bone_5"},
+        {"sel":{"comp":42},"to":"bone_5"},
+        {"sel":{"comp":47},"to":"tripo1_Left_Limb_0"},
+        {"sel":{"comp":48},"to":"tripoRoot"}
+      ]
+    }
   },
   "_readme": "Drop rigged humanoid GLBs (Meshy/Tripo/Mixamo auto-rig, T-pose or A-pose) into public/models/ and add an entry per mech id. Fields: url (required), bindPose ('tpose'|'apose'|'native' or {joint:[x,y,z] degrees}), boneOverrides ({jointName: 'ExactBoneName'}), heightScale, yawOffset (deg), emissiveBoost. Mechs without an entry use the built-in procedural model. See docs/CHARACTER_PIPELINE.md."
 }

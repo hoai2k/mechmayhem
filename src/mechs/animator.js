@@ -3,10 +3,12 @@
 import * as THREE from 'three';
 import { CLIPS, UPPER_JOINTS } from './animations.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
+import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
 import { ease, lerp, clamp, clamp01, damp, TAU } from '../core/utils.js';
 
 const _wp = new THREE.Vector3();
+const _sp = new THREE.Vector3();
 const _qa = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
 // Aegis tower shield: local rest carry, and the brace tilt applied when the
@@ -71,6 +73,13 @@ export class Animator {
       minAnkle = Math.min(minAnkle, _wp.y - rootY);
     }
     this.groundOffset = -(minAnkle - 0.32 * this.s);
+    // How deep the SOLE sits under the ankle joint, as a fraction of the depth
+    // the gait assumes (0.32 * scale — the same number groundOffset is derived
+    // against). 1 = the procedural convention; calibrateFeet() measures the real
+    // number for a rigged GLB.
+    this.ankleGain = 1;
+    this.footFlat = 0;
+    this.footDepth = 0.32 * this.s;
 
     this.cur = this.makeRestTarget();   // smoothed applied pose
     this.phase = Math.random() * TAU;   // gait phase
@@ -97,6 +106,79 @@ export class Animator {
     for (const key of Object.keys(tgt)) this.cur[key] = [...tgt[key]];
     this.applyPose(this.cur);
     this.mech.postAnimate?.();
+  }
+
+  // ---------- foot calibration ----------
+  // The walk's plantar-flex TOE-OFF and heel roll rotate the ANKLE, and the
+  // sole's vertical travel for a given rotation scales with how far the sole
+  // sits BELOW that joint. Procedural bodies are built to one convention — sole
+  // 0.32 * scale under the ankle, the same depth groundOffset is derived
+  // against — and the gait's ankle amplitudes are authored for exactly that
+  // geometry. A rigged GLB is under no such obligation: Titanus' boots put the
+  // sole 1.22 units under his ankle bone against an assumed 0.41, so the same
+  // ~0.66 rad toe-off drove his sole 0.75 THROUGH the floor. With his body
+  // held up by the hips, that reads as the leg reaching down past the ground
+  // and pushing off thin air — the "floating" walk.
+  //
+  // Measure the real depth once, at rest, off the actual skinned foot geometry
+  // (not the bone, which on some rigs sits inside or below the boot), and scale
+  // the gait's ankle terms by the ratio: every body then rolls its foot through
+  // the same amount of GROUND rather than the same number of radians. Only
+  // meaningful for GLBs — a procedural mech measures ~0.32*s and keeps 1.0.
+  //
+  // Called from createMech() once the retarget adapter exists (the GLB's real
+  // bones only follow the virtual rig after postAnimate/adapter.sync).
+  calibrateFeet() {
+    const mech = this.mech;
+    // Bipeds only: the quadruped gallop authors its own hock/paw motion for a
+    // body whose "ankle" is nothing like a boot (fenrir).
+    if (!mech.isGLB || !mech.boneMap || mech.def.gait === 'quad') return this.ankleGain;
+    const body = bodySkinnedMesh(mech.group);
+    if (!body) return this.ankleGain;
+    this.poseStatic();
+    mech.group.updateMatrixWorld(true);
+    let depth = 0;
+    const soles = [];
+    for (const side of ['L', 'R']) {
+      const bone = mech.boneMap['ankle' + side];
+      if (!bone) continue;
+      const s = boneSoleSamples(body, bone);
+      if (!s) continue;
+      depth = Math.max(depth, bone.getWorldPosition(_wp).y - s.lowest);
+      soles.push({ bone, points: s.points });
+    }
+    // sole sample points, for the per-frame pelvis follow in update()
+    this.soles = soles.length === 2 ? soles : null;
+    // A rig whose ankle bone sits at or below the sole (depth <= 0) tells us
+    // nothing — keep the default rather than inverting the toe-off.
+    if (depth > 0.02) {
+      this.footDepth = depth;
+      this.ankleGain = clamp((0.32 * this.s) / depth, 0.25, 1);
+      // A boot that much deeper than the convention is also LONG, and a long
+      // sole plate pitched even slightly buries a corner. Ask the gait to keep
+      // it parallel to the ground (see footFlat in update()), fading the ask in
+      // as the foot outgrows what the authored roll was tuned for.
+      this.footFlat = clamp01((depth / (0.32 * this.s) - 1) / 0.5);
+    }
+    return this.ankleGain;
+  }
+
+  // Height of the LOWER foot's sole above the ground, right now. Uses the sole
+  // sample points captured by calibrateFeet (a couple of dozen matrix transforms,
+  // not a re-walk of the skinned mesh), so it is cheap enough to run every frame.
+  // Null when this mech was never calibrated (procedural bodies).
+  soleClearance() {
+    if (!this.soles) return null;
+    const ground = this.J.root.getWorldPosition(_wp).y;
+    let low = Infinity;               // the lowest sole point of EITHER foot
+    for (const f of this.soles) {
+      f.bone.updateMatrixWorld(true);
+      for (const p of f.points) {
+        const y = _sp.copy(p).applyMatrix4(f.bone.matrixWorld).y;
+        if (y < low) low = y;
+      }
+    }
+    return Number.isFinite(low) ? low - ground : null;
   }
 
   // ---------- action clips ----------
@@ -194,8 +276,17 @@ export class Animator {
       tgt.kneeR[0] += stanceBend + (0.7 + 0.65 * ratio) * Math.max(0, Math.sin(ph + Math.PI + 1.05));
       const pushL = Math.max(0, -Math.sin(ph - 0.45));          // trailing-leg push
       const pushR = Math.max(0, -Math.sin(ph + Math.PI - 0.45));
-      tgt.ankleL[0] += swing * 0.5 * sinL - 0.1 * ratio - (0.4 + 0.4 * ratio) * pushL;
-      tgt.ankleR[0] += swing * 0.5 * sinR - 0.1 * ratio - (0.4 + 0.4 * ratio) * pushR;
+      // ANKLE: authored roll + toe-off, scaled to the foot's real depth
+      // (ankleGain) and laid over a FLAT-SOLE base for long-footed models
+      // (footFlat) — see calibrateFeet. Without both, a deep, long boot pitches
+      // about a joint far above and behind its sole and buries a corner ~0.7
+      // units in the floor for most of the cycle: the leg reaches down past the
+      // ground and the walk reads as pushing off air rather than pavement.
+      const ag = this.ankleGain;
+      const rollL = ag * (swing * 0.5 * sinL - 0.1 * ratio - (0.4 + 0.4 * ratio) * pushL);
+      const rollR = ag * (swing * 0.5 * sinR - 0.1 * ratio - (0.4 + 0.4 * ratio) * pushR);
+      tgt.ankleL[0] += rollL;
+      tgt.ankleR[0] += rollR;
       // counter-swing arms
       const armSwing = swing * 0.75;
       tgt.shoulderL[0] += armSwing * sinR;
@@ -210,6 +301,19 @@ export class Animator {
       tgt.torso[0] += 0.30 * ratio;               // stronger forward lean
       tgt.torso[1] += -Math.sin(ph) * 0.11 * ratio; // counter-rotate
       tgt.head[0] += -0.22 * ratio;               // eyes stay on the horizon
+      // FLAT SOLE (long-footed models): level the foot against everything the
+      // chain above it just pitched into it — run here, after hipsRot is set, so
+      // the body's forward pitch is included. The authored roll above then rides
+      // on top of a level plate instead of on top of the leg's own tilt.
+      if (this.footFlat > 0.01) {
+        const ff = this.footFlat;
+        // level when hips + (thigh - rest) + (knee - rest) + (ankle - rest) = 0
+        for (const side of ['L', 'R']) {
+          tgt['ankle' + side][0] -= ff * (tgt.hipsRot[0]
+            + (tgt['thigh' + side][0] - this.rest['thigh' + side][0])
+            + (tgt['knee' + side][0] - this.rest['knee' + side][0]));
+        }
+      }
     } else if (grounded) {
       // idle: breathing + weight shift + personality sway
       const b = Math.sin(this.t * 1.7);
@@ -473,6 +577,35 @@ export class Animator {
     // ===== signature joints (personality) =====
     this.signature(dt, ctx, tgt);
 
+    // ===== pelvis follows the feet (walk only) =====
+    // Rotating joints alone can't keep a foot on the ground: the sole's height is
+    // whatever the leg chain happens to leave it at, so a walk either drives the
+    // boot through the floor or hangs it in the air — the mech "pushes off" a
+    // surface that isn't there. Ride the pelvis on the measured sole instead:
+    // whatever the lower foot's clearance was last frame, take it out of the hip
+    // height, and the contact foot stays on the pavement while the body bobs
+    // over it (which is what carries the weight of a step).
+    //
+    // Walk/run only, and only for a calibrated (GLB) mech: action clips, jumps
+    // and knockdowns move the body on purpose and get the bias eased back out.
+    // The correction is 1:1 — hips down by x lowers the sole by x — so a single
+    // damped step converges without a gain to tune.
+    if (this.soles) {
+      const wantFollow = grounded && speed > 0.4 && !this.action && !ctx.duck && !ctx.dashT;
+      if (wantFollow) {
+        const clr = this._soleClr;   // measured at the end of the last frame
+        if (clr !== null && clr !== undefined) {
+          this._footBias = damp(this._footBias || 0, (this._footBias || 0) - clr, 20, dt);
+          // never lift the body more than a foot's depth: a bad measurement
+          // must not launch the mech off the floor
+          this._footBias = clamp(this._footBias, -this.footDepth, this.footDepth);
+        }
+      } else {
+        this._footBias = damp(this._footBias || 0, 0, 8, dt);
+      }
+      tgt.hipsPos[1] += this._footBias || 0;
+    }
+
     // ===== smooth & apply =====
     const rate = 1 - Math.exp(-26 * dt);
     for (const key of Object.keys(tgt)) {
@@ -483,6 +616,8 @@ export class Animator {
     }
     this.applyPose(this.cur);
     this.mech.postAnimate?.(); // GLB rigs: retarget virtual joints onto bones
+    // where the sole ended up this frame — the input to the pelvis follow above
+    if (this.soles) this._soleClr = this.soleClearance();
   }
 
   // rest-pose bias: digitigrade legs (and a predator's spine hunch) keep

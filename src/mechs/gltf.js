@@ -146,6 +146,10 @@ export async function loadRawGlbScene(id, opts = {}) {
   scene.traverse((o) => {
     if (o.isSkinnedMesh) {
       o.geometry = o.geometry.clone();
+      // clone() hands over the SAME userData object — take a private copy
+      // before clearing the flag, or the cached geometry loses it too and the
+      // next game build re-applies skinOps on top of itself.
+      o.geometry.userData = { ...o.geometry.userData };
       delete o.geometry.userData.__skinOpsApplied;
     }
   });
@@ -483,6 +487,8 @@ function buildGlbMech(def, entry, gltf) {
   // `materials` carries this build's OWN material clones (see glbMats above) so
   // the whole-body tints reach a GLB body; GLB_DRESS may add named slots on top.
   const mech = { group: root, joints, anchors: {}, materials: glbMats, dims: D, def, isGLB: true };
+  mech.glbUrl = entry.url || '';  // identifies the MODEL (not just the mech) —
+                                  // hurtbox.js caches its measured capsules by it
   mech.fistSplit = fistSplit;   // Fighter.launchFist/catchFist + WEAPONS.fist
   // reinterpret shared anims for this model. entry.profileKey lets a model
   // VARIANT (e.g. an alt whose weapon sits in the other hand) carry its own
@@ -658,6 +664,12 @@ function buildGlbMech(def, entry, gltf) {
     warnEntryOnce(def.id, `modelScale not pinned — size is still derived from the rig `
       + `(add "modelScale": ${baseScale.toFixed(5)} to freeze it; see tools/pin-modelscale.mjs)`);
   }
+
+  // Foot depth: the gait's ankle roll / toe-off is authored for the procedural
+  // foot (sole 0.32 * scale under the ankle). Measure this model's real boot now
+  // that the retarget is live, so the walk pushes off the GROUND rather than
+  // driving the sole through it. See Animator.calibrateFeet.
+  mech.premadeAnimator.calibrateFeet();
 
   // ---- prone / dead floor clamp (GLB) -----------------------------------
   // The shared knockdown/death clips drop the hips by an amount tuned to the

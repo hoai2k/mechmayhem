@@ -374,7 +374,14 @@ const CLIPS_RAW = {
     //            and reads as the arms going UP over the shoulders. Cubic
     //            stops them dead flat.
     //   drop     roll ±16 with elbow -22: arms swing back down along the body
-    //            between passes, hands at y -0.7, so the next launch reads.
+    //            between passes so the next launch reads (measured in battle,
+    //            the hands swing from y 1.7 at the T down to y 0.3).
+    //   dwell    each T is keyed TWICE (0.26+0.30, 0.46+0.50, 0.68+0.72) —
+    //            without the second key the target starts falling the instant
+    //            it arrives, and the animator's 26/s pose-chase only ever
+    //            reaches ~-83 of the -92. The dwell lets it saturate: measured
+    //            in battle, -88 and full hand spread by t≈0.30, well inside
+    //            the first revolution (which ends at 0.26 + 2π/28.8 ≈ 0.48).
     // heavySpin runs t 0.26-1.07 at 28.8 rad/s ≈ 3.7 turns (0.22s a turn), so
     // the T's (0.26, 0.46, 0.68, 0.90) and the drops between them sit about
     // one pump per revolution, with a T carrying each hit beat.
@@ -383,11 +390,14 @@ const CLIPS_RAW = {
       { t: 0, pose: {} },
       { t: 0.18, ease: 'inOutCubic', pose: { hipsPos: [0, -0.4, 0], torso: [10, 20, 0], head: [0, -10, 0], shoulderL: [-20, 30, -20], shoulderR: [-20, -30, 20], elbowL: [-110, 0, 0], elbowR: [-110, 0, 0], kneeL: [40, 0, 0], kneeR: [40, 0, 0], thighL: [-22, 0, 0], thighR: [-22, 0, 0] } },
       { t: 0.26, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], torso: [-6, 0, 0], head: [-8, 0, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0], kneeL: [8, 0, 0], kneeR: [8, 0, 0], thighL: [-4, 0, 0], thighR: [-4, 0, 0] } },
-      { t: 0.36, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.30, ease: 'inOutQuad', pose: { shoulderL: [0, 0, -92], shoulderR: [0, 0, 92] } },
+      { t: 0.39, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
       { t: 0.46, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
-      { t: 0.58, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.50, ease: 'inOutQuad', pose: { shoulderL: [0, 0, -92], shoulderR: [0, 0, 92] } },
+      { t: 0.59, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
       { t: 0.68, ease: 'outCubic', pose: { hipsPos: [0, 0.2, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
-      { t: 0.8, ease: 'inQuad', pose: { hipsPos: [0, 0.12, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.72, ease: 'inOutQuad', pose: { shoulderL: [0, 0, -92], shoulderR: [0, 0, 92] } },
+      { t: 0.81, ease: 'inQuad', pose: { hipsPos: [0, 0.12, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
       { t: 0.9, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
       { t: 1.07, ease: 'inOutQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [0, 0, -88], shoulderR: [0, 0, 88], elbowL: [-4, 0, 0], elbowR: [-4, 0, 0] } },
       { t: 1.22, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0] } },
@@ -437,6 +447,7 @@ const CLIPS_RAW = {
   // digitigrade crouch carries through every kick.
   saurionKick1: { // right EAGLE KICK: knee chambers at the chest, then the
     // sickle toe-claw whips up-and-out at head height, torso swung back
+    strikeLimb: 'footR',   // the blow is resolved on the CLAW, not the body
     dur: 0.5,
     keys: [
       { t: 0, pose: {} },
@@ -448,6 +459,7 @@ const CLIPS_RAW = {
     events: [{ t: 0.18, type: 'sfx', arg: 'whoosh' }, { t: 0.22, type: 'hit', arg: 0 }],
   },
   saurionKick2: { // left eagle kick, same head-high snap off the other leg
+    strikeLimb: 'footL',
     dur: 0.52,
     keys: [
       { t: 0, pose: {} },
@@ -460,6 +472,7 @@ const CLIPS_RAW = {
   },
   saurionKick3: { // combo ender: coil onto the haunches, then a leaping
     // downward claw slash with the whole body behind it
+    strikeLimb: 'footR',   // leaps off the left, strikes with the right sickle
     dur: 0.62,
     keys: [
       { t: 0, pose: {} },
@@ -619,8 +632,49 @@ const CLIPS_RAW = {
     dur: 0.7,
     keys: [
       { t: 0, pose: { hipsPos: [0, -0.3, 0], hipsRot: [-8, 8, 0], torso: [-28, 6, -6], head: [-18, 0, 0], shoulderL: [-142, 0, -26], shoulderR: [-142, 0, 26], elbowL: [-38, 0, 0], elbowR: [-38, 0, 0], kneeL: [18, 0, 0], kneeR: [18, 0, 0], thighL: [-8, 0, 0], thighR: [-8, 0, 0] } },
-      { t: 0.18, ease: 'inCubic', pose: { hipsPos: [0, -0.72, 0], hipsRot: [12, -6, 0], torso: [52, -6, 4], head: [14, 0, 0], shoulderL: [-48, 0, -6], shoulderR: [-48, 0, 6], elbowL: [-6, 0, 0], elbowR: [-6, 0, 0], kneeL: [48, 0, 0], kneeR: [48, 0, 0], thighL: [-26, 0, 0], thighR: [-26, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0] } },
+      { t: 0.18, ease: 'inCubic', pose: { hipsPos: [0, -0.72, 0], hipsRot: [12, -6, 0], torso: [52, -6, 4], head: [14, 0, 0], shoulderL: [-48, 0, 22], shoulderR: [-48, 0, -22], elbowL: [-6, 0, 0], elbowR: [-6, 0, 0], kneeL: [48, 0, 0], kneeR: [48, 0, 0], thighL: [-26, 0, 0], thighR: [-26, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0] } },
       { t: 0.36, ease: 'outQuad', pose: { hipsPos: [0, -0.5, 0], torso: [44, -4, 3] } },
+      { t: 0.7, ease: 'inOutQuad', pose: REST_FULL },
+    ],
+    events: [{ t: 0.1, type: 'sfx', arg: 'whooshBig' }, { t: 0.18, type: 'hit', arg: 0 }, { t: 0.2, type: 'shake', arg: 0.5 }],
+  },
+  // COLOSSUS' own charged heavy: a THUNDERCLAP instead of the shared overhead
+  // pound. His shell is the widest on the roster (body.scale 1.3 on top of
+  // torsoW 1.3 / bulk 1.15), so poundSlam's follow-through — both arms driven
+  // from overhead down past the hips — dragged the forearms straight THROUGH
+  // the chest and belly slabs. The clap keeps every beat of the charge (same
+  // hold loop shape, same 0.18s release-to-hit, same two-fist convergence) but
+  // swings in the HORIZONTAL plane: the arms stretch out wide to either side of
+  // that huge body on the wind-up, then scythe forward and inward to meet in
+  // front of the chest. Nothing crosses the torso volume at any point.
+  colossusClapHold: { // charged clap wind-up: arms flung out wide and back,
+    // chest open, the whole span trembling until Y releases
+    dur: 0.8, loop: true,
+    keys: [
+      { t: 0, pose: { hipsPos: [0, -0.26, -0.05], hipsRot: [-6, 0, 0], torso: [-16, 0, 0], head: [-10, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0] } },
+      { t: 0.4, ease: 'inOutQuad', pose: { hipsPos: [0, -0.3, -0.06], torso: [-18, 0, 0], shoulderL: [-12, -25, -104], shoulderR: [-12, 25, 104], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0] } },
+      { t: 0.8, ease: 'inOutQuad', pose: { hipsPos: [0, -0.26, -0.05], torso: [-16, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0] } },
+    ],
+  },
+  colossusClap: { // the banked clap discharges: the wide span sweeps forward
+    // and slams shut on the centreline in front of his chest. Same 0.7s /
+    // hit-at-0.18 shape as poundSlam, so the charged heavy plays identically.
+    dur: 0.7,
+    keys: [
+      { t: 0, pose: { hipsPos: [0, -0.26, -0.05], hipsRot: [-6, 0, 0], torso: [-16, 0, 0], head: [-10, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0] } },
+      // impact: fists meet dead ahead at chest height, arms clear of the body
+      // Impact. The inward roll is BIG on purpose: his shoulders sit further
+      // apart than any other mech's, so a modest roll left the fists a body's
+      // width apart and the "clap" read as a shrug. 58deg is what actually
+      // shuts them on the centreline (measured from the front in ?showcase).
+      { t: 0.18, ease: 'inCubic', pose: { hipsPos: [0, -0.44, 0.12], hipsRot: [8, 0, 0], torso: [22, 0, 0], head: [8, 0, 0], shoulderL: [-80, 0, 58], shoulderR: [-80, 0, -58], elbowL: [-26, 0, 0], elbowR: [-26, 0, 0], kneeL: [40, 0, 0], kneeR: [40, 0, 0], thighL: [-20, 0, 0], thighR: [-20, 0, 0], ankleL: [-16, 0, 0], ankleR: [-16, 0, 0] } },
+      // the clap jams: hands stay locked together while the frame rides it out
+      { t: 0.36, ease: 'outQuad', pose: { hipsPos: [0, -0.34, 0.06], torso: [17, 0, 0], shoulderL: [-76, 0, 52], shoulderR: [-76, 0, -52], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      // recovery UNROLLS before it drops. Falling straight from the clapped
+      // pose to rest swept both fists down across the belly plates — the very
+      // clipping this clip exists to avoid. Open back to shoulder width first,
+      // then let the arms fall outside the hips.
+      { t: 0.5, ease: 'inOutQuad', pose: { hipsPos: [0, -0.2, 0.02], torso: [10, 0, 0], head: [4, 0, 0], shoulderL: [-46, 0, -4], shoulderR: [-46, 0, 4], elbowL: [-18, 0, 0], elbowR: [-18, 0, 0] } },
       { t: 0.7, ease: 'inOutQuad', pose: REST_FULL },
     ],
     events: [{ t: 0.1, type: 'sfx', arg: 'whooshBig' }, { t: 0.18, type: 'hit', arg: 0 }, { t: 0.2, type: 'shake', arg: 0.5 }],
@@ -699,6 +753,7 @@ const CLIPS_RAW = {
 
   stomp: { // one heavy foot raised high and RAMMED straight down — the
     // finisher trample (stomp2 is the mirrored left foot)
+    strikeLimb: 'footR',
     dur: 0.5,
     keys: [
       { t: 0, pose: {} },
@@ -714,7 +769,7 @@ const CLIPS_RAW = {
     keys: [
       { t: 0, pose: {} },
       { t: 0.34, ease: 'inOutCubic', pose: { hipsPos: [0, -0.3, 0], hipsRot: [-8, 8, 0], torso: [-28, 6, -6], head: [-18, 0, 0], shoulderL: [-172, 0, -26], shoulderR: [-172, 0, 26], elbowL: [-38, 0, 0], elbowR: [-38, 0, 0], kneeL: [18, 0, 0], kneeR: [18, 0, 0], thighL: [-8, 0, 0], thighR: [-8, 0, 0] } },
-      { t: 0.52, ease: 'inCubic', pose: { hipsPos: [0, -0.72, 0], hipsRot: [12, -6, 0], torso: [52, -6, 4], head: [14, 0, 0], shoulderL: [-48, 0, -6], shoulderR: [-48, 0, 6], elbowL: [-6, 0, 0], elbowR: [-6, 0, 0], kneeL: [48, 0, 0], kneeR: [48, 0, 0], thighL: [-26, 0, 0], thighR: [-26, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0] } },
+      { t: 0.52, ease: 'inCubic', pose: { hipsPos: [0, -0.72, 0], hipsRot: [12, -6, 0], torso: [52, -6, 4], head: [14, 0, 0], shoulderL: [-48, 0, 22], shoulderR: [-48, 0, -22], elbowL: [-6, 0, 0], elbowR: [-6, 0, 0], kneeL: [48, 0, 0], kneeR: [48, 0, 0], thighL: [-26, 0, 0], thighR: [-26, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0] } },
       { t: 0.7, ease: 'outQuad', pose: { hipsPos: [0, -0.5, 0], torso: [44, -4, 3] } },
       { t: 0.98, ease: 'inOutQuad', pose: REST_FULL },
     ],
@@ -1023,8 +1078,10 @@ function mirrorRaw(raw) {
   const swap = (j) => (j.endsWith('L') ? j.slice(0, -1) + 'R' : j.endsWith('R') ? j.slice(0, -1) + 'L' : j);
   return {
     ...raw,
-    // a mirrored one-armed blow is thrown with the OTHER arm
+    // a mirrored one-armed blow is thrown with the OTHER arm...
     strikeArm: raw.strikeArm === 'L' ? 'R' : raw.strikeArm === 'R' ? 'L' : raw.strikeArm,
+    // ...and a mirrored kick lands on the other foot
+    strikeLimb: raw.strikeLimb ? raw.strikeLimb.replace(/([LR])$/, (c) => (c === 'L' ? 'R' : 'L')) : raw.strikeLimb,
     keys: raw.keys.map((k) => {
       const pose = {};
       for (const [j, v] of Object.entries(k.pose)) {
@@ -1059,8 +1116,11 @@ CLIPS_RAW.light3L = mirrorRaw(CLIPS_RAW.light3); // left uppercut
 // heavyDrive / heavyFlare, the charge-hold loop — match either side.
 export const SMASH_MIRRORS = {
   heavy: 'heavyMirror',         // the shared two-hand overhead smash
-  poundHold: 'poundHoldMirror', // TITANUS / COLOSSUS charged pound: the loop...
+  poundHold: 'poundHoldMirror', // TITANUS' charged pound: the loop...
   poundSlam: 'poundSlamMirror', // ...and the discharge it lands on
+  // COLOSSUS' clap has no twin on purpose: it is symmetric about the
+  // centreline, so a mirror would compile to the same pose. smashClip passes
+  // an unlisted name straight through.
 };
 for (const [base, twin] of Object.entries(SMASH_MIRRORS)) CLIPS_RAW[twin] = mirrorRaw(CLIPS_RAW[base]);
 
@@ -1088,6 +1148,11 @@ function compile(name, raw) {
     hold: !!raw.hold,
     upper: !!raw.upper,
     strikeArm: raw.strikeArm || null, // 'L'/'R' on a ONE-ARMED blow, else null
+    // Which limb the blow is RESOLVED on (combat/hurtbox.js): a part name
+    // like 'footR'. Only needed where the auto-detection — "whichever
+    // extremity leads furthest forward at the hit frame" — could pick the
+    // wrong one, i.e. a kick thrown while an arm is also out front.
+    strikeLimb: raw.strikeLimb || null,
     tracks,
     events: raw.events || [],
   };
@@ -1199,6 +1264,7 @@ const SAURION_CLAW_R_GLB = {
 // snap and drive the hips forward with it, so the kick reads as full-stretch
 // and the claw carries past the target instead of stopping on it.
 const SAURION_KICK1_GLB = {
+  strikeLimb: 'footR',
   dur: 0.5,
   keys: [
     { t: 0, pose: {} },
@@ -1213,6 +1279,7 @@ const SAURION_KICK1_GLB = {
 // carries its OWN timing and combo index (dur 0.52, hit arg 1), and mirrorRaw
 // copies `events` and key times through verbatim
 const SAURION_KICK2_GLB = {
+  strikeLimb: 'footL',
   dur: 0.52,
   keys: [
     { t: 0, pose: {} },

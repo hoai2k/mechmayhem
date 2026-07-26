@@ -73,8 +73,9 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
    worst seam stretch for each build. Colossus: Tripo +0.34 mesh units,
    custom rig +0.15.
 
-Precedents: `cranky`, `fenrir`, `glacier`, `jerry`, `titanus`, `wraith`
-(primary), `colossus`, `rhino` (offered as `alt`).
+Precedents (rig is the PRIMARY): `cranky`, `fenrir`, `glacier`, `jerry`,
+`rhino`, `titanus`, `viper`, `vulcan`, `wraith`. Offered as `alt`, awaiting
+judgment: `colossus`.
 
 **Route B steps** (also see IMAGE_TO_MECH.md): §1–§4 below.
 
@@ -158,7 +159,18 @@ should carry at least one (chest nameplate, shin unit number).
 - Digitigrade legs = same joints + a `restPose` block in roster (degrees);
   the Animator measures the rest-pose ankle height and grounds the mech
   automatically. If a mech floats/sinks, its foot geometry bottom doesn't
-  match (aim for sole ≈ −0.32·scale below the ankle joint).
+  match (aim for sole ≈ −0.32·scale below the ankle joint). That 0.32 is the
+  convention the whole walk is authored against — the ankle's roll and toe-off
+  amplitudes assume a sole exactly that far below the joint.
+- **GLB feet are measured, not assumed.** A rigged model's boots owe the 0.32
+  convention nothing (Titanus' sole sits 2.98× deeper), so
+  `Animator.calibrateFeet()` measures each GLB's real ankle→sole depth off the
+  skinned foot geometry at load and derives `ankleGain` (scale the roll to the
+  real depth), `footFlat` (level a long sole plate against the leg chain's
+  pitch) and sole sample points for the per-frame pelvis follow. Nothing to
+  author — but if a new model's walk looks off, check what it measured
+  (`animator.footDepth / ankleGain / footFlat`) before touching the clips: a
+  bogus depth means the ankle bone owns geometry that isn't the boot.
 - You may move joint positions in a design (e.g. VULCAN pushes
   `J.shoulderL/R` outward to clear its wide chest) — anchors follow.
 

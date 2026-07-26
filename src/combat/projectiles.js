@@ -4,10 +4,14 @@ import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rand, clamp } from '../core/utils.js';
 import { glitchColor } from './effects.js';
+import { bodyHitSegment, SHOT_PAD } from './hurtbox.js';
 
 const _v = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _probe = new THREE.Vector3();
+const _sweepA = new THREE.Vector3();
+const _sweepB = new THREE.Vector3();
 
 const VISUALS = {
   bullet: { geo: () => new THREE.SphereGeometry(0.22, 6, 5), scaleZ: 4, light: false },
@@ -363,12 +367,16 @@ export class ProjectileSystem {
       for (const f of world.fighters) {
         if (f === p.owner || !f.alive || p.hitSet.has(f)) continue;
         if (f.iframes > 0) continue;
-        const c = f.center();
-        const rr = f.hitRadius + 0.5;
-        const cdx = world.wrapDelta(c.x - p.mesh.position.x);
-        const cdy = c.y - p.mesh.position.y;
-        const cdz = world.wrapDelta(c.z - p.mesh.position.z);
-        if (cdx * cdx + cdy * cdy + cdz * cdz < rr * rr) {
+        // BODY SHAPE, not a ball: a bolt now has to actually reach an arm,
+        // a leg or the chest (hurtbox.js). Tested as the SWEPT step, not the
+        // frame's end point, because a tight body is something a fast bolt
+        // could otherwise skip straight past between frames. The seam wrap
+        // is folded into both endpoints by the same offset, so the segment
+        // stays intact inside the victim's image of the world.
+        _sweepA.set(f.pos.x + world.wrapDelta(px - f.pos.x), py,
+          f.pos.z + world.wrapDelta(pz - f.pos.z));
+        _sweepB.copy(_sweepA).add(_v2.set(sdx, sdy, sdz));
+        if (bodyHitSegment(f, _sweepA, _sweepB, 0.5, SHOT_PAD, world.time)) {
           p.hitSet.add(f);
           if (p.splash) {
             world.explode(p.mesh.position, p.splash, p.dmg, { owner: p.owner, knock: p.knock, color: p.color, launch: p.launch, status: p.status });
@@ -498,11 +506,11 @@ export class ProjectileSystem {
     const hits = [];
     for (const f of world.fighters) {
       if (f === owner || !f.alive || f.iframes > 0) continue;
-      const c = f.center();
-      // point-line distance
-      const t = clamp(_dir.copy(c).sub(origin).dot(_v.copy(end).sub(origin).normalize()), 0, rayLen);
-      const closest = _v.copy(end).sub(origin).normalize().multiplyScalar(t).add(origin);
-      if (closest.distanceToSquared(c) < (f.hitRadius + radius) ** 2) hits.push({ f, t });
+      // beam vs BODY SHAPE (hurtbox.js) — a rail slug that passes between
+      // the legs of a lanky mech is a miss, and `t` orders the victims
+      // along the beam exactly as the old point-line distance did
+      const hit = bodyHitSegment(f, origin, end, radius, SHOT_PAD, world.time);
+      if (hit) hits.push({ f, t: hit.t * rayLen });
     }
     hits.sort((a, b) => a.t - b.t);
     const victims = pierce ? hits : hits.slice(0, 1);

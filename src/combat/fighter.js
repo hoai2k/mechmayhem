@@ -7,6 +7,7 @@ import { Animator } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
 import { SPECIALS, ULTS } from './specials.js';
+import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import { CONFIG } from '../core/config.js';
 import { PLAYER_COLORS } from '../core/colors.js';
 
@@ -16,6 +17,12 @@ const _palmTmp = new THREE.Vector3();
 const _palmTmp2 = new THREE.Vector3();
 const _carryTmp = new THREE.Vector3();
 const _carryOff = new THREE.Vector3();
+const _strikeA = new THREE.Vector3();
+const _strikeB = new THREE.Vector3();
+const _strikeS0 = new THREE.Vector3();
+const _strikeS1 = new THREE.Vector3();
+const _swept0 = new THREE.Vector3();
+const _swept1 = new THREE.Vector3();
 const _white = new THREE.Color(0xf4faff);
 const _charBlack = new THREE.Color(0x14100d); // burnt-out carbon shell
 const _woundRed = new THREE.Color(0xd8202e); // poison wound flush
@@ -152,7 +159,14 @@ export class Fighter {
     this.scale = s;
     this.radius = 1.15 * s;
     this.height = (this.mech.dims.hipHeight + this.mech.dims.torsoH + this.mech.dims.headSize * 2) * 1.02;
+    // BROAD-PHASE ball: blast falloff, crowd sweeps, camera framing. Kept
+    // exactly as it always was — every AoE in the game is tuned against it.
     this.hitRadius = 1.7 * s;
+    // PRECISE shape: bone-bound capsules measured off this model's own
+    // geometry, following the animation (hurtbox.js). Used by melee and by
+    // bullets/beams. Null when the model can't be measured, and every
+    // caller falls back to the ball above.
+    this.hurtbox = buildHurtbox(this.mech);
 
     // ducking: hold to crouch — smaller/lower hitbox, slower movement.
     // duckDepth 1 = a full frog squat (FROGGER), default is a half-crouch.
@@ -472,7 +486,7 @@ export class Fighter {
   // twins compile under the base name, so this catches either side.)
   inTwoFistSmash() {
     const n = this.animator.action?.clip?.name;
-    return n === 'heavy' || n === 'poundSlam';
+    return n === 'heavy' || n === 'poundSlam' || n === 'colossusClap';
   }
 
   doHeavy() {
@@ -526,8 +540,13 @@ export class Fighter {
     this.comboIdx = 0;
     // track the actual victim through the whole swing: torso twists and the
     // fists CONVERGE onto their body, so a landed pound visibly LANDS
-    // instead of slamming down on both sides of a slim target
-    this.trackStrikeVictim(mv.range, dur);
+    // instead of slamming down on both sides of a slim target.
+    // A SPREAD heavy opts out (`heavyNoStrikeAim`): the convergence servo
+    // pulls the palms together by up to 1.3 rad of shoulder roll, which on a
+    // whirl whose whole shape is arms-out flattens it — measured on tempest,
+    // a -92° T collapsed to -24° in battle while the showcase (no victim to
+    // converge on) showed it perfectly.
+    if (!this.def.heavyNoStrikeAim) this.trackStrikeVictim(mv.range, dur);
   }
 
   // post-pose strike tracking: torso yaw slides the palms along an arc
@@ -814,6 +833,73 @@ export class Fighter {
     }
   }
 
+  // WHERE THE BLOW LANDS. The strike volume is centred on the limb that
+  // actually throws it — the striking hand's or foot's own capsule — rather
+  // than on a fixed point off the sternum, which is what made a punch thrown
+  // past someone's shoulder still connect. hurtbox.pickStrikeLimb reads the
+  // clip's `strikeLimb` / `strikeArm` marker and otherwise takes whichever
+  // extremity is reaching furthest forward on the impact frame, so the
+  // bespoke clips (sword forms, claw rakes, crab claps) need no table.
+  // The blow is a SWEPT LIMB: `a` at the joint it comes off (elbow / knee),
+  // `b` just past the fist or foot. Writes both, returns { r, limb, b };
+  // `limb` is null when we fell back to the old body-relative point.
+  strikeVolume(atk, a, b) {
+    const reach = atk.range || 3.5;
+    const r = Math.max(MELEE.SWING_MIN * this.scale, MELEE.SWING_R * reach);
+    const over = MELEE.OVERSHOOT * reach;
+    const hb = this.hurtbox;
+    const stamp = this.world.time;
+    let limb = null;
+    if (hb) {
+      if (this.inTwoFistSmash()) {
+        // both fists come down together — one capsule down the middle
+        const okL = hb.strikeSegment('handL', over, _strikeA, _strikeB, stamp);
+        const okR = hb.strikeSegment('handR', over, a, b, stamp);
+        if (okL && okR) {
+          a.add(_strikeA).multiplyScalar(0.5);
+          b.add(_strikeB).multiplyScalar(0.5);
+          limb = 'fists';
+        } else if (okR) limb = 'handR';
+        else if (okL) { a.copy(_strikeA); b.copy(_strikeB); limb = 'handL'; }
+      }
+      if (!limb) {
+        const name = pickStrikeLimb(hb, this.animator?.action?.clip,
+          Math.sin(this.yaw), Math.cos(this.yaw), this.pos.x, this.pos.z,
+          0.35 * this.scale, stamp);
+        if (name && hb.strikeSegment(name, over, a, b, stamp)) limb = name;
+      }
+    }
+    if (!limb) {
+      // unmeasurable model, or nothing leading the body: the legacy point
+      b.set(this.pos.x + Math.sin(this.yaw) * reach * 0.75,
+        this.pos.y + this.height * 0.5,
+        this.pos.z + Math.cos(this.yaw) * reach * 0.75);
+      a.set(this.pos.x, b.y, this.pos.z);
+    }
+    // VERTICAL STRIKE ASSIST. Resolving a blow at the fist exposes something
+    // the old chest-height sphere hid: a big mech's punch genuinely finishes
+    // ABOVE a small mech. Measured on titanus, whose haymaker ends 8.5 units
+    // up — over viper's head — while the old test always resolved it at his
+    // own mid-height and connected regardless. Nothing in the game aims a
+    // swing vertically, so without help every heavyweight would simply stop
+    // being able to punch a lightweight.
+    //
+    // The fix is the colossal-form clamp that already lived here, generalised
+    // and made symmetric: if the swept limb misses the target's body band
+    // ENTIRELY — over the head or under the feet — slide it just far enough
+    // to graze that band. A swing that already overlaps them vertically is
+    // never moved, and nothing here touches the horizontal test, which is
+    // where "he punched past me and still hit" was actually coming from.
+    const tgt = this.nearestEnemy();
+    if (tgt) {
+      const lo = tgt.pos.y + tgt.height * 0.2, hi = tgt.pos.y + tgt.height * 0.95;
+      const segLo = Math.min(a.y, b.y), segHi = Math.max(a.y, b.y);
+      const dy = segLo > hi ? hi - segLo : (segHi < lo ? lo - segHi : 0);
+      a.y += dy; b.y += dy;
+    }
+    return { r, limb };
+  }
+
   // melee hit event from animation
   onAttackEvent(type, arg, atk) {
     if (type === 'sfx') { this.world.audio?.play(arg); return; }
@@ -827,16 +913,10 @@ export class Fighter {
     const fwdX = Math.sin(this.yaw), fwdZ = Math.cos(this.yaw);
     const downW = this.plunging ? PLUNGE_DOWN_WEIGHT : (atk.smash ? SMASH_DOWN_WEIGHT : 0);
     const reach = atk.range || 3.5;
-    const cx = this.pos.x + Math.sin(this.yaw) * reach * 0.75;
-    const cz = this.pos.z + Math.cos(this.yaw) * reach * 0.75;
-    let cy = this.pos.y + this.height * 0.5;
-    // COLOSSAL FORM: a giant's mid-chest is high over everyone's head, so
-    // his swings drop the strike sphere to the victim's level (or street
-    // level) — a near-miss at 4x must not whiff clean over the target
-    if (this.scale > this.def.body.scale * 1.4) {
-      const tgt = this.nearestEnemy();
-      cy = Math.min(cy, tgt ? tgt.center().y : this.pos.y + 2.5);
-    }
+    const { r: swingR } = this.strikeVolume(atk, _strikeS0, _strikeS1);
+    // the impact POINT (wall grab, building damage, signature FX) is the
+    // business end of that sweep — the fist/foot, not the elbow
+    const cx = _strikeS1.x, cy = _strikeS1.y, cz = _strikeS1.z;
     // an airborne punch HELD when the fist meets a building face becomes a
     // WALL GRAB instead of a strike — jump, punch-hold, hang, jump again:
     // that's how mechs climb
@@ -848,12 +928,17 @@ export class Fighter {
     // signature heavy impact FX (visuals + any bonus area effect)
     if (atk.fx) this.heavyImpactFx(atk, cx, cy, cz, reach);
     let hitAny = false;
+    const stamp = this.world.time;
     for (const f of this.world.fighters) {
       if (f === this || !f.alive) continue;
-      const c = f.center();
-      const dx = this.world.wrapDelta(c.x - cx), dy = c.y - cy, dz = this.world.wrapDelta(c.z - cz);
-      const rr = reach * 0.8 + f.hitRadius;
-      if (dx * dx + dy * dy + dz * dz < rr * rr) {
+      // the swept limb, moved into the victim's image across the seam (both
+      // ends by the same offset), so the capsule test never has to know
+      // about arena wrapping
+      const ox = this.world.wrapDelta(_strikeS0.x - f.pos.x) + f.pos.x - _strikeS0.x;
+      const oz = this.world.wrapDelta(_strikeS0.z - f.pos.z) + f.pos.z - _strikeS0.z;
+      _swept0.set(_strikeS0.x + ox, _strikeS0.y, _strikeS0.z + oz);
+      _swept1.set(_strikeS1.x + ox, _strikeS1.y, _strikeS1.z + oz);
+      if (bodyHitSegment(f, _swept0, _swept1, swingR, MELEE.PAD, stamp)) {
         // CLOSING SPEED along the attack line: relative velocity (both bodies'
         // motion) projected onto attacker-forward, plus — for a smash/dive —
         // the downward relative speed. Two mechs closing add their speeds; a
@@ -2108,7 +2193,19 @@ export class Fighter {
       case 'special':
       case 'ult':
       case 'dash':
-        if (this.stateT <= 0) this.setState('normal');
+        if (this.stateT <= 0) {
+          // A move whose clip LOOPS never ends itself, so the move's state
+          // running out is the only thing that can end it. Without this the
+          // action layer keeps playing forever: VIPER's Blade Cyclone
+          // (viperWhirl — loop + upper-body) left her arms locked out level
+          // like rotor blades for the rest of the round while the legs walked
+          // normally underneath, and glacier's special did the same with
+          // shootLoopL. A one-shot clip is unaffected: it has already ended
+          // and faded on its own by the time its state expires.
+          // ('channel' does the same thing below, for the same reason.)
+          if (this.animator.action?.clip?.loop) this.animator.stop(0.15);
+          this.setState('normal');
+        }
         break;
       case 'channel':
         if (this.stateT <= 0 && !I.ranged) {
