@@ -23,12 +23,20 @@ audio). Progress history: `TASKS.md`.
   their scrollbars). Widen it when a bone/op name ellipsizes.
 - Workbenches: `?debug=models[&mech=<id>]` — procedural-vs-GLB ACTION
   comparison (trigger any move on both at once, slow-mo, live anchor editor).
-  `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]` — pose a single
+  `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>][&key=<n>|&t=<s>]` —
+  pose a single
   mech by joint: load one of THAT mech's own clip poses as a starting point,
   CLICK A JOINT IN THE VIEWPORT (the dots, or just the body part — nearest
   joint wins; R/T rotate/translate, G local/world, Esc deselect) and drag the
-  gizmo. "Copy pose" emits a clip-key pose block in degrees (paste
-  straight into `animations.js`), "Bind patch" emits the GLB manifest
+  gizmo. The scrubber under the clip dropdown steps KEYFRAME BY KEYFRAME (◀ key
+  / key ▶ too) — it only ever stops on a pose the clip authors, so any edit has
+  a key to land on; it opens on the LAST key, which is the held pose of a
+  hold/loop clip but the RECOVERY of a one-shot strike. "Copy pose" emits a
+  clip-key pose block in degrees (paste straight into `animations.js`) PLUS
+  which key it came from (index/t/ease + the clip's key times), that key's
+  authored numbers, and a per-joint `changed: {from, to}` of what the gizmo
+  moved — so a hand-tuned key can be handed over and applied to exactly the key
+  it came off. "Bind patch" emits the GLB manifest
   `boneCorrections`/`bonePos`. "Apply constraints" (default on) is the
   animation framework's rule — rotation only, hips may also translate — so
   limbs can't be stretched into a pose no clip could reproduce.
