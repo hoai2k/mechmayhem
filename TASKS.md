@@ -38,6 +38,14 @@ controllers via Gamepad API), AI opponents.
   rendered at a different size and the comparison was meaningless. anchorkeep
   now reports both of those conditions and downgrades to ADVISORY where a
   difference is legitimate (different model, or a rig already promoted).
+- **Inferno alt skin patch** (owner-authored, ?debug=skin): 1852 verts of the
+  lower chest rebound from `hips` to `torso`. Landing it surfaced a bug in
+  `applySkinOps`: an explicit-vertex paint bound only the vertices the brush
+  reached, not their POSITION-WELDED TWINS at the same UV/normal seam, so one
+  copy of a seam point could go to the new bone while its twin stayed on the
+  old one — a zero-length bind edge that opens into a gash the moment the two
+  bones move (403x stretch ratio). Paint ops now carry their weld-mates;
+  neutral on every other mech, 403x -> 143x here.
 - **Branch:** `claude/3d-mech-battle-game-uxps6q`
 
 ## Tech stack
@@ -3448,3 +3456,20 @@ alt → control gone, param dropped), rig editor switched colossus → cranky �
 tempest (blocker) → fenrir entirely from the dropdowns, joint click-select +
 gizmo drag re-checked on the alt build (`elbowR` 73°), no page errors anywhere,
 `vite build` green.
+
+## Animation workbench: LEFT SLOT → COMPARE TO (user request, 2026-07-26)
+
+Naming only, no behaviour change. The control that picks what stands beside the
+mech under study said "LEFT SLOT" — a statement about screen geography rather
+than about what the thing does — and its empty option said "Solo (this robot
+only)". Now: label **COMPARE TO**, option **None (view solo)**, URL param
+`&compare=` (`&left=` is still READ so old links and TRIPO_STATUS's example
+keep working, but it is never written back — picking a value rewrites the URL
+with `compare=` and drops the stale `left=`). Internals renamed to match
+(`compareTo` / `setCompareTo`), and the help line's "Left = procedural" became
+"Left = what you compare to · Right = this mech's GLB", since with an alternate
+in the slot the left model is not procedural at all.
+
+Verified: `?debug=models&mech=colossus&left=alt` still opens with Alternate GLB
+selected, switching to None rewrites the URL to `compare=solo`, screenshots
+VIEWED, no page errors, `vite build` green.

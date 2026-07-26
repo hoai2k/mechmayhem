@@ -238,7 +238,7 @@ re-run or push again.
   riding the right arm, a `head` that isn't a duplicate of `torso`, and no
   skinOps at all. Worst clip-seam stretch across all 91 clips: **+0.15** vs
   the Tripo primary's **+0.34** (`tools/cliptear.mjs`). Not promoted — compare
-  in `?debug=models&mech=colossus&left=alt` and decide.
+  in `?debug=models&mech=colossus&compare=alt` and decide.
 
 ## Session 8 (2026-07-26): colossus alt rig tuned + anchors pinned to the guns
 

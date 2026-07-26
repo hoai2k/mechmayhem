@@ -9,16 +9,17 @@
 // shows the exact trajectory the move takes in a real match with nothing in
 // front of the mech. The anchor editor (below the action buttons) rides along.
 //
-// LEFT SLOT (&left): what stands beside the mech under study — the procedural
-// body (default), the mech's alternate GLB, or nothing at all ('solo', which
-// centres the survivor). Mechs without an alternate get a Solo checkbox
-// instead of the three-way dropdown.
+// COMPARE TO (&compare): what stands beside the mech under study — the
+// procedural body (default), the mech's alternate GLB, or nothing at all
+// ('solo', which centres the survivor). Mechs without an alternate get a
+// plain checkbox instead of the three-way dropdown. `&left=` is the old name
+// of this param and is still read.
 //
 // POSING lives in its OWN workbench now — ?debug=pose (src/dev/posework.js):
 // joint gizmo, bone display, limb-length constraints, and both the clip-pose
 // and manifest bind-patch (boneCorrections / bonePos) exports.
 //
-//   ?debug=models[&mech=<id>][&left=proc|alt|solo]
+//   ?debug=models[&mech=<id>][&compare=proc|alt|solo]
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -230,11 +231,11 @@ export async function runPoseTool(startId) {
 
     const def = ROSTER_BY_ID[id];
     const hasAlt = !!manifest[id]?.alt?.url;
-    // LEFT slot: procedural by default; 'alt' puts the mech's alternate model
+    // COMPARE TO: procedural by default; 'alt' stands the mech's alternate model
     // there instead (own intake — a full independent fighter) so alt-vs-original
     // can be judged side by side; 'solo' leaves the slot EMPTY so the mech under
     // study stands alone, centred, with nothing else to read past.
-    const slot = (leftSlot === 'alt' && !hasAlt) ? 'proc' : leftSlot;
+    const slot = (compareTo === 'alt' && !hasAlt) ? 'proc' : compareTo;
     soloMode = slot === 'solo';
     procF = null;
     if (!soloMode) {
@@ -472,33 +473,37 @@ export async function runPoseTool(startId) {
   mechSel.value = curId; mechSel.onchange = () => load(mechSel.value);
   panel.appendChild(mechSel);
 
-  // LEFT SLOT — what stands beside the mech under study.
+  // COMPARE TO — what stands beside the mech under study.
   // A mech WITH an alternate GLB gets the full three-way dropdown; one without
-  // has nothing to compare against but procedural, so it gets a plain Solo
-  // checkbox instead of a two-item select.
-  let leftSlot = params.get('left') || (params.get('alt') === '1' ? 'alt' : 'proc');
-  if (!['proc', 'alt', 'solo'].includes(leftSlot)) leftSlot = 'proc';
-  const setLeftSlot = (v) => {
-    leftSlot = v;
+  // has nothing to compare against but procedural, so it gets a plain checkbox
+  // instead of a two-item select.
+  // `left=` is this param's old name; still read so old links keep working,
+  // never written back.
+  let compareTo = params.get('compare') || params.get('left')
+    || (params.get('alt') === '1' ? 'alt' : 'proc');
+  if (!['proc', 'alt', 'solo'].includes(compareTo)) compareTo = 'proc';
+  const setCompareTo = (v) => {
+    compareTo = v;
     const u = new URL(location.href);
     u.searchParams.delete('alt');                 // legacy flag, superseded
-    if (v === 'proc') u.searchParams.delete('left'); else u.searchParams.set('left', v);
+    u.searchParams.delete('left');                // ditto — 'compare' is the name now
+    if (v === 'proc') u.searchParams.delete('compare'); else u.searchParams.set('compare', v);
     history.replaceState(null, '', u);
     load(curId);
   };
-  panel.appendChild(label('Left slot'));
+  panel.appendChild(label('Compare to'));
   const slotSel = el('select', 'width:100%;margin-bottom:8px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px;display:none');
-  for (const [v, t] of [['proc', 'Procedural Robot'], ['alt', 'Alternate GLB'], ['solo', 'Solo (this robot only)']]) {
+  for (const [v, t] of [['proc', 'Procedural Robot'], ['alt', 'Alternate GLB'], ['solo', 'None (view solo)']]) {
     const o = document.createElement('option'); o.value = v; o.textContent = t; slotSel.appendChild(o);
   }
-  slotSel.onchange = () => setLeftSlot(slotSel.value);
+  slotSel.onchange = () => setCompareTo(slotSel.value);
   panel.appendChild(slotSel);
   const soloRow = el('label', 'display:none;gap:6px;align-items:center;cursor:pointer;margin-bottom:8px;font-size:11px;color:#cfe0f5');
   const soloCheck = document.createElement('input');
   soloCheck.type = 'checkbox';
   soloRow.appendChild(soloCheck);
-  soloRow.appendChild(document.createTextNode(' Solo (this robot only)'));
-  soloCheck.onchange = () => setLeftSlot(soloCheck.checked ? 'solo' : 'proc');
+  soloRow.appendChild(document.createTextNode(' None (view solo)'));
+  soloCheck.onchange = () => setCompareTo(soloCheck.checked ? 'solo' : 'proc');
   panel.appendChild(soloRow);
   // called from load() once the mech's alt availability is known
   function syncSlotUI(hasAlt, slot) {
@@ -671,7 +676,8 @@ export async function runPoseTool(startId) {
   }
 
   const help = el('div', 'margin-top:8px;color:#69788c;font-size:10.5px;line-height:1.5');
-  help.innerHTML = 'Orbit: drag empty space · Zoom: wheel<br>Left = procedural · Right = GLB<br>'
+  help.innerHTML = 'Orbit: drag empty space · Zoom: wheel<br>'
+    + 'Left = what you compare to · Right = this mech\'s GLB<br>'
     + 'Action: keyboard F/G/R/T/H + ⇧ or a gamepad, or the buttons above.<br>'
     + 'Anchors: click = move handle · shift-click = rotate · drop binds it to the '
     + 'nearest geometry so it rides that part. Animation freezes while a point is '
