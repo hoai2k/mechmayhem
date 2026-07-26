@@ -20,17 +20,18 @@
 // positions of the Tripo skeleton it replaces):
 //  • A firebase on legs: short wide torso (chest y 0.60-0.78), pelvis at 0.46,
 //    knees at 0.29, feet flat on the floor with toes out to x 0.22.
-//  • The TWIN CANNONS run from a base at y≈0.80, z≈±0.13 up and BACK to tips
-//    at y=1.00, x≈-0.10. They are chest hardware — the manifest's muzzles hang
-//    off `torso` — so `cannonL/R` (+ their tips) are extra, undriven bones
+//  • The TWIN CANNONS run from a base at y≈0.81, z≈±0.09 up and FORWARD to
+//    tips at y=0.99, z≈±0.16. They are chest hardware — the manifest's muzzles
+//    hang off `torso` — so `cannonL/R` (+ their tips) are extra, undriven bones
 //    parented to the torso: the guns hold still when an arm swings, and the
 //    whole battery tracks the chest.
 //  • The ARMS are near-vertical columns drifting outboard as they fall:
-//    z≈0.25 at the pauldron (y 0.74), 0.27 at the elbow (0.58), 0.29 at the
-//    fist (0.38). Shoulders sit at z ±0.20, inside the pauldron block, so the
+//    z≈0.25 at the pauldron (y 0.70), 0.29 at the elbow (0.53), 0.33 at the
+//    fist (0.33). Shoulders sit inboard of the arm column so the
 //    shoulder→elbow span runs down the upper arm instead of across the chest.
-//  • The `head` is the sensor block on top of the chest (y 0.78-0.87), set
-//    BACK at x≈-0.05 with `crown` as its tip so it owns the whole block.
+//  • The `head` is the collar block at the FRONT of the chest (x 0.06, y 0.74)
+//    with `crown` set back and up as its tip, so the nod pivots the visor
+//    cluster rather than the whole upper body.
 //
 // `skinSpan: 'child'`: each bone owns the slice BELOW it (shoulder→elbow is the
 // upper arm, knee→ankle the shin) — the slice three.js actually pivots about
@@ -53,35 +54,35 @@ export const COLOSSUS_RIG = {
   cutWelds: true,
   cutPairs: [['hips', 'shoulderL'], ['hips', 'shoulderR']],
   bones: [
-    // ---- spine ---- (pelvis 0.46, chest 0.63, sensor block 0.80)
+    // ---- spine ---- (pelvis 0.46, chest 0.63, sensor block at the front of the collar)
     { name: 'hips', parent: null, pos: [0.01, 0.46, 0.00], bias: 0.9 },
-    { name: 'torso', parent: 'hips', pos: [-0.02, 0.63, 0.00], bias: 0.85 },
-    { name: 'head', parent: 'torso', pos: [-0.05, 0.80, 0.00] },
-    { name: 'crown', parent: 'head', pos: [-0.12, 0.84, 0.00] },
+    { name: 'torso', parent: 'hips', pos: [0.01, 0.63, 0.00], bias: 0.85 },
+    { name: 'head', parent: 'torso', pos: [0.06, 0.74, 0.00] },
+    { name: 'crown', parent: 'head', pos: [-0.02, 0.81, 0.00] },
     // ---- twin cannons: chest hardware, never an arm ----
-    { name: 'cannonL', parent: 'torso', pos: [-0.05, 0.81, 0.13] },
-    { name: 'cannonLTip', parent: 'cannonL', pos: [-0.10, 1.00, 0.14] },
-    { name: 'cannonR', parent: 'torso', pos: [-0.05, 0.81, -0.13] },
-    { name: 'cannonRTip', parent: 'cannonR', pos: [-0.10, 1.00, -0.14] },
+    { name: 'cannonL', parent: 'torso', pos: [-0.14, 0.81, 0.09] },
+    { name: 'cannonLTip', parent: 'cannonL', pos: [-0.06, 0.99, 0.16] },
+    { name: 'cannonR', parent: 'torso', pos: [-0.13, 0.81, -0.08] },
+    { name: 'cannonRTip', parent: 'cannonR', pos: [-0.06, 0.99, -0.16] },
     // ---- LEFT arm (+z) ----
-    { name: 'shoulderL', parent: 'torso', pos: [-0.02, 0.74, 0.22], bias: 1.25 },
-    { name: 'elbowL', parent: 'shoulderL', pos: [-0.02, 0.58, 0.27], bias: 1.25 },
-    { name: 'handL', parent: 'elbowL', pos: [0.03, 0.44, 0.285] },
-    { name: 'fistL', parent: 'handL', pos: [0.08, 0.38, 0.29] },
+    { name: 'shoulderL', parent: 'torso', pos: [-0.01, 0.70, 0.25], bias: 1.25 },
+    { name: 'elbowL', parent: 'shoulderL', pos: [-0.01, 0.53, 0.29], bias: 1.25 },
+    { name: 'handL', parent: 'elbowL', pos: [0.05, 0.40, 0.33] },
+    { name: 'fistL', parent: 'handL', pos: [0.10, 0.33, 0.32] },
     // ---- RIGHT arm (-z) ----
-    { name: 'shoulderR', parent: 'torso', pos: [-0.02, 0.74, -0.22], bias: 1.25 },
-    { name: 'elbowR', parent: 'shoulderR', pos: [-0.02, 0.58, -0.27], bias: 1.25 },
-    { name: 'handR', parent: 'elbowR', pos: [0.03, 0.44, -0.285] },
-    { name: 'fistR', parent: 'handR', pos: [0.08, 0.38, -0.29] },
-    // ---- LEFT leg (+z) ---- ankle back at x≈0.05, toes out to 0.17
+    { name: 'shoulderR', parent: 'torso', pos: [-0.02, 0.69, -0.25], bias: 1.25 },
+    { name: 'elbowR', parent: 'shoulderR', pos: [-0.04, 0.54, -0.28], bias: 1.25 },
+    { name: 'handR', parent: 'elbowR', pos: [0.04, 0.41, -0.32] },
+    { name: 'fistR', parent: 'handR', pos: [0.09, 0.35, -0.32] },
+    // ---- LEFT leg (+z) ---- ankle low at y 0.04, toes out to 0.17
     { name: 'thighL', parent: 'hips', pos: [0.02, 0.46, 0.14] },
     { name: 'kneeL', parent: 'thighL', pos: [0.05, 0.29, 0.16], bias: 0.95 },
-    { name: 'ankleL', parent: 'kneeL', pos: [0.05, 0.10, 0.19] },
+    { name: 'ankleL', parent: 'kneeL', pos: [0.01, 0.04, 0.18] },
     { name: 'footL', parent: 'ankleL', pos: [0.17, 0.03, 0.22] },
     // ---- RIGHT leg (-z) ----
     { name: 'thighR', parent: 'hips', pos: [0.02, 0.46, -0.14] },
     { name: 'kneeR', parent: 'thighR', pos: [0.05, 0.29, -0.16], bias: 0.95 },
-    { name: 'ankleR', parent: 'kneeR', pos: [0.05, 0.10, -0.19] },
+    { name: 'ankleR', parent: 'kneeR', pos: [0.02, 0.04, -0.18] },
     { name: 'footR', parent: 'ankleR', pos: [0.17, 0.03, -0.22] },
   ],
 };
