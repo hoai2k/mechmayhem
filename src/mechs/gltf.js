@@ -483,6 +483,8 @@ function buildGlbMech(def, entry, gltf) {
   // `materials` carries this build's OWN material clones (see glbMats above) so
   // the whole-body tints reach a GLB body; GLB_DRESS may add named slots on top.
   const mech = { group: root, joints, anchors: {}, materials: glbMats, dims: D, def, isGLB: true };
+  mech.glbUrl = entry.url || '';  // identifies the MODEL (not just the mech) —
+                                  // hurtbox.js caches its measured capsules by it
   mech.fistSplit = fistSplit;   // Fighter.launchFist/catchFist + WEAPONS.fist
   // reinterpret shared anims for this model. entry.profileKey lets a model
   // VARIANT (e.g. an alt whose weapon sits in the other hand) carry its own

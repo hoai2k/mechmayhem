@@ -447,6 +447,7 @@ const CLIPS_RAW = {
   // digitigrade crouch carries through every kick.
   saurionKick1: { // right EAGLE KICK: knee chambers at the chest, then the
     // sickle toe-claw whips up-and-out at head height, torso swung back
+    strikeLimb: 'footR',   // the blow is resolved on the CLAW, not the body
     dur: 0.5,
     keys: [
       { t: 0, pose: {} },
@@ -458,6 +459,7 @@ const CLIPS_RAW = {
     events: [{ t: 0.18, type: 'sfx', arg: 'whoosh' }, { t: 0.22, type: 'hit', arg: 0 }],
   },
   saurionKick2: { // left eagle kick, same head-high snap off the other leg
+    strikeLimb: 'footL',
     dur: 0.52,
     keys: [
       { t: 0, pose: {} },
@@ -470,6 +472,7 @@ const CLIPS_RAW = {
   },
   saurionKick3: { // combo ender: coil onto the haunches, then a leaping
     // downward claw slash with the whole body behind it
+    strikeLimb: 'footR',   // leaps off the left, strikes with the right sickle
     dur: 0.62,
     keys: [
       { t: 0, pose: {} },
@@ -750,6 +753,7 @@ const CLIPS_RAW = {
 
   stomp: { // one heavy foot raised high and RAMMED straight down — the
     // finisher trample (stomp2 is the mirrored left foot)
+    strikeLimb: 'footR',
     dur: 0.5,
     keys: [
       { t: 0, pose: {} },
@@ -1074,8 +1078,10 @@ function mirrorRaw(raw) {
   const swap = (j) => (j.endsWith('L') ? j.slice(0, -1) + 'R' : j.endsWith('R') ? j.slice(0, -1) + 'L' : j);
   return {
     ...raw,
-    // a mirrored one-armed blow is thrown with the OTHER arm
+    // a mirrored one-armed blow is thrown with the OTHER arm...
     strikeArm: raw.strikeArm === 'L' ? 'R' : raw.strikeArm === 'R' ? 'L' : raw.strikeArm,
+    // ...and a mirrored kick lands on the other foot
+    strikeLimb: raw.strikeLimb ? raw.strikeLimb.replace(/([LR])$/, (c) => (c === 'L' ? 'R' : 'L')) : raw.strikeLimb,
     keys: raw.keys.map((k) => {
       const pose = {};
       for (const [j, v] of Object.entries(k.pose)) {
@@ -1142,6 +1148,11 @@ function compile(name, raw) {
     hold: !!raw.hold,
     upper: !!raw.upper,
     strikeArm: raw.strikeArm || null, // 'L'/'R' on a ONE-ARMED blow, else null
+    // Which limb the blow is RESOLVED on (combat/hurtbox.js): a part name
+    // like 'footR'. Only needed where the auto-detection — "whichever
+    // extremity leads furthest forward at the hit frame" — could pick the
+    // wrong one, i.e. a kick thrown while an arm is also out front.
+    strikeLimb: raw.strikeLimb || null,
     tracks,
     events: raw.events || [],
   };
@@ -1253,6 +1264,7 @@ const SAURION_CLAW_R_GLB = {
 // snap and drive the hips forward with it, so the kick reads as full-stretch
 // and the claw carries past the target instead of stopping on it.
 const SAURION_KICK1_GLB = {
+  strikeLimb: 'footR',
   dur: 0.5,
   keys: [
     { t: 0, pose: {} },
@@ -1267,6 +1279,7 @@ const SAURION_KICK1_GLB = {
 // carries its OWN timing and combo index (dur 0.52, hit arg 1), and mirrorRaw
 // copies `events` and key times through verbatim
 const SAURION_KICK2_GLB = {
+  strikeLimb: 'footL',
   dur: 0.52,
   keys: [
     { t: 0, pose: {} },
