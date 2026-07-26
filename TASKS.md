@@ -3113,3 +3113,35 @@ artifact — the workbench was showing shipping behaviour correctly.
 - Verified: left uppercut frames VIEWed on rhino and nullbot (clean mirror,
   full extension, correct chamber); ace soaks crash-free rhino/titanus,
   nullbot/viper, cranky/fenrir; `vite build` green.
+
+## Uppercut lands in FRONT of the body, on the centreline (user request, 2026-07-25)
+
+- `light3`'s strike swung the arm to −150° shoulder pitch — past vertical. Measured
+  on the rig, the fist finished **0.16 units in front of the hips and 5.1 up**:
+  directly over his own shoulder, which is why it read as raising an arm rather
+  than punching. The torso also arched AWAY from the blow (−24° pitch).
+- The strike frame now drives the fist through the same place the jab and cross
+  land, only higher, with the twist unwinding the shoulder into it:
+  `torso −14°`, `shoulderR [−80, 24, 0]`, `elbowR −25°`.
+- Measured fist at the hit frame (body-local: fwd from hips, lat +/− off centre, up):
+
+  | clip | before | after |
+  |---|---|---|
+  | light1 jab (L) | fwd 3.08 lat −0.98 up 2.01 | unchanged |
+  | light2 cross (R) | fwd 2.94 lat +1.29 up 2.10 | unchanged |
+  | light3 uppercut (R) | fwd **0.16** lat −0.89 up 5.12 | fwd **2.84** lat **0.04** up 2.87 |
+
+  So it now reaches as far forward as the punches (2.84 vs ~3.0), sits dead
+  centre instead of crossing to the far side, and still rises ~0.8 above the
+  straight-punch line — a rising blow into the same target, not a shoulder press.
+- Holds on every rig, since the clip is shared: nullbot GLB fwd 2.87 lat 0.39 up
+  3.08, procedural rhino fwd 3.08 lat −0.34 up 2.97. `light3L` mirrors exactly.
+- Solved by grid-searching the strike-frame shoulder/elbow/torso against the
+  measured fist position rather than eyeballing degrees — the joint that reads as
+  "up" also swings the arm behind the shoulder past vertical, so the numbers are
+  not guessable.
+- Gameplay untouched: damage/knock/launch and the strike volume are unchanged.
+  The one-armed strike servo (`strikeArm: 'R'`, aimStrikeAt) now has a fist that
+  actually travels down the target line, so its steering reads better too.
+- Verified: strike frame VIEWed front + side on rhino and on nullbot; ace soaks
+  crash-free rhino/titanus, nullbot/glacier, fenrir/viper; `vite build` green.
