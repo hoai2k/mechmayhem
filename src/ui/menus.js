@@ -6,14 +6,15 @@ import { THEMES } from '../arena/themes.js';
 import { isTouchDevice } from '../core/utils.js';
 import { mechIcon } from './icons.js';
 import { PLAYER_COLORS_CSS as COLOR_CSS, hexCss } from '../core/colors.js';
+import { t } from '../core/text.js';
 
 // pseudo roster entry: the RANDOM pick (last cell in the grid). Locking it
 // deals you a DIFFERENT random robot every round; the color scheme you pick
 // here is applied to whatever shows up.
 export const RANDOM_PICK = {
-  id: 'random', name: 'RANDOM', title: 'Mystery Unit', icon: '❓',
+  id: 'random', name: t('select.random.name'), title: t('select.random.title'), icon: '❓',
   colors: { primary: 0x3a4a5e, glow: 0x9fd8ef },
-  blurb: 'A different robot every round — dealt fresh at each bell. Pick a color scheme; it carries onto whatever shows up.',
+  blurb: t('select.random.blurb'),
 };
 const pickFrom = (list, cursor) => (cursor >= list.length ? RANDOM_PICK : list[cursor]);
 
@@ -34,7 +35,7 @@ function touchBtn(label, cls, onTap) {
 // A floating BACK button, bottom-left, shown only on touch screens.
 function appendTouchBack(screenEl, onBack) {
   if (!isTouchDevice()) return;
-  screenEl.appendChild(touchBtn('◀ BACK', 'nav-back', onBack));
+  screenEl.appendChild(touchBtn(t('nav.back'), 'nav-back', onBack));
 }
 
 // Frame a corner "hot button" (settings/sound, owned by boot.js) in a
@@ -128,16 +129,15 @@ export class TitleScreen {
     this.el = el('div', 'screen fade-in');
     this.el.innerHTML = `
       <div style="text-align:center">
-        <div class="mega-title">ROBOTWORLD</div>
-        <div class="mega-sub">MECH BATTLE ARENA</div>
+        <div class="mega-title">${t('title.game')}</div>
+        <div class="mega-sub">${t('title.tagline')}</div>
       </div>`;
     this.list = new MenuList({ audio, hot: hotButtons });
     this.el.appendChild(this.list.build([
-      { t: 'BATTLE', fn: onPlay },
-      { t: 'FULLSCREEN', fn: onFullscreen },
+      { t: t('title.menu.battle'), fn: onPlay },
+      { t: t('title.menu.fullscreen'), fn: onFullscreen },
     ]));
-    this.el.appendChild(el('div', 'hint-bar',
-      '<b>↑↓</b> select&nbsp;&nbsp;<b>ENTER / A</b> confirm&nbsp;&nbsp;·&nbsp;&nbsp;<b>LB / RB</b> (Q/E) settings · sound&nbsp;&nbsp;·&nbsp;&nbsp;pad <b>SELECT</b> mouse pointer&nbsp;&nbsp;·&nbsp;&nbsp;P1 <b>WASD</b> + <b>F G H R T Y</b> · <b>SPACE</b> jump · <b>SHIFT</b> dash'));
+    this.el.appendChild(el('div', 'hint-bar', t('title.hint.html')));
     root.appendChild(this.el);
   }
   update(ev) {
@@ -165,7 +165,7 @@ export class MechSelectScreen {
     this.onPreview = onPreview;
     this.touch = isTouchDevice();
     this.el = el('div', 'screen fade-in');
-    this.el.appendChild(el('div', 'screen-heading', 'CHOOSE YOUR FIGHTER'));
+    this.el.appendChild(el('div', 'screen-heading', t('select.heading')));
 
     // slot state (managed here now — the old separate setup screen is gone)
     this.slots = prev || this.defaultSlots();
@@ -185,7 +185,7 @@ export class MechSelectScreen {
       c.innerHTML = m === RANDOM_PICK
         ? `<div class="cell-tint" style="background:linear-gradient(150deg, #2a3a52, transparent)"></div>
            <div class="cell-icon" style="font-size:clamp(26px,3vw,42px)">❓</div>
-           <div class="cell-name">RANDOM</div>`
+           <div class="cell-name">${t('select.random.name')}</div>`
         : `<div class="cell-tint" style="background:linear-gradient(150deg, ${hexCss(m.colors.primary)}, transparent)"></div>
            <div class="cell-icon">${mechIcon(m, 52)}</div>
            <div class="cell-name">${m.name}</div>`;
@@ -221,22 +221,18 @@ export class MechSelectScreen {
     // everyone-locked gate: the match does NOT advance until someone
     // confirms again, so the last player still has time to tweak colors
     this.ready = false;
-    this.readyBar = el('div', 'ready-banner',
-      '<div class="rb-chip">ALL LOCKED — PRESS <b>A / ENTER</b> TO CONTINUE · COLORS CAN STILL BE CHANGED</div>');
+    this.readyBar = el('div', 'ready-banner', t('select.ready.html'));
     this.readyBar.style.display = 'none';
     this.el.appendChild(this.readyBar);
 
-    this.el.appendChild(el('div', 'hint-bar',
-      'press <b>A</b> / <b>ENTER</b> on a controller or keyboard to JOIN&nbsp;&nbsp;·&nbsp;&nbsp;' +
-      '<b>MOVE</b> pick&nbsp;&nbsp;<b>X / R</b> color&nbsp;&nbsp;<b>A / ENTER</b> lock in&nbsp;&nbsp;<b>B / ESC</b> leave · back' +
-      '&nbsp;&nbsp;·&nbsp;&nbsp;<b>LB / RB</b> (Q/E) select a CPU / empty / KB slot / ⚙ / 🔊: <b>↑↓</b> change · <b>A</b> use · <b>B</b> done&nbsp;&nbsp;·&nbsp;&nbsp;pad <b>SELECT</b> mouse pointer'));
+    this.el.appendChild(el('div', 'hint-bar', t('select.hint.html')));
     root.appendChild(this.el);
 
     if (this.touch) {
       const bar = el('div', 'touch-navbar');
-      bar.appendChild(touchBtn('◀ BACK', 'nav-back', () => this.input.touchMenuEvent('back')));
-      bar.appendChild(touchBtn('🎨 COLOR', 'nav-back', () => this.input.touchMenuEvent('alt')));
-      bar.appendChild(touchBtn('LOCK IN ▶', 'nav-next', () => {
+      bar.appendChild(touchBtn(t('nav.back'), 'nav-back', () => this.input.touchMenuEvent('back')));
+      bar.appendChild(touchBtn(t('nav.color'), 'nav-back', () => this.input.touchMenuEvent('alt')));
+      bar.appendChild(touchBtn(t('nav.lockIn'), 'nav-next', () => {
         if (this.ready) this.finish();
         else if (this.mousePicker) this.lockIn(this.mousePicker);
       }));
@@ -467,10 +463,11 @@ export class MechSelectScreen {
   deviceLabel(device) {
     if (device.startsWith('pad')) {
       let n = 0;
-      for (let i = 0; i < 4; i++) { if (this.input.padConnected(i)) { n++; if (i === +device[3]) return `GAMEPAD ${n}`; } }
-      return `GAMEPAD ${+device[3] + 1}`;
+      for (let i = 0; i < 4; i++) { if (this.input.padConnected(i)) { n++; if (i === +device[3]) return t('device.pad', { n }); } }
+      return t('device.pad', { n: +device[3] + 1 });
     }
-    return { touch: 'TOUCH', kb1: 'KEYBOARD 1', kb2: 'KEYBOARD 2' }[device] || device.toUpperCase();
+    const id = { touch: 'device.touch', kb1: 'device.kb1', kb2: 'device.kb2' }[device];
+    return id ? t(id) : device.toUpperCase();
   }
 
   // players bar: join prompts, device/CPU controls, live pick + lock state
@@ -483,31 +480,31 @@ export class MechSelectScreen {
       const ed = this.pickers.find((p) => p.sel === i);
       const edTag = ed
         ? `<div class="pc-sub" style="color:${COLOR_CSS[ed.slotIdx]};font-weight:800;">
-             ▶ P${ed.slotIdx + 1} EDITING · ↑↓ change · B done</div>`
+             ${t('select.editing', { n: ed.slotIdx + 1 })}</div>`
         : '';
       pc.style.boxShadow = ed ? `0 0 0 3px ${COLOR_CSS[ed.slotIdx]}, 0 0 18px ${COLOR_CSS[ed.slotIdx]}` : '';
       if (s.kind === 'off') {
         pc.classList.add('empty');
         pc.style.borderColor = 'rgba(120,150,180,0.28)';
-        pc.innerHTML = `<div class="pc-role" style="color:#6f8aa2">PLAYER ${i + 1}</div>
-          <div class="pc-add">＋ ADD PLAYER</div>
-          <div class="pc-sub">press A / ENTER to join · LB/RB from your seat, or click, to add CPU / KB</div>${edTag}`;
+        pc.innerHTML = `<div class="pc-role" style="color:#6f8aa2">${t('select.player', { n: i + 1 })}</div>
+          <div class="pc-add">${t('select.addPlayer')}</div>
+          <div class="pc-sub">${t('select.addHint')}</div>${edTag}`;
         return;
       }
       pc.style.borderColor = col;
       if (s.kind === 'ai') {
-        pc.innerHTML = `<div class="pc-role" style="color:${col}">PLAYER ${i + 1}</div>
-          <div class="pc-dev">🤖 CPU · ${s.diff.toUpperCase()}</div>
-          <div class="pc-sub">◀ difficulty ▶ &nbsp;·&nbsp; tap center to remove</div>${edTag}`;
+        pc.innerHTML = `<div class="pc-role" style="color:${col}">${t('select.player', { n: i + 1 })}</div>
+          <div class="pc-dev">${t('select.cpu', { diff: t('diff.' + s.diff) })}</div>
+          <div class="pc-sub">${t('select.cpuHint')}</div>${edTag}`;
         return;
       }
       const pk = this.pickers.find((p) => p.slotIdx === i);
       const m = this.pickAt(pk.cursor);
       const mc = hexCss(m.colors.glow);
       pc.classList.toggle('locked', pk.locked);
-      pc.innerHTML = `<div class="pc-role" style="color:${col}">PLAYER ${i + 1} · ${this.deviceLabel(s.device)}</div>
+      pc.innerHTML = `<div class="pc-role" style="color:${col}">${t('select.playerDevice', { n: i + 1, device: this.deviceLabel(s.device) })}</div>
         <div class="pc-dev" style="color:${mc}">${mechIcon(m, 18)}${m.name}${pk.locked ? ' ✓' : ''}</div>
-        ${pk.locked ? this.pcSchemeRow(m, pk) : '<div class="pc-sub">picking…</div>'}${edTag}`;
+        ${pk.locked ? this.pcSchemeRow(m, pk) : `<div class="pc-sub">${t('select.picking')}</div>`}${edTag}`;
     });
   }
 
@@ -520,7 +517,7 @@ export class MechSelectScreen {
       row += `<span class="pc-swatch${pk.variant === v ? ' on' : ''}" data-variant="${v}"
         title="${SCHEME_NAMES[v]}" style="background:${col};"></span>`;
     }
-    return `<div class="pc-sub pc-colors">COLOR${row}<span style="opacity:0.8;">${SCHEME_NAMES[pk.variant]}</span></div>`;
+    return `<div class="pc-sub pc-colors">${t('select.colorLabel')}${row}<span style="opacity:0.8;">${SCHEME_NAMES[pk.variant]}</span></div>`;
   }
 
   renderCard() {
@@ -532,7 +529,7 @@ export class MechSelectScreen {
           <div class="mi-name" style="color:#9fd8ef">❓ ${m.name}</div>
           <div class="mi-title">${m.title}</div>
           <div class="mi-blurb">${m.blurb}</div>
-          <div class="mi-moves"><b>RANGED</b> ??? &nbsp;·&nbsp; <b>SPECIAL</b> ??? &nbsp;·&nbsp; <b>ULTIMATE</b> ???</div>`;
+          <div class="mi-moves"><b>${t('select.move.ranged')}</b> ${t('select.unknownMove')} &nbsp;·&nbsp; <b>${t('select.move.special')}</b> ${t('select.unknownMove')} &nbsp;·&nbsp; <b>${t('select.move.ult')}</b> ${t('select.unknownMove')}</div>`;
         return;
       }
       this.card.innerHTML = `
@@ -540,13 +537,13 @@ export class MechSelectScreen {
         <div class="mi-title">${m.title}</div>
         <div class="mi-blurb">${m.blurb}</div>
         <div class="mi-stats">
-          ${this.statRow('POWER', m.ui.power)}
-          ${this.statRow('SPEED', m.ui.speed)}
-          ${this.statRow('DEFENSE', m.ui.defense)}
+          ${this.statRow(t('select.stat.power'), m.ui.power)}
+          ${this.statRow(t('select.stat.speed'), m.ui.speed)}
+          ${this.statRow(t('select.stat.defense'), m.ui.defense)}
         </div>
         <div class="mi-moves">
-          <b>RANGED</b> ${m.moves.ranged.name} &nbsp;·&nbsp; <b>SPECIAL</b> ${m.moves.special.name}<br>
-          <b>ULTIMATE</b> ${m.moves.ult.name}
+          <b>${t('select.move.ranged')}</b> ${m.moves.ranged.name} &nbsp;·&nbsp; <b>${t('select.move.special')}</b> ${m.moves.special.name}<br>
+          <b>${t('select.move.ult')}</b> ${m.moves.ult.name}
         </div>`;
       return;
     }
@@ -555,14 +552,14 @@ export class MechSelectScreen {
       const m = this.pickAt(pk.cursor);
       const pc = COLOR_CSS[pk.slotIdx % 4];
       const movesLine = m === RANDOM_PICK
-        ? 'a different robot every round'
-        : `<b>RNG</b> ${m.moves.ranged.name} · <b>SPC</b> ${m.moves.special.name} · <b>ULT</b> ${m.moves.ult.name}`;
+        ? t('select.random.short')
+        : `<b>${t('select.move.rangedShort')}</b> ${m.moves.ranged.name} · <b>${t('select.move.specialShort')}</b> ${m.moves.special.name} · <b>${t('select.move.ultShort')}</b> ${m.moves.ult.name}`;
       const nameHtml = m === RANDOM_PICK ? `❓ ${m.name}` : `${mechIcon(m, 26)}${m.name}`;
       return `
         <div style="border-left:3px solid ${pc}; padding:6px 10px; margin-bottom:8px;
                     background:rgba(10,18,30,0.45); border-radius:0 6px 6px 0;">
           <div style="font-size:11px;letter-spacing:0.2em;color:${pc};font-weight:800;">
-            PLAYER ${pk.slotIdx + 1} ${pk.locked ? '· LOCKED ✓' : ''}</div>
+            ${t('select.player', { n: pk.slotIdx + 1 })} ${pk.locked ? t('select.locked') : ''}</div>
           <div class="mi-name" style="font-size:clamp(15px,1.6vw,21px);color:${hexCss(m.colors.glow)}">${nameHtml}</div>
           <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--hud-cyan);">${m.title}</div>
           <div class="mi-moves" style="margin-top:6px;">${movesLine}</div>
@@ -749,7 +746,7 @@ export class ArenaSelectScreen {
     this.onBack = onBack;
     this.rolling = false;
     this.el = el('div', 'screen dim fade-in');
-    this.el.appendChild(el('div', 'screen-heading', 'SELECT ARENA'));
+    this.el.appendChild(el('div', 'screen-heading', t('arena.heading')));
 
     const wrap = el('div', 'arena-grid');
     this.cards = [];
@@ -761,8 +758,8 @@ export class ArenaSelectScreen {
       art.width = 256; art.height = 144;
       this.drawRandomArt(art);
       c.appendChild(art);
-      c.appendChild(el('div', 'arena-name', 'RANDOM'));
-      c.appendChild(el('div', 'arena-desc', 'Spin the wheel — any arena could come up.'));
+      c.appendChild(el('div', 'arena-name', t('arena.random.name')));
+      c.appendChild(el('div', 'arena-desc', t('arena.random.desc')));
       c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = 0; this.refresh(); } });
       c.addEventListener('click', () => this.confirm());
       wrap.appendChild(c);
@@ -783,7 +780,7 @@ export class ArenaSelectScreen {
       this.cards.push(c);
     });
     this.el.appendChild(wrap);
-    this.el.appendChild(el('div', 'hint-bar', '<b>ARROWS</b> move&nbsp;&nbsp;<b>ENTER / A</b> fight!&nbsp;&nbsp;<b>ESC / B</b> back'));
+    this.el.appendChild(el('div', 'hint-bar', t('arena.hint.html')));
     root.appendChild(this.el);
     // On touch, tapping an arena starts the fight; this handles going back.
     appendTouchBack(this.el, () => { if (!this.rolling) { this.audio?.play('uiBack'); this.onBack(); } });
@@ -909,12 +906,12 @@ export class ArenaSelectScreen {
 export class PauseScreen {
   constructor(root, { audio, onResume, onQuit, onFullscreen = null, splitToggle = null, onSettings = null, hotButtons }) {
     this.el = el('div', 'screen dim fade-in');
-    this.el.innerHTML = `<div class="mega-title pause-title">PAUSED</div>`;
+    this.el.innerHTML = `<div class="mega-title pause-title">${t('pause.title')}</div>`;
     this.items = [
-      { t: 'RESUME', fn: onResume },
-      { t: 'CONTROLS', fn: () => this.toggleControls() },
+      { t: t('pause.menu.resume'), fn: onResume },
+      { t: t('pause.menu.controls'), fn: () => this.toggleControls() },
     ];
-    if (onFullscreen) this.items.push({ t: 'FULLSCREEN', fn: onFullscreen });
+    if (onFullscreen) this.items.push({ t: t('pause.menu.fullscreen'), fn: onFullscreen });
     // relabeling toggles stay open when activated
     const addToggle = (toggle, key) => {
       if (!toggle) return;
@@ -930,25 +927,13 @@ export class PauseScreen {
       });
     };
     addToggle(splitToggle, 'split');
-    if (onSettings) this.items.push({ t: 'SETTINGS', fn: onSettings });
-    this.items.push({ t: 'QUIT TO MENU', fn: onQuit });
+    if (onSettings) this.items.push({ t: t('pause.menu.settings'), fn: onSettings });
+    this.items.push({ t: t('pause.menu.quit'), fn: onQuit });
     this.list = new MenuList({ audio, hot: hotButtons });
     this.el.appendChild(this.list.build(this.items));
     this.controls = el('div', 'panel');
     this.controls.style.cssText = 'margin-top:20px;padding:16px 26px;display:none;font-size:13px;line-height:1.9;color:#b8d4e6;';
-    this.controls.innerHTML = `
-      <b style="color:#fff">KEYBOARD P1</b> — WASD move · SPACE jump · F light · G heavy · H block · R ranged · T special · Y ultimate · SHIFT dash · Q strafe-lock · C duck · B taunt<br>
-      <b style="color:#fff">KEYBOARD P2</b> — Arrows move · Num0 jump · Num1 light · Num2 heavy · Num3 block · Num4 ranged · Num5 special · Num6 ult · NumEnter dash · Num7 strafe-lock · Num8 duck<br>
-      <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera · A jump · X light · Y heavy · RB ranged · RT special · LT block · L-stick click duck · D-pad ↑ ultimate · VIEW taunt<br>
-      <b style="color:#fff">B / SHIFT — DASH &amp; SPRINT</b> — standing still, HOLD to wind up a dash coil (3s cap, crouches); the moment you push a direction it FIRES a dash that way — longer wind-up, farther dash. Already moving, press-and-HOLD for a short dash into a SPRINT that drains the yellow stamina bar (refills when you let go)<br>
-      <b style="color:#fff">PAD LB — TARGET LOCK</b> — HOLD to lock onto the nearest enemy: you face them, the camera keeps them framed, and sideways movement becomes a strafe<br>
-      <b style="color:#fff">AIM</b> — while LB target lock is held, a light crosshair drifts onto the target and ranged shots fly at it (height included); unlocked shots fire along your facing<br>
-      <b style="color:#fff">HOVER JETS</b> — press JUMP again in mid-air and HOLD to fly (lighter mechs fly higher)<br>
-      <b style="color:#fff">CHARGED STRIKES</b> — TITANUS &amp; COLOSSUS: HOLD light (X) to keep the punch wound up, or heavy (Y) to keep the pound raised — release to strike with banked power<br>
-      <b style="color:#fff">FINISHERS</b> — hold JUMP (A / SPACE) for 1s to skip the KO cinematic<br>
-      <b style="color:#fff">DOWNED?</b> — press JUMP while knocked down to spring clear · every ranged weapon runs on AMMO — grab the yellow crates<br>
-      <b style="color:#fff">WORLD</b> — the arena wraps: walk off any side and you come around the other<br>
-      <b style="color:#fff">VIEW</b> — F9 flips the 2-player split (side-by-side ↔ stacked) · F10 fullscreen`;
+    this.controls.innerHTML = t('pause.controls.html');
     this.el.appendChild(this.controls);
     root.appendChild(this.el);
   }
@@ -979,7 +964,7 @@ export class SettingsScreen {
     this.el = el('div', 'screen dim fade-in');
     this.el.style.zIndex = 30;
     this.el.style.background = 'rgba(5, 8, 14, 0.86)'; // hide the menu beneath
-    this.el.innerHTML = `<div class="mega-title pause-title">SETTINGS</div>`;
+    this.el.innerHTML = `<div class="mega-title pause-title">${t('settings.title')}</div>`;
     this.items = [
       ...items.map((toggle) => ({
         t: toggle.label(),
@@ -991,7 +976,7 @@ export class SettingsScreen {
         },
         toggle,
       })),
-      { t: 'BACK', fn: () => this.onBack() },
+      { t: t('settings.back'), fn: () => this.onBack() },
     ];
     this.list = new MenuList({ audio });
     this.el.appendChild(this.list.build(this.items));
@@ -1011,15 +996,15 @@ export class ResultsScreen {
     this.el = el('div', 'screen dim fade-in');
     const panel = el('div', 'panel results-panel');
     panel.innerHTML = `
-      <div class="winner-sub">CHAMPION</div>
+      <div class="winner-sub">${t('results.champion')}</div>
       <div class="winner-name" style="color:${hexCss(winner.def.colors.glow)}">${mechIcon(winner.def, 34)}${winner.def.name}</div>
       <div class="winner-quote">${winner.def.quotes.win}</div>`;
     this.el.appendChild(panel);
     this.list = new MenuList({ audio });
     this.el.appendChild(this.list.build([
-      { t: 'REMATCH', fn: onRematch },
-      { t: 'CHANGE MECHS', fn: onChangeMechs },
-      { t: 'MAIN MENU', fn: onMenu },
+      { t: t('results.menu.rematch'), fn: onRematch },
+      { t: t('results.menu.changeMechs'), fn: onChangeMechs },
+      { t: t('results.menu.mainMenu'), fn: onMenu },
     ]));
     root.appendChild(this.el);
   }

@@ -1,8 +1,11 @@
 // Match orchestration: best-of-3 rounds, intros, KO slow-mo, timeouts.
 import { clamp01 } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
+import { t } from '../core/text.js';
 
 const ROUND_TIME = 99;
+const KO_COLOR = '#ff4d5e';
+const FIGHT_COLOR = '#ffb43c';
 const WINS_NEEDED = 2;
 
 export class Match {
@@ -42,11 +45,11 @@ export class Match {
     this.state = 'intro';
     this.stateT = 2.5;
     this.timeLeft = ROUND_TIME;
-    this.hud.announce(`ROUND ${this.round}`, true);
+    this.hud.announce(t('match.round', { n: this.round }), true);
     this.world.audio?.play('stingRound');
     // a bit of personality: someone talks trash at the start of each round
     const talker = this.fighters[(this.round - 1) % this.fighters.length];
-    this.hud.callout(`${talker.def.name}: ${talker.def.quotes.intro}`);
+    this.hud.callout(t('match.intro', { mech: talker.def.name, quote: talker.def.quotes.intro }));
   }
 
   onKO({ fighter, attacker }) {
@@ -59,15 +62,15 @@ export class Match {
     if (CONFIG.enable_finishers && winner && attacker === winner) {
       this.state = 'finisher';
       this.engine.timeScale = 1;
-      this.hud.announce('K.O.!', false, '#ff4d5e');
+      this.hud.announce(t('match.ko'), false, KO_COLOR);
       this.world.audio?.play('stingKO');
       for (const f of this.fighters) f.controlsLocked = true;
       this.world.startFinisher(winner, fighter, () => {
-        this.endRound(winner, 'K.O.!', true);
+        this.endRound(winner, t('match.ko'), true);
       });
       return;
     }
-    this.endRound(winner, 'K.O.!');
+    this.endRound(winner, t('match.ko'));
   }
 
   endRound(winner, banner, afterFinisher = false) {
@@ -76,7 +79,7 @@ export class Match {
     this.pendingWinner = winner;
     if (!afterFinisher) {
       this.engine.timeScale = 0.25;        // dramatic slow-mo
-      this.hud.announce(banner, false, banner === 'K.O.!' ? '#ff4d5e' : null);
+      this.hud.announce(banner, false, banner === t('match.ko') ? KO_COLOR : null);
       this.world.audio?.play('stingKO');   // (the finisher already sold it)
     }
     if (winner) winner.wins++;
@@ -88,7 +91,7 @@ export class Match {
       case 'intro':
         this.stateT -= dtReal;
         if (this.stateT <= 0.9 && this.stateT + dtReal > 0.9) {
-          this.hud.announce('FIGHT!', false, '#ffb43c');
+          this.hud.announce(t('match.fight'), false, FIGHT_COLOR);
           this.world.audio?.play('fightBell');
         }
         if (this.stateT <= 0.9) {
@@ -108,7 +111,7 @@ export class Match {
             if (Math.abs(frac - bestFrac) < 0.001) tie = true;
             else if (frac > bestFrac) { bestFrac = frac; best = f; tie = false; }
           }
-          this.endRound(tie ? null : best, 'TIME UP');
+          this.endRound(tie ? null : best, t('match.timeUp'));
         }
         break;
       }
@@ -124,9 +127,9 @@ export class Match {
             this.pendingWinner.animator.play('victory');
           }
           if (this.pendingWinner) {
-            this.hud.announce(`${this.pendingWinner.def.name} WINS THE ROUND`, true);
+            this.hud.announce(t('match.roundWinner', { mech: this.pendingWinner.def.name }), true);
           } else {
-            this.hud.announce('DRAW', true);
+            this.hud.announce(t('match.draw'), true);
           }
         }
         if (this.stateT <= 0) {

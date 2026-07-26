@@ -1,4 +1,5 @@
 import { CONFIG } from '../core/config.js';
+import { applyMechText } from '../core/text.js';
 
 // The roster: proportions, palettes, stats, personalities, move sets.
 // All combat numbers live here so balance is tuned in one place.
@@ -539,6 +540,12 @@ export const ROSTER = [
     },
   },
 ];
+
+// Names, titles, bios, round quotes and move names are NOT authored here —
+// every player-visible string in the game lives in src/core/text.js and is
+// stamped onto these defs at import time, so `def.name` keeps working while
+// the words stay translatable in one file.
+ROSTER.forEach(applyMechText);
 
 export const ROSTER_BY_ID = Object.fromEntries(ROSTER.map((m) => [m.id, m]));
 

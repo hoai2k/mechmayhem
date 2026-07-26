@@ -9,6 +9,7 @@
 // close-ups over the default wide shot just by adding them.
 import * as THREE from 'three';
 import { rand, clamp01, lerp } from '../core/utils.js';
+import { t } from '../core/text.js';
 import { RagdollSim } from '../combat/ragdollphys.js';
 // per-mech choreography lives in ./finisher/<id>.js (index assembles the
 // map; shared engine/script helpers live in ./finisher/shared.js)
@@ -284,7 +285,7 @@ export class Finisher {
           display:flex;align-items:center;justify-content:center;
           font:800 22px sans-serif;color:#7be87b;">A</div>
       </div>
-      <span style="letter-spacing:0.25em">SKIP</span>`;
+      <span style="letter-spacing:0.25em">${t('nav.skip')}</span>`;
     document.getElementById('ui-root')?.appendChild(el);
     this._skipUI = el;
     this._skipRing = el.querySelector('.skip-ring');

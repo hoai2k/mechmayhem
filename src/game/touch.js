@@ -3,6 +3,7 @@
 // Input instance's virtual 'touch' device (see input.js). Only shown while a
 // battle is running; hidden (and released) on every other screen.
 import { clamp } from '../core/utils.js';
+import { t } from '../core/text.js';
 
 // Block the browser's built-in zoom gestures on touch devices. iOS Safari
 // ignores `user-scalable=no` in the viewport meta, so pinch-zoom and (the
@@ -33,16 +34,16 @@ export function installTouchZoomGuards() {
 // Action buttons. `hold: true` are read continuously (block/ranged); the rest
 // fire on the press edge, matching the keyboard/pad mapping in Input.readIntent.
 const BUTTONS = [
-  { name: 'light',   label: 'LT',  glyph: '👊', cls: 'b-light',   hint: 'Light' },
-  { name: 'heavy',   label: 'HV',  glyph: '💥', cls: 'b-heavy',   hint: 'Heavy' },
-  { name: 'jump',    label: 'JMP', glyph: '⬆',  cls: 'b-jump',    hint: 'Jump' },
-  { name: 'dash',    label: 'DSH', glyph: '💨', cls: 'b-dash',    hint: 'Dash' },
-  { name: 'block',   label: 'BLK', glyph: '🛡', cls: 'b-block',   hint: 'Block', hold: true },
-  { name: 'duck',    label: 'DUK', glyph: '⤵',  cls: 'b-duck',    hint: 'Duck', hold: true },
-  { name: 'ranged',  label: 'RNG', glyph: '🎯', cls: 'b-ranged',  hint: 'Ranged', hold: true },
-  { name: 'special', label: 'SP',  glyph: '✦',  cls: 'b-special', hint: 'Special' },
-  { name: 'ult',     label: 'ULT', glyph: '★',  cls: 'b-ult',     hint: 'Ultimate' },
-];
+  { name: 'light',   glyph: '👊', cls: 'b-light' },
+  { name: 'heavy',   glyph: '💥', cls: 'b-heavy' },
+  { name: 'jump',    glyph: '⬆',  cls: 'b-jump' },
+  { name: 'dash',    glyph: '💨', cls: 'b-dash' },
+  { name: 'block',   glyph: '🛡', cls: 'b-block', hold: true },
+  { name: 'duck',    glyph: '⤵',  cls: 'b-duck', hold: true },
+  { name: 'ranged',  glyph: '🎯', cls: 'b-ranged', hold: true },
+  { name: 'special', glyph: '✦',  cls: 'b-special' },
+  { name: 'ult',     glyph: '★',  cls: 'b-ult' },
+].map((b) => ({ ...b, label: t(`touch.${b.name}.label`), hint: t(`touch.${b.name}.hint`) }));
 
 export class TouchControls {
   constructor(input, { onPause, onLook } = {}) {
@@ -183,14 +184,14 @@ export class TouchControls {
     const taunt = document.createElement('div');
     taunt.className = 'touch-btn tb-mini b-taunt';
     taunt.innerHTML = `<span class="tb-glyph">😜</span>`;
-    taunt.setAttribute('aria-label', 'Taunt');
+    taunt.setAttribute('aria-label', t('touch.taunt.hint'));
     this._bindButton(taunt, 'taunt');
     bar.appendChild(taunt);
 
     const pause = document.createElement('div');
     pause.className = 'touch-btn tb-mini b-pause';
     pause.innerHTML = `<span class="tb-glyph">⏸</span>`;
-    pause.setAttribute('aria-label', 'Pause');
+    pause.setAttribute('aria-label', t('touch.pause.hint'));
     pause.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
