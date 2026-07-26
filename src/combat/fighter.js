@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { clamp, clamp01, lerp, angleDamp, angleDiff, TAU, rand } from '../core/utils.js';
 import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
+import { SMASH_MIRRORS } from '../mechs/animations.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { CONFIG } from '../core/config.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -221,6 +222,9 @@ export class Fighter {
       taunt: false, strafe: false, duck: false, aimYaw: undefined,
     };
     this.plunging = false;   // aerial ground-smash riding down to impact
+    // which way the next smash twists (see smashClip) — started at random so
+    // two mechs trading heavies don't wind up in lockstep
+    this._smashMirror = Math.random() < 0.5;
     this._plungeVy = 0;
     this._moveAttack = false; // basic light/heavy melee lets you keep moving
     this.alive = true;
@@ -413,6 +417,19 @@ export class Fighter {
     this.world.audio?.play('servo');
   }
 
+  // Which way the smash twists. The overhead pound family winds onto one
+  // side; alternating twins keeps back-to-back heavies from replaying the
+  // identical wind-up. Clips with no mirror (the bespoke heavies — viper's
+  // drill, wraith's lasers...) pass straight through and never flip the
+  // side. Pass flip=false to REUSE the current side: a charged pound's
+  // release has to land on the twist its wind-up was already holding.
+  smashClip(name, flip = true) {
+    const twin = SMASH_MIRRORS[name];
+    if (!twin) return name;
+    if (flip) this._smashMirror = !this._smashMirror;
+    return this._smashMirror ? twin : name;
+  }
+
   doHeavy() {
     const mv = this.def.moves.heavy;
     if (!this.grounded && this.pos.y > 2.5) {
@@ -422,7 +439,7 @@ export class Fighter {
       this.plunging = true;
       this.hovering = false;
       this.vel.y = Math.min(this.vel.y, -14);
-      this.animator.play('heavy', { speed: 1.5 });
+      this.animator.play(this.smashClip('heavy'), { speed: 1.5 });
       this.setState('attack', 9); // held until impact (cleared on landing/hit)
       this.world.audio?.play('whooshBig');
       return;
@@ -435,12 +452,12 @@ export class Fighter {
       this._moveAttack = false; // rooted charge-up whirl/pound
       this._whirlHold = 0.0001;
       this._whirlFull = false;
-      this.animator.play(this.def.heavyClip);
+      this.animator.play(this.smashClip(this.def.heavyClip));
       this.setState('attack', 9);
       this.comboIdx = 0;
       return;
     }
-    const dur = this.animator.play(this.def.heavyClip || 'heavy', {
+    const dur = this.animator.play(this.smashClip(this.def.heavyClip || 'heavy'), {
       onEvent: (type, arg) => this.onAttackEvent(type, arg, {
         dmg: mv.dmg * this.dmgMult(),
         knock: mv.knock,
@@ -896,7 +913,7 @@ export class Fighter {
     this._heavyLungeK = k;
     this.faceNearestEnemyIfClose(14); // re-square: they moved during the hold
     const mv = this.def.moves.heavy;
-    const dur = this.animator.play(this.def.heavyReleaseClip, {
+    const dur = this.animator.play(this.smashClip(this.def.heavyReleaseClip, false), {
       onEvent: (type, arg) => this.onAttackEvent(type, arg, {
         dmg: mv.dmg * (0.8 + 0.8 * k) * this.dmgMult(),
         knock: mv.knock * (1 + 0.9 * k),

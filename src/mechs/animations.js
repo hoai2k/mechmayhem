@@ -1024,6 +1024,21 @@ CLIPS_RAW.punchHold2 = mirrorRaw(CLIPS_RAW.punchHold1); // right-arm charge
 CLIPS_RAW.punchRelease2 = mirrorRaw(CLIPS_RAW.punchRelease1);
 CLIPS_RAW.stomp2 = mirrorRaw(CLIPS_RAW.stomp); // left-foot trample
 
+// ---------- smash mirrors ----------
+// The shared overhead smash winds the body onto ONE side (hips/torso yaw)
+// and slams back through it. Repeating it beat after beat read as canned,
+// so every clip in the smash family gets a mirrored twin and the fighter
+// alternates (Fighter.smashClip). The twins are compiled below under the
+// ORIGINAL clip's name, so downstream checks keyed on the clip name —
+// animator.isPlaying, the def.heavyClip lookups behind heavySpin /
+// heavyDrive / heavyFlare, the charge-hold loop — match either side.
+export const SMASH_MIRRORS = {
+  heavy: 'heavyMirror',         // the shared two-hand overhead smash
+  poundHold: 'poundHoldMirror', // TITANUS / COLOSSUS charged pound: the loop...
+  poundSlam: 'poundSlamMirror', // ...and the discharge it lands on
+};
+for (const [base, twin] of Object.entries(SMASH_MIRRORS)) CLIPS_RAW[twin] = mirrorRaw(CLIPS_RAW[base]);
+
 // ---------- compile: degrees -> radians, sparse per-joint tracks ----------
 const D2R = Math.PI / 180;
 
@@ -1054,6 +1069,8 @@ function compile(name, raw) {
 
 export const CLIPS = {};
 for (const [name, raw] of Object.entries(CLIPS_RAW)) CLIPS[name] = compile(name, raw);
+// recompile the smash twins under their base name (see SMASH_MIRRORS)
+for (const [base, twin] of Object.entries(SMASH_MIRRORS)) CLIPS[twin] = compile(base, CLIPS_RAW[twin]);
 
 // ---------- GLB clip variants (glbanim clipOverrides) ----------
 // Compiled with the ORIGINAL clip's name so fighter machinery keyed on
