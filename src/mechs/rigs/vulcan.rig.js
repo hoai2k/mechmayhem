@@ -31,31 +31,31 @@
 // upper arm, knee→ankle the shin) — the slice three.js actually pivots about
 // that bone. See reskin.js.
 //
-// `cutWelds` + `cutPairs`: like every Tripo shell this is ONE closed surface —
-// the inner arms are welded to the hips across the air gap, and the gatling
-// housings to the skirt. Rigidly split, those membranes fan into shards the
-// moment an arm lifts. `cutWelds` drops triangles whose ends sit on bones 3+
-// links apart; `cutPairs` adds the hips↔shoulder and hips↔gun pairs, which are
-// only 2 links via the torso but the same spurious weld. `softSkin: 6` then
-// relaxes the REAL joints over 6 rings so shoulders and knees bend rather than
-// shear (4 rings left a visible gash on `dead`; 8 buys little and starts to
-// rubberise the plates).
-// Measured (tools/cliptear.mjs, all 91 clips, every cross-bone seam): worst
-// stretch +0.082 mesh units / 32x, against the Tripo rig's +0.416 / 617x.
+// `cutWelds` is ON but cuts NOTHING here, and that is the point: unlike rhino,
+// this shell has no arm-to-hip membrane spanning the air gap. It only looked
+// like one while `skirtL/R` sat far enough outboard (z ±0.17) to claim the
+// INNER FOREARM PLATES — which split every triangle of those plates between a
+// hip bone and an arm bone, so the weld rule dutifully deleted them and the
+// orphan sweep took the rest: 534 triangles, a visible bite out of both inner
+// arms. Pulling the skirts in to ±0.13 and widening the elbow/hand win radius
+// (bias 0.95) gives the plates to the arm they belong to, and the cut count
+// falls to zero with no change to the tear numbers. The flag stays as a guard
+// for future rig edits.
+// `softSkin: 6` relaxes the REAL joints over 6 rings so shoulders and knees
+// bend rather than shear (4 rings left a visible gash on `dead`; 8 buys little
+// and starts to rubberise the plates).
+// Measured (tools/cliptear.mjs, all clips, every cross-bone seam): worst
+// stretch +0.082 mesh units / 38x, against the Tripo rig's +0.416 / 617x.
 export const VULCAN_RIG = {
   skinSpan: 'child',
   softSkin: 6,
   cutWelds: true,
-  cutPairs: [
-    ['hips', 'shoulderL'], ['hips', 'shoulderR'],
-    ['hips', 'gunL'], ['hips', 'gunR'],
-    ['thighL', 'gunL'], ['thighR', 'gunR'],
-  ],
   bones: [
-    // ---- spine ---- pelvis low and deep, chest at the shoulder line
-    { name: 'hips', parent: null, pos: [0.05, 0.47, 0.00], bias: 0.9 },
-    { name: 'skirtL', parent: 'hips', pos: [0.02, 0.52, 0.17] },
-    { name: 'skirtR', parent: 'hips', pos: [0.02, 0.52, -0.17] },
+    // ---- spine ---- pelvis low and deep, chest at the shoulder line.
+    // skirtL/R are kept INBOARD of the arm gap on purpose (see cutWelds above).
+    { name: 'hips', parent: null, pos: [0.05, 0.47, 0.00] },
+    { name: 'skirtL', parent: 'hips', pos: [0.02, 0.52, 0.13] },
+    { name: 'skirtR', parent: 'hips', pos: [0.02, 0.52, -0.13] },
     { name: 'torso', parent: 'hips', pos: [0.03, 0.66, 0.00] },
     { name: 'chest', parent: 'torso', pos: [0.02, 0.79, 0.00] },
     // ---- head: the horned mask, forward of the spine ----
@@ -67,14 +67,14 @@ export const VULCAN_RIG = {
     // ---- LEFT arm (+z) ---- gatling hangs muzzle-down and forward
     { name: 'shoulderL', parent: 'torso', pos: [0.00, 0.78, 0.22] },
     { name: 'pauldronL', parent: 'shoulderL', pos: [-0.02, 0.80, 0.30] },
-    { name: 'elbowL', parent: 'shoulderL', pos: [0.02, 0.63, 0.30], bias: 1.05 },
-    { name: 'handL', parent: 'elbowL', pos: [0.05, 0.52, 0.33], bias: 1.05 },
+    { name: 'elbowL', parent: 'shoulderL', pos: [0.02, 0.63, 0.30], bias: 0.95 },
+    { name: 'handL', parent: 'elbowL', pos: [0.05, 0.52, 0.33], bias: 0.95 },
     { name: 'gunL', parent: 'handL', pos: [0.16, 0.44, 0.35] },
     // ---- RIGHT arm (-z) ----
     { name: 'shoulderR', parent: 'torso', pos: [0.00, 0.78, -0.22] },
     { name: 'pauldronR', parent: 'shoulderR', pos: [-0.02, 0.80, -0.30] },
-    { name: 'elbowR', parent: 'shoulderR', pos: [0.02, 0.63, -0.30], bias: 1.05 },
-    { name: 'handR', parent: 'elbowR', pos: [0.05, 0.52, -0.33], bias: 1.05 },
+    { name: 'elbowR', parent: 'shoulderR', pos: [0.02, 0.63, -0.30], bias: 0.95 },
+    { name: 'handR', parent: 'elbowR', pos: [0.05, 0.52, -0.33], bias: 0.95 },
     { name: 'gunR', parent: 'handR', pos: [0.16, 0.44, -0.35] },
     // ---- LEFT leg (+z) ---- long foot: ankle back at x 0.00, toes at +0.09
     { name: 'thighL', parent: 'hips', pos: [0.03, 0.44, 0.14] },

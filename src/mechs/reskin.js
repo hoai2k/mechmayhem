@@ -12,6 +12,10 @@
 // (a crab's spare walking legs) so it doesn't follow a driven limb.
 import * as THREE from 'three';
 
+// Geometries whose spurious welds have already been cut. Keyed by the geometry
+// OBJECT so a clone is a different entry — see cutWeldTriangles.
+const CUT_GEOMETRIES = new WeakSet();
+
 const _v = new THREE.Vector3();
 const _ab = new THREE.Vector3();
 const _av = new THREE.Vector3();
@@ -232,9 +236,17 @@ function cutWeldTriangles(mesh, rig, dom, minDist) {
   if (!idx) return 0;
   // once per geometry: ?rigedit re-runs computeWeights on every gizmo move, and
   // a second cut would erode the mesh further with each nudge (the triangles
-  // removed the first time can never come back)
-  if (geo.userData.__weldsCut) return 0;
-  geo.userData.__weldsCut = true;
+  // removed the first time can never come back).
+  //
+  // The mark lives in a WeakSet, NOT in geometry.userData: BufferGeometry.clone()
+  // hands the clone the SAME userData object, so a userData flag set on one
+  // build's private clone marked the shared cached geometry too — and every
+  // later build of that GLB then skipped its cut and kept the welds. That is
+  // what made the same model render differently depending on what had been
+  // loaded before it (arm-to-hip membranes present, stretching but not
+  // following the arm).
+  if (CUT_GEOMETRIES.has(geo)) return 0;
+  CUT_GEOMETRIES.add(geo);
   // hierarchy distance between rig bones (BFS over parent links)
   const order = rig.bones.map((b) => b.name);
   const at = new Map(order.map((n, i) => [n, i]));

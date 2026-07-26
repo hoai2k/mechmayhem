@@ -146,6 +146,10 @@ export async function loadRawGlbScene(id, opts = {}) {
   scene.traverse((o) => {
     if (o.isSkinnedMesh) {
       o.geometry = o.geometry.clone();
+      // clone() hands over the SAME userData object — take a private copy
+      // before clearing the flag, or the cached geometry loses it too and the
+      // next game build re-applies skinOps on top of itself.
+      o.geometry.userData = { ...o.geometry.userData };
       delete o.geometry.userData.__skinOpsApplied;
     }
   });
