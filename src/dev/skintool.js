@@ -17,6 +17,14 @@
 // is readable. The choice is sticky across bone switches when the new bone has
 // that clip too, else it falls back to Default.
 //
+// PAINT GEOMETRY (P) splits one island across two bones by hand: pick the
+// colour (a bone), solo a region, then paint it. Three brushes —
+//   S/M/L  round brush, world-radius, follows the cursor over the region;
+//   Loop   screen lasso; paints the region verts INSIDE it that face you;
+//   Slice  the same lasso, cutting THROUGH the model — near side, far side and
+//          anything buried between, so geometry you can't see (and would have
+//          to orbit around) is reachable in one stroke.
+//
 // Controls: orbit = drag · zoom = wheel · pan = right-drag
 //   click patch = select island · T = textures on/off · W = wiggle bone
 import * as THREE from 'three';
@@ -115,10 +123,14 @@ export async function runSkinTool(startId) {
   let painting = false;      // left button held & painting
   let strokePushed = false;  // did this stroke already snapshot for undo
   let brushRadius = 0.30;    // world units (model is normalized ~7 tall)
-  let brushMode = 'radius';  // radius | loop (screen-space lasso selection)
+  // radius = round brush · loop = screen lasso, front faces only ·
+  // slice = the same lasso cutting clean through the model (see finishLoop)
+  let brushMode = 'radius';
   let looping = false;       // left button held, drawing the lasso
   let loopPts = [];          // lasso polygon, client coords
   let loopCanvas = null;     // 2D overlay the lasso is drawn on
+  // both lasso brushes share every bit of machinery except one facing test
+  const isLasso = () => brushMode === 'loop' || brushMode === 'slice';
   const PAINT_FADE = 0.12;
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
@@ -345,7 +357,7 @@ export async function runSkinTool(startId) {
     if (!paintMode || ev.button !== 0 || ev.target !== renderer.domElement) return;
     let paints = false;
     if (paintPhase === 'paint') {
-      paints = brushMode === 'loop' ? rayHitsMesh(ev) : rayHitsRegion(ev);
+      paints = isLasso() ? rayHitsMesh(ev) : rayHitsRegion(ev);
     }
     orbit.mouseButtons.LEFT = paints ? null : THREE.MOUSE.ROTATE;
   }, true);
@@ -355,7 +367,7 @@ export async function runSkinTool(startId) {
     ev._downX = ev.clientX; ev._downY = ev.clientY;
     renderer.domElement._down = { x: ev.clientX, y: ev.clientY };
     if (paintMode && paintPhase === 'paint') {
-      if (brushMode === 'loop') {
+      if (isLasso()) {
         if (rayHitsMesh(ev)) {
           looping = true;
           loopPts = [{ x: ev.clientX, y: ev.clientY }];
@@ -724,9 +736,18 @@ export async function runSkinTool(startId) {
     renderOps();
   }
 
-  // ---- loop selector ("magic loop"): lasso a screen region, paint the region
-  // verts inside it. Exact polygon containment, no feathering; back-facing
-  // verts are skipped so a tight loop doesn't bleed through to the far side.
+  // ---- lasso selectors: draw a screen region, paint the region verts inside
+  // it. Exact polygon containment, no feathering. The two modes differ by ONE
+  // test:
+  //   LOOP  skips back-facing verts, so a tight lasso paints the surface you
+  //         are looking at and does not bleed through to the far side;
+  //   SLICE keeps them, so the lasso cuts clean through the model and takes
+  //         everything of the region within it — the near shell, the far shell
+  //         and whatever is buried between them. That is the only way to
+  //         re-colour a part you cannot see without orbiting to it (inside a
+  //         shoulder housing, the back of a hip block), and the reason it is a
+  //         separate button rather than a modifier: painting through the model
+  //         is destructive in a way you should have to ask for.
   function drawLoop() {
     const r = renderer.domElement.getBoundingClientRect();
     if (!loopCanvas) {
@@ -740,7 +761,10 @@ export async function runSkinTool(startId) {
     const ctx = loopCanvas.getContext('2d');
     ctx.clearRect(0, 0, loopCanvas.width, loopCanvas.height);
     if (loopPts.length < 2) return;
-    ctx.strokeStyle = '#e88cff'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+    // slice draws amber, loop violet — while you're mid-drag the colour of the
+    // line is the only reminder of whether this cut goes through the far side
+    ctx.strokeStyle = brushMode === 'slice' ? '#ffc36b' : '#e88cff';
+    ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.moveTo(loopPts[0].x - r.left, loopPts[0].y - r.top);
     for (const p of loopPts) ctx.lineTo(p.x - r.left, p.y - r.top);
@@ -762,6 +786,8 @@ export async function runSkinTool(startId) {
   }
   function finishLoop() {
     const pts = loopPts;
+    const slice = brushMode === 'slice';
+    const what = slice ? 'Slice' : 'Loop';
     clearLoop();
     if (pts.length < 3 || !regionSet || !paintBone) return;
     const r = renderer.domElement.getBoundingClientRect();
@@ -773,20 +799,27 @@ export async function runSkinTool(startId) {
     for (const vi of regionSet) {
       if (paintSet && paintSet.has(vi)) continue;
       const w = regionWorld.get(vi);
-      // front-facing only (normal toward the camera)
-      nv.set(nrm.getX(vi), nrm.getY(vi), nrm.getZ(vi)).applyMatrix3(nMat);
-      if (nv.dot(v.copy(w).sub(camPos)) >= 0) continue;
+      // LOOP: front-facing only (normal toward the camera). SLICE keeps every
+      // facing, which is the whole point — it cuts through.
+      if (!slice) {
+        nv.set(nrm.getX(vi), nrm.getY(vi), nrm.getZ(vi)).applyMatrix3(nMat);
+        if (nv.dot(v.copy(w).sub(camPos)) >= 0) continue;
+      }
       const p = v.copy(w).project(camera);
       if (p.z > 1) continue;   // behind the camera
       const sx = r.left + ((p.x + 1) / 2) * r.width;
       const sy = r.top + ((1 - (p.y + 1) / 2)) * r.height;
       if (pointInPoly(sx, sy, pts)) hitVerts.push(vi);
     }
-    if (!hitVerts.length) { setStatus('Loop caught 0 region verts — draw around visible region geometry.'); return; }
+    if (!hitVerts.length) {
+      setStatus(`${what} caught 0 region verts — draw around ${slice ? '' : 'visible '}region geometry.`);
+      return;
+    }
     pushUndo();
     paintVerts(hitVerts);
     liveAnalysis = analyzeSkin(mesh);
-    setStatus(`Loop painted ${hitVerts.length}v → ${paintBone}.`);
+    setStatus(`${what} painted ${hitVerts.length}v → ${paintBone}` +
+      `${slice ? ' (through the model — both sides)' : ''}.`);
   }
 
   // ---- bone wiggle (verify what moves) ----
@@ -1119,19 +1152,21 @@ export async function runSkinTool(startId) {
   brushLbl.textContent = 'Brush size';
   paintPanel.appendChild(brushLbl);
   const brushRow = document.createElement('div');
-  brushRow.style.cssText = 'display:flex;gap:6px;margin-bottom:5px';
+  brushRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:5px';
   const brushBtns = [];
   for (const [lab, rad] of [['S', 0.15], ['M', 0.30], ['L', 0.55]]) {
     const b = actionBtn(lab, () => { brushMode = 'radius'; brushRadius = rad; updatePaintUI(); });
     b._r = rad; brushBtns.push(b); brushRow.appendChild(b);
   }
-  {
-    // magic loop: lasso an area on screen, paint every region vert inside it
-    const b = actionBtn('Loop', () => {
-      brushMode = 'loop'; updatePaintUI();
-      setStatus('LOOP: left-drag on the mech to lasso an area — region verts inside it\nget painted on release. Drag empty space (or right-drag) to orbit.');
-    });
-    b._loop = true; brushBtns.push(b); brushRow.appendChild(b);
+  // the two lassos: LOOP takes the surface you can see, SLICE cuts through
+  for (const [lab, mode, hint] of [
+    ['Loop', 'loop',
+      'LOOP: left-drag on the mech to lasso an area — the region verts you can SEE\ninside it get painted on release. Drag empty space (or right-drag) to orbit.'],
+    ['Slice', 'slice',
+      'SLICE: same lasso, but it cuts THROUGH the model — every region vert inside\nthe outline is painted, near side, far side and anything buried between.\nUse it to reach geometry you would otherwise have to orbit around.'],
+  ]) {
+    const b = actionBtn(lab, () => { brushMode = mode; updatePaintUI(); setStatus(hint); });
+    b._mode = mode; brushBtns.push(b); brushRow.appendChild(b);
   }
   paintPanel.appendChild(brushRow);
   const repickRow = document.createElement('div');
@@ -1159,7 +1194,9 @@ export async function runSkinTool(startId) {
     paintBtn.textContent = paintMode ? 'Painting — click to exit (P)' : 'Paint geometry (P)';
     paintPanel.style.display = paintMode ? 'block' : 'none';
     const phaseHint = { pickBone: 'click model = choose color', pickRegion: 'click model = solo region',
-      paint: 'left-drag = paint' }[paintPhase] || '';
+      paint: brushMode === 'slice' ? 'left-drag = slice through'
+        : brushMode === 'loop' ? 'left-drag = lasso'
+          : 'left-drag = paint' }[paintPhase] || '';
     paintInfo.innerHTML = '';
     if (paintBone) {
       const bi = bones.findIndex((b) => b.name === paintBone);
@@ -1172,8 +1209,8 @@ export async function runSkinTool(startId) {
       `color: ${paintBone || '—'}  ·  region: ${paintRegion ? '#' + paintRegion.id : '—'}` +
       (phaseHint ? ` · ${phaseHint}` : '')));
     for (const b of brushBtns) {
-      const active = b._loop ? brushMode === 'loop' : (brushMode === 'radius' && b._r === brushRadius);
-      b.style.outline = active ? '2px solid #b98cff' : '';
+      const active = b._mode ? brushMode === b._mode : (brushMode === 'radius' && b._r === brushRadius);
+      b.style.outline = active ? `2px solid ${b._mode === 'slice' ? '#ffc36b' : '#b98cff'}` : '';
     }
   }
 
@@ -1430,7 +1467,14 @@ export async function runSkinTool(startId) {
         liveAnalysis = analyzeSkin(mesh); renderOps();
         return hitVerts.length;
       },
-      brush: (m) => { if (m === 'loop') brushMode = 'loop'; else { brushMode = 'radius'; if (typeof m === 'number') brushRadius = m; } updatePaintUI(); },
+      brush: (m) => {
+        if (m === 'loop' || m === 'slice') brushMode = m;
+        else { brushMode = 'radius'; if (typeof m === 'number') brushRadius = m; }
+        updatePaintUI();
+      },
+      // drive the lasso from a script: client-space points, current brushMode
+      // decides loop (visible only) vs slice (through the model)
+      lasso: (pts) => { loopPts = pts.map((p) => ({ x: p.x, y: p.y })); finishLoop(); },
       get state() { return { paintMode, paintPhase, paintBone, region: paintRegion?.id, brushMode, brushRadius }; },
       get regionCentroidWorld() {
         if (!regionSet) return null;

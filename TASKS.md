@@ -3475,3 +3475,35 @@ in the slot the left model is not procedural at all.
 Verified: `?debug=models&mech=colossus&left=alt` still opens with Alternate GLB
 selected, switching to None rewrites the URL to `compare=solo`, screenshots
 VIEWED, no page errors, `vite build` green.
+
+## Colossus alt skin ops + SLICE brush in the skin workbench (user request, 2026-07-26)
+
+Two things, both about the same model.
+
+COLOSSUS ALT SKIN: the owner's authored pass landed as `colossus.alt.skinOps`
+in `public/models/manifest.json` — 14 ops, 11 by island (elbows, ankles, hips,
+four torso blocks, head) and 3 by explicit vertex list (59 / 1235 / 2444 verts
+onto hips + torso). The alt had no skinOps at all before this. Written with
+`tools/manifestfmt.mjs`'s surgical splice, so the diff is the 16 new lines and
+nothing else. (`--check` round-trip still reports a pre-existing difference on
+an unrelated hand-formatted muzzle block; it read the same before this change.)
+
+SLICE, a third paint brush, sits after Loop. Both lassos share every line of
+machinery — the same drag, overlay, polygon containment, region constraint and
+undo — and differ by ONE test: Loop skips back-facing verts so a tight lasso
+paints only the surface you are looking at, Slice keeps them so the outline
+cuts clean through the model and takes the near shell, the far shell and
+whatever is buried between. That is the only way to re-colour geometry you
+cannot see without orbiting to it (inside a shoulder housing, the back of a hip
+block). It is a separate button rather than a modifier because painting through
+the model is destructive in a way you should have to ask for; the lasso draws
+AMBER in slice mode against Loop's violet, and the panel hint reads "left-drag
+= slice through", so mid-drag you always know which one you're holding.
+Scripting hook: `__skinTool.paint.brush('slice')` + `paint.lasso(pts)`.
+
+Verified: same full-model lasso on one 4592-vert region — Loop took 2475 verts,
+0 of them facing away from the camera; Slice took all 4592, 2117 facing away.
+Screenshots VIEWED mid-drag (amber outline, Slice outlined amber in the panel)
+and after (the whole soloed thigh block recoloured, both sides). Colossus alt
+opens clean with its new ops in the skin, pose and rig workbenches, no page
+errors, `vite build` green.

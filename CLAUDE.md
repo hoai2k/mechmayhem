@@ -62,6 +62,11 @@ audio). Progress history: `TASKS.md`.
   bone plus a minority weight on another — the bit of torso that wiggles with
   an arm) · `Absorb enclaves` (E) hands every limb-bound island that sits
   inside another bone's region to the bone around it (`skinops.enclaveScan`).
+  PAINT GEOMETRY (P) has three brushes: S/M/L round brush · **Loop** (screen
+  lasso, paints the region verts you can SEE inside it) · **Slice** (the same
+  lasso cutting THROUGH the model — near side, far side and anything buried
+  between, for geometry you'd otherwise have to orbit around; the outline
+  draws amber instead of violet to say so).
 - Hitboxes: `src/combat/hurtbox.js`. Bone-bound capsules measured off each
   model's own geometry, so they follow the animation; melee resolves on the
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
