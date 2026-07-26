@@ -3084,3 +3084,32 @@ artifact — the workbench was showing shipping behaviour correctly.
   and hold-charge mech (titanus/viper/glacier/colossus/frogger/tempest), the one
   `viper ranged: 0` being the full-suite flake (27/27/54 in isolation);
   `vite build` green.
+
+## Light combos alternate arms, uppercut included (user request, 2026-07-25)
+
+- The shared punch trio was authored jab-LEFT, cross-RIGHT, uppercut-RIGHT, so
+  the right arm threw two blows back to back and the uppercut was always the
+  same hand. Now the combo ALTERNATES arms and the uppercut is simply the step
+  it lands on: `light1 → light2 → light3` becomes L,R,L — and the lead flips
+  from combo to combo, so the next one runs R,L,R and the uppercut comes out of
+  the other arm.
+- Mechanism: `animations.js` mirrors the trio (`light1R`, `light2L`, `light3L`
+  via the existing `mirrorRaw`) and exports `LIGHT_ARM`, which says which arm
+  each clip throws with and what its twin is called. `Fighter.doLight` computes
+  the arm it WANTS for this step (alternating from a persistent `_leadArm` that
+  flips on each new combo) and swaps in the twin when the authored clip uses the
+  other hand. Verified over four combos: `light1R light2L light3` then
+  `light1 light2 light3L`, repeating.
+- Applies to every mech on the shared trio (rhino, nova, tempest, fenrir,
+  wraith, inferno, glacier, cranky, frogger, jerry, nullbot, vulcan…). A mech
+  with a BESPOKE cycle is untouched, because its clips aren't in `LIGHT_ARM` and
+  have no mirrored twin: viper's sword forms, aegis' spear stabs, saurion's
+  kick/rake mix all play exactly as authored. Titanus/Colossus already
+  alternated their haymakers through the charge-and-release path, which never
+  reaches this code.
+- Nothing about the hit changes: the strike is a sphere in front of the fighter,
+  and mirrorRaw copies the clip's events, so damage, knock, launch and combo
+  timing are identical — this is purely which arm you see throw it.
+- Verified: left uppercut frames VIEWed on rhino and nullbot (clean mirror,
+  full extension, correct chamber); ace soaks crash-free rhino/titanus,
+  nullbot/viper, cranky/fenrir; `vite build` green.

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { clamp, clamp01, lerp, angleDamp, angleDiff, TAU, rand } from '../core/utils.js';
 import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
-import { SMASH_MIRRORS } from '../mechs/animations.js';
+import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { CONFIG } from '../core/config.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -421,7 +421,19 @@ export class Fighter {
       || this.def.lightClips || ['light1', 'light2', 'light3'];
     const idx = this.comboIdx % names.length;
     this.faceNearestEnemyIfClose(12);
-    const dur = this.animator.play(names[idx], {
+    // WHICH ARM. Every blow in a combo alternates hands, and the lead flips
+    // from combo to combo, so no arm throws twice in a row and neither hand
+    // owns a particular step. The uppercut is just the step it lands on — it
+    // comes out left or right depending on where the alternation is, instead
+    // of always being the authored right (which also made the right arm throw
+    // the cross AND the uppercut back to back).
+    // Only clips with a known arm + mirrored twin take part (LIGHT_ARM); a
+    // bespoke asymmetric cycle plays exactly as authored.
+    if (idx === 0) this._leadArm = this._leadArm ? 0 : 1;
+    const want = ((this._leadArm || 0) + idx) % 2 ? 'R' : 'L';
+    const hand = LIGHT_ARM[names[idx]];
+    const clip = hand && hand.arm !== want && CLIPS[hand.twin] ? hand.twin : names[idx];
+    const dur = this.animator.play(clip, {
       onEvent: (type, arg) => this.onAttackEvent(type, arg, {
         dmg: mv.dmg[idx % mv.dmg.length] * this.dmgMult(),
         knock: mv.knock[idx % mv.knock.length],
