@@ -2193,7 +2193,19 @@ export class Fighter {
       case 'special':
       case 'ult':
       case 'dash':
-        if (this.stateT <= 0) this.setState('normal');
+        if (this.stateT <= 0) {
+          // A move whose clip LOOPS never ends itself, so the move's state
+          // running out is the only thing that can end it. Without this the
+          // action layer keeps playing forever: VIPER's Blade Cyclone
+          // (viperWhirl — loop + upper-body) left her arms locked out level
+          // like rotor blades for the rest of the round while the legs walked
+          // normally underneath, and glacier's special did the same with
+          // shootLoopL. A one-shot clip is unaffected: it has already ended
+          // and faded on its own by the time its state expires.
+          // ('channel' does the same thing below, for the same reason.)
+          if (this.animator.action?.clip?.loop) this.animator.stop(0.15);
+          this.setState('normal');
+        }
         break;
       case 'channel':
         if (this.stateT <= 0 && !I.ranged) {
