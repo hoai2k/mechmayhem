@@ -39,13 +39,15 @@ controllers via Gamepad API), AI opponents.
   now reports both of those conditions and downgrades to ADVISORY where a
   difference is legitimate (different model, or a rig already promoted).
 - **Inferno alt skin patch** (owner-authored, ?debug=skin): 1852 verts of the
-  lower chest rebound from `hips` to `torso`. Landing it surfaced a bug in
-  `applySkinOps`: an explicit-vertex paint bound only the vertices the brush
-  reached, not their POSITION-WELDED TWINS at the same UV/normal seam, so one
-  copy of a seam point could go to the new bone while its twin stayed on the
-  old one — a zero-length bind edge that opens into a gash the moment the two
-  bones move (403x stretch ratio). Paint ops now carry their weld-mates;
-  neutral on every other mech, 403x -> 143x here.
+  lower chest rebound from `hips` to `torso`. Cost, over the clips inferno
+  actually plays: worst cross-bone stretch 0.108 -> 0.148 (`dead`), vs the
+  Tripo primary's 0.208.
+- **cliptear's `Nx` ratio is not a stable statistic** — it is stretch over the
+  worst edge's BIND length, so when that edge is near-zero-length the ratio
+  swings wildly (two identical runs: 112x and 108x; an earlier pair read 403x
+  and 143x). Read the ABSOLUTE stretch, which is stable to ~0.001. Its
+  "worst clips" list also spans every clip in the game, not the ones this mech
+  plays — of inferno's top 12, only `dead`, `heavy` and `groundPound` are his.
 - **Branch:** `claude/3d-mech-battle-game-uxps6q`
 
 ## Tech stack

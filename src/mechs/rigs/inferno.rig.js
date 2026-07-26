@@ -53,9 +53,11 @@
 // verts of the lower chest moved off `hips` onto `torso`, authored in
 // ?debug=skin with Edit Alternate GLB on). skinOps run AFTER the re-skin on
 // the custom-rig path, so a paint layers on top of `softSkin` rather than
-// being erased by it — at the cost of being rigid where it lands: measured
-// over all 97 clips, worst cross-bone stretch 0.108 -> 0.148, still well
-// under the Tripo primary's 0.208.
+// being erased by it — at the cost of being RIGID where it lands: over the
+// clips inferno actually plays, worst cross-bone stretch 0.108 -> 0.148
+// (`dead`), still well under the Tripo primary's 0.208. If that band ever
+// reads stiff, the same rebind as a `weights` blend op instead of `to` keeps
+// the gradient.
 //
 // `cutWelds` is deliberately NOT set. Rhino and vulcan need it because their
 // meshers spanned the air gap between arm and hip with a hidden membrane that
