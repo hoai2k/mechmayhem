@@ -45,7 +45,7 @@ audio). Progress history: `TASKS.md`.
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
   Alternate GLB** checkbox for any mech that has one (off by default;
   `&alt=1` in the URL; `?debug=models` reaches the same build through its
-  LEFT SLOT dropdown, which compares alt against the primary). When a mech's
+  COMPARE TO dropdown, which stands alt beside the primary). When a mech's
   custom rig lives ONLY on its `alt` (inferno, rhino), `?rigedit=<id>` opens
   that build instead of refusing, with the box ticked and disabled. Shared
   logic: `src/dev/altpick.js`.

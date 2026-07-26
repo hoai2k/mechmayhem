@@ -3448,3 +3448,20 @@ alt → control gone, param dropped), rig editor switched colossus → cranky �
 tempest (blocker) → fenrir entirely from the dropdowns, joint click-select +
 gizmo drag re-checked on the alt build (`elbowR` 73°), no page errors anywhere,
 `vite build` green.
+
+## Animation workbench: LEFT SLOT → COMPARE TO (user request, 2026-07-26)
+
+Naming only, no behaviour change. The control that picks what stands beside the
+mech under study said "LEFT SLOT" — a statement about screen geography rather
+than about what the thing does — and its empty option said "Solo (this robot
+only)". Now: label **COMPARE TO**, option **None (view solo)**, URL param
+`&compare=` (`&left=` is still READ so old links and TRIPO_STATUS's example
+keep working, but it is never written back — picking a value rewrites the URL
+with `compare=` and drops the stale `left=`). Internals renamed to match
+(`compareTo` / `setCompareTo`), and the help line's "Left = procedural" became
+"Left = what you compare to · Right = this mech's GLB", since with an alternate
+in the slot the left model is not procedural at all.
+
+Verified: `?debug=models&mech=colossus&left=alt` still opens with Alternate GLB
+selected, switching to None rewrites the URL to `compare=solo`, screenshots
+VIEWED, no page errors, `vite build` green.
