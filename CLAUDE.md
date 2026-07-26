@@ -28,15 +28,21 @@ audio). Progress history: `TASKS.md`.
   starting point,
   CLICK A JOINT IN THE VIEWPORT (the dots, or just the body part — nearest
   joint wins; R/T rotate/translate, G local/world, Esc deselect) and drag the
-  gizmo. The scrubber under the clip dropdown steps KEYFRAME BY KEYFRAME (◀ key
-  / key ▶ too) — it only ever stops on a pose the clip authors, so any edit has
-  a key to land on; it opens on the LAST key, which is the held pose of a
-  hold/loop clip but the RECOVERY of a one-shot strike. "Copy pose" emits a
-  clip-key pose block in degrees (paste straight into `animations.js`) PLUS
-  which key it came from (index/t/ease + the clip's key times), that key's
-  authored numbers, and a per-joint `changed: {from, to}` of what the gizmo
-  moved — so a hand-tuned key can be handed over and applied to exactly the key
-  it came off. "Bind patch" emits the GLB manifest
+  gizmo. It EDITS THE CLIP, not just a pose: the loaded clip becomes its authored
+  key list again, a drag is written into whichever key you're parked on, and the
+  scrubber plays YOUR version back. Drag the scrubber and clip time runs smoothly
+  (the motion preview); let go and it SNAPS to the nearest key, since a key is the
+  only place an edit can be stored — between keys the readout says `between keys`
+  and nothing is editable. ◀ key / key ▶ step them, key times are listed under the
+  slider, `&key=<n>`/`&t=<s>` deep-link one, and it opens on the LAST key (the
+  held pose of a hold/loop clip, the RECOVERY of a one-shot strike). An edit is
+  stored as the DELTA you dragged applied to what the key AUTHORS — never the
+  on-screen numbers assigned outright, since signature motion and rest bias ride
+  on top of those — and keys stay SPARSE, so only the joints you touched are
+  added. "Revert clip edits" restores the shipped clip. "Copy pose" then exports
+  the WHOLE key list: `keys[]` with a per-joint `changed: {from, to}` on each
+  edited key, `editedKeys`, and `js` — the key list already formatted for
+  `animations.js`. "Bind patch" emits the GLB manifest
   `boneCorrections`/`bonePos`. "Apply constraints" (default on) is the
   animation framework's rule — rotation only, hips may also translate — so
   limbs can't be stretched into a pose no clip could reproduce.
