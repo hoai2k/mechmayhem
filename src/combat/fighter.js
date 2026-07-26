@@ -468,6 +468,13 @@ export class Fighter {
     return this._smashMirror ? twin : name;
   }
 
+  // Is the swing in flight one of the shared two-fist smashes? (The mirrored
+  // twins compile under the base name, so this catches either side.)
+  inTwoFistSmash() {
+    const n = this.animator.action?.clip?.name;
+    return n === 'heavy' || n === 'poundSlam';
+  }
+
   doHeavy() {
     const mv = this.def.moves.heavy;
     if (!this.grounded && this.pos.y > 2.5) {
@@ -552,6 +559,23 @@ export class Fighter {
   }
 
   aimStrikeAt(prey) {
+    // The two-fist SMASH opts out: it is aimed by the BODY (doHeavy squares up
+    // on the target before the swing) and then commits, exactly as the clip
+    // was authored. Strike-aim does two things that fight that — it steers the
+    // torso until the PALMS' midpoint sits on the target line, and it squeezes
+    // the hands together onto the victim's width. Both are measured off where
+    // the fists currently are rather than off the mech's centreline, so on a
+    // smash they pulled the fists to the same place no matter which way the
+    // wind-up had twisted: the mirrored swing landed on the same side as the
+    // unmirrored one, with shoulderR rolled to -15deg against the clip's +6,
+    // dragging that fist across the chest. Skipping it, the two wind-ups slam
+    // to mirrored positions (measured: handR [2.41,3.12] against the mirror's
+    // handL [-3.12,-2.40]). One-fist strikes and grabs are untouched.
+    if (this.inTwoFistSmash()) {
+      this._aimYaw = 0;
+      this._palmFix = (this._palmFix || 0) * 0.8;
+      return;
+    }
     const J = this.mech.joints;
     const w = this.world;
     // steer ONLY during the strike descent — palms dropped below shoulder
