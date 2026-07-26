@@ -310,6 +310,26 @@ export class Fighter {
     this._palmFix = nfix;
   }
 
+  // Apply the ALREADY-banked palm roll without servoing it any further — the
+  // unwind path after a strike window closes (see updatePose). clampPalmsTo both
+  // applies and grows the fix, so it cannot be used to let go of one.
+  applyPalmRoll() {
+    const J = this.mech.joints;
+    const fix = this._palmFix || 0;
+    if (!fix || !(J.handL && J.handR && J.shoulderL && J.shoulderR)) return;
+    const meas = () =>
+      J.handL.getWorldPosition(_palmTmp).distanceTo(J.handR.getWorldPosition(_palmTmp2));
+    const d0 = meas();
+    const inward = (sh) => {
+      sh.rotation.z += 0.06;
+      const d = meas();
+      sh.rotation.z -= 0.06;
+      return d < d0 ? 1 : -1;
+    };
+    J.shoulderL.rotation.z += inward(J.shoulderL) * fix;
+    J.shoulderR.rotation.z += inward(J.shoulderR) * fix;
+  }
+
   // nearest living enemy (through the arena seam when wrapping)
   nearestEnemy() {
     let best = null, bestD = Infinity;
@@ -435,7 +455,14 @@ export class Fighter {
       this._moveAttack = false; // rooted charge-up whirl/pound
       this._whirlHold = 0.0001;
       this._whirlFull = false;
-      this.animator.play(this.def.heavyClip);
+      // Snap ONTO the hold clip (short fade) rather than easing in over the
+      // default 0.07s. A tap only holds for CHARGE_MIN_WINDUP (0.15s), and
+      // between that fade and the animator's own pose smoothing the raise was
+      // still ~15% short when the release fired — so the release clip, whose
+      // t=0 IS the fully-raised pose, finished lifting the arms before slamming
+      // and the heavy read as TWO wind-ups. The pose smoothing still eases the
+      // motion, so this reads as a sharper wind-up, not a snap.
+      this.animator.play(this.def.heavyClip, { fade: 0.02 });
       this.setState('attack', 9);
       this.comboIdx = 0;
       return;
@@ -506,10 +533,16 @@ export class Fighter {
     // stops chasing AND what it already banked is scaled away, so the shell
     // eases back to square rather than dropping the twist in one frame.
     const lock = this._twistLock || 0;
+    // A ONE-ARMED blow (clip `strikeArm`) is steered by the FIST THAT THROWS IT,
+    // not by the midpoint of both palms. With the idle arm parked at the hip that
+    // midpoint sits inside his own chest — its azimuth says nothing about where
+    // the punch is going, and on a wide haymaker it reads as a huge lateral
+    // error that the servo then dutifully "corrects".
+    const strikeJ = this.strikeArmJoint();
     if (J.torso) {
       let fix = this._aimYaw || 0;
       if (lock < 0.999) {
-        this.palmsMid(_palmTmp);
+        if (strikeJ) strikeJ.getWorldPosition(_palmTmp); else this.palmsMid(_palmTmp);
         const pmx = _palmTmp.x - this.pos.x, pmz = _palmTmp.z - this.pos.z;
         const vx = w.wrapDelta(prey.pos.x - this.pos.x);
         const vz = w.wrapDelta(prey.pos.z - this.pos.z);
@@ -527,8 +560,21 @@ export class Fighter {
       J.torso.rotation.y += fix;
       this._aimYaw = fix;
     }
-    if (striking) this.clampPalmsTo(prey);
+    // The palm clamp SQUEEZES BOTH HANDS TOGETHER onto the target, which is what
+    // a two-fisted pound or a body-slam carry wants. It is exactly wrong for a
+    // one-armed blow: rolling both shoulders inward drags the punching arm across
+    // his own chest (titanus' haymaker ended up behind his back, 141° off the
+    // aim line), so a one-armed strike aims with the torso servo above and leaves
+    // the arms where the clip put them.
+    if (striking && !strikeJ) this.clampPalmsTo(prey);
     else this._palmFix = (this._palmFix || 0) * 0.8;
+  }
+
+  // The joint driving the CURRENT clip's blow, when that clip is one-armed
+  // (animations.js `strikeArm`). null => a two-fisted clip, or no clip.
+  strikeArmJoint() {
+    const s = this.animator?.action?.clip?.strikeArm;
+    return s ? (this.mech.joints['hand' + s] || null) : null;
   }
 
   // Firing NEVER turns a human's mech — the shot goes wherever the mech is
@@ -971,7 +1017,17 @@ export class Fighter {
       if (Math.hypot(dx, dz) < range * this.scale * 2 &&
           Math.abs(angleDiff(this.yaw, Math.atan2(dx, dz))) < 1.1) target = prey;
     }
-    this._strikeAim = { f: target || this.phantomPrey(range), t: dur * 0.95 };
+    // Track only until the blow LANDS, not for the whole clip. The tracking
+    // exists to converge the fists onto the victim through the descent; once the
+    // hit event has fired there is nothing left to steer, and holding the twist
+    // and the palm clamp through the follow-through hauls the arms back around
+    // behind the body — titanus' pound read as a SECOND wind-up after the slam,
+    // because its hit lands at 0.18s of a 0.7s clip. A short tail past the hit
+    // keeps the impact frame settled, then updatePose unwinds it smoothly.
+    const hits = (this.animator?.action?.clip?.events || [])
+      .filter((ev) => ev.type === 'hit').map((ev) => ev.t);
+    const window = hits.length ? Math.max(...hits) + 0.12 : dur * 0.95;
+    this._strikeAim = { f: target || this.phantomPrey(range), t: Math.min(window, dur * 0.95) };
     this._aimYaw = 0;
   }
 
@@ -2346,8 +2402,18 @@ export class Fighter {
       } else {
         this.aimStrikeAt(sa.f);
       }
-    } else {
-      this._palmFix = 0;
+    } else if (this._palmFix || this._aimYaw) {
+      // UNWIND, don't snap. Zeroing the banked clamp/twist the instant the strike
+      // window closed teleported the arms back onto the clip pose in a single
+      // frame, which read as a second, unmotivated pull-back at the end of every
+      // heavy. Ease both out instead (and only APPLY the roll here — servoing it
+      // would grow it again while we are trying to let it go).
+      this._palmFix = (this._palmFix || 0) * 0.72;
+      this._aimYaw = (this._aimYaw || 0) * 0.72;
+      if (this._palmFix < 1e-3) this._palmFix = 0;
+      if (Math.abs(this._aimYaw) < 1e-4) this._aimYaw = 0;
+      if (this._aimYaw && this.mech.joints.torso) this.mech.joints.torso.rotation.y += this._aimYaw;
+      this.applyPalmRoll();
     }
     if (this.state !== 'channel') this.firing = false;
 

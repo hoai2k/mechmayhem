@@ -64,6 +64,7 @@ const CLIPS_RAW = {
   // overshoot on the strikes — snappy anime energy instead of stiff robots.
   light1: { // left jab — a REAL pull-back first (fist chambers, hips coil
     // right), then the whip through the punch
+    strikeArm: 'L', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.52,
     keys: [
       { t: 0, pose: {} },
@@ -76,6 +77,7 @@ const CLIPS_RAW = {
   },
   light2: { // right cross — chambers deep behind the shoulder, then the
     // counter-twist throws it through
+    strikeArm: 'R', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.56,
     keys: [
       { t: 0, pose: {} },
@@ -87,6 +89,7 @@ const CLIPS_RAW = {
     events: [{ t: 0.22, type: 'sfx', arg: 'whoosh' }, { t: 0.25, type: 'hit', arg: 1 }],
   },
   light3: { // rising uppercut — deep coil, launch onto tiptoes, arm at full stretch
+    strikeArm: 'R', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.62,
     keys: [
       { t: 0, pose: {} },
@@ -554,6 +557,7 @@ const CLIPS_RAW = {
   // the fist gets PULLED all the way back and the frame coils before it
   // lets loose — slower than a jab, and it launches people across the block.
   bigPunch1: { // left haymaker with a full wind-up
+    strikeArm: 'L', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.66,
     keys: [
       { t: 0, pose: {} },
@@ -572,6 +576,7 @@ const CLIPS_RAW = {
   // the two-hand overhead heavy.
   punchHold1: { // charged haymaker wind-up: coiled at full stretch, the
     // cocked fist quaking at the hip until the button lets it go
+    strikeArm: 'L', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.7, loop: true,
     keys: [
       { t: 0, pose: { torso: [8, -36, -9], hipsRot: [0, -18, 0], hipsPos: [0, -0.2, -0.06], head: [0, 16, 0], shoulderL: [30, 8, -26], elbowL: [-126, 0, 0], shoulderR: [-18, 0, 24], elbowR: [-60, 0, 0], kneeL: [30, 0, 0], kneeR: [30, 0, 0], thighL: [-16, 0, 0], thighR: [-16, 0, 0] } },
@@ -581,6 +586,7 @@ const CLIPS_RAW = {
   },
   punchRelease1: { // the banked haymaker discharges: chamber -> strike ->
     // follow-through, exactly bigPunch1 from its wind-up onward
+    strikeArm: 'L', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.5,
     keys: [
       { t: 0, pose: { torso: [8, -36, -9], hipsRot: [0, -18, 0], hipsPos: [0, -0.2, -0.06], head: [0, 16, 0], shoulderL: [30, 8, -26], elbowL: [-126, 0, 0], shoulderR: [-18, 0, 24], elbowR: [-60, 0, 0], kneeL: [30, 0, 0], kneeR: [30, 0, 0], thighL: [-16, 0, 0], thighR: [-16, 0, 0] } },
@@ -623,6 +629,7 @@ const CLIPS_RAW = {
     // shoulderR pitch -90 with a level torso puts the arm dead level and dead
     // forward (armDir [0,0,1]); every +1° of torso lean pitches the arm 1°
     // down, so lean 6 pairs with -96. Do not "tidy" these numbers by eye.
+    strikeArm: 'R', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.7,
     keys: [
       { t: 0, pose: {} },
@@ -637,6 +644,7 @@ const CLIPS_RAW = {
     // out and brace — the fist re-docks onto the extended wrist mid-clip.
     // Squared up like fistLaunch's release: the catch has to present the wrist
     // down the SAME line the fist is flying home along, so the re-dock reads.
+    strikeArm: 'R', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.85, upper: true,
     keys: [
       { t: 0, pose: {} },
@@ -1005,6 +1013,8 @@ function mirrorRaw(raw) {
   const swap = (j) => (j.endsWith('L') ? j.slice(0, -1) + 'R' : j.endsWith('R') ? j.slice(0, -1) + 'L' : j);
   return {
     ...raw,
+    // a mirrored one-armed blow is thrown with the OTHER arm
+    strikeArm: raw.strikeArm === 'L' ? 'R' : raw.strikeArm === 'R' ? 'L' : raw.strikeArm,
     keys: raw.keys.map((k) => {
       const pose = {};
       for (const [j, v] of Object.entries(k.pose)) {
@@ -1047,6 +1057,7 @@ function compile(name, raw) {
     loop: !!raw.loop,
     hold: !!raw.hold,
     upper: !!raw.upper,
+    strikeArm: raw.strikeArm || null, // 'L'/'R' on a ONE-ARMED blow, else null
     tracks,
     events: raw.events || [],
   };

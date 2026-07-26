@@ -268,7 +268,9 @@ export class ProjectileSystem {
       // thrower's WRIST at full speed — clobbering whatever crosses the
       // return path — and cue the owner to reach out for the catch
       if (p.boomerang && p.returning && p.owner) {
-        const wrist = p.owner.mech?.joints?.handR;
+        // home on the wrist it LEFT — titanus throws alternate fists, and
+        // homing on handR regardless docked a left-hand throw onto the wrong arm
+        const wrist = p.owner.mech?.joints?.['hand' + (p.fistSide || 'R')];
         if (wrist) wrist.getWorldPosition(_v); else _v.copy(p.owner.center());
         _v.x = p.mesh.position.x + world.wrapDelta(_v.x - p.mesh.position.x);
         _v.z = p.mesh.position.z + world.wrapDelta(_v.z - p.mesh.position.z);
