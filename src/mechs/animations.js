@@ -635,6 +635,47 @@ const CLIPS_RAW = {
     ],
     events: [{ t: 0.1, type: 'sfx', arg: 'whooshBig' }, { t: 0.18, type: 'hit', arg: 0 }, { t: 0.2, type: 'shake', arg: 0.5 }],
   },
+  // COLOSSUS' own charged heavy: a THUNDERCLAP instead of the shared overhead
+  // pound. His shell is the widest on the roster (body.scale 1.3 on top of
+  // torsoW 1.3 / bulk 1.15), so poundSlam's follow-through — both arms driven
+  // from overhead down past the hips — dragged the forearms straight THROUGH
+  // the chest and belly slabs. The clap keeps every beat of the charge (same
+  // hold loop shape, same 0.18s release-to-hit, same two-fist convergence) but
+  // swings in the HORIZONTAL plane: the arms stretch out wide to either side of
+  // that huge body on the wind-up, then scythe forward and inward to meet in
+  // front of the chest. Nothing crosses the torso volume at any point.
+  colossusClapHold: { // charged clap wind-up: arms flung out wide and back,
+    // chest open, the whole span trembling until Y releases
+    dur: 0.8, loop: true,
+    keys: [
+      { t: 0, pose: { hipsPos: [0, -0.26, -0.05], hipsRot: [-6, 0, 0], torso: [-16, 0, 0], head: [-10, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0] } },
+      { t: 0.4, ease: 'inOutQuad', pose: { hipsPos: [0, -0.3, -0.06], torso: [-18, 0, 0], shoulderL: [-12, -25, -104], shoulderR: [-12, 25, 104], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0] } },
+      { t: 0.8, ease: 'inOutQuad', pose: { hipsPos: [0, -0.26, -0.05], torso: [-16, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0] } },
+    ],
+  },
+  colossusClap: { // the banked clap discharges: the wide span sweeps forward
+    // and slams shut on the centreline in front of his chest. Same 0.7s /
+    // hit-at-0.18 shape as poundSlam, so the charged heavy plays identically.
+    dur: 0.7,
+    keys: [
+      { t: 0, pose: { hipsPos: [0, -0.26, -0.05], hipsRot: [-6, 0, 0], torso: [-16, 0, 0], head: [-10, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0] } },
+      // impact: fists meet dead ahead at chest height, arms clear of the body
+      // Impact. The inward roll is BIG on purpose: his shoulders sit further
+      // apart than any other mech's, so a modest roll left the fists a body's
+      // width apart and the "clap" read as a shrug. 58deg is what actually
+      // shuts them on the centreline (measured from the front in ?showcase).
+      { t: 0.18, ease: 'inCubic', pose: { hipsPos: [0, -0.44, 0.12], hipsRot: [8, 0, 0], torso: [22, 0, 0], head: [8, 0, 0], shoulderL: [-80, 0, 58], shoulderR: [-80, 0, -58], elbowL: [-26, 0, 0], elbowR: [-26, 0, 0], kneeL: [40, 0, 0], kneeR: [40, 0, 0], thighL: [-20, 0, 0], thighR: [-20, 0, 0], ankleL: [-16, 0, 0], ankleR: [-16, 0, 0] } },
+      // the clap jams: hands stay locked together while the frame rides it out
+      { t: 0.36, ease: 'outQuad', pose: { hipsPos: [0, -0.34, 0.06], torso: [17, 0, 0], shoulderL: [-76, 0, 52], shoulderR: [-76, 0, -52], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      // recovery UNROLLS before it drops. Falling straight from the clapped
+      // pose to rest swept both fists down across the belly plates — the very
+      // clipping this clip exists to avoid. Open back to shoulder width first,
+      // then let the arms fall outside the hips.
+      { t: 0.5, ease: 'inOutQuad', pose: { hipsPos: [0, -0.2, 0.02], torso: [10, 0, 0], head: [4, 0, 0], shoulderL: [-46, 0, -4], shoulderR: [-46, 0, 4], elbowL: [-18, 0, 0], elbowR: [-18, 0, 0] } },
+      { t: 0.7, ease: 'inOutQuad', pose: REST_FULL },
+    ],
+    events: [{ t: 0.1, type: 'sfx', arg: 'whooshBig' }, { t: 0.18, type: 'hit', arg: 0 }, { t: 0.2, type: 'shake', arg: 0.5 }],
+  },
   fistLaunch: { // ROCKET FIST: chamber the right fist past the hip, then punch
     // STRAIGHT DOWN THE LINE — the fist detaches at full extension (the fire
     // event) and the arm stays punched out a beat while it flies.
@@ -1069,8 +1110,11 @@ CLIPS_RAW.light3L = mirrorRaw(CLIPS_RAW.light3); // left uppercut
 // heavyDrive / heavyFlare, the charge-hold loop — match either side.
 export const SMASH_MIRRORS = {
   heavy: 'heavyMirror',         // the shared two-hand overhead smash
-  poundHold: 'poundHoldMirror', // TITANUS / COLOSSUS charged pound: the loop...
+  poundHold: 'poundHoldMirror', // TITANUS' charged pound: the loop...
   poundSlam: 'poundSlamMirror', // ...and the discharge it lands on
+  // COLOSSUS' clap has no twin on purpose: it is symmetric about the
+  // centreline, so a mirror would compile to the same pose. smashClip passes
+  // an unlisted name straight through.
 };
 for (const [base, twin] of Object.entries(SMASH_MIRRORS)) CLIPS_RAW[twin] = mirrorRaw(CLIPS_RAW[base]);
 

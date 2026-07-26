@@ -274,13 +274,17 @@ export const ROSTER = [
     ui: { power: 9, speed: 2, defense: 9 },
     // same doctrine as TITANUS: wind the fist all the way back, then send
     // whatever it lands on across the street — punches (hold X) and the
-    // overhead pound (hold Y) both charge while held
+    // charged heavy (hold Y) both charge while held.
+    // The heavy is a THUNDERCLAP rather than TITANUS' overhead pound: this
+    // shell is far too wide for a pound's follow-through past the hips (the
+    // forearms swept straight through the chest slab), so the arms stretch
+    // wide on the wind-up and slam shut in front instead. See colossusClap*.
     lightClips: ['bigPunch1', 'bigPunch2', 'light3'],
     punchHold: true,
-    heavyClip: 'poundHold',
+    heavyClip: 'colossusClapHold',
     heavyHold: true,
-    heavyReleaseClip: 'poundSlam',
-    chargeGlow: 'arms', // both raised pound arms flicker as power banks
+    heavyReleaseClip: 'colossusClap',
+    chargeGlow: 'arms', // both outstretched clap arms flicker as power banks
     // GLB: the cockpit head is welded into the chest slab (the retarget maps
     // `head` onto a spine bone that carries chest geometry), so it never
     // rotates on its own — the torso turns the whole shell
