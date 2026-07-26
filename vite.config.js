@@ -127,6 +127,14 @@ export default defineConfig({
   build: {
     target: 'es2020',
     chunkSizeWarningLimit: 1500,
+    // two pages: the game, and the workbenches at /workbench/. They share the
+    // engine chunks — the workbench is the same code with different UI on top.
+    rollupOptions: {
+      input: {
+        main: path.resolve('index.html'),
+        workbench: path.resolve('workbench/index.html'),
+      },
+    },
   },
   server: {
     host: true,

@@ -19,29 +19,22 @@
 // joint gizmo, bone display, limb-length constraints, and both the clip-pose
 // and manifest bind-patch (boneCorrections / bonePos) exports.
 //
-//   ?debug=models[&mech=<id>][&compare=proc|alt|solo]
+//   /workbench/?edit=animation&mech=<id>[&compare=proc|alt|solo]
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { Engine } from '../core/engine.js';
-import { World } from '../game/world.js';
-import { Fighter } from '../combat/fighter.js';
-import { Input } from '../game/input.js';
-import { buildMech } from '../mechs/factory.js';
-import { Animator } from '../mechs/animator.js';
-import { buildGlbForTool, fetchRawManifest } from '../mechs/gltf.js';
-import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
-import { setupDevPanel } from './panelui.js';
-import { describeAction, ACTIONS } from './actionchars.js';
-import { anchorUses } from './anchoruses.js';
+import { setupDevPanel } from '../ui/panel.js';
+import { describeAction, ACTIONS } from '../adapters/actionchars.js';
 
 const R2D = 180 / Math.PI;
 const PAIR_X = 6;              // half-separation of the two models
 const INTENT_BTNS = ['light', 'lightHeld', 'heavy', 'heavyHeld', 'ranged', 'rangedHeld',
   'special', 'specialHeld', 'ult', 'block', 'dash', 'jump', 'jumpHeld', 'duck'];
 
-export async function runPoseTool(startId) {
-  const engine = new Engine(document.getElementById('game-canvas'));
+export async function runAnimationWorkbench(config, params) {
+  const startId = params.get('mech') || params.get('id');
+  const anchorUses = (id, name, avail) => config.anchors.uses(id, name, avail);
+  const engine = config.stage.engine();
   const { scene, camera, renderer } = engine;
   scene.background = new THREE.Color(0x232833);
   scene.add(new THREE.HemisphereLight(0xdfe6f2, 0x565c66, 2.0));
@@ -56,8 +49,8 @@ export async function runPoseTool(startId) {
   scene.add(new THREE.GridHelper(60, 60, 0x38445a, 0x222c3a));
 
   // bare world (no arena — clean stage; World's arena hooks are all optional)
-  const world = new World(engine, null);
-  const input = new Input();
+  const world = config.stage.world(engine);
+  const input = config.stage.input();
   world.input = input;
 
   camera.position.set(14, 8, 15);
@@ -78,10 +71,9 @@ export async function runPoseTool(startId) {
     if (!e.value) { onAnchorDrop(); pushAnchorHistory(); }
   });
 
-  const params = new URLSearchParams(location.search);
-  const manifest = await fetchRawManifest();
-  const glbIds = ROSTER.map((r) => r.id).filter((id) => manifest[id]?.url);
-  let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || ROSTER[0].id);
+    const manifest = config.manifest();
+  const glbIds = config.catalogue.list().filter((c) => c.hasModel).map((c) => c.id);
+  let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || config.catalogue.list()[0].id);
   let timeScale = 1;
 
   // ---- live state ----
@@ -214,11 +206,12 @@ export async function runPoseTool(startId) {
     });
   }
 
-  function makeFighter(def, x, opts = {}) {
-    const f = new Fighter(world, def, {
+  // one controllable subject on the stage — the config builds it with the
+  // game's own actor type, so the state machine under it is the real one
+  function makeFighter(id, x, opts = {}) {
+    return config.stage.actor(world, id, {
       pos: new THREE.Vector3(x, 0, 0), yaw: 0, playerIndex: opts.pi ?? 0, isAI: false, mech: opts.mech,
     });
-    return f;
   }
 
   async function load(id) {
@@ -231,7 +224,6 @@ export async function runPoseTool(startId) {
     world.fighters.length = 0;
     if (Array.isArray(world.projectiles)) world.projectiles.length = 0;
 
-    const def = ROSTER_BY_ID[id];
     const hasAlt = !!manifest[id]?.alt?.url;
     // COMPARE TO: procedural by default; 'alt' stands the mech's alternate model
     // there instead (own intake — a full independent fighter) so alt-vs-original
@@ -242,14 +234,16 @@ export async function runPoseTool(startId) {
     procF = null;
     if (!soloMode) {
       if (slot === 'alt') {
-        const altBuilt = await buildGlbForTool(def, null, { alt: true });
-        procF = makeFighter(def, -PAIR_X, { pi: 0, mech: altBuilt.mech });
+        const altModel = await config.variants.build(id, { variant: 'alt' });
+        procF = makeFighter(id, -PAIR_X, { pi: 0, mech: altModel });
       } else {
-        procF = makeFighter(def, -PAIR_X, { pi: 0 });
+        // no `mech` override: the actor builds this game's DEFAULT comparison
+        // body (robotworld: the hand-sculpted procedural one)
+        procF = makeFighter(id, -PAIR_X, { pi: 0 });
       }
     }
-    const built = await buildGlbForTool(def);
-    glbF = makeFighter(def, soloMode ? 0 : PAIR_X, { pi: 1, mech: built.mech });
+    const model = await config.variants.build(id, { variant: 'glb' });
+    glbF = makeFighter(id, soloMode ? 0 : PAIR_X, { pi: 1, mech: model });
     syncSlotUI(hasAlt, slot);
     panelUI.setSubtitle(`${id} · GLB vs ${slot === 'alt' ? 'ALT' : slot === 'solo' ? '(solo)' : 'procedural'}`);
     // NO stand-in enemies on the stage. Attacks aim at the combat code's own
@@ -313,7 +307,7 @@ export async function runPoseTool(startId) {
 
   // ---- status panel ----
   function setStatus(action) {
-    const d = describeAction(ROSTER_BY_ID[curId], action);
+    const d = describeAction(config.catalogue.get(curId), action);
     let html = `<div style="font-weight:600;color:#cfe3ff;margin-bottom:3px">▶ ${d.title}</div>`;
     for (const ln of d.lines) {
       const tag = ln.v === 'proc' ? ' <span style="color:#8fd8ff">(Procedural only)</span>'
@@ -749,7 +743,7 @@ export async function runPoseTool(startId) {
     // ---- what this anchor drives ----
     if (selAnchor) {
       const avail = new Set(Object.keys(mech?.anchors || {}));
-      const { role, uses, notes } = anchorUses(ROSTER_BY_ID[curId], selAnchor, avail);
+      const { role, uses, notes } = anchorUses(curId, selAnchor, avail);
       const obj = mech.anchors[selAnchor];
       const bs = anchorBase[selAnchor];
       const moved = bs && obj.parent !== bs.parent;

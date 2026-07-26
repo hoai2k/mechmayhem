@@ -62,8 +62,12 @@ export function altCheckbox({ hasAlt, useAlt, forced }, onChange) {
 }
 
 /** Set/clear ?alt=1 and reload — both workbenches build one model at load. */
-export function reloadWithAlt(next) {
+export function reloadWithVariant(next) {
   const u = new URL(location.href);
   if (next) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
   location.href = u.toString();
 }
+
+// back-compat alias (the tools called this reloadWithAlt before the workbench
+// split; both names work while the old ?rigedit= URLs still redirect here)
+export const reloadWithAlt = reloadWithVariant;

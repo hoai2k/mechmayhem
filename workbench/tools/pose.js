@@ -68,19 +68,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { Engine } from '../core/engine.js';
-import { buildMech } from '../mechs/factory.js';
-import { Animator } from '../mechs/animator.js';
-import { buildGlbForTool, fetchRawManifest, measureHeadTop } from '../mechs/gltf.js';
-import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
-import { JOINT_ORDER } from '../mechs/rigadapter.js';
-import { CLIPS, compileClip } from '../mechs/animations.js';
-import { ease } from '../core/utils.js';
-import { profileFor } from '../mechs/glbanim.js';
-import { mechClipList } from './mechclips.js';
-import { setupDevPanel } from './panelui.js';
-import { mechSelect } from './mechpick.js';
-import { altChoice, altCheckbox } from './altpick.js';
+import { setupDevPanel } from '../ui/panel.js';
+import { subjectSelect } from '../ui/subjectpick.js';
+import { altChoice, altCheckbox } from '../ui/variantpick.js';
 
 const R2D = 180 / Math.PI;
 // Joints whose clip value is read RELATIVE to the mech's rest stance (the
@@ -92,8 +82,13 @@ const BIASED = (j) => j.startsWith('thigh') || j.startsWith('knee') || j.startsW
 // rotation-only, and that is exactly what keeps limbs from stretching.
 const CAN_TRANSLATE = 'hips';
 
-export async function runPoseWork(startId) {
-  const engine = new Engine(document.getElementById('game-canvas'));
+export async function runPoseWorkbench(config, params) {
+  const startId = params.get('mech') || params.get('id');
+  const JOINT_ORDER = config.rig.joints;
+  const compileClip = config.anim.compile;
+  const measureHeadTop = config.geometry.headTop;
+  const ease = config.ease;
+  const engine = config.stage.engine();
   const { scene, camera, renderer } = engine;
   scene.background = new THREE.Color(0x232833);
   scene.add(new THREE.HemisphereLight(0xdfe6f2, 0x565c66, 2.0));
@@ -107,9 +102,8 @@ export async function runPoseWork(startId) {
   scene.add(ground);
   scene.add(new THREE.GridHelper(60, 60, 0x38445a, 0x222c3a));
 
-  const params = new URLSearchParams(location.search);
-  const manifest = await fetchRawManifest();
-  let curId = ROSTER_BY_ID[startId] ? startId : ROSTER[0].id;
+  const manifest = config.manifest();
+  let curId = config.catalogue.get(startId) ? startId : config.catalogue.list()[0].id;
   let useGlb = params.get('model') !== 'proc';
   // ?alt=1 — pose the manifest's ALTERNATE build (a second model, or the same
   // model on a staged custom rig). Same control as ?debug=skin / ?rigedit; here
@@ -185,12 +179,11 @@ export async function runPoseWork(startId) {
         for (const m of mats) m?.dispose?.();
       });
     }
-    const def = ROSTER_BY_ID[id];
     const hasGlb = !!alt.entry?.url;
-    mech = (useGlb && hasGlb) ? (await buildGlbForTool(def, null, { alt: altOn })).mech : buildMech(def);
+    mech = await config.variants.build(id, { variant: (useGlb && hasGlb) ? (altOn ? 'alt' : 'glb') : 'proc' });
     mech.group.position.set(0, 0, 0);
     scene.add(mech.group);
-    animator = mech.premadeAnimator || new Animator(mech);
+    animator = config.anim.animator(mech, id);
     animator.poseStatic();
     restPose = animator.makeRestTarget();
     hipsHome.copy(mech.joints.hips.position);
@@ -270,11 +263,10 @@ export async function runPoseWork(startId) {
   // Only the clips THIS mech can play (mechclips.js reads the real play sites),
   // so vulcan's list carries his ult's hurricaneSpin and nobody else's.
   function clipsForMech() {
-    const def = ROSTER_BY_ID[curId];
     // the built mech's OWN profile first — an alternate build may carry its own
     // (`profileKey`), and that's the clip set it actually plays
-    const profile = mech?.isGLB ? (mech.animProfile || profileFor(curId)) : null;
-    return mechClipList(def, profile).filter((c) => CLIPS[c.name]);
+    return config.anim.clipsFor(curId, mech?.isGLB ? mech : null)
+      .filter((c) => config.anim.clip(c.name, mech));
   }
   function buildClipOptions() {
     const list = clipsForMech();
@@ -317,7 +309,7 @@ export async function runPoseWork(startId) {
   // may swap in a bespoke variant (glbanim clipOverrides), and that variant has
   // its own keys. Resolved exactly the way Animator.play resolves it.
   function clipUnderName(name) {
-    return animator?.profile?.clipOverrides?.[name] || CLIPS[name];
+    return config.anim.clip(name, mech);
   }
 
   // ================= the editable key list =================
@@ -1000,7 +992,7 @@ export async function runPoseWork(startId) {
   const rnd = (v, d = 2) => { const m = 10 ** d; return Math.round(v * m) / m; };
 
   panel.appendChild(label('Mech'));
-  const mechSel = mechSelect({
+  const mechSel = subjectSelect({ config,
     value: curId,
     note: (id) => (manifest[id]?.url ? '' : '  (procedural only)'),
     onPick: (id) => load(id),

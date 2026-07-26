@@ -24,7 +24,7 @@ import { PROPS, PROP_MATS } from '../arena/props.js';
 import { ROSTER } from '../mechs/roster.js';
 import { emptyLevel, LEVEL_VERSION, PLAYTEST_KEY } from '../arena/level.js';
 import { CATALOG, CATALOG_BY_ID, SWATCHES } from './catalog.js';
-import { setupDevPanel } from '../dev/panelui.js';
+import { setupDevPanel } from '../../workbench/ui/panel.js';
 
 const WRAP = 1.35;                 // arena wrapHalf = bounds * 1.35
 const LS_PREFIX = 'rw_level:';     // saved-slot keys

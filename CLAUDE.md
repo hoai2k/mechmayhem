@@ -14,9 +14,23 @@ audio). Progress history: `TASKS.md`.
 - Combat crash soak: `node tools/soak.mjs "http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1&diff=ace"`
 - Debug URLs: `?showcase` (12-mech lineup) · `?showcase=<id>&anim=<clip|walk|none>`
   (single mech, judging camera) · `?battle=<arena>&p1=<id>&p2=<id>[&p3..p4][&auto=1][&diff=ace][&forcesplit=1]`
-  · `?rigtest` (GLB retarget math check) · `?rigedit=<id>` (edit a mech's
-  hand-authored rig, `src/mechs/rigs/<id>.rig.js`) · `?showall=1` (force
-  SETTINGS → SHOW ALL ROBOTS on for the session)
+  · `?rigtest` (GLB retarget math check) · `?showall=1` (force SETTINGS → SHOW
+  ALL ROBOTS on for the session)
+- WORKBENCHES LIVE ON THEIR OWN PAGE: `/workbench/?edit=<tool>&mech=<id>` —
+  `animation` (procedural-vs-GLB action comparison + anchor editor),
+  `pose` (joints + clip keyframes), `skin` (bone-island repair), `rig`
+  (hand-placed skeletons), `hurtbox` (what combat hits). `&variant=alt`
+  (legacy `&alt=1`) opens a mech's alternate build. The OLD urls
+  (`?debug=models|pose|skin|collider`, `?rigedit=<id>`) still work — they
+  redirect, carrying their params, so every tools/*.mjs script and bookmark is
+  unaffected.
+- The workbench code is a separate tree (`workbench/`) that knows the game
+  ONLY through a config object: `workbench/config/contract.js` documents the
+  whole surface, `workbench/adapters/robotworld/` fills it in by DERIVING from
+  live game data (roster, clips, joint order, rig registry, manifest) — add a
+  mech or a clip and the workbenches pick it up with no edit there.
+  `node tools/wbconfig.mjs` proves nothing has been hand-copied. Tools under
+  `workbench/tools/` import no game code at all. See `workbench/README.md`.
 - Every workbench side panel (skin/models/pose/collider/rigedit + the level
   editor's two) is RESIZABLE: drag its outer edge, double-click the handle to
   reset, width remembered per tool (`src/dev/panelui.js`, which also styles

@@ -1,4 +1,4 @@
-// ?debug=skin — GLB skin-repair workbench.
+// /workbench/?edit=skin&mech=<id> — skin-repair workbench.
 //
 // Shows a mech's raw GLB colored BY DOMINANT BONE, so auto-rig weight
 // mistakes read as wrong-colored patches (an arm-colored banner, a hip plate
@@ -29,20 +29,21 @@
 //   click patch = select island · T = textures on/off · W = wiggle bone
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Engine } from '../core/engine.js';
-import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
-import { altChoice, altCheckbox, reloadWithAlt } from './altpick.js';
-import { loadRawGlbScene, fetchRawManifest, skinnedBox, buildGlbForTool } from '../mechs/gltf.js';
-import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson, blendPatch, weldedAdjacency, enclaveScan } from '../mechs/skinops.js';
-import { CLIPS } from '../mechs/animations.js';
-import { mechClipList } from './mechclips.js';
-import { setupDevPanel } from './panelui.js';
-import { saveManifestPatch, wireExportChanges } from './savefile.js';
+import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js';
+import { setupDevPanel } from '../ui/panel.js';
+import { wireExportChanges } from '../ui/save.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
 
-export async function runSkinTool(startId) {
-  const engine = new Engine(document.getElementById('game-canvas'));
+export async function runSkinWorkbench(config, params) {
+  const startId = params.get('mech') || params.get('id');
+  // everything game-shaped comes from the contract, nothing from src/
+  const {
+    analyze: analyzeSkin, apply: applySkinOps, compact: compactSkinOps, toJson: skinOpsToJson,
+    blendPatch, weldedAdjacency, enclaveScan,
+  } = config.skin;
+  const skinnedBox = config.geometry.skinnedBox;
+  const engine = config.stage.engine();
   const { scene, camera, renderer } = engine;
   scene.background = new THREE.Color(0x252a34);
   // dim, flat-ish lighting: the bone-color view must stay below the engine's
@@ -63,9 +64,9 @@ export async function runSkinTool(startId) {
   orbit.target.set(0, 3.6, 0);
   orbit.update();
 
-  const manifest = await fetchRawManifest();
-  const glbIds = ROSTER.map((r) => r.id).filter((id) => manifest[id]?.url);
-  let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || ROSTER[0].id);
+  const manifest = config.manifest();
+  const glbIds = config.catalogue.list().filter((c) => c.hasModel).map((c) => c.id);
+  let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || config.catalogue.list()[0].id);
   // ?alt=1 edits the manifest's `alt` entry — a second model (aegis, jerry) or
   // the same model on a staged custom rig (rhino, inferno). The panel's "Edit
   // Alternate GLB" box drives it; skinOps belong to whichever entry is loaded,
@@ -237,7 +238,7 @@ export async function runSkinTool(startId) {
     paintOp = null; paintSet = null; paintColorAttr = null;
     bindOpen = false; bindComp = null; bindRows = [];
     setOrbitPaintMode(false); updatePaintUI();
-    const raw = await loadRawGlbScene(id, { alt: altOn });
+    const raw = await config.variants.raw(id, { variant: altOn ? 'alt' : 'glb' });
     if (!raw) { setStatus('no GLB for ' + id); return; }
     mesh = null;
     raw.scene.traverse((o) => {
@@ -274,9 +275,9 @@ export async function runSkinTool(startId) {
     // scene. Built with skinOps stripped so it can't touch the shared cached
     // geometry the raw scene was cloned from (it only ever supplies poses).
     try {
-      const built = await buildGlbForTool(ROSTER_BY_ID[id], { skinOps: [] }, { alt: altOn });
-      if (built?.mech?.isGLB && built.mech.boneMap && built.mech.premadeAnimator) {
-        animMech = built.mech;
+      const built = await config.variants.build(id, { variant: altOn ? 'alt' : 'glb', overrides: { skinOps: [] } });
+      if (built?.isGLB && built.boneMap && built.premadeAnimator) {
+        animMech = built;
         animBones = new Map();
         animMech.group.traverse((o) => { if (o.isBone) animBones.set(o.name, o); });
         jointOfBone = new Map();
@@ -850,10 +851,9 @@ export async function runSkinTool(startId) {
       for (const t of JOINT_TRACKS[joint] || [joint]) tracks.add(t);
     }
     if (!tracks.size) return [];
-    const over = animMech.animProfile?.clipOverrides || {};
     const out = [];
-    for (const c of mechClipList(ROSTER_BY_ID[curId], animMech.animProfile)) {
-      const clip = over[c.name] || CLIPS[c.name];
+    for (const c of config.anim.clipsFor(curId, animMech)) {
+      const clip = config.anim.clip(c.name, animMech);
       if (!clip?.tracks) continue;
       for (const t of tracks) if (clip.tracks[t]) { out.push(c); break; }
     }
@@ -971,7 +971,7 @@ export async function runSkinTool(startId) {
   panel.appendChild(altSlot);
   function refreshAltRow() {
     altSlot.textContent = '';
-    const row = altCheckbox(altChoice(manifest, curId, altOn), reloadWithAlt);
+    const row = altCheckbox(altChoice(manifest, curId, altOn), reloadWithVariant);
     if (row) altSlot.appendChild(row);
   }
   refreshAltRow();
@@ -1277,7 +1277,7 @@ export async function runSkinTool(startId) {
     const list = compactSkinOps(ops);
     saveBtn.disabled = true;
     setStatus(`Saving ${list.length} op(s) to manifest.json under "${curId}${altOn ? '.alt' : ''}"…`);
-    const res = await saveManifestPatch(opsPatch());
+    const res = await config.skin.save(curId, compactSkinOps(ops), { variant: altOn ? 'alt' : 'glb' });
     saveBtn.disabled = false;
     if (res.ok) {
       setStatus(`SAVED — ${list.length} op(s) written to public/models/manifest.json (${res.written.join(', ')}).` +
