@@ -220,3 +220,22 @@ New engine seams added this session (all manifest/data-driven):
 Deploy note: GH Pages had a brief platform outage ("no server available",
 Configure Pages step) — if a deploy fails there with a green build, just
 re-run or push again.
+
+## Session 7 (2026-07-26): weighted skin ops + colossus custom rig (alt)
+
+- skinOps gained a WEIGHTED form: `{"sel": ..., "weights": {"boneA": 0.7,
+  "boneB": 0.3}}` binds a selection to up to 4 bones instead of rigidly to
+  one (renormalized on apply; a 5th influence is dropped loudly, since
+  three.js would ignore it silently).
+- `?debug=skin` — "Bind selected 100% to own bone" became **Bind Geometry
+  (B)**: it opens the selected island's CURRENT per-bone weights as editable
+  numbers (＋ add bone, 100% own bone, even split), and Apply emits the op —
+  the rigid `to` form when one bone survives, the weighted form otherwise.
+  Exports with everything else.
+- colossus: user skin pass shipped (64 ops, +6 over the previous list), and a
+  hand-placed rig (`src/mechs/rigs/colossus.rig.js`) is offered as
+  `colossus.alt` — twin cannons on their own torso-parented bones instead of
+  riding the right arm, a `head` that isn't a duplicate of `torso`, and no
+  skinOps at all. Worst clip-seam stretch across all 91 clips: **+0.15** vs
+  the Tripo primary's **+0.34** (`tools/cliptear.mjs`). Not promoted — compare
+  in `?debug=models&mech=colossus&left=alt` and decide.

@@ -86,6 +86,8 @@ export async function runSkinTool(startId) {
   let wigglePaused = false;  // SPACE freezes the wiggle so you can click a
                              // stretched-out piece of geometry
   let hoverInfo = '';
+  // ---- bind-geometry panel: per-bone weights for the selected island ----
+  let bindOpen = false;      // is the weight editor showing?
   // undo/redo of the ops list (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y)
   let undoStack = [], redoStack = [];
   // ---- paint mode: split one island across two bones with a brush ----
@@ -207,6 +209,7 @@ export async function runSkinTool(startId) {
     paintMode = false; paintPhase = 'off'; painting = false;
     paintBone = null; paintRegion = null; regionSet = null; regionWorld = null;
     paintOp = null; paintSet = null; paintColorAttr = null;
+    bindOpen = false; bindComp = null; bindRows = [];
     setOrbitPaintMode(false); updatePaintUI();
     const raw = await loadRawGlbScene(id);
     if (!raw) { setStatus('no GLB for ' + id); return; }
@@ -380,6 +383,7 @@ export async function runSkinTool(startId) {
     setSelBone(bones[selComp.boneIndex]);   // clip list follows the island's bone
     stopWiggle();
     rebuildColors();
+    if (bindOpen) openBindPanel();          // weight editor follows the selection
     setStatus(`Selected: island #${selComp.id} of ${selComp.boneName}` +
       `\n${selComp.count} verts · centroid [${selComp.centroid.map((v) => v.toFixed(2))}]` +
       `\nNow: "Rebind → click target" or pick a bone in the list.`);
@@ -419,6 +423,77 @@ export async function runSkinTool(startId) {
     selComp = null;
     applyAllOps();
     setStatus(`Island #${c.id} (${c.count}v) rebound 100% to ${c.boneName} — secondary weights removed.`);
+  }
+
+  // ================= BIND GEOMETRY (per-bone weight editor) =================
+  // The selected island's CURRENT bindings, as numbers you can edit: one row
+  // per bone that influences it, weight 0..1. Apply emits a manifest op —
+  // { sel, to } when one bone survives, { sel, weights: {...} } when several —
+  // so a shoulder pad can ride the torso 70% / arm 30% instead of snapping
+  // rigidly to one bone. Exported with every other op.
+
+  // Average weight per bone across an island's verts (what it's bound to NOW).
+  function islandWeights(comp) {
+    const jnt = mesh.geometry.attributes.skinIndex;
+    const wgt = mesh.geometry.attributes.skinWeight;
+    const sums = new Map();
+    for (const v of comp.verts) {
+      for (let k = 0; k < 4; k++) {
+        const w = wgt.getComponent(v, k);
+        if (w <= 0) continue;
+        const name = bones[jnt.getComponent(v, k)]?.name;
+        if (!name) continue;
+        sums.set(name, (sums.get(name) || 0) + w);
+      }
+    }
+    return [...sums.entries()]
+      .map(([name, s]) => ({ name, w: s / comp.count }))
+      .filter((r) => r.w >= 0.0005)
+      .sort((a, b) => b.w - a.w);
+  }
+
+  let bindRows = [];          // [{name, w}] being edited
+  let bindComp = null;        // island the rows describe
+
+  function openBindPanel() {
+    if (!selComp) { setStatus('Select an island first (click a patch), then Bind Geometry.'); return; }
+    bindComp = selComp;
+    bindRows = islandWeights(bindComp).map((r) => ({ name: r.name, w: +r.w.toFixed(3) }));
+    if (!bindRows.length) bindRows = [{ name: bindComp.boneName, w: 1 }];
+    bindOpen = true;
+    renderBindPanel();
+    setStatus(`Bind Geometry — island #${bindComp.id} (${bindComp.count}v).` +
+      `\nEdit each bone's share, then Apply. Values are normalized (0.7/0.3 = 7/3).`);
+  }
+  function closeBindPanel() {
+    bindOpen = false; bindComp = null; bindRows = [];
+    renderBindPanel();
+  }
+  function toggleBindPanel() { bindOpen ? closeBindPanel() : openBindPanel(); }
+
+  // Commit the edited rows as an op. One bone → the compact rigid form.
+  function applyBind() {
+    if (!bindComp) return;
+    const live = bindRows.filter((r) => r.name && r.w > 0);
+    if (!live.length) { setStatus('Every weight is 0 — give at least one bone a share.'); return; }
+    if (live.length > 4) { setStatus('Max 4 bones per vertex (GPU limit) — remove some rows.'); return; }
+    const c = bindComp;
+    const sel = selectorFor(c);
+    pushUndo();
+    if (live.length === 1) {
+      ops.push({ sel, to: live[0].name });
+    } else {
+      const sum = live.reduce((s, r) => s + r.w, 0);
+      const weights = {};
+      for (const r of live) weights[r.name] = +(r.w / sum).toFixed(4);
+      ops.push({ sel, weights });
+    }
+    paintOp = null; paintSet = null;   // close any live paint op (replay order)
+    selComp = null;
+    applyAllOps();
+    setStatus(`Island #${c.id} (${c.count}v) bound to ` +
+      live.map((r) => `${r.name} ${(r.w * 100 / live.reduce((s, x) => s + x.w, 0)).toFixed(0)}%`).join(' · '));
+    closeBindPanel();
   }
 
   // ================= PAINT MODE =================
@@ -716,7 +791,7 @@ export async function runSkinTool(startId) {
       if (wiggle) stopWiggle();
       else if (selComp) startWiggle(bones[selComp.boneIndex]);
     } else if (ev.key === 'b' || ev.key === 'B') {
-      rebindSelfHard();
+      toggleBindPanel();
     } else if (ev.key === 'q' || ev.key === 'Q') {
       // same as clicking "Rebind → click target": toggle picktarget mode so you
       // can click a patch, W to wiggle, Q to rebind, then click the correct bone
@@ -812,8 +887,93 @@ export async function runSkinTool(startId) {
     }
   }
 
-  // rebind the selected island 100% to its own bone (drop secondary weights)
-  panel.appendChild(actionBtn('Bind selected 100% to own bone (B)', rebindSelfHard));
+  // ---- bind-geometry panel: edit the selected island's per-bone weights ----
+  const bindBtn = actionBtn('Bind Geometry (B)', toggleBindPanel);
+  panel.appendChild(bindBtn);
+  const bindPanel = document.createElement('div');
+  bindPanel.style.cssText = 'display:none;margin:4px 0;padding:7px;border:1px solid #2f5668;border-radius:6px;background:#0f1c22';
+  panel.appendChild(bindPanel);
+  function renderBindPanel() {
+    bindBtn.style.background = bindOpen ? '#1f6d7a' : '#1a2433';
+    bindBtn.style.color = bindOpen ? '#fff' : '#cfe0f5';
+    bindPanel.style.display = bindOpen ? 'block' : 'none';
+    bindPanel.innerHTML = '';
+    if (!bindOpen || !bindComp) return;
+
+    const head = document.createElement('div');
+    head.style.cssText = 'font:11px ui-monospace,monospace;color:#9fdcf0;margin-bottom:5px';
+    head.textContent = `island #${bindComp.id} · ${bindComp.count}v · owner ${bindComp.boneName}`;
+    bindPanel.appendChild(head);
+
+    bindRows.forEach((r, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:5px;align-items:center;margin:2px 0';
+      const bi = bones.findIndex((b) => b.name === r.name);
+      const sw = document.createElement('span');
+      sw.style.cssText = `width:10px;height:10px;border-radius:2px;flex:none;background:#${boneColor(bi).getHexString()}`;
+      const nm = document.createElement('span');
+      nm.style.cssText = 'flex:1;font:11px ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      nm.textContent = r.name;
+      nm.title = r.name;
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.min = '0'; inp.max = '1'; inp.step = '0.05'; inp.value = String(r.w);
+      inp.style.cssText = 'width:56px;background:#0b0f16;color:#8fe;border:1px solid #2c3648;border-radius:4px;padding:2px 4px;font:11px ui-monospace,monospace';
+      inp.oninput = () => { r.w = Math.max(0, +inp.value || 0); updateBindTotal(); };
+      const x = document.createElement('button');
+      x.textContent = '✕';
+      x.style.cssText = 'background:#3a2027;color:#ff9c9c;border:1px solid #553;border-radius:4px;cursor:pointer;font-size:10px;padding:1px 5px';
+      x.onclick = () => { bindRows.splice(i, 1); renderBindPanel(); };
+      row.append(sw, nm, inp, x);
+      bindPanel.appendChild(row);
+    });
+
+    // add-a-bone picker (every bone in the skeleton, minus the rows already up)
+    const add = document.createElement('select');
+    add.style.cssText = 'width:100%;margin-top:4px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:3px;font-size:11px';
+    const mk = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; add.appendChild(o); };
+    mk('', '＋ add bone…');
+    for (const b of bones) if (!bindRows.some((r) => r.name === b.name)) mk(b.name, b.name);
+    add.onchange = () => {
+      if (!add.value) return;
+      bindRows.push({ name: add.value, w: 0.25 });
+      renderBindPanel();
+    };
+    bindPanel.appendChild(add);
+
+    const total = document.createElement('div');
+    total.style.cssText = 'color:#7d8ea3;font-size:10px;margin:4px 0 5px;line-height:1.4';
+    bindPanel.appendChild(total);
+    function updateBindTotal() {
+      const live = bindRows.filter((r) => r.w > 0);
+      const sum = live.reduce((s, r) => s + r.w, 0);
+      total.textContent = live.length
+        ? `${live.length} bone(s), total ${sum.toFixed(2)} → normalized ` +
+          live.map((r) => `${(r.w / sum * 100).toFixed(0)}%`).join(' / ') +
+          (live.length > 4 ? ' — TOO MANY (max 4)' : '')
+        : 'all zero — nothing to apply';
+      total.style.color = live.length > 4 ? '#ff9c9c' : '#7d8ea3';
+    }
+    updateBindTotal();
+
+    const row1 = document.createElement('div');
+    row1.style.cssText = 'display:flex;gap:6px;margin-bottom:4px';
+    row1.appendChild(actionBtn('100% own bone', () => {
+      bindRows = [{ name: bindComp.boneName, w: 1 }];
+      renderBindPanel();
+    }));
+    row1.appendChild(actionBtn('Even split', () => {
+      const live = bindRows.filter((r) => r.w > 0);
+      const share = live.length ? +(1 / live.length).toFixed(3) : 1;
+      for (const r of bindRows) r.w = r.w > 0 ? share : 0;
+      renderBindPanel();
+    }));
+    bindPanel.appendChild(row1);
+    const row2 = document.createElement('div');
+    row2.style.cssText = 'display:flex;gap:6px';
+    row2.appendChild(actionBtn('Apply', applyBind, true));
+    row2.appendChild(actionBtn('Cancel', closeBindPanel));
+    bindPanel.appendChild(row2);
+  }
 
   const histRow = document.createElement('div');
   histRow.style.cssText = 'display:flex;gap:6px;margin:4px 0';
@@ -916,6 +1076,10 @@ export async function runSkinTool(startId) {
         t.textContent = `purgePair ${op.purgePair.join(' / ')}`;
       } else if (!op.sel) {
         t.textContent = JSON.stringify(op);
+      } else if (op.weights) {
+        const parts = Object.entries(op.weights).map(([b, w]) => `${b} ${Math.round(w * 100)}%`);
+        const selTxt = op.sel.verts ? `${op.sel.verts.length}v` : `#${op.sel.comp}`;
+        t.textContent = `${selTxt} → ${parts.join(' + ')}`;
       } else if (op.sel.verts) {
         t.textContent = `paint ${op.sel.verts.length}v → ${op.to}`;
       } else {
@@ -1008,7 +1172,9 @@ export async function runSkinTool(startId) {
     + '3. Wiggle (W) to verify · SPACE pauses a wiggle to click a stretched piece<br>'
     + '&nbsp;&nbsp;&nbsp;“Wiggle animation” swaps the shake for a real game clip that drives '
     + 'that bone, played at 10% speed.<br>'
-    + '4. “Bind 100% to own bone” (B) drops a patch’s secondary weights.<br>'
+    + '4. “Bind Geometry” (B) opens the selected patch’s bone weights as editable '
+    + 'numbers — keep it 100% on one bone, or split it (e.g. torso 0.7 / shoulder 0.3). '
+    + 'Apply writes an op that exports with the rest.<br>'
     + '5. “Paint geometry” (P): click a patch to pick the COLOR (its bone), click '
     + 'the REGION to solo it (others fade), then LEFT-drag on the region to paint '
     + 'it onto that bone — splits one island in two. Painted verts recolor live. '
@@ -1062,6 +1228,11 @@ export async function runSkinTool(startId) {
     addOpByComp: (cid, to) => { const c = analysis.comps[cid]; if (c) addOp(c, to); },
     selectComp: (cid) => { const c = analysis.comps[cid]; if (c) { selComp = c; rebuildColors(); } },
     bindSelfHard: rebindSelfHard, undo, redo, load, applyAllOps,
+    // bind-geometry hooks (scripting / automated checks)
+    bind: { open: openBindPanel, close: closeBindPanel, toggle: toggleBindPanel, apply: applyBind,
+      set: (rows) => { bindRows = rows.map((r) => ({ ...r })); renderBindPanel(); },
+      weightsOf: (cid) => { const c = liveAnalysis.comps[cid]; return c ? islandWeights(c) : null; },
+      get state() { return { open: bindOpen, comp: bindComp?.id ?? null, rows: bindRows.map((r) => ({ ...r })) }; } },
     // wiggle-animation hooks (scripting / automated checks)
     anim: { setBone: setSelBone, start: startWiggle, stop: stopWiggle,
       clipsFor: (b) => clipsForBone(b).map((c) => c.name), clipDetail: clipsForBone, pick: (n) => { preferredClip = n || null; renderClipOptions(); },
