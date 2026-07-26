@@ -25,7 +25,7 @@ import { Engine } from '../core/engine.js';
 import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
 import { altChoice, altCheckbox, reloadWithAlt } from './altpick.js';
 import { loadRawGlbScene, fetchRawManifest, skinnedBox, buildGlbForTool } from '../mechs/gltf.js';
-import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson } from '../mechs/skinops.js';
+import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson, blendPatch, weldedAdjacency, enclaveScan } from '../mechs/skinops.js';
 import { CLIPS } from '../mechs/animations.js';
 import { mechClipList } from './mechclips.js';
 import { setupDevPanel } from './panelui.js';
@@ -294,6 +294,19 @@ export async function runSkinTool(startId) {
       const comp = liveAnalysis.comps[liveAnalysis.compId[vi]];
       if (!best || comp.count < best.comp.count) best = { vi, comp };
     }
+    // ...and the vertex actually UNDER the cursor, which is what a blend-patch
+    // flood fill must start from (the smallest-island rule would seed the fill
+    // in the wrong region near a seam)
+    if (best) {
+      const p = hits[0].point;
+      let near = f.a, nd = Infinity;
+      for (const vi of [f.a, f.b, f.c]) {
+        mesh.getVertexPosition(vi, _vp);
+        const d = _vp.applyMatrix4(mesh.matrixWorld).distanceToSquared(p);
+        if (d < nd) { nd = d; near = vi; }
+      }
+      best.nearVi = near;
+    }
     return best;
   }
 
@@ -392,6 +405,7 @@ export async function runSkinTool(startId) {
       updateModeUI();
       return;
     }
+    if (ev.shiftKey) { selectBlendPatch(hit.nearVi ?? hit.vi); return; }
     selComp = hit.comp;
     setSelBone(bones[selComp.boneIndex]);   // clip list follows the island's bone
     stopWiggle();
@@ -407,12 +421,33 @@ export async function runSkinTool(startId) {
     if (painting) { paintStroke(ev); return; }
     if (!mesh || ev.buttons) return;
     const hit = pick(ev);
-    hoverInfo = hit ? `${hit.comp.boneName} · island ${hit.comp.id} · ${hit.comp.count}v` : '';
+    hoverInfo = hit ? `${hit.comp.boneName} · island ${hit.comp.id} · ${hit.comp.count}v · shift-click = blend patch` : '';
     hoverEl.textContent = hoverInfo;
   });
 
+  // Is every vertex of `verts` ALREADY rigid (weight 1) on `boneName`? The old
+  // guard here refused any rebind whose target matched the island's dominant
+  // bone — but "dominant" is not "only": a torso island carrying a minority
+  // shoulderR weight wiggles with the arm, and rebinding it to torso is exactly
+  // the fix. So the refusal now tests what the op would actually change.
+  function alreadyRigidOn(verts, boneName) {
+    const ti = bones.findIndex((b) => b.name === boneName);
+    if (ti < 0) return false;
+    const jnt = mesh.geometry.attributes.skinIndex;
+    const wgt = mesh.geometry.attributes.skinWeight;
+    for (const v of verts) {
+      let w = 0;
+      for (let k = 0; k < 4; k++) if (jnt.getComponent(v, k) === ti) w += wgt.getComponent(v, k);
+      if (w < 0.999) return false;
+    }
+    return true;
+  }
+
   function addOp(comp, toBone) {
-    if (comp.boneName === toBone) { setStatus('That island already belongs to ' + toBone); return; }
+    if (alreadyRigidOn(comp.verts, toBone)) {
+      setStatus(`Already 100% on ${toBone} — nothing to change.`);
+      return;
+    }
     pushUndo();
     ops.push({ sel: selectorFor(comp), to: toBone });
     // CLOSE any live paint op: later strokes must append AFTER this rebind in
@@ -420,7 +455,7 @@ export async function runSkinTool(startId) {
     paintOp = null; paintSet = null;
     selComp = null;
     applyAllOps();
-    setStatus(`Rebound island #${comp.id} (${comp.count}v) → ${toBone}`);
+    setStatus(`Rebound ${comp.id != null ? `island #${comp.id}` : `patch`} (${comp.count}v) → ${toBone}`);
   }
 
   // Rebind the selected island 100% to ITS OWN dominant bone — a rigid
@@ -435,7 +470,68 @@ export async function runSkinTool(startId) {
     paintOp = null; paintSet = null;   // close any live paint op (order matters on replay)
     selComp = null;
     applyAllOps();
-    setStatus(`Island #${c.id} (${c.count}v) rebound 100% to ${c.boneName} — secondary weights removed.`);
+    setStatus(`${c.id != null ? `Island #${c.id}` : `Patch`} (${c.count}v) rebound 100% to ${c.boneName} — secondary weights removed.`);
+  }
+
+  // ================= BLEND PATCH (shift-click) =================
+  // "Part of the torso wiggles with shoulderR, but not all of it." That region
+  // is INSIDE the torso island — analyzeSkin partitions by dominant bone, so it
+  // has no island of its own and clicking selects the whole chest. Shift-click
+  // floods out from the clicked vertex across the geometry that shares its
+  // dominant bone AND its minority influence (skinops.blendPatch), which is
+  // precisely the wiggling region and stops where the arm takes over. It then
+  // behaves like any other selection: rebind it, or open Bind Geometry on it.
+  function patchPseudoComp(res) {
+    const c = { id: null, patch: true, verts: res.verts, count: res.verts.length,
+      boneIndex: res.dom, boneName: res.domName, foreign: res.foreignName, avgW: res.avgW,
+      centroid: [0, 0, 0] };
+    const pos = mesh.geometry.attributes.position;
+    for (const v of res.verts) { c.centroid[0] += pos.getX(v); c.centroid[1] += pos.getY(v); c.centroid[2] += pos.getZ(v); }
+    c.centroid = c.centroid.map((x) => x / Math.max(1, c.count));
+    return c;
+  }
+  function selectBlendPatch(vi, foreign = null) {
+    const res = blendPatch(mesh, vi, { foreign, adjacency: weldedAdjacency(mesh) });
+    if (!res.verts.length) {
+      setStatus(`That vertex is rigid on ${res.domName} — no secondary weight to isolate.` +
+        `\n(Shift-click only finds a patch where geometry is SHARED between bones.)`);
+      return null;
+    }
+    selComp = patchPseudoComp(res);
+    setSelBone(bones[res.dom]);
+    stopWiggle();
+    rebuildColors();
+    if (bindOpen) openBindPanel();
+    setStatus(`Blend patch: ${res.verts.length}v of ${res.domName} also weighted to ` +
+      `${res.foreignName} (avg ${res.avgW.toFixed(2)}).` +
+      `\nB / "Bind Geometry" → 100% own bone, or rebind it anywhere.`);
+    return selComp;
+  }
+
+  // ================= ABSORB ENCLAVES =================
+  // The bulk version of the same idea, one level up: an island bound to a limb
+  // bone but sitting INSIDE another bone's region — a knuckle on a thigh, a hip
+  // plate on a forearm — is almost never intentional on a rigid mech. skinops'
+  // enclaveScan finds every island whose BOUNDARY is mostly one other bone and
+  // hands the surrounding bone the patch, iterating until nothing moves (one
+  // dissolved enclave can expose another).
+  function absorbEnclaves() {
+    if (!mesh) return;
+    const { ops: found, report } = enclaveScan(mesh, analysis);
+    if (!found.length) {
+      setStatus('No enclaves found — every island is already bound to what surrounds it.');
+      return;
+    }
+    pushUndo();
+    ops.push(...found);
+    paintOp = null; paintSet = null;      // replay order: strokes must come after
+    selComp = null;
+    applyAllOps();
+    const lines = report.slice(0, 4).map((r2) =>
+      `#${r2.island} ${r2.from} → ${r2.to} (${r2.count}v, ${Math.round(r2.surround * 100)}% surrounded)`);
+    setStatus(`Absorbed ${found.length} enclave(s):\n` + lines.join('\n') +
+      (report.length > 4 ? `\n…+${report.length - 4} more (see the ops list)` : ''));
+    console.info('[skintool] enclaves absorbed:', report);
   }
 
   // ================= BIND GEOMETRY (per-bone weight editor) =================
@@ -475,7 +571,7 @@ export async function runSkinTool(startId) {
     if (!bindRows.length) bindRows = [{ name: bindComp.boneName, w: 1 }];
     bindOpen = true;
     renderBindPanel();
-    setStatus(`Bind Geometry — island #${bindComp.id} (${bindComp.count}v).` +
+    setStatus(`Bind Geometry — ${bindComp.id != null ? `island #${bindComp.id}` : 'blend patch'} (${bindComp.count}v).` +
       `\nEdit each bone's share, then Apply. Values are normalized (0.7/0.3 = 7/3).`);
   }
   function closeBindPanel() {
@@ -504,7 +600,7 @@ export async function runSkinTool(startId) {
     paintOp = null; paintSet = null;   // close any live paint op (replay order)
     selComp = null;
     applyAllOps();
-    setStatus(`Island #${c.id} (${c.count}v) bound to ` +
+    setStatus(`${c.id != null ? `Island #${c.id}` : 'Patch'} (${c.count}v) bound to ` +
       live.map((r) => `${r.name} ${(r.w * 100 / live.reduce((s, x) => s + x.w, 0)).toFixed(0)}%`).join(' · '));
     closeBindPanel();
   }
@@ -805,6 +901,8 @@ export async function runSkinTool(startId) {
       else if (selComp) startWiggle(bones[selComp.boneIndex]);
     } else if (ev.key === 'b' || ev.key === 'B') {
       toggleBindPanel();
+    } else if (ev.key === 'e' || ev.key === 'E') {
+      absorbEnclaves();
     } else if (ev.key === 'q' || ev.key === 'Q') {
       // same as clicking "Rebind → click target": toggle picktarget mode so you
       // can click a patch, W to wiggle, Q to rebind, then click the correct bone
@@ -914,6 +1012,7 @@ export async function runSkinTool(startId) {
   // ---- bind-geometry panel: edit the selected island's per-bone weights ----
   const bindBtn = actionBtn('Bind Geometry (B)', toggleBindPanel);
   panel.appendChild(bindBtn);
+  panel.appendChild(actionBtn('Absorb enclaves (E)', absorbEnclaves));
   const bindPanel = document.createElement('div');
   bindPanel.style.cssText = 'display:none;margin:4px 0;padding:7px;border:1px solid #2f5668;border-radius:6px;background:#0f1c22';
   panel.appendChild(bindPanel);
@@ -926,7 +1025,8 @@ export async function runSkinTool(startId) {
 
     const head = document.createElement('div');
     head.style.cssText = 'font:11px ui-monospace,monospace;color:#9fdcf0;margin-bottom:5px';
-    head.textContent = `island #${bindComp.id} · ${bindComp.count}v · owner ${bindComp.boneName}`;
+    head.textContent = (bindComp.id != null ? `island #${bindComp.id}` : `blend patch → ${bindComp.foreign || '?'}`)
+      + ` · ${bindComp.count}v · owner ${bindComp.boneName}`;
     bindPanel.appendChild(head);
 
     bindRows.forEach((r, i) => {
@@ -1202,6 +1302,13 @@ export async function runSkinTool(startId) {
     + '3. Wiggle (W) to verify · SPACE pauses a wiggle to click a stretched piece<br>'
     + '&nbsp;&nbsp;&nbsp;“Wiggle animation” swaps the shake for a real game clip that drives '
     + 'that bone, played at 10% speed.<br>'
+    + '3b. SHIFT-CLICK selects a BLEND PATCH: the run of geometry sharing that '
+    + 'vertex’s own bone AND a minority weight on another one — the bit of the '
+    + 'torso that wiggles with an arm. Rebinding it to its own bone kills the '
+    + 'wiggle without touching the rest of the island.<br>'
+    + '&nbsp;&nbsp;&nbsp;“Absorb enclaves” (E) does the island-level version in bulk: any patch '
+    + 'bound to a limb but surrounded by another bone’s region is handed to the '
+    + 'bone around it.<br>'
     + '4. “Bind Geometry” (B) opens the selected patch’s bone weights as editable '
     + 'numbers — keep it 100% on one bone, or split it (e.g. torso 0.7 / shoulder 0.3). '
     + 'Apply writes an op that exports with the rest.<br>'
@@ -1258,6 +1365,9 @@ export async function runSkinTool(startId) {
     addOpByComp: (cid, to) => { const c = analysis.comps[cid]; if (c) addOp(c, to); },
     selectComp: (cid) => { const c = analysis.comps[cid]; if (c) { selComp = c; rebuildColors(); } },
     bindSelfHard: rebindSelfHard, undo, redo, load, applyAllOps,
+    // blend-patch + enclave hooks (scripting / automated checks)
+    patchAt: (vi, foreign) => selectBlendPatch(vi, foreign),
+    absorbEnclaves,
     // bind-geometry hooks (scripting / automated checks)
     bind: { open: openBindPanel, close: closeBindPanel, toggle: toggleBindPanel, apply: applyBind,
       set: (rows) => { bindRows = rows.map((r) => ({ ...r })); renderBindPanel(); },

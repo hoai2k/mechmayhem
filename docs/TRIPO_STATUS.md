@@ -257,3 +257,27 @@ re-run or push again.
   preserved manifest numbers for new bones, `--track` to prove a muzzle is
   welded to its gun. House rule added to CLAUDE.md + MECH_ART_GUIDE §5.
 
+## Session 9 (2026-07-26): blend patches + enclave absorb in the skin workbench
+
+Two selections the workbench could not express, both now first-class:
+
+- **Blend patch (shift-click)**: `analyzeSkin` partitions by DOMINANT bone, so
+  a region that is 70% torso / 30% shoulderR lives inside the torso island and
+  had no way to be addressed — yet it is exactly the geometry seen wiggling
+  with the arm, and rebinding the whole island to fix it discards every
+  legitimate blend elsewhere on the chest. `skinops.blendPatch` floods out from
+  the clicked vertex across geometry sharing its dominant bone AND its minority
+  influence; the dominant-bone condition is what stops the fill at the arm.
+  Measured on colossus: 3857v isolated out of a 7352v island, rebound rigid,
+  the island's other 3495v untouched (1280 of them still blended).
+- **Absorb enclaves (E)**: the island-level version, wired to the existing
+  `skinops.enclaveScan` — an island bound to a limb but surrounded by another
+  bone's region is handed to the bone around it, iterating to a fixpoint. The
+  roster was already swept by `tools/enclaveaudit.mjs --apply`, so it reports
+  "no enclaves" on most mechs today; it is there for after a re-rig or a fresh
+  skin pass (frogger still had one: island 124 → tripoHead_0).
+- Rebinding an island to the bone it is already dominated by used to be
+  refused outright. The guard now tests whether the op would actually change
+  anything (every selected vert rigid on the target), so "wiggles with the arm
+  but reads as torso" is fixable in one click.
+

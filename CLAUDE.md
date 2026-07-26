@@ -57,6 +57,11 @@ audio). Progress history: `TASKS.md`.
   dropdown: `mechSelect()` for tools that rebuild in place, `gotoMech()` for
   `?rigedit`, which builds its world around one id and so switches by
   navigating.
+- Skin workbench selections: click = the bone-island under the cursor ·
+  SHIFT-click = the BLEND PATCH (the run of geometry sharing that vertex's own
+  bone plus a minority weight on another — the bit of torso that wiggles with
+  an arm) · `Absorb enclaves` (E) hands every limb-bound island that sits
+  inside another bone's region to the bone around it (`skinops.enclaveScan`).
 - Hitboxes: `src/combat/hurtbox.js`. Bone-bound capsules measured off each
   model's own geometry, so they follow the animation; melee resolves on the
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
