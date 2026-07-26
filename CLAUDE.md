@@ -41,12 +41,22 @@ audio). Progress history: `TASKS.md`.
   roster on both routes, and `node tools/hitprobe.mjs "<battle url>"` reports
   the new melee test against the old one on a real fight.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
-  a second model, or the same model on a staged custom rig. `?debug=skin` and
-  `?rigedit` both show an **Edit Alternate GLB** checkbox for any mech that
-  has one (off by default; `&alt=1` in the URL). When a mech's custom rig
-  lives ONLY on its `alt` (inferno, rhino), `?rigedit=<id>` opens that build
-  instead of refusing, with the box ticked and disabled. Shared logic:
-  `src/dev/altpick.js`.
+  a second model, or the same model on a staged custom rig. `?debug=skin`,
+  `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
+  Alternate GLB** checkbox for any mech that has one (off by default;
+  `&alt=1` in the URL; `?debug=models` reaches the same build through its
+  LEFT SLOT dropdown, which compares alt against the primary). When a mech's
+  custom rig lives ONLY on its `alt` (inferno, rhino), `?rigedit=<id>` opens
+  that build instead of refusing, with the box ticked and disabled. Shared
+  logic: `src/dev/altpick.js`.
+- Workbench chrome is shared: `src/dev/panelui.js` owns the resizable panel,
+  its scrollbars AND the coloured title bar every workbench wears (pose
+  green · skin orange · animation purple · rig blue · hurtbox cyan, with a
+  live `mech · ALT · GLB` subtitle) — add a tool to `WORKBENCHES` and pass
+  `workbench:'<id>'` to `setupDevPanel`. `src/dev/mechpick.js` owns the mech
+  dropdown: `mechSelect()` for tools that rebuild in place, `gotoMech()` for
+  `?rigedit`, which builds its world around one id and so switches by
+  navigating.
 - Hitboxes: `src/combat/hurtbox.js`. Bone-bound capsules measured off each
   model's own geometry, so they follow the animation; melee resolves on the
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity

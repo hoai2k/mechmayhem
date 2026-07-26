@@ -33,6 +33,7 @@ import { buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } from '../combat/hurtb
 import { mechClipList } from './mechclips.js';
 import { profileFor } from '../mechs/glbanim.js';
 import { setupDevPanel } from './panelui.js';
+import { altChoice, altCheckbox } from './altpick.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _mid = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -87,6 +88,9 @@ export async function runCollider(startId) {
   const manifest = await fetchRawManifest();
   let curId = ROSTER_BY_ID[startId] ? startId : ROSTER[0].id;
   let useGlb = params.get('model') !== 'proc';
+  // ?alt=1 — measure the manifest's ALTERNATE build instead of the primary, so
+  // a staged re-rig's hurtboxes can be judged before it is promoted.
+  let altOn = params.get('alt') === '1';
   let showLegacy = params.get('ball') !== '0';
   let dummyDist = params.has('dummy') ? Number(params.get('dummy')) : 4.5;
   let showDummy = dummyDist > 0.01;
@@ -129,8 +133,8 @@ export async function runCollider(startId) {
 
   async function build(id, z) {
     const d = ROSTER_BY_ID[id];
-    const hasGlb = !!manifest[id]?.url;
-    const m = (useGlb && hasGlb) ? (await buildGlbForTool(d)).mech : buildMech(d);
+    const hasGlb = !!altChoice(manifest, id, altOn).entry?.url;
+    const m = (useGlb && hasGlb) ? (await buildGlbForTool(d, null, { alt: altOn })).mech : buildMech(d);
     // the rig faces +Z, so the dummy stands there — a strike aimed by the
     // limb only means anything when the attacker is actually facing it
     m.group.position.set(0, 0, z);
@@ -146,7 +150,10 @@ export async function runCollider(startId) {
     const u = new URL(location.href);
     u.searchParams.set('mech', id);
     u.searchParams.set('model', useGlb ? 'glb' : 'proc');
+    altOn = altChoice(manifest, id, altOn).useAlt;   // no alternate → silently off
+    if (altOn) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
     history.replaceState(null, '', u);
+    refreshAltRow();
     disposeMech(mech); disposeMech(dummy);
     const built = await build(id, 0);
     mech = built.mech; animator = built.animator;
@@ -179,6 +186,7 @@ export async function runCollider(startId) {
       b.style.color = on ? '#fff' : '#9fb2c8';
     }
     glbNote.textContent = (useGlb && !built.hasGlb) ? 'no GLB for this mech — procedural shown' : '';
+    panelUI.setSubtitle(`${id}${altOn ? ' · ALT' : ''} · ${built.hasGlb && useGlb ? 'GLB' : 'procedural'}`);
     fit = fitReport(mech, hurtbox);
     frame();
     report();
@@ -280,12 +288,11 @@ export async function runCollider(startId) {
     color:#dbe6f5;background:#131a24ee;border-radius:8px;padding:10px;
     width:300px;max-height:94vh;overflow:auto;border-color:#2a3646`;
   document.body.appendChild(panel);
-  setupDevPanel(panel, { key: 'collider' });
+  const panelUI = setupDevPanel(panel, { key: 'collider', workbench: 'collider' });
   const row = (h) => { const d = document.createElement('div'); d.style.cssText = 'display:flex;gap:6px;align-items:center;margin:5px 0'; d.innerHTML = h; panel.appendChild(d); return d; };
   const btnCss = 'background:#1a2433;color:#9fb2c8;border:1px solid #2f3c4e;border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui';
 
   panel.insertAdjacentHTML('beforeend',
-    '<div style="font-weight:600;color:#8fd7ff;margin-bottom:2px">HURTBOX WORKBENCH</div>' +
     '<div style="color:#7c8ba0;line-height:1.45;margin-bottom:6px">' +
     '<span style="color:#46e07a">green</span> = capsules combat hits &middot; ' +
     '<span style="color:#ff4455">red</span> = old hitRadius ball &middot; ' +
@@ -297,6 +304,14 @@ export async function runCollider(startId) {
   mechSel.innerHTML = ROSTER.map((r) => `<option value="${r.id}">${r.id}</option>`).join('');
   mechRow.appendChild(mechSel);
   mechSel.onchange = () => load(mechSel.value);
+  // rebuilt per mech — only mechs with an alternate entry get the control
+  const altSlot = document.createElement('div');
+  panel.appendChild(altSlot);
+  function refreshAltRow() {
+    altSlot.textContent = '';
+    const row = altCheckbox(altChoice(manifest, curId, altOn), (next) => { altOn = next; load(curId); });
+    if (row) altSlot.appendChild(row);
+  }
 
   const modelRow = row('<span style="width:44px;color:#8ba0b8">model</span>');
   const bGlb = document.createElement('button'); bGlb.textContent = 'GLB'; bGlb.style.cssText = btnCss;

@@ -204,6 +204,7 @@ export async function runSkinTool(startId) {
     curId = id;
     altOn = wantAlt && !!manifest[id]?.alt?.url;
     refreshAltRow();
+    panelUI.setSubtitle(`${id}${altOn ? ' · ALT' : ''}`);
     // keep the URL's ?mech= in sync so a reload / shared link reopens this mech.
     // replaceState (not pushState) avoids cluttering back-button history.
     try {
@@ -821,7 +822,7 @@ export async function runSkinTool(startId) {
     color:#dfe8f5;background:rgba(14,18,26,0.94);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:270px;max-height:94vh;overflow:auto;user-select:none`;
   document.body.appendChild(panel);
-  setupDevPanel(panel, { key: 'skin' });
+  const panelUI = setupDevPanel(panel, { key: 'skin', workbench: 'skin' });
 
   const mechSel = document.createElement('select');
   mechSel.style.cssText = 'width:100%;margin-bottom:6px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px';

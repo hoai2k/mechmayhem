@@ -3397,3 +3397,46 @@ scripted battle capture through the whole launch -> flip -> prone -> roll ->
 normal sequence with `groundClamp` seating him on the pavement, both roll
 directions picked correctly from the stick, ace soak crash-free (cranky vs
 colossus AND a non-rollover pair), `vite build` green.
+
+## Workbench chrome: names, colours, one mech picker, alt everywhere (user request, 2026-07-26)
+
+Five workbenches shared one dark panel in one corner and looked identical, the
+pose workbench had no way to reach a mech's ALTERNATE build, and the rig editor
+was the only tool you switched mechs in by hand-editing the URL. All three are
+now shared code rather than per-tool code.
+
+`src/dev/panelui.js` (already the owner of the resizable panel + its
+scrollbars) gained the `WORKBENCHES` registry and draws the title bar: pose
+green, skin orange, animation purple, rig blue, hurtbox cyan, with a live
+monospace subtitle carrying `mech · ALT · GLB|procedural`. A tool opts in with
+`setupDevPanel(panel, { key, workbench })` and updates the subtitle from its
+own `load()`. The collider's hand-rolled `HURTBOX WORKBENCH` line was the only
+title that existed before; it now comes from the same place as the rest.
+
+`src/dev/mechpick.js` is new and owns "which mech is this workbench on":
+`mechSelect()` builds the roster dropdown (full ROSTER — workbenches see hidden
+mechs), `gotoMech()` switches a load-time-only tool by rewriting the URL. The
+RIG EDITOR uses both: it builds its whole world (raw GLB, hand-authored
+skeleton, re-skin, undo stack) around one id at start-up, so a switch is a
+navigation, and `gotoMech` drops the old mech's `&alt` on the way out since alt
+is per-mech staging. Its blocker card carries the same dropdown — a mech with
+no rig file builds no panel, so without a picker there the only way out was the
+URL bar. The dropdown labels rig-less mechs `— no custom rig`, so a pick that
+will hit the blocker says so first.
+
+EDIT ALTERNATE GLB now exists on `?debug=pose` and `?debug=collider` as well as
+`?debug=skin` / `?rigedit` (`?debug=models` reaches the same build through its
+LEFT SLOT dropdown, which is a comparison, and keeps it). Both new ones rebuild
+in place instead of reloading — they already swap mechs live — and both fall
+back silently when a mech has no alternate: the checkbox disappears and `alt=1`
+leaves the URL. The pose tool's clip list now reads the built mech's own
+`animProfile` before the mech's default, so an alternate with its own
+`profileKey` lists the clips it actually plays.
+
+Verified: all five workbenches screenshotted and VIEWED (each header in its own
+colour, subtitle live), colossus's alt toggled on in pose and collider (URL
+gains `alt=1`, subtitle shows ALT, model rebuilds) then switched to viper (no
+alt → control gone, param dropped), rig editor switched colossus → cranky →
+tempest (blocker) → fenrir entirely from the dropdowns, joint click-select +
+gizmo drag re-checked on the alt build (`elbowR` 73°), no page errors anywhere,
+`vite build` green.

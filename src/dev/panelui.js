@@ -1,7 +1,14 @@
 // Shared chrome for the workbench side panels (?debug=skin, ?debug=models,
 // ?debug=pose, ?debug=collider, ?rigedit, the pose sandbox).
 //
-// Two things every one of them wants and none of them had:
+// Things every one of them wants and none of them had:
+//
+//  · A TITLE, IN THE TOOL'S OWN COLOUR — five workbenches share one dark
+//    panel in one corner, and at a glance (or in a screenshot) they look
+//    identical. Each now names itself at the top in a colour that is its
+//    own: pose green, skin orange, animation purple, rig blue, hurtbox
+//    cyan. The subtitle line carries the live "what am I looking at"
+//    (mech id · ALT), so the header answers both questions at once.
 //
 //  · SCROLLBARS THAT BELONG — the browser default is a bright system bar
 //    stapled onto a dark panel, and on the nested lists (ops, bones, clips)
@@ -19,10 +26,22 @@
 //
 // Usage (once, right after the panel is built + appended):
 //    import { setupDevPanel } from './panelui.js';
-//    setupDevPanel(panel, { key: 'skin' });
+//    const ui = setupDevPanel(panel, { key: 'skin', workbench: 'skin' });
+//    ui.setSubtitle(`${id} · ALT`);
 const STYLE_ID = 'rw-dev-panel-style';
 const MIN_W = 200;
 const MAX_W = 900;   // also clamped to the viewport at drag time
+
+// Who's who. One entry per workbench; `key` in setupDevPanel is the width
+// store, `workbench` here is the identity. Colours are deliberately far apart
+// in hue so peripheral vision alone tells you which tool has focus.
+export const WORKBENCHES = {
+  pose: { title: 'Pose Workbench', color: '#4fdc8b' },
+  skin: { title: 'Skin Workbench', color: '#f5a33c' },
+  models: { title: 'Animation Workbench', color: '#b98cff' },
+  rigedit: { title: 'Rig Editor', color: '#4aa8ff' },
+  collider: { title: 'Hurtbox Workbench', color: '#7fd8ff' },
+};
 
 // One stylesheet for every workbench panel on the page.
 function installStyle() {
@@ -52,6 +71,16 @@ function installStyle() {
     }
     .dev-panel-grip:hover::before, .dev-panel-grip.dragging::before { background: #57c8e8; height: 46px; }
     .dev-panel-grip.dragging { background: rgba(87,200,232,0.10); }
+    .dev-panel-head {
+      display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap;
+      margin: -2px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #26303f;
+    }
+    .dev-panel-head b {
+      font: 600 13px/1.2 system-ui, sans-serif; letter-spacing: .01em;
+    }
+    .dev-panel-head span {
+      font: 11px/1.2 ui-monospace, monospace; color: #8ba0b8; word-break: break-all;
+    }
   `;
   document.head.appendChild(s);
 }
@@ -65,11 +94,33 @@ const storeKey = (key) => `rw.devpanel.${key}.w`;
  *   min/max — optional width clamp (defaults 200 / 900, also capped to the view)
  *   edge  — which side the handle sits on: 'right' for a left-anchored panel
  *           (the usual workbench), 'left' for one pinned to the right edge
- * Returns { setWidth, reset, destroy }.
+ *   workbench — id in WORKBENCHES; adds the coloured title bar at the top
+ *   subtitle  — initial subtitle text (later: api.setSubtitle)
+ * Returns { setWidth, reset, setSubtitle, destroy }.
  */
-export function setupDevPanel(panel, { key = 'panel', min = MIN_W, max = MAX_W, edge = 'right' } = {}) {
+export function setupDevPanel(panel, {
+  key = 'panel', min = MIN_W, max = MAX_W, edge = 'right', workbench = null, subtitle = '',
+} = {}) {
   installStyle();
   panel.classList.add('dev-panel');
+
+  // ---- title bar ----
+  // Inserted FIRST, so a tool can call setupDevPanel before or after it fills
+  // the panel and the header still lands at the top.
+  let subEl = null;
+  const wb = workbench && WORKBENCHES[workbench];
+  if (wb) {
+    const head = document.createElement('div');
+    head.className = 'dev-panel-head';
+    const name = document.createElement('b');
+    name.style.color = wb.color;
+    name.textContent = wb.title;
+    subEl = document.createElement('span');
+    subEl.textContent = subtitle;
+    head.append(name, subEl);
+    panel.insertBefore(head, panel.firstChild);
+  }
+  const setSubtitle = (t) => { if (subEl) subEl.textContent = t || ''; };
   const defaultW = Math.round(panel.getBoundingClientRect().width) || 270;
   const cap = () => Math.min(max, Math.max(min, window.innerWidth - 40));
   const clamp = (w) => Math.max(min, Math.min(cap(), Math.round(w)));
@@ -141,6 +192,7 @@ export function setupDevPanel(panel, { key = 'panel', min = MIN_W, max = MAX_W, 
 
   const api = {
     setWidth,
+    setSubtitle,
     reset: () => setWidth(defaultW),
     destroy() {
       ro.disconnect();

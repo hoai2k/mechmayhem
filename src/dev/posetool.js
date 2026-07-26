@@ -248,6 +248,7 @@ export async function runPoseTool(startId) {
     const built = await buildGlbForTool(def);
     glbF = makeFighter(def, soloMode ? 0 : PAIR_X, { pi: 1, mech: built.mech });
     syncSlotUI(hasAlt, slot);
+    panelUI.setSubtitle(`${id} · GLB vs ${slot === 'alt' ? 'ALT' : slot === 'solo' ? '(solo)' : 'procedural'}`);
     // NO stand-in enemies on the stage. Attacks aim at the combat code's own
     // no-target phantom (Fighter.aimPhantom): an imagined opponent dead ahead
     // at the move's ideal distance — close for melee, out at working range for
@@ -463,7 +464,7 @@ export async function runPoseTool(startId) {
     color:#dfe8f5;background:rgba(16,20,28,0.93);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:270px;max-height:95vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
-  setupDevPanel(panel, { key: 'models' });
+  const panelUI = setupDevPanel(panel, { key: 'models', workbench: 'models' });
 
   panel.appendChild(label('Mech'));
   const mechSel = el('select', 'width:100%;margin-bottom:8px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px');

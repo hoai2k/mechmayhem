@@ -18,6 +18,7 @@ import { applyCustomRig, setWeights, rebindRest, buildRigPosts } from '../mechs/
 import { setupDevPanel } from './panelui.js';
 import { JOINT_ORDER } from '../mechs/rigadapter.js';
 import { altChoice, altCheckbox, reloadWithAlt } from './altpick.js';
+import { mechSelect, gotoMech } from './mechpick.js';
 
 const VIEW = 10;                 // display scale for the small raw model
 const JOINT_SET = new Set(JOINT_ORDER);
@@ -37,7 +38,9 @@ function boneColor(name, i) {
 // Loud, centered "can't edit this" card, drawn where the model would be.
 // Every bail-out below goes through here: the editor never starts half-built
 // and never leaves a blank canvas with an exception in the console.
-function showBlocker({ title, detail, hint }) {
+// The card carries the mech dropdown too — a blocked mech builds no panel, and
+// without a picker here the only way out would be to hand-edit the URL.
+function showBlocker({ title, detail, hint, id }) {
   const wrap = document.createElement('div');
   wrap.style.cssText = `position:fixed;inset:0;z-index:200;display:flex;align-items:center;
     justify-content:center;background:rgba(10,13,18,0.92);font:14px/1.55 system-ui,sans-serif;color:#dfe8f5`;
@@ -55,8 +58,28 @@ function showBlocker({ title, detail, hint }) {
     border:1px solid #23303f;border-radius:6px;padding:10px 12px;white-space:pre-wrap`;
   t.textContent = hint;
   card.append(h, d, t);
+  const pick = document.createElement('div');
+  pick.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:16px;font-size:12px;color:#8fa2ba';
+  const pl = document.createElement('span');
+  pl.textContent = 'Open another mech:';
+  pick.append(pl, mechSelect({
+    value: id,
+    css: `flex:1;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px;
+      border-radius:4px;font:12px system-ui,sans-serif`,
+    note: rigNote,
+    onPick: (next) => gotoMech('rigedit', next),
+  }));
+  card.appendChild(pick);
   wrap.appendChild(card);
   document.body.appendChild(wrap);
+}
+
+// What the dropdown says about each mech, so a pick that will hit the blocker
+// says so before you make it: a hand-authored rig is what this editor edits.
+function rigNote(id, def) {
+  const editable = new Set(rigIds());
+  if (editable.has(id)) return '';
+  return def ? '  — no custom rig' : '';
 }
 
 export async function runRigEdit(startId) {
@@ -117,7 +140,7 @@ export async function runRigEdit(startId) {
             : null;
   if (problem) {
     console.warn(`rigedit: ${problem.title}`);
-    showBlocker(problem);
+    showBlocker({ ...problem, id });
     return null;
   }
 
@@ -543,10 +566,21 @@ export async function runRigEdit(startId) {
     color:#dfe8f5;background:rgba(16,20,28,0.94);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:260px;max-height:96vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
-  setupDevPanel(panel, { key: 'rigedit' });
-  panel.appendChild(hdr(`RIG EDITOR · ${id}${useAlt ? ' · ALT' : ''}`));
+  setupDevPanel(panel, {
+    key: 'rigedit', workbench: 'rigedit', subtitle: `${id}${useAlt ? ' · ALT' : ''}`,
+  });
+  // Mech picker, like every other workbench. This editor builds its whole
+  // world (raw GLB, skeleton, re-skin, undo stack) around one id at start-up,
+  // so a switch is a navigation, not a rebuild — gotoMech rewrites ?rigedit=
+  // and drops the old mech's &alt.
+  panel.appendChild(lbl('Mech'));
+  panel.appendChild(mechSelect({
+    value: id,
+    note: rigNote,
+    onPick: (next) => { if (next !== id) gotoMech('rigedit', next); },
+  }));
   const altRow = altCheckbox(alt, reloadWithAlt);
-  if (altRow) panel.appendChild(altRow);
+  if (altRow) { altRow.style.marginTop = '6px'; panel.appendChild(altRow); }
 
   const modeRow = el('div', 'display:flex;gap:6px;margin:6px 0');
   const bMove = tog('Move', () => gizmo.setMode('translate'));
@@ -671,7 +705,6 @@ export async function runRigEdit(startId) {
   }
 
   function el(t, css) { const e = document.createElement(t); e.style.cssText = css; return e; }
-  function hdr(t) { const d = el('div', 'font-weight:600;color:#cfe3ff;margin-bottom:4px'); d.textContent = t; return d; }
   function lbl(t) { const d = el('div', 'color:#7d8ea3;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin:6px 0 2px'); d.textContent = t; return d; }
   function tog(t, fn) { const b = el('button', 'flex:1;padding:5px;border-radius:4px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:#1a2433;color:#cfe0f5'); b.textContent = t; b.onclick = fn; return b; }
   function btn(t, fn, primary) { const b = el('button', `width:100%;padding:6px;margin-top:4px;border-radius:5px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:${primary ? '#1f7a4d' : '#1a2433'};color:${primary ? '#fff' : '#cfe0f5'}`); b.textContent = t; b.onclick = fn; return b; }
