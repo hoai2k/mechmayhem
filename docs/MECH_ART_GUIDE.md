@@ -254,6 +254,29 @@ Also preserve: the function signature `(A, D, J, anchors, def)`, the mech's
 `restPose` in roster (digitigrade mechs: viper, fenrir, wraith), and roster
 `body` proportions unless deliberately re-measuring from a new image.
 
+### Re-rigging must not move an anchor
+
+A muzzle in `manifest.json` was placed by hand, on the gun, by a human. It is
+authored data, not a derived value — so **a re-rig keeps it**. New bones, moved
+bones, a hand rig replacing an auto-rig, a promoted `alt`: the anchor gets
+RE-EXPRESSED in whatever frame now holds it, with its rest-pose world position
+and aim axis unchanged. Never drop one, never leave it on stale numbers, and
+never silently re-derive it from the new skeleton. (The only anchors that may
+appear from nothing are the auto-generated fallbacks for a GLB that has no
+authored muzzles at all — a brand-new intake.)
+
+    node tools/anchorkeep.mjs <id>                       # PASS/FAIL: did anything move?
+    node tools/anchorkeep.mjs <id> --remap R=cannonR,L=cannonL
+    node tools/anchorkeep.mjs <id> --track               # is the muzzle welded to the gun?
+
+`--remap` prints the manifest `muzzles` block that re-expresses each anchor on
+a custom-rig BONE while preserving the primary's world transform exactly —
+including the `rot` that keeps the anchor's +Z on the mech's facing, which is
+the vector combat aims along. Parenting a muzzle to the bone that drives the
+gun is the better home: it stays welded to the barrel through every pose,
+where an anchor on a virtual joint swings about a different pivot and drifts
+off the weapon (colossus: constant 0.36 units vs a 0.23-0.77 wander).
+
 ## 6. Pitfalls (each of these cost an iteration once)
 
 - **Texture tiling scale**: merged parts have per-face 0–1 UVs at wildly

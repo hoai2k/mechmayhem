@@ -98,8 +98,8 @@
       "yawOffset": 270,
       "rig": "colossus",
       "muzzles": {
-        "R": {"joint":"torso","offset":[0.95,3.7,-0.7],"rot":[0,0,0]},
-        "L": {"joint":"torso","offset":[-0.95,3.7,-0.7],"rot":[0,0,0]}
+        "R": {"bone":"cannonR","offset":[0.2594,1.1663,-0.3602],"rot":[0,90,0]},
+        "L": {"bone":"cannonL","offset":[0.3333,1.1663,0.2839],"rot":[0,90,0]}
       }
     }
   },
