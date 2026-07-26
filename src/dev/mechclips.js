@@ -41,7 +41,7 @@ const SPECIAL_CLIPS = {
 };
 // roster moves.ult.id -> clips that ult casts
 const ULT_CLIPS = {
-  meteorBreaker: ['castRaise'], bulletHurricane: ['spinFire'], judgment: ['castRaise'],
+  meteorBreaker: ['castRaise'], bulletHurricane: ['hurricaneSpin'], judgment: ['castRaise'],
   supernova: ['burst'], stampede: ['chargeLean'], thunderfall: ['castRaise'],
   wildHunt: ['castRaise'], colossalForm: ['burst'], deathSwarm: ['burst'],
   fireTornado: ['burst'], absoluteZero: ['burst'], tsunami: ['castRaise'],
