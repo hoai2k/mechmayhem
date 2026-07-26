@@ -30,6 +30,7 @@ import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
 import { buildGlbForTool, fetchRawManifest } from '../mechs/gltf.js';
 import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
+import { setupDevPanel } from './panelui.js';
 import { describeAction, ACTIONS } from './actionchars.js';
 import { anchorUses } from './anchoruses.js';
 
@@ -462,6 +463,7 @@ export async function runPoseTool(startId) {
     color:#dfe8f5;background:rgba(16,20,28,0.93);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:270px;max-height:95vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
+  setupDevPanel(panel, { key: 'models' });
 
   panel.appendChild(label('Mech'));
   const mechSel = el('select', 'width:100%;margin-bottom:8px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px');
