@@ -1135,39 +1135,45 @@ export const ULTS = {
     });
   },
 
-  // VULCAN: both gatling arms fling out high and wide, then his upper body
-  // spins up from a standstill and hoses out a hundred rounds that DON'T fly
-  // away — they leave his outstretched hands, spiral out and fall into orbit
-  // around him, a whirlwind of lead that rides along as he moves, until
-  // someone strays close: then the whole storm folds onto them.
+  // VULCAN: both gatling arms fling out high and wide while his upper body is
+  // ALREADY winding up, and he hoses out a hundred rounds that DON'T fly away —
+  // they leave his outstretched hands, spiral out and fall into orbit around
+  // him, a whirlwind of lead that rides along as he moves, until someone strays
+  // close: then the whole storm folds onto them.
   //
-  // The build-up is the move, in four beats: reach → hard spin-up → a long run
-  // at full whirl (the rounds pour out through it) → the guns fall silent and
-  // the whirl coasts to a stop while the storm keeps circling on its own.
-  // Rounds inherit the body's angular velocity AT THE MOMENT THEY LEAVE, so
-  // the first ones drift lazily while the last are flung off at full speed.
+  // The build-up is the move, in three beats: a hard spin-up under the arms as
+  // they come out → a long run at full whirl (the rounds pour out through it) →
+  // the guns fall silent and the whirl coasts to a stop while the storm keeps
+  // circling on its own. Rounds inherit the body's angular velocity AT THE
+  // MOMENT THEY LEAVE, so the first ones drift lazily while the last are flung
+  // off at full speed.
   bulletHurricane(f, u) {
     const w = f.world;
     const N = u.count || 100;
-    const SPIN = 6.2;           // rad/s at full whirl
-    const REACH = 0.36;         // arms flung out before anything turns
-    const RAMP = 0.5;           // hard acceleration up to full whirl
+    const SPIN = 18.6;          // rad/s at full whirl — ~3 turns a second
+    const RAMP = 0.333;         // hard acceleration up to full whirl
     const BRAKE = 0.55;         // eased back down to a standstill
+    // The whirl starts on frame ONE: the arms fling out (hurricaneSpin's own
+    // 0.34s reach) while the torso is already turning under them, instead of
+    // the body waiting for the pose to finish.
+    const DELAY = 0;
     // He completes WHOLE TURNS, so the whirl coasts to a stop facing front
     // instead of unwinding backwards into place: the ramp covers SPIN*RAMP/2
     // and the smoothstep brake covers SPIN*BRAKE*2/3 (that's a deceleration
     // from full speed with no jump at the hand-off), and the full-speed hold
-    // is however long it takes to make up the difference.
-    const TURNS = 2;
+    // is however long it takes to make up the difference. TURNS is what keeps
+    // the move's LENGTH steady as SPIN changes — six of them at this rate is
+    // the same ~1.5s flat-out run two were at a third of the speed.
+    const TURNS = 6;
     const HOLD = (TURNS * TAU - SPIN * RAMP / 2 - SPIN * BRAKE * 2 / 3) / SPIN;
-    const FIRE0 = REACH + RAMP * 0.5;          // guns open at half whirl speed
-    const FIRE1 = REACH + RAMP + HOLD * 0.75;  // ...and fall silent before he slows
-    const SPUN = REACH + RAMP + HOLD + BRAKE;
+    const FIRE0 = DELAY + RAMP * 0.5;          // guns open at half whirl speed
+    const FIRE1 = DELAY + RAMP + HOLD * 0.75;  // ...and fall silent before he slows
+    const SPUN = DELAY + RAMP + HOLD + BRAKE;
     cast(f, 'hurricaneSpin', { state: 'ult', stateT: SPUN });
     // NEGATIVE rate: a +y torso spin sweeps +X toward -Z, while the rounds
     // orbit +X toward +Z (their angle drives cos/sin) — so the body has to
     // turn the other way to run WITH the storm it just threw.
-    f._spinFx = { joint: 'torso', axis: 'y', rate: -SPIN, delay: REACH, ramp: RAMP,
+    f._spinFx = { joint: 'torso', axis: 'y', rate: -SPIN, delay: DELAY, ramp: RAMP,
       brake: BRAKE, dur: SPUN, t: 0, acc: 0 };
     // hurricaneSpin HOLDS its last key (arms out for the whole whirl), so it
     // has to be released by hand once he stops turning — the storm lives on
