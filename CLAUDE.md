@@ -24,8 +24,8 @@ audio). Progress history: `TASKS.md`.
 - Workbenches: `?debug=models[&mech=<id>]` — procedural-vs-GLB ACTION
   comparison (trigger any move on both at once, slow-mo, live anchor editor).
   `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>][&key=<n>|&t=<s>]` —
-  pose a single
-  mech by joint: load one of THAT mech's own clip poses as a starting point,
+  pose a single mech by joint: load one of THAT mech's own clip poses as a
+  starting point,
   CLICK A JOINT IN THE VIEWPORT (the dots, or just the body part — nearest
   joint wins; R/T rotate/translate, G local/world, Esc deselect) and drag the
   gizmo. The scrubber under the clip dropdown steps KEYFRAME BY KEYFRAME (◀ key
