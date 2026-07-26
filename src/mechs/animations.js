@@ -1023,6 +1023,11 @@ CLIPS_RAW.bigPunch2 = mirrorRaw(CLIPS_RAW.bigPunch1); // right haymaker, same wi
 CLIPS_RAW.punchHold2 = mirrorRaw(CLIPS_RAW.punchHold1); // right-arm charge
 CLIPS_RAW.punchRelease2 = mirrorRaw(CLIPS_RAW.punchRelease1);
 CLIPS_RAW.stomp2 = mirrorRaw(CLIPS_RAW.stomp); // left-foot trample
+// Opposite-arm twins of the shared punch trio, so a light combo can be thrown
+// off either lead (see LIGHT_ARM below and Fighter.doLight).
+CLIPS_RAW.light1R = mirrorRaw(CLIPS_RAW.light1); // right jab
+CLIPS_RAW.light2L = mirrorRaw(CLIPS_RAW.light2); // left cross
+CLIPS_RAW.light3L = mirrorRaw(CLIPS_RAW.light3); // left uppercut
 
 // ---------- compile: degrees -> radians, sparse per-joint tracks ----------
 const D2R = Math.PI / 180;
@@ -1054,6 +1059,33 @@ function compile(name, raw) {
 
 export const CLIPS = {};
 for (const [name, raw] of Object.entries(CLIPS_RAW)) CLIPS[name] = compile(name, raw);
+
+// ---------- which arm a light-combo clip throws with ----------
+// The authored punch trio is jab-LEFT, cross-RIGHT, uppercut-RIGHT — so the
+// right arm threw two blows in a row and the uppercut was always the same
+// hand. Fighter.doLight alternates arms across the combo instead and mirrors
+// a clip whose authored arm isn't the one the pattern wants; this table is
+// what tells it which arm each clip already uses, and what its twin is called.
+//
+// A clip listed here can be thrown either way. A clip NOT listed is used
+// exactly as authored — that's the escape hatch for the bespoke cycles
+// (viper's sword forms, saurion's kick/rake mix) whose moves are not
+// symmetrical and have no mirrored twin.
+export const LIGHT_ARM = {
+  light1: { arm: 'L', twin: 'light1R' },
+  light2: { arm: 'R', twin: 'light2L' },
+  light3: { arm: 'R', twin: 'light3L' },
+  light1R: { arm: 'R', twin: 'light1' },
+  light2L: { arm: 'L', twin: 'light2' },
+  light3L: { arm: 'L', twin: 'light3' },
+  // The haymaker pair TITANUS / COLOSSUS list as their light cycle. Both are
+  // `punchHold` mechs today, so their blows actually come out of the
+  // charge-and-release path (punchHold1/2 → punchRelease1/2, which alternates
+  // on its own) and never reach doLight — these entries are here so the cycle
+  // is described correctly if either ever drops the hold.
+  bigPunch1: { arm: 'L', twin: 'bigPunch2' },
+  bigPunch2: { arm: 'R', twin: 'bigPunch1' },
+};
 
 // ---------- GLB clip variants (glbanim clipOverrides) ----------
 // Compiled with the ORIGINAL clip's name so fighter machinery keyed on
