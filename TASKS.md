@@ -30,6 +30,14 @@ controllers via Gamepad API), AI opponents.
   `?rigedit` opens the alt automatically when only that build has a rig.
   Fixed `Assembler.custom` ignoring a per-axis `s` — jerry's three torso seam
   bands had a NaN world matrix and never rendered.
+- **Anchor preservation applied to the alt-staged rigs.** Inferno's alt was
+  58° off — its flamethrower fired sideways — because the new muzzles were
+  authored on the nozzle bones from scratch instead of solved to reproduce the
+  primary's world pose. Re-solved with `tools/anchorkeep.mjs --remap`; inferno
+  and rhino now both PASS. Rhino's alt also had no pinned `modelScale`, so it
+  rendered at a different size and the comparison was meaningless. anchorkeep
+  now reports both of those conditions and downgrades to ADVISORY where a
+  difference is legitimate (different model, or a rig already promoted).
 - **Branch:** `claude/3d-mech-battle-game-uxps6q`
 
 ## Tech stack

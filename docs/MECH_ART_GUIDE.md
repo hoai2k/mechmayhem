@@ -277,6 +277,14 @@ gun is the better home: it stays welded to the barrel through every pose,
 where an anchor on a virtual joint swings about a different pivot and drifts
 off the weapon (colossus: constant 0.36 units vs a 0.23-0.77 wander).
 
+Two things decide whether the comparison means anything, and the tool says so:
+both builds must pin the SAME `modelScale`/`heightScale` (otherwise it is
+comparing two differently-sized mechs — rhino's alt had none and every anchor
+read as moved), and the side carrying the `rig` is the one being judged. A rig
+staged on the `alt` must match the shipped primary; once it is PROMOTED the
+alt becomes a retired reference and is allowed to differ, so the tool downgrades
+those to ADVISORY (titanus, wraith, and the different-model alts aegis/jerry).
+
 ## 6. Pitfalls (each of these cost an iteration once)
 
 - **Texture tiling scale**: merged parts have per-face 0–1 UVs at wildly
