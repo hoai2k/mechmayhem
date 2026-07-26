@@ -1,6 +1,6 @@
 // ?debug=pose — the POSE workbench. One mech, frozen, posed by hand.
 //
-//   ?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]
+//   ?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>][&t=<seconds>]
 //
 // Pick a mech, optionally load one of ITS OWN poses as a starting point (the
 // dropdown lists only the clips that mech can actually play — vulcan's ult
@@ -9,6 +9,14 @@
 // DEGREES, the same shape animations.js is authored in, so a pose dialled here
 // can be pasted straight into a clip — or handed to someone as "this is the arm
 // pose I want".
+//
+// WHICH FRAME OF THE CLIP: a loaded clip is sampled at its LAST moment unless
+// `&t=` says otherwise, and the `t` slider next to the dropdown scrubs it live.
+// The end is the useful default for a hold/loop clip (a charge loop ends on the
+// pose it holds), but a one-shot STRIKE clip ends on its recovery — so loading
+// e.g. colossusClap or heavy with no `&t=` hands you the rest stance, which is
+// genuinely that clip's last frame, not a bug. Scrub to the impact key (`&t=`
+// or the slider) to pose the blow itself.
 //
 // WHAT IS BEING POSED: the mech's VIRTUAL joints (rigadapter JOINT_ORDER) — the
 // same rig the clips drive. On a GLB the retarget pushes them onto the real
@@ -177,7 +185,10 @@ export async function runPoseWork(startId) {
     const want = params.get('clip');
     if (want && list.some((c) => c.name === want)) {
       clipSel.value = want;
-      applyClipPose(want);
+      // &t=<seconds> deep-links a single frame — the strike key of a one-shot
+      // clip rather than the recovery pose it ends on (see the header note)
+      const wantT = params.has('t') ? +params.get('t') : undefined;
+      applyClipPose(want, Number.isFinite(wantT) ? wantT : undefined);
     } else {
       timeRow.style.display = 'none';
     }
