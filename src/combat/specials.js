@@ -1117,15 +1117,34 @@ export const ULTS = {
     });
   },
 
-  // VULCAN: his upper body spins loose and hoses out a hundred rounds that
-  // DON'T fly away — they fall into orbit around him, a whirlwind of lead
-  // that rides along as he moves, until someone strays close: then the
-  // whole storm folds onto them in one final rotation
+  // VULCAN: both gatling arms fling out to the sides, then his upper body
+  // spins up from a standstill and hoses out a hundred rounds that DON'T fly
+  // away — they leave his outstretched hands, spiral out and fall into orbit
+  // around him, a whirlwind of lead that rides along as he moves, until
+  // someone strays close: then the whole storm folds onto them.
+  //
+  // The build-up is the move. Rounds inherit the body's angular velocity AT
+  // THE MOMENT THEY LEAVE, so the first ones drift lazily while the last ones
+  // are flung off at full whirl — the ring visibly winds itself up.
   bulletHurricane(f, u) {
     const w = f.world;
     const N = u.count || 100;
-    cast(f, 'spinFire', { state: 'ult', stateT: 1.15 });
-    f._spinFx = { joint: 'torso', axis: 'y', rate: 22, dur: 1.05, t: 0, acc: 0 };
+    const REACH = 0.36;         // arms out to the sides before anything turns
+    const RAMP = 0.95;          // torso winds up to full whirl over this
+    const SPIN = -6.2;          // rad/s at full speed. NEGATIVE: a +y torso
+    // spin sweeps +X toward -Z, while the rounds orbit +X toward +Z (their
+    // angle drives cos/sin) — so the body has to turn the other way to run
+    // WITH the storm it just threw.
+    const FIRE0 = REACH + 0.1;  // first round leaves as the spin picks up
+    const FIRE1 = REACH + RAMP + 0.5;
+    const SPUN = FIRE1 + 0.65;  // whirl braked back to a standstill by here
+    cast(f, 'hurricaneSpin', { state: 'ult', stateT: SPUN });
+    f._spinFx = { joint: 'torso', axis: 'y', rate: SPIN, delay: REACH, ramp: RAMP,
+      brake: 0.4, dur: SPUN, t: 0, acc: 0 };
+    // hurricaneSpin HOLDS its last key (arms out for the whole whirl), so it
+    // has to be released by hand once he stops turning — the storm lives on
+    // without him from here.
+    w.schedule(SPUN, () => { if (f.animator.isPlaying('hurricaneSpin')) f.animator.stop(0.3); });
     w.audio?.play('powerup');
     const geo = new THREE.SphereGeometry(0.24, 6, 5);
     const mat = new THREE.MeshBasicMaterial({
@@ -1140,28 +1159,42 @@ export const ULTS = {
     const bullets = [];
     for (let i = 0; i < N; i++) {
       bullets.push({
-        born: i * 0.011,              // stream out over ~1.1s
-        a: rand(TAU),
-        r: rand(8, 16.5), // a WIDE storm — the ring owns the whole street
-        y: rand(1.2, f.height * 1.2),
-        spd: rand(3.6, 4.8),          // rad/s — one shared direction: a whirlwind
+        born: FIRE0 + (FIRE1 - FIRE0) * (i / N), // streamed out over the wind-up
+        side: i % 2 ? 'muzzleL' : 'muzzleR',     // alternating hands
+        live: false,                  // set on birth, from the hand's own position
+        a: 0, r: 0, y: 0, spd: 0,
+        rMax: rand(8, 16.5), // a WIDE storm — the ring owns the whole street
+        vr: rand(9, 17),              // how fast it flies clear of the hand
+        vy: rand(-0.7, 0.7),
         dive: rand(0, 0.5),           // stagger of the final strike
         hit: false,
         px: 0, py: 0, pz: 0,
       });
     }
+    // A round takes off from the hand that fired it: its orbit angle/radius are
+    // simply WHERE THAT HAND IS, and its angular speed is the body's angular
+    // speed right then (plus a little scatter), so it keeps travelling the way
+    // the hand was already swinging it.
+    const launch = (b) => {
+      const m = f.mech.anchors[b.side] || f.mech.anchors.muzzleR;
+      m.getWorldPosition(_v);
+      const dx = _v.x - f.pos.x, dz = _v.z - f.pos.z;
+      b.a = Math.atan2(dz, dx);
+      b.r = Math.max(0.8, Math.hypot(dx, dz));
+      b.y = Math.max(0.9, _v.y - f.pos.y);
+      b.spd = -(f._spinFx?.vel || SPIN) * rand(0.9, 1.12);
+      b.live = true;
+      w.effects.muzzleFlash(_v);
+      if (Math.random() < 0.35) w.audio?.play('gatling');
+    };
     let t = 0, mode = 'orbit', target = null, strikeT = 0, landed = 0;
     w.addUpdater((dt) => {
       t += dt;
       if (!f.alive) return false;
       if (mode === 'orbit') {
-        // gun-sound + muzzle flash while the storm is still pouring out
-        if (t < 1.1 && Math.random() < 0.5) {
-          const from = muzzle(f);
-          w.effects.muzzleFlash(from);
-          if (Math.random() < 0.4) w.audio?.play('gatling');
-        }
-        const e = f.nearestEnemy();
+        // the storm has to finish GATHERING before it can be spent — an enemy
+        // stood next to him at cast time doesn't get to skip the wind-up
+        const e = t < FIRE1 ? null : f.nearestEnemy();
         if (e && Math.hypot(w.wrapDelta(e.pos.x - f.pos.x), w.wrapDelta(e.pos.z - f.pos.z)) < 17.5) {
           mode = 'strike';
           target = e;
@@ -1175,14 +1208,21 @@ export const ULTS = {
         if (!target.alive) return false;
       }
       let flying = 0;
-      for (const b of bullets) {
-        if (b.hit) { M.makeScale(0, 0, 0); im.setMatrixAt(bullets.indexOf(b), M); continue; }
+      for (let i = 0; i < bullets.length; i++) {
+        const b = bullets[i];
+        if (b.hit) { M.makeScale(0, 0, 0); im.setMatrixAt(i, M); continue; }
+        if (!b.live) {
+          // not fired yet: hidden, and it takes off from the hand's live spot
+          if (t < b.born) { M.makeScale(0, 0, 0); im.setMatrixAt(i, M); flying++; continue; }
+          launch(b);
+        }
         flying++;
         b.a += b.spd * dt;
-        const grow = clamp01((t - b.born) / 0.3); // streams outward from the guns
-        let x = f.pos.x + Math.cos(b.a) * b.r * grow;
+        b.r = Math.min(b.rMax, b.r + b.vr * dt);   // spirals clear of the hand
+        b.y = Math.max(0.9, b.y + b.vy * dt);
+        let x = f.pos.x + Math.cos(b.a) * b.r;
         let y = f.pos.y + b.y;
-        let z = f.pos.z + Math.sin(b.a) * b.r * grow;
+        let z = f.pos.z + Math.sin(b.a) * b.r;
         if (mode === 'strike') {
           // each round finishes its current lap while sliding onto the mark
           const k = ss(clamp01((strikeT - b.dive) / 0.45));
@@ -1204,7 +1244,7 @@ export const ULTS = {
         }
         b.px = x; b.py = y; b.pz = z;
         M.makeTranslation(x, y, z);
-        im.setMatrixAt(bullets.indexOf(b), M);
+        im.setMatrixAt(i, M);
       }
       im.instanceMatrix.needsUpdate = true;
       if (mode === 'strike' && flying === 0) {

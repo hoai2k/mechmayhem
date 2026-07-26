@@ -138,6 +138,16 @@ function wraithCapeGrow(anim, dt) {
 // 99.5° below the shoulder+elbow pitch sum, so that sum puts it on the horizon.
 const WRAITH_LEVEL = -99.5 * Math.PI / 180;
 const WRAITH_LEAD = 26 * Math.PI / 180;
+
+// VULCAN (GLB): the BULLET HURRICANE's outstretched-arms gathering pose. The
+// procedural arms come level and wide at a shoulder ROLL of ~1.66 rad, but this
+// rig reads that roll steeper — at 1.66 the gatlings are hoisted in a 40° V
+// instead of held out at the sides. Measured in ?debug=models by sweeping the
+// roll and reading each hand's offset from the mech: 1.0 rad puts them at
+// (4.99, 6.69), the procedural's (4.62, 6.55). Applied as a SCALE of however
+// far the clip has flung them, so the GLB reaches out on the same beat.
+const VULCAN_HURRICANE_ROLL = 1.0;
+const VULCAN_CLIP_ROLL = 1.66;
 const WRAITH_SHOTS = new Set(['shoot', 'aim']);
 function levelBarrel(anim, tgt) {
   const act = anim.action;
@@ -622,6 +632,14 @@ export const GLB_ANIM = {
         tgt.handR[1] = -0.44;
         tgt.shoulderL[0] = Math.max(tgt.shoulderL[0], -0.55);
         tgt.elbowL[0] = Math.max(tgt.elbowL[0], -0.4);
+      }
+      // Checked on the raw clip name (not `n`) so the correction stays on
+      // through the FADE-OUT: the arms come down from where they actually were
+      // instead of popping up to the uncorrected pose on the way out.
+      if (anim.action?.clip.name === 'hurricaneSpin') {
+        const k = clamp01(tgt.shoulderR[2] / VULCAN_CLIP_ROLL);
+        tgt.shoulderR[2] = VULCAN_HURRICANE_ROLL * k;
+        tgt.shoulderL[2] = -VULCAN_HURRICANE_ROLL * k;
       }
     },
   },

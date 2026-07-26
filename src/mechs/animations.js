@@ -902,12 +902,19 @@ const CLIPS_RAW = {
     ],
     events: [{ t: 0.05, type: 'hit', arg: 0 }, { t: 0.27, type: 'hit', arg: 0 }],
   },
-  spinFire: { // bullet hurricane (root spun by combat) — leaning into the storm
-    dur: 0.6, loop: true,
+  // (spinFire, the old arms-FORWARD hurricane loop, is gone — hurricaneSpin
+  // replaced it: the storm now needs the arms out to the sides to fly off.)
+  hurricaneSpin: { // VULCAN's BULLET HURRICANE. The storm GATHERS first: both
+    // gatling arms fling out wide to the sides, elbows locked straight, and
+    // only then does combat spin the torso up from a standstill under this
+    // pose (specials.js bulletHurricane — delay + ramp on _spinFx). `hold`
+    // parks the final key so the arms stay outstretched for the whole whirl,
+    // which is what the rounds are seen to fly off.
+    dur: 1.0, hold: true,
     keys: [
-      { t: 0, pose: { shoulderL: [-84, 0, -14], shoulderR: [-84, 0, 14], elbowL: [-8, 0, 0], elbowR: [-8, 0, 0], hipsPos: [0, -0.38, 0], torso: [10, 0, -6], head: [-6, 0, 0], kneeL: [36, 0, 0], kneeR: [36, 0, 0], thighL: [-18, 0, 0], thighR: [-18, 0, 0] } },
-      { t: 0.3, ease: 'inOutQuad', pose: { torso: [13, 0, 6], hipsPos: [0, -0.3, 0] } },
-      { t: 0.6, ease: 'inOutQuad', pose: { torso: [10, 0, -6], hipsPos: [0, -0.38, 0] } },
+      { t: 0, pose: {} },
+      { t: 0.34, ease: 'outBack', pose: { shoulderL: [-4, 0, -98], shoulderR: [-4, 0, 98], elbowL: [0, 0, 0], elbowR: [0, 0, 0], torso: [-9, 0, 0], head: [-12, 0, 0], hipsPos: [0, -0.2, 0], kneeL: [24, 0, 0], kneeR: [24, 0, 0], thighL: [-13, 0, 0], thighR: [-13, 0, 0] } },
+      { t: 1.0, ease: 'inOutQuad', pose: { shoulderL: [-9, 0, -92], shoulderR: [-9, 0, 92], elbowL: [-2, 0, 0], elbowR: [-2, 0, 0], torso: [7, 0, 0], head: [-4, 0, 0], hipsPos: [0, -0.36, 0], kneeL: [34, 0, 0], kneeR: [34, 0, 0], thighL: [-18, 0, 0], thighR: [-18, 0, 0] } },
     ],
   },
   spray: { // flame / napalm sweep channel

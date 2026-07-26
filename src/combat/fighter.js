@@ -2346,7 +2346,31 @@ export class Fighter {
     const sp = this._spinFx;
     if (sp) {
       sp.t = (sp.t || 0) + dt;
-      sp.acc = (sp.acc || 0) + sp.rate * dt;
+      // A whirl can WIND UP instead of snapping to speed: `delay` holds it
+      // still (the pose gets its gathering beat first) and `ramp` spins it up
+      // over that many seconds. `vel` is the live angular velocity in rad/s —
+      // specials read it back to launch things off the turning body at
+      // whatever speed it has reached (vulcan's bullet hurricane).
+      const spun = sp.t - (sp.delay || 0);
+      sp.vel = spun <= 0 ? 0 : sp.rate * (sp.ramp ? Math.min(1, spun / sp.ramp) : 1);
+      // ...and it can spin DOWN: over the last `brake` seconds the whirl eases
+      // to a stop on the nearest WHOLE TURN, so the joint is back exactly where
+      // it started when the fx is dropped instead of snapping out of a
+      // half-revolution. The landing angle is fixed the moment braking begins
+      // (where a natural coast-down would have ended, rounded), then eased onto
+      // with a smoothstep — deterministic, so it can't drift.
+      const left = sp.dur - sp.t;
+      if (sp.brake && left < sp.brake) {
+        if (sp.b0 === undefined) {
+          sp.b0 = sp.acc || 0;
+          sp.b1 = Math.round((sp.b0 + sp.vel * sp.brake * 0.5) / TAU) * TAU;
+        }
+        const k = clamp01(1 - left / sp.brake);
+        sp.acc = lerp(sp.b0, sp.b1, k * k * (3 - 2 * k));
+        sp.vel = (sp.b1 - sp.b0) * 6 * k * (1 - k) / sp.brake;
+      } else {
+        sp.acc = (sp.acc || 0) + sp.vel * dt;
+      }
       const j = this.mech.joints[sp.joint];
       if (j) {
         if (sp.set) {
