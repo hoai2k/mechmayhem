@@ -25,9 +25,15 @@
 //    punch, so `tankL`/`tankR` hold them as static children of `torso`.
 //  • The arms hang outboard and RAKE FORWARD as they descend — shoulder at
 //    z≈0.23/x≈0.00, elbow at z≈0.30, and the torch barrel ending at z≈0.33,
-//    x≈0.15. `nozzleL`/`nozzleR` sit on those barrel tips and are what the
-//    manifest hangs muzzleL/muzzleR on, so the flames leave the actual torch
-//    instead of a guessed offset from a wrist.
+//    x≈0.15. `nozzleL`/`nozzleR` sit on those barrel tips, and the manifest
+//    hangs muzzleL/muzzleR on them so the flames track the actual torch
+//    through the animation instead of a fixed offset from a wrist.
+//    Their offset/rot are NOT eyeballed: they are solved by
+//    `node tools/anchorkeep.mjs inferno --remap R=nozzleR,L=nozzleL` to
+//    reproduce the PRIMARY build's authored world pose exactly. An anchor's position AND its world
+//    +Z are authored intent — world.js' barrelDeflect steers every shot along
+//    that +Z — so a re-rig may rebind them to new bones but must not move
+//    them. Getting this wrong is how the alt ended up firing 58° off.
 //  • The legs are one shell each from hip to ankle (islands 2 and 6), so
 //    thigh/knee/ankle are placed inside a continuous surface — `softSkin`
 //    below is what keeps that surface from shearing at the knee.

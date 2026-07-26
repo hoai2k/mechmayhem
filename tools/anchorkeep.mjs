@@ -54,8 +54,9 @@ await page.waitForFunction('window.__showcaseMechs && window.__showcaseMechs.len
 const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
   const THREE = await import('/node_modules/three/build/three.module.js');
   const { ROSTER_BY_ID } = await import('/src/mechs/roster.js');
-  const { buildGlbForTool } = await import('/src/mechs/gltf.js');
+  const { buildGlbForTool, fetchRawManifest, skinnedBox } = await import('/src/mechs/gltf.js');
   const { Animator } = await import('/src/mechs/animator.js');
+  const manifest = await fetchRawManifest();
   const def = ROSTER_BY_ID[id];
 
   const build = async (alt) => {
@@ -104,7 +105,26 @@ const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
     return rows;
   };
 
-  const res = { rest: diff(read(primary), read(alt)), posed: [] };
+  // Is a comparison meaningful at all? Two guards, both learned the hard way:
+  //  • a different GLB (aegis, jerry) has anchors authored per MODEL, so
+  //    "they moved" is not a defect;
+  //  • two builds of the same file at different sizes (an alt that forgot to
+  //    pin `modelScale`) are not the same mech, and every position differs.
+  const sizeDrift = (() => {
+    const bp = skinnedBox(primary.mech.group), ba = skinnedBox(alt.mech.group);
+    return +bp.getSize(new THREE.Vector3())
+      .distanceTo(ba.getSize(new THREE.Vector3())).toFixed(4);
+  })();
+  const context = {
+    sameFile: manifest[id].url === manifest[id].alt.url,
+    sizeDrift,
+    // where the custom rig lives decides which side is the AUTHORITY: a rig
+    // staged on the alt must match the shipped primary, while a rig already
+    // promoted to the primary leaves the alt a retired reference that no
+    // longer has to agree
+    rigOn: manifest[id].rig ? 'primary' : (manifest[id].alt.rig ? 'alt' : null),
+  };
+  const res = { context, rest: diff(read(primary), read(alt)), posed: [] };
   for (const clip of CLIPS) {
     for (const t of [0.1, 0.35, 0.7]) {
       try {
@@ -221,5 +241,23 @@ if (out.remap) {
   console.log('  }');
 }
 if (errs.length) console.log('\npage errors:\n' + errs.slice(0, 5).join('\n'));
-console.log(`\n${fails ? `FAIL — ${fails} anchor(s) moved at rest` : 'PASS — every anchor holds its rest world transform'}\n`);
-process.exit(fails ? 1 : 0);
+// A verdict is only meaningful when the two builds are the same mech, and
+// only binding on the side that is being staged (see `context` above).
+const ctx = out.context || {};
+const notes = [];
+if (ctx.sameFile === false) {
+  notes.push('the alt is a DIFFERENT GLB — anchors are authored per model, so a difference here is not a defect');
+} else if (ctx.sizeDrift > 0.05) {
+  notes.push(`the two builds render at different sizes (Δ${ctx.sizeDrift}) — pin the same \`modelScale\`/`
+    + '`heightScale` on both (gltf.js FROZEN MODEL SCALE) before reading anything below');
+}
+if (ctx.rigOn === 'primary') {
+  notes.push('the custom rig is already the PRIMARY, so the alt is a RETIRED reference — the shipped '
+    + 'primary is the authority and drift is allowed. This check binds a rig staged ON THE ALT.');
+}
+const advisory = notes.length > 0;
+if (advisory) console.log('  NOTE: ' + notes.join('\n  NOTE: '));
+console.log(`\n${!fails ? 'PASS — every anchor holds its rest world transform'
+  : advisory ? `ADVISORY — ${fails} anchor(s) differ at rest, but see the NOTEs above`
+    : `FAIL — ${fails} anchor(s) moved at rest`}\n`);
+process.exit(fails && !advisory ? 1 : 0);

@@ -1247,34 +1247,11 @@
     ],
     "alt": {
       "muzzles": {
-        "R": {
-          "bone": "handR",
-          "offset": [
-            0.143,
-            0.146,
-            0.045
-          ],
-          "rot": [
-            94.42,
-            19.95,
-            -21.51
-          ]
-        },
-        "L": {
-          "bone": "handL",
-          "offset": [
-            -0.033,
-            0.106,
-            -0.096
-          ],
-          "rot": [
-            84,
-            18.85,
-            -17
-          ]
-        }
+        "R": {"bone": "handR", "offset": [0.1029, 0.1626, 0.0328], "rot": [95.33, 19.53, -83.95]},
+        "L": {"bone": "handL", "offset": [-0.0592, 0.09, -0.083], "rot": [84, 18.44, -97.03]}
       },
       "url": "models/mech_rhino.glb",
+      "modelScale": 8.12531,
       "bindPose": "native",
       "yawOffset": 270,
       "rig": "rhino"
@@ -2035,8 +2012,8 @@
       "heightScale": 1.05,
       "rig": "inferno",
       "muzzles": {
-        "R": {"bone": "nozzleR", "offset": [0, 0, 0], "rot": [0, 90, 0]},
-        "L": {"bone": "nozzleL", "offset": [0, 0, 0], "rot": [0, 90, 0]}
+        "R": {"bone": "nozzleR", "offset": [-0.142, 0.434, 0.014], "rot": [101.25, 31.89, -86.23]},
+        "L": {"bone": "nozzleL", "offset": [0.011, 0.339, 0.009], "rot": [84.01, 33.96, -96.16]}
       }
     }
   },
