@@ -29,6 +29,7 @@ import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson, blendPatch, w
 import { CLIPS } from '../mechs/animations.js';
 import { mechClipList } from './mechclips.js';
 import { setupDevPanel } from './panelui.js';
+import { saveManifestPatch } from './savefile.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
 
@@ -1224,6 +1225,34 @@ export async function runSkinTool(startId) {
       opsEl.appendChild(row);
     });
   }
+
+  // the patch this session's ops make, as an object — the one source both
+  // Export (text, for pasting) and Save (POST, for writing) format from
+  function opsPatch() {
+    const list = compactSkinOps(ops);
+    return altOn ? { [curId]: { alt: { skinOps: list } } } : { [curId]: { skinOps: list } };
+  }
+
+  // SAVE — write the ops into public/models/manifest.json on this machine via
+  // the dev server (vite.config.js), so a reload of the game or any workbench
+  // picks them up. Still local: committing is what publishes them.
+  const saveBtn = actionBtn('Save to manifest ▶', async () => {
+    const list = compactSkinOps(ops);
+    saveBtn.disabled = true;
+    setStatus(`Saving ${list.length} op(s) to manifest.json under "${curId}${altOn ? '.alt' : ''}"…`);
+    const res = await saveManifestPatch(opsPatch());
+    saveBtn.disabled = false;
+    if (res.ok) {
+      setStatus(`SAVED — ${list.length} op(s) written to public/models/manifest.json (${res.written.join(', ')}).` +
+        `\nThis machine's canonical state; commit to publish it.`);
+    } else if (res.offline) {
+      setStatus(`No dev server to save through (${res.error}).` +
+        `\nRun \`npm run dev\` and reload, or use Export ops and paste it in.`);
+    } else {
+      setStatus(`Save FAILED: ${res.error}\nNothing was written — use Export ops as the fallback.`);
+    }
+  }, true);
+  panel.appendChild(saveBtn);
 
   panel.appendChild(actionBtn('Export ops ▶', () => {
     // export compacted (superseded ops dropped) + one-op-per-line so pasting
