@@ -48,6 +48,11 @@
 // over and the clip can be updated wholesale, with no guessing about which key
 // was on screen. With no clip loaded it still exports a bare rest-relative pose.
 //
+// UNDO / REDO — Ctrl/⌘+Z, Ctrl/⌘+Shift+Z or Ctrl+Y, and the HISTORY buttons.
+// Covers every edit, both resets, Revert, and swapping clips (so losing a
+// session's work to the dropdown is undoable). See the history section below for
+// what a step is and why navigation isn't one.
+//
 // WHAT IS BEING POSED: the mech's VIRTUAL joints (rigadapter JOINT_ORDER) — the
 // same rig the clips drive. On a GLB the retarget pushes them onto the real
 // bones every frame, so you edit in clip space and watch the shipped model
@@ -129,8 +134,10 @@ export async function runPoseWork(startId) {
     orbit.enabled = !e.value;
     dragging = e.value;
     // let go of a joint and the drag is WRITTEN INTO the key you're parked on,
-    // so scrubbing away and back shows the edit instead of reverting it
-    if (!e.value) { swallowClick = true; commitEdit(); }
+    // so scrubbing away and back shows the edit instead of reverting it — and
+    // becomes one undo step (pushHistory dedupes, so a nudge below the edit
+    // threshold adds nothing)
+    if (!e.value) { swallowClick = true; commitEdit(); pushHistory(); }
   });
 
   // ---- live state ----
@@ -207,7 +214,10 @@ export async function runPoseWork(startId) {
     panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${mech.isGLB ? 'GLB' : 'procedural'}`);
     buildJointButtons();
     buildBoneMarks();
+    // a rebuild is a new rig — nothing from the old one can be restored onto it
+    resetHistory();
     buildClipOptions();
+    pushHistory();   // baseline: no-op if buildClipOptions already loaded a clip
     if (!sameMech) frameCamera();
     out.style.display = 'none';
     note.textContent = '';
@@ -220,6 +230,8 @@ export async function runPoseWork(startId) {
       // gotoKey/previewAt/commit are the scrubber's own steps, for headless checks:
       // previewAt(t) is a mid-drag scrub, gotoKey(i) is the release that snaps
       gotoKey, previewAt, commit: commitEdit, revert: revertEdits,
+      // commit + pushHistory is what a gizmo release does, in that order
+      undo, redo, pushHistory, get history() { return { at: histIdx, len: histStack.length }; },
       get key() {
         if (!editClip) return null;
         return {
@@ -298,6 +310,8 @@ export async function runPoseWork(startId) {
     curKeyIdx = -1; loadedPose = null; scrubT = 0;
     timeRow.style.display = 'none';
     keyRow.style.display = 'none';
+    keyMarks.textContent = '';
+    revertBtn.style.display = 'none';
   }
   // Which clip the animator will ACTUALLY play under this name — a GLB profile
   // may swap in a bespoke variant (glbanim clipOverrides), and that variant has
@@ -493,7 +507,125 @@ export async function runPoseWork(startId) {
     editClip.keys = JSON.parse(JSON.stringify(origKeys));
     compileLive();
     gotoKey(Math.max(0, curKeyIdx));
+    pushHistory();
     note.textContent = 'Reverted to the clip as shipped';
+  }
+
+  // ================= undo / redo =================
+  // A step on the stack is a STATE, not a delta: the clip's key list (or, with no
+  // clip loaded, every joint's raw transform) plus enough context to put the
+  // scrubber back where it was. Restoring a clip state re-samples the pose from
+  // the keys, so what comes back is exactly what that state looked like.
+  //
+  // What lands on the stack is a CHANGE, not a look: entries are deduped by the
+  // data (`histSig`), so scrubbing and stepping keys — which alter no data — never
+  // flood it. Loading a different clip IS a step, so dropping the dropdown by
+  // accident is undoable rather than silently binning your edits.
+  //
+  // Rebuilding the mech (switching mech, GLB↔procedural, primary↔alt) CLEARS the
+  // stack: the rigs differ, so a joint transform from before the switch means
+  // nothing after it.
+  const HIST_CAP = 150;
+  let histStack = [], histIdx = -1, restoring = false;
+  function rawJoints() {
+    const o = {};
+    for (const j of JOINT_ORDER) {
+      const n = mech.joints[j];
+      if (!n) continue;
+      o[j] = [n.rotation.x, n.rotation.y, n.rotation.z, n.position.x, n.position.y, n.position.z];
+    }
+    return o;
+  }
+  function applyRawJoints(snap) {
+    for (const [j, v] of Object.entries(snap)) {
+      const n = mech.joints[j];
+      if (!n) continue;
+      n.rotation.set(v[0], v[1], v[2]);
+      n.position.set(v[3], v[4], v[5]);
+    }
+    mech.postAnimate?.();   // GLB rigs: push the virtual joints onto the real bones
+  }
+  function histSnapshot() {
+    return {
+      clipName: editClip ? editClip.name : null,
+      keys: editClip ? JSON.parse(JSON.stringify(editClip.keys)) : null,
+      joints: editClip ? null : rawJoints(),
+      keyIdx: curKeyIdx, scrubT, label: loadedFrom,
+    };
+  }
+  // the DATA of a state — deliberately excludes keyIdx/scrubT, which are camera,
+  // not content
+  function histSig(s) { return JSON.stringify([s.clipName, s.keys, s.joints]); }
+  function pushHistory() {
+    if (restoring || !mech) return;
+    const s = histSnapshot();
+    if (histIdx >= 0 && histSig(histStack[histIdx]) === histSig(s)) {
+      histStack[histIdx] = s;     // same content, just remember where we're parked
+      syncHistUI();
+      return;
+    }
+    histStack.length = histIdx + 1;   // a new change discards any redo tail
+    histStack.push(s);
+    if (histStack.length > HIST_CAP) histStack.shift();
+    histIdx = histStack.length - 1;
+    syncHistUI();
+  }
+  function restoreHistory(s) {
+    restoring = true;
+    try {
+      if (s.clipName !== (editClip ? editClip.name : null)) {
+        if (!s.clipName) {
+          clearClipContext();
+          clipSel.value = '';
+        } else {
+          const built = buildEditClip(s.clipName);
+          if (built) {
+            editClip = built;
+            // `origKeys` is the clip AS SHIPPED — rebuilt from the file, never
+            // from the snapshot, so the diff and Revert keep meaning what they say
+            origKeys = JSON.parse(JSON.stringify(built.keys));
+            clipSel.value = s.clipName;
+            timeRow.style.display = 'flex';
+            keyRow.style.display = built.keys.length > 1 ? 'flex' : 'none';
+          }
+        }
+      }
+      if (editClip && s.keys) {
+        editClip.keys = JSON.parse(JSON.stringify(s.keys));
+        compileLive();
+        if (s.keyIdx >= 0) gotoKey(s.keyIdx); else previewAt(s.scrubT);
+      } else if (s.joints) {
+        applyRawJoints(s.joints);
+        loadedPose = null;
+        loadedFrom = s.label || 'rest';
+        refreshJointButtons();
+      }
+    } finally { restoring = false; }
+    syncHistUI();
+  }
+  function undo() {
+    if (histIdx <= 0) { note.textContent = 'Nothing to undo'; return; }
+    histIdx--;
+    restoreHistory(histStack[histIdx]);
+    note.textContent = `Undo · step ${histIdx + 1}/${histStack.length}`;
+  }
+  function redo() {
+    if (histIdx >= histStack.length - 1) { note.textContent = 'Nothing to redo'; return; }
+    histIdx++;
+    restoreHistory(histStack[histIdx]);
+    note.textContent = `Redo · step ${histIdx + 1}/${histStack.length}`;
+  }
+  function resetHistory() { histStack = []; histIdx = -1; }
+  function syncHistUI() {
+    const canU = histIdx > 0, canR = histIdx < histStack.length - 1;
+    for (const [b, on] of [[undoBtn, canU], [redoBtn, canR]]) {
+      b.disabled = !on;
+      b.style.opacity = on ? '1' : '0.4';
+      b.style.cursor = on ? 'pointer' : 'not-allowed';
+    }
+    histNote.textContent = histStack.length > 1
+      ? `step ${histIdx + 1}/${histStack.length} · Ctrl/⌘+Z`
+      : 'Ctrl/⌘+Z · Shift to redo';
   }
 
   // Load a clip for editing. `at` picks the opening key: {key:<index>}, or
@@ -512,6 +644,7 @@ export async function runPoseWork(startId) {
     if (at && at.key !== undefined) idx = at.key;
     else if (at && at.t !== undefined) idx = nearestKeyIdx(at.t);
     gotoKey(idx);
+    pushHistory();   // a clip swap is an undo step; re-picking the same one isn't
   }
 
   // ================= pose read-back =================
@@ -737,6 +870,13 @@ export async function runPoseWork(startId) {
   window.addEventListener('keydown', (e) => {
     if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
     const k = e.key.toLowerCase();
+    // undo/redo first: they're chorded, so they must not fall through to the
+    // bare-letter shortcuts below (Ctrl+Y would otherwise be swallowed silently)
+    if (e.ctrlKey || e.metaKey) {
+      if (k === 'z') { e.preventDefault(); (e.shiftKey ? redo : undo)(); }
+      else if (k === 'y') { e.preventDefault(); redo(); }
+      return;
+    }
     if (k === 'r') { gizmo.setMode('rotate'); markGiz(); }
     else if (k === 't') { if (!bMov.disabled) { gizmo.setMode('translate'); markGiz(); } }
     else if (k === 'g') bSpace.onclick();
@@ -766,8 +906,9 @@ export async function runPoseWork(startId) {
       o.rotation.set(...(restPose[selJoint] || [0, 0, 0]));
       if (jointHome[selJoint]) o.position.copy(jointHome[selJoint]);   // undo a stretch
     }
-    note.textContent = `Reset ${selJoint}`;
     commitEdit();   // dropping a joint to rest is an edit of the key like any other
+    pushHistory();
+    note.textContent = `Reset ${selJoint}`;
   }
   function resetAll() {
     animator.action = null;
@@ -779,6 +920,7 @@ export async function runPoseWork(startId) {
     clearClipContext();
     clipSel.value = '';
     loadedFrom = 'rest';
+    pushHistory();
     note.textContent = 'Reset to rest';
   }
 
@@ -909,6 +1051,16 @@ export async function runPoseWork(startId) {
   revertBtn.style.marginTop = '4px';
   panel.appendChild(revertBtn);
 
+  panel.appendChild(label('History'));
+  const histRow = el('div', 'display:flex;gap:6px');
+  const undoBtn = btn('↶ Undo', () => undo());
+  const redoBtn = btn('↷ Redo', () => redo());
+  histRow.append(undoBtn, redoBtn);
+  panel.appendChild(histRow);
+  const histNote = el('div', 'color:#7d8ea3;font-size:10px;margin-top:2px');
+  histNote.textContent = 'Ctrl/⌘+Z · Shift to redo';
+  panel.appendChild(histNote);
+
   panel.appendChild(label('Gizmo'));
   const gizRow = el('div', 'display:flex;gap:6px');
   const bRot = btn('Rotate', () => { gizmo.setMode('rotate'); markGiz(); });
@@ -972,7 +1124,8 @@ export async function runPoseWork(startId) {
   const help = el('div', 'color:#7d8ea3;font-size:10px;margin-top:8px');
   help.innerHTML = 'Click a joint dot (or the body part) to select it, then drag the gizmo.<br>' +
     'Orbit: drag empty space · Zoom: wheel · <b>R</b> rotate · <b>T</b> translate · ' +
-    '<b>G</b> local/world · <b>Esc</b> deselect.';
+    '<b>G</b> local/world · <b>Esc</b> deselect · ' +
+    '<b>Ctrl/⌘+Z</b> undo · <b>Ctrl/⌘+Shift+Z</b> / <b>Ctrl+Y</b> redo.';
   panel.appendChild(help);
 
   // cursor-follow name tag for the joint under the pointer
