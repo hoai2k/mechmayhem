@@ -17,21 +17,36 @@
 // can be pasted straight into a clip — or handed to someone as "this is the arm
 // pose I want".
 //
-// WHICH KEY OF THE CLIP: the scrubber under the dropdown steps KEYFRAME BY
-// KEYFRAME — it stops only on times the clip actually authors (◀ key / key ▶
-// walk them too), because an in-between time is an interpolated pose that exists
-// in no key, and an edit made there has nowhere to go in animations.js. It opens
-// on the LAST key: the pose a hold/loop clip holds, but the RECOVERY of a
-// one-shot strike — so colossusClap or heavy opens on the rest stance, which is
-// genuinely that clip's last key, not a bug. Step to the impact key to pose the
-// blow. `&key=<index>` deep-links one; `&t=<seconds>` snaps to the nearest.
+// THIS TOOL EDITS THE CLIP, NOT JUST A POSE. Loading a clip turns it back into
+// its authored KEY LIST (degrees, the shape animations.js is written in). Drags
+// are written into whichever key you are parked on, so the edit survives
+// scrubbing away and back, and the scrub PLAYS YOUR VERSION.
 //
-// EDITING A SPECIFIC KEY: "Copy pose" reports which key was on screen (index, t,
-// ease, and the clip's full key-time list), what that key AUTHORS today, and a
-// per-joint `changed: {joint: {from, to}}` of what the gizmo actually moved —
-// diffed against the pose as loaded, not against the file, so the sampler's own
-// settling error never shows up as an edit. Hand that JSON over and the change
-// lands on exactly the key it came from.
+// THE SCRUBBER: drag it and clip time runs smoothly — that is the motion
+// preview, and it is your edited clip being sampled, not the shipped one. Let go
+// and it SNAPS to the nearest key, because a key is the only place an edit can
+// be stored. Between keys the readout says `between keys` and nothing is
+// editable (the pose there is interpolated and belongs to no key). ◀ key / key ▶
+// step them; the key times are listed under the slider with the current one in
+// brackets. `&key=<index>` deep-links one, `&t=<seconds>` snaps to the nearest.
+//   It opens on the LAST key: the pose a hold/loop clip holds, but the RECOVERY
+//   of a one-shot strike — so colossusClap or heavy opens on the rest stance,
+//   which is genuinely that clip's last key, not a bug.
+//
+// HOW AN EDIT IS STORED: as the DELTA you dragged, applied to what the clip
+// AUTHORS at that key — never the on-screen numbers assigned outright. The pose
+// you see is the clip run through the whole animator, so signature motion and
+// rest-pose bias ride on top of the authored value; taking the delta keeps every
+// channel you did not touch bit-identical to the file. Keys stay SPARSE (a key
+// mentions only the joints it moves, the rest interpolate across it), so an edit
+// adds only the joints the gizmo touched. "Revert clip edits" restores the clip
+// as shipped.
+//
+// "Copy pose" then exports the WHOLE key list — `keys[]` with each edited key
+// carrying a per-joint `changed: {from, to}`, `editedKeys` naming which moved,
+// and `js`: the same key list already formatted for animations.js. Hand that
+// over and the clip can be updated wholesale, with no guessing about which key
+// was on screen. With no clip loaded it still exports a bare rest-relative pose.
 //
 // WHAT IS BEING POSED: the mech's VIRTUAL joints (rigadapter JOINT_ORDER) — the
 // same rig the clips drive. On a GLB the retarget pushes them onto the real
@@ -54,7 +69,8 @@ import { Animator } from '../mechs/animator.js';
 import { buildGlbForTool, fetchRawManifest, measureHeadTop } from '../mechs/gltf.js';
 import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
 import { JOINT_ORDER } from '../mechs/rigadapter.js';
-import { CLIPS } from '../mechs/animations.js';
+import { CLIPS, compileClip } from '../mechs/animations.js';
+import { ease } from '../core/utils.js';
 import { profileFor } from '../mechs/glbanim.js';
 import { mechClipList } from './mechclips.js';
 import { setupDevPanel } from './panelui.js';
@@ -112,7 +128,9 @@ export async function runPoseWork(startId) {
   gizmo.addEventListener('dragging-changed', (e) => {
     orbit.enabled = !e.value;
     dragging = e.value;
-    if (!e.value) swallowClick = true;
+    // let go of a joint and the drag is WRITTEN INTO the key you're parked on,
+    // so scrubbing away and back shows the edit instead of reverting it
+    if (!e.value) { swallowClick = true; commitEdit(); }
   });
 
   // ---- live state ----
@@ -122,10 +140,12 @@ export async function runPoseWork(startId) {
   const jointHome = {};         // every joint's rest local position (reset target)
   const boneBase = {};          // GLB real-bone baseline, for the bind patch
   let loadedFrom = 'rest';      // what the current pose started life as
-  let curClip = null;           // the clip object the key was sampled from
-  let curKeys = null;           // its authored key times (the scrubber's stops)
-  let curKeyIdx = 0;            // which of those keys is on screen
-  let loadedPose = null;        // that key's pose BEFORE any drag — the export's baseline
+  let editClip = null;          // the loaded clip as an EDITABLE key list (degrees)
+  let origKeys = null;          // those keys as shipped, for the diff and revert
+  let liveClip = null;          // editClip recompiled — what the animator plays
+  let curKeyIdx = -1;           // key on screen, or -1 while scrubbing between keys
+  let scrubT = 0;               // where the scrubber is
+  let loadedPose = null;        // the key's pose BEFORE any drag — the edit baseline
   const boneGroup = new THREE.Group(); scene.add(boneGroup);
   const _wa = new THREE.Vector3(), _wb = new THREE.Vector3();
 
@@ -197,7 +217,17 @@ export async function runPoseWork(startId) {
       gizmo, camera, pick: pickJoint,
       // loadClip(name, {key:<index>} | {t:<seconds>}) — same key snapping as the UI
       select: selectJoint, deselect, loadClip: applyClipPose, pose: readPose,
-      get key() { return curKeys ? { index: curKeyIdx, of: curKeys.length, t: curKeys[curKeyIdx], times: curKeys } : null; },
+      // gotoKey/previewAt/commit are the scrubber's own steps, for headless checks:
+      // previewAt(t) is a mid-drag scrub, gotoKey(i) is the release that snaps
+      gotoKey, previewAt, commit: commitEdit, revert: revertEdits,
+      get key() {
+        if (!editClip) return null;
+        return {
+          index: curKeyIdx, of: editClip.keys.length, t: scrubT,
+          times: editClip.keys.map((k) => k.t), edited: editedKeyIdx(),
+        };
+      },
+      get keys() { return editClip ? editClip.keys : null; },
       patch: bindPatch, reset: resetAll, export: outputPose,
       setConstrain: (v) => { constrain = !!v; conCheck.checked = constrain; applyConstraint(); },
     };
@@ -261,10 +291,11 @@ export async function runPoseWork(startId) {
       clearClipContext();  // a rebuild/mech switch leaves no key loaded
     }
   }
-  // No key is loaded: hide the scrubber and make sure the export stops claiming
-  // one. Called on reset and whenever a rebuild invalidates the old clip.
+  // No clip is loaded: hide the scrubber and make sure the export stops claiming
+  // a key. Called on reset and whenever a rebuild invalidates the old clip.
   function clearClipContext() {
-    curClip = null; curKeys = null; curKeyIdx = 0; loadedPose = null;
+    editClip = null; origKeys = null; liveClip = null;
+    curKeyIdx = -1; loadedPose = null; scrubT = 0;
     timeRow.style.display = 'none';
     keyRow.style.display = 'none';
   }
@@ -274,90 +305,213 @@ export async function runPoseWork(startId) {
   function clipUnderName(name) {
     return animator?.profile?.clipOverrides?.[name] || CLIPS[name];
   }
-  // The clip's authored key times: compile() shreds each key into per-joint
-  // tracks, so the keys are the UNION of the track times. A key that only moves
-  // two joints (a strike's follow-through) is a key all the same.
-  //
-  // t=0 is always a stop. Plenty of clips open on `{ t: 0, pose: {} }` — "start
-  // from wherever the body already is" — which writes no track at all and so is
-  // invisible here. It IS a key, it is just empty, and posing it is a real
-  // authoring act (giving a clip an explicit opening pose), so it gets a stop and
-  // `authored` reports it as writing nothing.
-  function keyTimesOf(clip) {
-    const seen = new Set([0]);
-    for (const track of Object.values(clip.tracks)) {
-      for (const k of track) seen.add(Math.round(k.t * 1e4) / 1e4);
-    }
-    return [...seen].sort((a, b) => a - b);
-  }
-  // What the clip AUTHORS at this key — the literal numbers in animations.js,
-  // for the joints this key writes (tracks are sparse, so a key mentions only
-  // what it moves). Degrees, same space as readPose.
-  function authoredAt(clip, t) {
-    const pose = {}; let ease = null;
-    for (const [j, track] of Object.entries(clip.tracks)) {
-      const k = track.find((e) => Math.abs(e.t - t) < 1e-3);
-      if (!k) continue;
-      ease = ease || k.ease;
-      pose[j] = j === 'hipsPos' ? k.v.map((n) => rnd(n, 3)) : k.v.map((n) => rnd(n * R2D));
-    }
-    return { pose, ease };
-  }
 
-  // Sample a clip through the REAL animator, so what lands here is exactly what
-  // the game shows at that moment — profile overrides, mirrored arms, signature
-  // motion and all. Then the animator is stopped and the joints are yours.
+  // ================= the editable key list =================
+  // compile() shreds a clip into sparse per-joint tracks; this puts it back
+  // together as the KEY LIST it was authored as, in degrees — the shape
+  // animations.js is written in and the shape edits have to land in.
   //
-  // `at` picks the key: {key:<index>} outright, or {t:<seconds>} snapped to the
-  // NEAREST key. Default is the last key — the pose a hold/loop clip holds.
-  function applyClipPose(name, at) {
-    if (!name) { resetAll(); return; }
+  // A key stays SPARSE on purpose: a key mentions only the joints it moves, and
+  // the ones it leaves out interpolate across it. Writing the whole body into
+  // every key would freeze limbs that are meant to keep travelling, so an edit
+  // adds only the joints the gizmo actually touched.
+  //
+  // t=0 is always a key. Plenty of clips open on `{ t: 0, pose: {} }` — "start
+  // from wherever the body already is" — which writes no track and so is
+  // invisible in the compiled form. It IS a key, just empty, and giving it a pose
+  // is a real authoring act.
+  function buildEditClip(name) {
     const clip = clipUnderName(name);
-    if (!clip) return;
-    const keys = keyTimesOf(clip);
-    let idx = keys.length - 1;
-    if (at && at.key !== undefined) idx = at.key;
-    else if (at && at.t !== undefined) {
-      // snap: the nearest authored key to the time asked for
-      let best = Infinity;
-      keys.forEach((kt, i) => { const d = Math.abs(kt - at.t); if (d < best) { best = d; idx = i; } });
+    if (!clip) return null;
+    const byT = new Map([[0, { t: 0, ease: null, pose: {} }]]);
+    for (const [j, track] of Object.entries(clip.tracks)) {
+      for (const e of track) {
+        const t = Math.round(e.t * 1e4) / 1e4;
+        if (!byT.has(t)) byT.set(t, { t, ease: null, pose: {} });
+        const key = byT.get(t);
+        key.ease = key.ease || e.ease;
+        key.pose[j] = j === 'hipsPos' ? e.v.map((n) => rnd(n, 3)) : e.v.map((n) => rnd(n * R2D));
+      }
     }
-    idx = Math.max(0, Math.min(keys.length - 1, idx));
-    const t = keys[idx];
-    curClip = clip; curKeys = keys; curKeyIdx = idx;
-    timeRow.style.display = 'flex';
-    keyRow.style.display = keys.length > 1 ? 'flex' : 'none';
-    timeSlider.max = String(keys.length - 1);
-    timeSlider.value = String(idx);
-    timeVal.textContent = `key ${idx + 1}/${keys.length} · t ${t.toFixed(2)}`;
+    const keys = [...byT.values()].sort((a, b) => a.t - b.t);
+    for (const k of keys) k.ease = k.ease || 'inOutQuad';
+    return { name, dur: clip.dur, loop: !!clip.loop, upper: !!clip.upper, keys };
+  }
+  // The edited key list, compiled back into something the animator can play —
+  // this is what makes a scrub show YOUR edits and not the shipped clip.
+  //
+  // loop off / hold on: as a one-shot the animator would start fading the action
+  // out the moment t reached dur, and the last key would dissolve back to rest
+  // while you were trying to look at it. `hold` freezes it there instead. Events
+  // are dropped — nothing here should fire a hit or shake a camera.
+  function compileLive() {
+    liveClip = compileClip(editClip.name, {
+      dur: editClip.dur, upper: editClip.upper, loop: false, hold: true,
+      keys: editClip.keys.filter((k) => Object.keys(k.pose).length),
+      events: [],
+    });
+  }
 
+  // Drive the animator to EXACTLY t on the live clip, then stop it and hand the
+  // joints to the gizmo.
+  //
+  // The clip clock has to be rewound before each step, not clamped after it:
+  // Animator.update advances act.t by dt and samples the result, so pinning
+  // afterwards still leaves the pose one dt PAST t. That was a real error — at
+  // dt 0.04 the old loop showed colossusClap's impact key already 40ms into its
+  // follow-through, which is why its "authored" 58deg read back as 55.6.
+  // 8 steps at dt 0.15 leave the pose smoother (time constant 1/26s) settled to
+  // ~1e-13 of the target, and cheap enough to run on every scrub frame.
+  const SAMPLE_CTX = { speed: 0, maxSpeed: 1, grounded: true, vy: 0 };
+  function sampleAt(t) {
     animator.poseStatic();
-    animator.action = null;
     animator.impulses.length = 0;
-    animator.play(name);
-    if (!animator.action) return;
-    animator.action.weight = 1;
-    animator.action.fadeIn = 1e-6;
-    const ctx = { speed: 0, maxSpeed: 1, grounded: true, vy: 0 };
-    // run to t, then keep ticking with the clip clock PINNED there so the
-    // animator's pose smoother settles onto the pose at exactly t
-    for (let i = 0; i < 48; i++) {
-      animator.update(0.04, ctx);
-      if (animator.action) animator.action.t = Math.min(animator.action.t, t);
+    animator.action = {
+      clip: liveClip, t: 0, speed: 1, weight: 1,
+      fadeIn: 1e-6, fadingOut: false, onEvent: null, lastT: -1,
+    };
+    const dt = 0.15;
+    for (let i = 0; i < 8; i++) {
+      animator.action.t = t - dt;   // the update's own += dt lands it on t
+      animator.update(dt, SAMPLE_CTX);
     }
-    animator.action = null;      // hand the joints over to the gizmo
-    loadedFrom = `${name} key ${idx + 1}/${keys.length} @ t=${t.toFixed(2)}`;
-    // The pose AS LOADED, before a single drag. The export diffs against this,
-    // which is what makes "here is what I changed" exact: the sampled pose is
-    // not identical to the authored numbers (the smoother settles a degree or
-    // two short, signature motion adds its own), so diffing against the file
-    // would report drift nobody touched as an edit.
-    loadedPose = readPose();
-    // keep the selection across a clip load — scrubbing the key slider while
-    // holding a joint is the whole point of the slider
+    animator.action = null;
     if (selJoint && mech.joints[selJoint]) gizmo.attach(mech.joints[selJoint]);
     refreshJointButtons();
+  }
+
+  // Land ON a key: this is the editable state — `loadedPose` becomes the
+  // baseline every later drag is measured against.
+  function gotoKey(i) {
+    curKeyIdx = Math.max(0, Math.min(editClip.keys.length - 1, i));
+    const key = editClip.keys[curKeyIdx];
+    scrubT = key.t;
+    sampleAt(key.t);
+    loadedPose = readPose();
+    syncTimeUI();
+    loadedFrom = `${editClip.name} key ${curKeyIdx + 1}/${editClip.keys.length} @ t=${key.t.toFixed(2)}`;
     note.textContent = `Loaded ${loadedFrom}`;
+  }
+  // Mid-scrub: an interpolated pose, which belongs to no key. Nothing is
+  // editable here (commitEdit no-ops) — the slider snaps to a key on release.
+  function previewAt(t) {
+    scrubT = Math.max(0, Math.min(editClip.dur, t));
+    curKeyIdx = -1; loadedPose = null;
+    sampleAt(scrubT);
+    syncTimeUI();
+  }
+  function nearestKeyIdx(t) {
+    let idx = 0, best = Infinity;
+    editClip.keys.forEach((k, i) => { const d = Math.abs(k.t - t); if (d < best) { best = d; idx = i; } });
+    return idx;
+  }
+  function syncTimeUI() {
+    if (!editClip) return;
+    timeSlider.max = String(editClip.dur);
+    timeSlider.step = String(Math.max(0.001, editClip.dur / 240));
+    timeSlider.value = String(scrubT);
+    const n = editClip.keys.length;
+    timeVal.textContent = curKeyIdx >= 0
+      ? `key ${curKeyIdx + 1}/${n} · t ${scrubT.toFixed(2)}`
+      : `t ${scrubT.toFixed(2)} — between keys`;
+    keyMarks.textContent = editClip.keys
+      .map((k, i) => (i === curKeyIdx ? `[${k.t.toFixed(2)}]` : k.t.toFixed(2))).join(' ');
+    revertBtn.style.display = editedKeyIdx().length ? 'block' : 'none';
+  }
+
+  // ================= writing an edit back into a key =================
+  // The edit is a DELTA in what you see, applied to what the clip AUTHORS.
+  //
+  // Assigning the on-screen numbers straight into the key would be wrong: the
+  // pose you see is the clip run through the whole animator, so signature motion
+  // and rest-pose bias ride on top of the authored value, and a joint the clip
+  // never drives is showing pure idle. Taking the delta means untouched channels
+  // stay bit-identical to the file and only the drag lands.
+  //
+  // Base for a joint the key already writes: that key's own value. For one the
+  // clip drives elsewhere but not here: its interpolated value at this t, so the
+  // new entry starts where the motion already was. For one the clip never
+  // touches: what is on screen, so the key reproduces what you posed.
+  function authoredBase(j, t) {
+    const key = editClip.keys[curKeyIdx];
+    if (key.pose[j]) return key.pose[j];
+    const track = liveClip?.tracks?.[j];
+    if (track) {
+      const v = sampleLiveTrack(track, t);
+      return j === 'hipsPos' ? v.map((n) => rnd(n, 3)) : v.map((n) => rnd(n * R2D));
+    }
+    return loadedPose?.[j] || [0, 0, 0];
+  }
+  function sampleLiveTrack(track, t) {
+    if (t <= track[0].t) return track[0].v;
+    const last = track[track.length - 1];
+    if (t >= last.t) return last.v;
+    for (let i = 1; i < track.length; i++) {
+      if (t <= track[i].t) {
+        const a = track[i - 1], b = track[i];
+        const f = ease[b.ease]((t - a.t) / (b.t - a.t));
+        return [0, 1, 2].map((k) => a.v[k] + (b.v[k] - a.v[k]) * f);
+      }
+    }
+    return last.v;
+  }
+  // Called whenever the gizmo (or a joint reset) has finished changing the pose.
+  function commitEdit() {
+    if (!editClip || curKeyIdx < 0 || !loadedPose) return;
+    const now = readPose();
+    const key = editClip.keys[curKeyIdx];
+    const eps = (j) => (j === 'hipsPos' ? 0.004 : 0.75);
+    let n = 0;
+    for (const j of new Set([...Object.keys(now), ...Object.keys(loadedPose)])) {
+      const to = now[j] || [0, 0, 0], from = loadedPose[j] || [0, 0, 0];
+      if (!to.some((v, i) => Math.abs(v - from[i]) > eps(j))) continue;
+      const base = authoredBase(j, key.t);
+      const d = j === 'hipsPos' ? 3 : 2;
+      key.pose[j] = [0, 1, 2].map((i) => rnd(base[i] + (to[i] - from[i]), d));
+      n++;
+    }
+    if (!n) return;
+    compileLive();
+    // re-sample so the pose on screen IS the edited key played back, and the
+    // next drag measures against that
+    sampleAt(key.t);
+    loadedPose = readPose();
+    syncTimeUI();
+    note.textContent = `Key ${curKeyIdx + 1}/${editClip.keys.length} updated (${n} joint(s))`;
+  }
+  // Which keys differ from the clip as shipped.
+  function editedKeyIdx() {
+    if (!editClip || !origKeys) return [];
+    const out = [];
+    editClip.keys.forEach((k, i) => {
+      if (JSON.stringify(k.pose) !== JSON.stringify(origKeys[i].pose)) out.push(i);
+    });
+    return out;
+  }
+  function revertEdits() {
+    if (!editClip || !origKeys) return;
+    editClip.keys = JSON.parse(JSON.stringify(origKeys));
+    compileLive();
+    gotoKey(Math.max(0, curKeyIdx));
+    note.textContent = 'Reverted to the clip as shipped';
+  }
+
+  // Load a clip for editing. `at` picks the opening key: {key:<index>}, or
+  // {t:<seconds>} snapped to the nearest key. Default is the last key — the pose
+  // a hold/loop clip holds (but the RECOVERY of a one-shot strike).
+  function applyClipPose(name, at) {
+    if (!name) { resetAll(); return; }
+    const built = buildEditClip(name);
+    if (!built) return;
+    editClip = built;
+    origKeys = JSON.parse(JSON.stringify(built.keys));
+    compileLive();
+    timeRow.style.display = 'flex';
+    keyRow.style.display = editClip.keys.length > 1 ? 'flex' : 'none';
+    let idx = editClip.keys.length - 1;
+    if (at && at.key !== undefined) idx = at.key;
+    else if (at && at.t !== undefined) idx = nearestKeyIdx(at.t);
+    gotoKey(idx);
   }
 
   // ================= pose read-back =================
@@ -385,17 +539,33 @@ export async function runPoseWork(startId) {
     if (dh.length() > 1e-3) pose.hipsPos = [rnd(dh.x, 3), rnd(dh.y, 3), rnd(dh.z, 3)];
     return pose;
   }
-  // What the gizmo moved since the key was loaded. Threshold 0.75deg (0.004 on
-  // hipsPos) so the smoother's own settling error never reads as an edit.
-  function editsSinceLoad(pose) {
-    if (!loadedPose) return null;
+  // Per-key diff against the clip as shipped, joint by joint. 0.75deg / 0.004 on
+  // hipsPos, so nothing but a real drag registers.
+  function keyDiff(i) {
+    const now = editClip.keys[i].pose, was = origKeys[i].pose;
     const changed = {};
     const eps = (j) => (j === 'hipsPos' ? 0.004 : 0.75);
-    for (const j of new Set([...Object.keys(pose), ...Object.keys(loadedPose)])) {
-      const to = pose[j] || [0, 0, 0], from = loadedPose[j] || [0, 0, 0];
-      if (to.some((n, i) => Math.abs(n - from[i]) > eps(j))) changed[j] = { from, to };
+    for (const j of new Set([...Object.keys(now), ...Object.keys(was)])) {
+      const to = now[j], from = was[j];
+      if (!from) { changed[j] = { added: to }; continue; }
+      if (!to) { changed[j] = { removed: from }; continue; }
+      if (to.some((v, k) => Math.abs(v - from[k]) > eps(j))) changed[j] = { from, to };
     }
-    return changed;
+    return Object.keys(changed).length ? changed : null;
+  }
+  // The `keys: [...]` block for animations.js, formatted the way the file is:
+  // one key per line, `pose: {}` inline, joints in the rig's own order.
+  function keysAsJs() {
+    const order = (p) => {
+      const named = ['hipsPos', 'hipsRot', ...JOINT_ORDER.filter((j) => j !== 'hips')];
+      const seen = new Set();
+      return [...named.filter((j) => p[j] && seen.add(j)), ...Object.keys(p).filter((j) => !named.includes(j))];
+    };
+    return `keys: [\n${editClip.keys.map((k, i) => {
+      const body = order(k.pose).map((j) => `${j}: [${k.pose[j].join(', ')}]`).join(', ');
+      const easePart = i === 0 ? '' : `ease: '${k.ease}', `;
+      return `      { t: ${k.t}, ${easePart}pose: { ${body} } },`;
+    }).join('\n')}\n    ],`;
   }
   function outputPose() {
     const pose = readPose();
@@ -406,27 +576,32 @@ export async function runPoseWork(startId) {
       from: loadedFrom,
       units: 'degrees — clip-key pose, animations.js authoring space',
     };
-    // Loaded off a clip key: say WHICH key, and hand over both the authored
-    // numbers and what moved, so an edit can be applied to that one key in
-    // animations.js without guessing which one was on screen.
-    let edits = null;
-    if (curClip && curKeys) {
-      const { pose: authored, ease } = authoredAt(curClip, curKeys[curKeyIdx]);
-      payload.clip = clipSel.value;
-      payload.key = {
-        index: curKeyIdx, of: curKeys.length, t: curKeys[curKeyIdx],
-        ease: ease || 'inOutQuad', times: curKeys,
-      };
-      payload.authored = authored;   // what this key writes in animations.js today
-      edits = editsSinceLoad(pose);
-      if (edits) payload.changed = edits;
+    if (!editClip) {   // free-posed off the rest stance: just the pose
+      payload.pose = pose;
+      show(JSON.stringify(payload, null, 2), `pose-${curId}.json`,
+        n ? `${n} channel(s) off rest` : 'pose matches rest');
+      return;
     }
-    payload.pose = pose;             // the whole pose, paste-ready as a clip key
-    const nEdit = edits ? Object.keys(edits).length : 0;
-    show(JSON.stringify(payload, null, 2), `pose-${curId}.json`,
-      curClip
-        ? `${nEdit} joint(s) edited on key ${curKeyIdx + 1}/${curKeys.length} · ${n} channel(s) off rest`
-        : (n ? `${n} channel(s) off rest` : 'pose matches rest'));
+    // A clip is loaded: hand over the WHOLE key list, so the clip can be updated
+    // wholesale, with each edited key marked so it's obvious what moved and what
+    // was left alone. `js` is the same key list already formatted for the file.
+    const edited = editedKeyIdx();
+    payload.clip = editClip.name;
+    payload.dur = editClip.dur;
+    if (editClip.loop) payload.loop = true;
+    payload.editedKeys = edited;
+    payload.keys = editClip.keys.map((k, i) => {
+      const out = { t: k.t, ease: k.ease, pose: k.pose };
+      if (i === curKeyIdx) out.onScreen = true;
+      const d = keyDiff(i);
+      if (d) out.changed = d;
+      return out;
+    });
+    payload.js = keysAsJs();
+    show(JSON.stringify(payload, null, 2), `clip-${editClip.name}.json`,
+      edited.length
+        ? `${edited.length} of ${editClip.keys.length} key(s) edited: ${edited.map((i) => i + 1).join(', ')}`
+        : `no edits — ${editClip.keys.length} key(s) as shipped`);
   }
 
   // The old ?debug=models POSE-mode export, kept alive here: a manifest patch
@@ -592,6 +767,7 @@ export async function runPoseWork(startId) {
       if (jointHome[selJoint]) o.position.copy(jointHome[selJoint]);   // undo a stretch
     }
     note.textContent = `Reset ${selJoint}`;
+    commitEdit();   // dropping a joint to rest is an edit of the key like any other
   }
   function resetAll() {
     animator.action = null;
@@ -709,21 +885,29 @@ export async function runPoseWork(startId) {
   const clipSel = el('select', 'width:100%;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px;border-radius:4px');
   clipSel.onchange = () => applyClipPose(clipSel.value);
   panel.appendChild(clipSel);
-  // The scrubber steps KEY BY KEY, not by time: its value is a key index, so it
-  // can only ever land on a pose the clip actually authors. Scrubbing to an
-  // in-between time would hand you an interpolated pose that exists in no key,
-  // and any edit made there has nowhere to go in animations.js.
+  // The scrubber runs SMOOTHLY through clip time while you drag it — that is the
+  // motion preview, and it plays back your edits, not the shipped clip — then
+  // SNAPS to the nearest key when you let go, because a key is the only thing an
+  // edit can be written into. Between keys the pose is interpolated and belongs
+  // to no key, so nothing there is editable (`between keys` in the readout).
   const timeRow = el('div', 'display:none;align-items:center;gap:6px;margin-top:5px');
   const timeSlider = el('input', 'flex:1'); timeSlider.type = 'range'; timeSlider.min = '0';
-  timeSlider.step = '1';
-  timeSlider.oninput = () => applyClipPose(clipSel.value, { key: +timeSlider.value });
+  timeSlider.oninput = () => { if (editClip) previewAt(+timeSlider.value); };
+  timeSlider.onchange = () => { if (editClip) gotoKey(nearestKeyIdx(+timeSlider.value)); };
   const timeVal = el('span', 'color:#9fb2c8;font-size:10px;white-space:nowrap');
   timeRow.append(timeSlider, timeVal);
   panel.appendChild(timeRow);
+  // the clip's key times, the one you're parked on in brackets
+  const keyMarks = el('div', 'color:#7e93ab;font-size:10px;margin-top:2px;line-height:1.5;word-break:break-all');
+  panel.appendChild(keyMarks);
   const keyRow = el('div', 'display:none;gap:6px;margin-top:4px');
-  const stepKey = (d) => applyClipPose(clipSel.value, { key: curKeyIdx + d });
+  const stepKey = (d) => { if (editClip) gotoKey((curKeyIdx < 0 ? nearestKeyIdx(scrubT) : curKeyIdx) + d); };
   keyRow.append(btn('◀ key', () => stepKey(-1)), btn('key ▶', () => stepKey(1)));
   panel.appendChild(keyRow);
+  const revertBtn = btn('Revert clip edits', revertEdits);
+  revertBtn.style.display = 'none';
+  revertBtn.style.marginTop = '4px';
+  panel.appendChild(revertBtn);
 
   panel.appendChild(label('Gizmo'));
   const gizRow = el('div', 'display:flex;gap:6px');

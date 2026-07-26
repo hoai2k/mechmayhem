@@ -1210,6 +1210,11 @@ for (const [base, twin] of Object.entries(SMASH_MIRRORS)) CLIPS_RAW[twin] = mirr
 // ---------- compile: degrees -> radians, sparse per-joint tracks ----------
 const D2R = Math.PI / 180;
 
+// Exported so the pose workbench can compile an EDITED key list into a clip the
+// animator will play (`?debug=pose` previews edits by handing the animator its
+// own recompiled copy). Everything else should use CLIPS.
+export function compileClip(name, raw) { return compile(name, raw); }
+
 function compile(name, raw) {
   const tracks = {};
   const keys = [...raw.keys].sort((a, b) => a.t - b.t);
