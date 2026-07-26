@@ -257,6 +257,131 @@ export function buildIslandAdjacency(mesh, analysis) {
   return adj;
 }
 
+// ---- BLEND PATCH ----------------------------------------------------------
+// The other half of the skin-repair problem. `analyzeSkin` partitions geometry
+// by DOMINANT bone, so a region that is 70% torso / 30% shoulderR lives inside
+// the torso island and cannot be addressed on its own — but it is exactly the
+// geometry a player sees wiggle with the arm when it should hold still on the
+// chest, and rebinding the WHOLE torso island to fix it throws away every
+// legitimate blend the rest of the chest has.
+//
+// A blend patch is that sub-region: from a seed vertex, the connected run of
+// geometry that (a) has the SAME dominant bone as the seed and (b) carries a
+// minority weight on the same FOREIGN bone. Condition (a) is what stops the
+// flood at the arm — where shoulderR takes over as dominant, the patch ends —
+// so the result is "the part of the torso that follows shoulderR", nothing
+// more. The ?debug=skin workbench selects one with shift-click.
+//
+// Returns { verts, dom, domName, foreign, foreignName, avgW } (verts empty if
+// the seed carries no secondary influence at all).
+export function blendPatch(mesh, seed, { minW = 0.02, foreign = null, adjacency = null } = {}) {
+  const geo = mesh.geometry;
+  const jnt = geo.attributes.skinIndex;
+  const wgt = geo.attributes.skinWeight;
+  const bones = mesh.skeleton.bones;
+  const wOn = (v, bi) => {
+    let s = 0;
+    for (let k = 0; k < 4; k++) if (jnt.getComponent(v, k) === bi) s += wgt.getComponent(v, k);
+    return s;
+  };
+  const domOf = (v) => {
+    let bw = -1, bi = 0;
+    for (let k = 0; k < 4; k++) {
+      const w = wgt.getComponent(v, k);
+      if (w > bw) { bw = w; bi = jnt.getComponent(v, k); }
+    }
+    return bi;
+  };
+  const dom = domOf(seed);
+  // the seed's strongest NON-dominant influence, unless the caller named one
+  let fb = foreign;
+  if (fb == null) {
+    let bw = -1;
+    for (let k = 0; k < 4; k++) {
+      const w = wgt.getComponent(seed, k), b = jnt.getComponent(seed, k);
+      if (b === dom || w <= 0) continue;
+      if (w > bw) { bw = w; fb = b; }
+    }
+  }
+  if (fb == null || wOn(seed, fb) < minW) {
+    return { verts: [], dom, domName: bones[dom]?.name || null, foreign: null, foreignName: null, avgW: 0 };
+  }
+  const adj = adjacency || weldedAdjacency(mesh);
+  const inPatch = (v) => domOf(v) === dom && wOn(v, fb) >= minW;
+  const seen = new Uint8Array(jnt.count);
+  const out = [];
+  const queue = [seed];
+  seen[seed] = 1;
+  let wSum = 0;
+  while (queue.length) {
+    const v = queue.pop();
+    out.push(v);
+    wSum += wOn(v, fb);
+    for (const n of adj.neighbours(v)) {
+      if (seen[n] || !inPatch(n)) continue;
+      seen[n] = 1;
+      queue.push(n);
+    }
+  }
+  return { verts: out, dom, domName: bones[dom]?.name || null,
+    foreign: fb, foreignName: bones[fb]?.name || null, avgW: out.length ? wSum / out.length : 0 };
+}
+
+// Vertex adjacency over the mesh's own surface, with position-welded
+// duplicates (UV/normal seam splits) treated as one point — otherwise a flood
+// fill stops dead at every texture seam. Build once per geometry and reuse:
+// topology never changes, only weights do.
+export function weldedAdjacency(mesh) {
+  const geo = mesh.geometry;
+  if (geo.userData.__weldAdj) return geo.userData.__weldAdj;
+  const pos = geo.attributes.position;
+  const n = pos.count;
+  const rep = new Int32Array(n);
+  const twins = new Map();                 // representative -> [all verts there]
+  {
+    const firstAt = new Map();
+    for (let i = 0; i < n; i++) {
+      const key = `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
+      const f = firstAt.get(key);
+      if (f === undefined) { firstAt.set(key, i); rep[i] = i; } else rep[i] = f;
+      const r = rep[i];
+      let t = twins.get(r); if (!t) twins.set(r, t = []);
+      t.push(i);
+    }
+  }
+  const link = new Map();                  // representative -> Set(representative)
+  const bump = (a, b) => {
+    if (a === b) return;
+    let s = link.get(a); if (!s) link.set(a, s = new Set());
+    s.add(b);
+    let s2 = link.get(b); if (!s2) link.set(b, s2 = new Set());
+    s2.add(a);
+  };
+  const idx = geo.index;
+  const edge = (a, b) => bump(rep[a], rep[b]);
+  if (idx) {
+    for (let t = 0; t < idx.count; t += 3) {
+      const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2);
+      edge(a, b); edge(b, c); edge(c, a);
+    }
+  } else {
+    for (let t = 0; t + 2 < n; t += 3) { edge(t, t + 1); edge(t + 1, t + 2); edge(t + 2, t); }
+  }
+  const api = {
+    // every vertex sharing a surface edge with `v`, plus v's own weld twins
+    neighbours(v) {
+      const r = rep[v];
+      const out = [];
+      for (const t of twins.get(r) || []) if (t !== v) out.push(t);
+      for (const nr of link.get(r) || []) for (const t of twins.get(nr) || []) out.push(t);
+      return out;
+    },
+    rep,
+  };
+  geo.userData.__weldAdj = api;
+  return api;
+}
+
 // Scan for enclaves and produce the rebind ops that dissolve them.
 // IMPORTANT composition contract: `analysis` must be the PRISTINE partition
 // with comps[].boneName reflecting the CURRENT (post-committed-ops) owner —
