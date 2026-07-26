@@ -3170,3 +3170,27 @@ artifact — the workbench was showing shipping behaviour correctly.
     world, so a probe that also calls `world.update` double-steps and
     manufactures jitter — set `engine.onUpdate = () => {}` first. `Input.readIntent`
     likewise overwrites `intent` every frame, so held-button probes must stub it.
+
+## Titanus skin update #3 (user-supplied, 2026-07-25)
+
+- 82 skinOps replacing the previous 71 — a clean SUPERSET: all 71 kept verbatim,
+  plus 11 new ops refining the shoulders (5), head (2), torso (2) and the back
+  exhaust stacks (2). The fist selection is untouched (65 fist ops, 30 R / 35 L),
+  so the rocket-fist cut is unchanged by construction.
+- Applied as a targeted text edit to the PRIMARY skinOps array only — the `alt`
+  entry's 101 legacy Tripo ops (6-space indent) are deliberately left alone, and
+  `rig`/`modelScale`/`muzzles`/`alt` are asserted intact before the write.
+- Side benefit: because the new ops move more geometry onto the shoulder bones,
+  the rocket fist's dark interior layer (which covers the whole arm chain) grew
+  from 16842 to 19454 triangles on the right and 19070 on the left — slightly
+  better coverage of the open socket, for free.
+- Verified: stretch audit unchanged at 2 flagged / maxR 12.3 (still just the
+  thigh-fist interleave tab), far-blend 0 verts, skin audit 0 flagged; fist split
+  unchanged (9248 R / 9143 L tris, separation 0.923/0.931, detach->attach
+  visibility correct); idle, the overhead pound wind-up and the punch release all
+  VIEWED with the shoulders/pauldrons intact under extreme rotation (that being
+  where the new bindings are); ranged alternation still L,R,L,R at yaw 0.0° with
+  both fists restored; ace soak crash-free; `vite build` green.
+  · Probe note: `battlefist.mjs` only watches the RIGHT fist, so now that he
+    alternates it reports a false "never detached" on a left-hand throw — use
+    `alt.mjs`, which follows the side.
