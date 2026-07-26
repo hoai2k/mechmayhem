@@ -15,6 +15,7 @@ import { Engine } from '../core/engine.js';
 import { loadRawGlbScene, fetchRawManifest } from '../mechs/gltf.js';
 import { rigFor, rigIds } from '../mechs/rigs/index.js';
 import { applyCustomRig, setWeights, rebindRest, buildRigPosts } from '../mechs/reskin.js';
+import { setupDevPanel } from './panelui.js';
 import { JOINT_ORDER } from '../mechs/rigadapter.js';
 import { altChoice, altCheckbox, reloadWithAlt } from './altpick.js';
 
@@ -542,6 +543,7 @@ export async function runRigEdit(startId) {
     color:#dfe8f5;background:rgba(16,20,28,0.94);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:260px;max-height:96vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
+  setupDevPanel(panel, { key: 'rigedit' });
   panel.appendChild(hdr(`RIG EDITOR · ${id}${useAlt ? ' · ALT' : ''}`));
   const altRow = altCheckbox(alt, reloadWithAlt);
   if (altRow) panel.appendChild(altRow);

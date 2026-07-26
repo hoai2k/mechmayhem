@@ -32,6 +32,7 @@ import { CLIPS } from '../mechs/animations.js';
 import { buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } from '../combat/hurtbox.js';
 import { mechClipList } from './mechclips.js';
 import { profileFor } from '../mechs/glbanim.js';
+import { setupDevPanel } from './panelui.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _mid = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -279,6 +280,7 @@ export async function runCollider(startId) {
     color:#dbe6f5;background:#131a24ee;border-radius:8px;padding:10px;
     width:300px;max-height:94vh;overflow:auto;border-color:#2a3646`;
   document.body.appendChild(panel);
+  setupDevPanel(panel, { key: 'collider' });
   const row = (h) => { const d = document.createElement('div'); d.style.cssText = 'display:flex;gap:6px;align-items:center;margin:5px 0'; d.innerHTML = h; panel.appendChild(d); return d; };
   const btnCss = 'background:#1a2433;color:#9fb2c8;border:1px solid #2f3c4e;border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui';
 

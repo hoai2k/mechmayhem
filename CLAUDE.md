@@ -17,6 +17,10 @@ audio). Progress history: `TASKS.md`.
   · `?rigtest` (GLB retarget math check) · `?rigedit=<id>` (edit a mech's
   hand-authored rig, `src/mechs/rigs/<id>.rig.js`) · `?showall=1` (force
   SETTINGS → SHOW ALL ROBOTS on for the session)
+- Every workbench side panel (skin/models/pose/collider/rigedit + the level
+  editor's two) is RESIZABLE: drag its outer edge, double-click the handle to
+  reset, width remembered per tool (`src/dev/panelui.js`, which also styles
+  their scrollbars). Widen it when a bone/op name ellipsizes.
 - Workbenches: `?debug=models[&mech=<id>]` — procedural-vs-GLB ACTION
   comparison (trigger any move on both at once, slow-mo, live anchor editor).
   `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]` — pose a single
