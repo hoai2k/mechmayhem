@@ -1117,30 +1117,40 @@ export const ULTS = {
     });
   },
 
-  // VULCAN: both gatling arms fling out to the sides, then his upper body
+  // VULCAN: both gatling arms fling out high and wide, then his upper body
   // spins up from a standstill and hoses out a hundred rounds that DON'T fly
   // away — they leave his outstretched hands, spiral out and fall into orbit
   // around him, a whirlwind of lead that rides along as he moves, until
   // someone strays close: then the whole storm folds onto them.
   //
-  // The build-up is the move. Rounds inherit the body's angular velocity AT
-  // THE MOMENT THEY LEAVE, so the first ones drift lazily while the last ones
-  // are flung off at full whirl — the ring visibly winds itself up.
+  // The build-up is the move, in four beats: reach → hard spin-up → a long run
+  // at full whirl (the rounds pour out through it) → the guns fall silent and
+  // the whirl coasts to a stop while the storm keeps circling on its own.
+  // Rounds inherit the body's angular velocity AT THE MOMENT THEY LEAVE, so
+  // the first ones drift lazily while the last are flung off at full speed.
   bulletHurricane(f, u) {
     const w = f.world;
     const N = u.count || 100;
-    const REACH = 0.36;         // arms out to the sides before anything turns
-    const RAMP = 0.95;          // torso winds up to full whirl over this
-    const SPIN = -6.2;          // rad/s at full speed. NEGATIVE: a +y torso
-    // spin sweeps +X toward -Z, while the rounds orbit +X toward +Z (their
-    // angle drives cos/sin) — so the body has to turn the other way to run
-    // WITH the storm it just threw.
-    const FIRE0 = REACH + 0.1;  // first round leaves as the spin picks up
-    const FIRE1 = REACH + RAMP + 0.5;
-    const SPUN = FIRE1 + 0.65;  // whirl braked back to a standstill by here
+    const SPIN = 6.2;           // rad/s at full whirl
+    const REACH = 0.36;         // arms flung out before anything turns
+    const RAMP = 0.5;           // hard acceleration up to full whirl
+    const BRAKE = 0.55;         // eased back down to a standstill
+    // He completes WHOLE TURNS, so the whirl coasts to a stop facing front
+    // instead of unwinding backwards into place: the ramp covers SPIN*RAMP/2
+    // and the smoothstep brake covers SPIN*BRAKE*2/3 (that's a deceleration
+    // from full speed with no jump at the hand-off), and the full-speed hold
+    // is however long it takes to make up the difference.
+    const TURNS = 2;
+    const HOLD = (TURNS * TAU - SPIN * RAMP / 2 - SPIN * BRAKE * 2 / 3) / SPIN;
+    const FIRE0 = REACH + RAMP * 0.5;          // guns open at half whirl speed
+    const FIRE1 = REACH + RAMP + HOLD * 0.75;  // ...and fall silent before he slows
+    const SPUN = REACH + RAMP + HOLD + BRAKE;
     cast(f, 'hurricaneSpin', { state: 'ult', stateT: SPUN });
-    f._spinFx = { joint: 'torso', axis: 'y', rate: SPIN, delay: REACH, ramp: RAMP,
-      brake: 0.4, dur: SPUN, t: 0, acc: 0 };
+    // NEGATIVE rate: a +y torso spin sweeps +X toward -Z, while the rounds
+    // orbit +X toward +Z (their angle drives cos/sin) — so the body has to
+    // turn the other way to run WITH the storm it just threw.
+    f._spinFx = { joint: 'torso', axis: 'y', rate: -SPIN, delay: REACH, ramp: RAMP,
+      brake: BRAKE, dur: SPUN, t: 0, acc: 0 };
     // hurricaneSpin HOLDS its last key (arms out for the whole whirl), so it
     // has to be released by hand once he stops turning — the storm lives on
     // without him from here.
@@ -1159,7 +1169,7 @@ export const ULTS = {
     const bullets = [];
     for (let i = 0; i < N; i++) {
       bullets.push({
-        born: FIRE0 + (FIRE1 - FIRE0) * (i / N), // streamed out over the wind-up
+        born: FIRE0 + (FIRE1 - FIRE0) * (i / N), // streamed out over the whirl
         side: i % 2 ? 'muzzleL' : 'muzzleR',     // alternating hands
         live: false,                  // set on birth, from the hand's own position
         a: 0, r: 0, y: 0, spd: 0,

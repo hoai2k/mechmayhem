@@ -2444,16 +2444,21 @@ export class Fighter {
       const spun = sp.t - (sp.delay || 0);
       sp.vel = spun <= 0 ? 0 : sp.rate * (sp.ramp ? Math.min(1, spun / sp.ramp) : 1);
       // ...and it can spin DOWN: over the last `brake` seconds the whirl eases
-      // to a stop on the nearest WHOLE TURN, so the joint is back exactly where
-      // it started when the fx is dropped instead of snapping out of a
-      // half-revolution. The landing angle is fixed the moment braking begins
-      // (where a natural coast-down would have ended, rounded), then eased onto
-      // with a smoothstep — deterministic, so it can't drift.
+      // to a stop on a WHOLE TURN, so the joint is back exactly where it started
+      // when the fx is dropped instead of snapping out of a half-revolution. The
+      // landing angle is fixed the moment braking begins (where a natural
+      // coast-down would have ended, rounded to a turn), then eased onto with a
+      // smoothstep — deterministic, so it can't drift. It always rounds the way
+      // the joint is ALREADY turning: a whirl coasts to a halt, it never unwinds
+      // backwards into place.
       const left = sp.dur - sp.t;
       if (sp.brake && left < sp.brake) {
         if (sp.b0 === undefined) {
           sp.b0 = sp.acc || 0;
-          sp.b1 = Math.round((sp.b0 + sp.vel * sp.brake * 0.5) / TAU) * TAU;
+          const coast = sp.b0 + sp.vel * sp.brake * 0.5;
+          sp.b1 = Math.round(coast / TAU) * TAU;
+          if (sp.vel > 0 && sp.b1 < sp.b0) sp.b1 += TAU;
+          if (sp.vel < 0 && sp.b1 > sp.b0) sp.b1 -= TAU;
         }
         const k = clamp01(1 - left / sp.brake);
         sp.acc = lerp(sp.b0, sp.b1, k * k * (3 - 2 * k));
