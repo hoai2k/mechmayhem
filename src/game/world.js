@@ -857,8 +857,10 @@ const WEAPONS = {
 
   lightning(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // TEMPEST: the arc
     // bolts trade hands shot to shot — doRanged toggled the side + mirrored
-    // clip; the off emitter aims along ITS OWN barrel axis (dirFrom)
-    const a = f._altSide && anchors.muzzleL ? anchors.muzzleL : anchors.muzzleR;
+    // clip; the off emitter aims along ITS OWN barrel axis (dirFrom).
+    // Reads the per-SHOT stamp, not _altSide: the bolt leaves on the clip's
+    // `fire` event, by which time another press may have toggled the live flag.
+    const a = f._shotSide && anchors.muzzleL ? anchors.muzzleL : anchors.muzzleR;
     if (a !== anchors.muzzleR) {
       from = a.getWorldPosition(new THREE.Vector3());
       dir = dirFrom(a);

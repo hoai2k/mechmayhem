@@ -3226,3 +3226,26 @@ artifact — the workbench was showing shipping behaviour correctly.
   actually travels down the target line, so its steering reads better too.
 - Verified: strike frame VIEWed front + side on rhino and on nullbot; ace soaks
   crash-free rhino/titanus, nullbot/glacier, fenrir/viper; `vite build` green.
+## Tempest heavy: the T was being flattened by the strike servo (user request, 2026-07-25)
+
+- The T looked right in the showcase and WRONG in battle, and the clip wasn't
+  the reason. Every heavy calls `trackStrikeVictim`, whose `clampPalmsTo`
+  servo converges the palms onto the victim — up to 1.3 rad of shoulder roll,
+  applied AFTER the animator's pose. Traced by instrumenting the shoulder
+  Euler: the animator applied roll −83°, and `aimStrikeAt → clampPalmsTo`
+  dragged it back to −24° in the same frame. That servo is built for a
+  two-fisted pound; on a whirl whose whole shape is arms-out it eats the pose.
+- New roster flag `heavyNoStrikeAim` (tempest only) skips the strike tracking
+  in `doHeavy`. Measured in a live battle, same frames: peak shoulder roll
+  −32° → −88°, hand spread 4.7 → 7.1 units.
+- Each T is now keyed TWICE (0.26+0.30, 0.46+0.50, 0.68+0.72). Without the
+  dwell the target starts falling the instant it arrives and the animator's
+  26/s pose-chase only reaches ~−83 of the −92; with it the pose saturates —
+  full extension at t≈0.30, well inside the first revolution (which ends at
+  0.26 + 2π/28.8 ≈ 0.48). The drop between passes still swings the hands from
+  y 1.7 down to y 0.3.
+- Verified: in-battle frames frozen at t=0.30 / 0.42 / 0.50 with the hip whirl
+  subtracted so the arm pose is judgeable, and VIEWed — dead-flat T at 0.30,
+  arms lowered at 0.42; per-frame roll/spread trace above; ace soaks
+  crash-free tempest/viper, tempest/titanus (`?debug=fallback`) and
+  titanus/aegis (a heavy that still uses the strike servo); `vite build` green.
