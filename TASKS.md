@@ -3524,3 +3524,74 @@ green mass with the shoulders now their own colour; default wiggle run on
 shoulderR, elbowL and torso with textures ON — arms swing with their bones,
 shells stay coherent, nothing trails or tears; the alt also opens clean in the
 pose and animation workbenches. No page errors, `vite build` green.
+
+## Colossus: giant-mode footwork, and the custom rig promoted to primary (user request, 2026-07-26)
+
+### The giant walks like a giant now
+
+COLOSSAL FORM scales colossus' group to 4×, but nothing told the animation
+layer. Everything in animator.js is authored in the model's own LOCAL units, so
+a 4× body kept its small-body timing over four times the distance: four strides
+per stride's worth of ground, feet skating and jump-cutting between plants.
+`Animator.sizeMul` (set from the ult's own `apply()`, so it eases in with the
+growth and clears on the way out) fixes three separate expressions of that, and
+they deliberately use two different laws:
+
+  · WALK CADENCE — full 1/sizeMul. This is a CONTACT constraint: the stance
+    foot has to sweep backwards at exactly ground speed or it skates, and the
+    cadence formula already derives that from leg reach. Leg reach is now the
+    real (grown) one, and the 14 rad/s ceiling scales with it.
+  · LEG SMOOTHING + a hard angular cap (LEG_W_REF 6 rad/s) — 1/√sizeMul.
+    Dynamic similarity: a big limb swings slower (√L, the same reason a giant's
+    stride reads heavy). Attack clips keep their own timing — slowing the clip
+    would slow the attack — so only the LEG channels are held back, which is
+    what stops a stomp from throwing a foot across half a block. The lag alone
+    wasn't enough (a smooth fast sweep sails through a first-order filter), so
+    the hard cap is what actually holds; 6 rad/s sits above the 95th percentile
+    of a normal-size colossus' leg motion, so it only ever catches the snaps.
+  · PELVIS FOOT-FOLLOW — an outright bug the giant exposed. `soleClearance()`
+    measures in WORLD units, `_footBias` is spent in LOCAL ones, and the
+    comment promises a 1:1 correction. At 4× that loop was correcting four
+    times what it measured: gain 4 doesn't converge, it rings, and that was the
+    vertical buzz in the giant's feet. Divided back into local units, damped at
+    the same √ law.
+
+Also: the ult's "thundering footfalls" were a fixed 0.38s metronome — roughly a
+normal mech's cadence, so it drummed out steps he no longer takes. They ride
+the actual gait phase now, one per half cycle.
+
+Measured with the new `tools/footprobe.mjs` (colossus, walking, world units/s):
+
+    scale 1              cadence 0.888  foot med 8.78   p95 13.67  slip med 3.52
+    scale 4 (sizeMul on) cadence 0.222  foot med 9.67   p95 13.79  slip med 3.09
+    scale 4 (sizeMul 1)  cadence 0.888  foot med 23.35  p95 31.88  slip med 12.97
+
+Cadence falls exactly 4× while body speed is unchanged, the foot ends up at a
+normal-size foot's speed over a 4× longer stride, and the STANCE foot — the
+honest skating measure, min(|v| of the two ankles) — is planted as firmly as at
+normal size (3.09 vs 3.52) where before it was dragging at 12.97. On attack
+clips the leg cap pulls the worst foot frame from ~4× a normal mech's peak down
+to ~1.5×, and typical fast frames to ~3×: still fast for a giant, no longer a
+jump cut.
+
+### Rig swap
+
+`colossus.alt` (the hand-authored `src/mechs/rigs/colossus.rig.js` build, staged
+since session 7) is now the PRIMARY the game loads; the retired Tripo auto-rig
+entry — 15 boneOverrides, 64 tripo-named skinOps — moved into `alt`. Both are
+complete standalone entries, so they were swapped whole and each keeps its own
+url/modelScale/bindPose/yawOffset, muzzles and skinOps. No glbanim work: the
+colossus profile is `{}` on both skeletons (unlike vulcan, whose auto-rig
+corrections had to survive as `vulcan_tripo`). Promoted carrying the owner's
+third skin pass, 39 ops (+9: ankleR 2619v, ankleL 2280v, kneeL 492v, kneeR 416v,
+five small ankle patches).
+
+Verified: `cliptear` 98/98 clips clean, 0 far-seam edges, worst stretch +0.00
+(the Tripo primary's worst was +0.34) · `hurtboxfit` 15/15 parts, containment
+74% → 80% (upperArmL had no capsule at all before) though bloat 1.12 → 1.26, so
+he is a slightly bigger target than he was — flagged, not tuned · `anchorkeep
+colossus` PASS, every muzzle identical at rest (Δpos 0, Δaim 0°) · showcase walk
+screenshot VIEWED · crash-free ace soaks on neon (vs viper) and steel (vs
+titanus) · `?rigedit=colossus` now opens the primary directly instead of being
+forced onto the alt, the retired build still loads under `&alt=1` with its 64
+ops · `vite build` green.
