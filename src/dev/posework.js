@@ -1,6 +1,9 @@
 // ?debug=pose — the POSE workbench. One mech, frozen, posed by hand.
 //
-//   ?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]
+//   ?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>][&alt=1]
+//
+// `alt=1` (the panel's "Edit Alternate GLB" box, same control as ?debug=skin /
+// ?rigedit) poses the manifest's alternate build instead of the primary.
 //
 // Pick a mech, optionally load one of ITS OWN poses as a starting point (the
 // dropdown lists only the clips that mech can actually play — vulcan's ult
@@ -39,6 +42,8 @@ import { CLIPS } from '../mechs/animations.js';
 import { profileFor } from '../mechs/glbanim.js';
 import { mechClipList } from './mechclips.js';
 import { setupDevPanel } from './panelui.js';
+import { mechSelect } from './mechpick.js';
+import { altChoice, altCheckbox } from './altpick.js';
 
 const R2D = 180 / Math.PI;
 // Joints whose clip value is read RELATIVE to the mech's rest stance (the
@@ -69,6 +74,11 @@ export async function runPoseWork(startId) {
   const manifest = await fetchRawManifest();
   let curId = ROSTER_BY_ID[startId] ? startId : ROSTER[0].id;
   let useGlb = params.get('model') !== 'proc';
+  // ?alt=1 — pose the manifest's ALTERNATE build (a second model, or the same
+  // model on a staged custom rig). Same control as ?debug=skin / ?rigedit; here
+  // it rebuilds in place instead of reloading, since this tool already swaps
+  // mechs live.
+  let altOn = params.get('alt') === '1';
   let constrain = true;
   let showBones = true;
 
@@ -102,9 +112,12 @@ export async function runPoseWork(startId) {
   // ================= build =================
   async function load(id) {
     curId = id;
+    const alt = altChoice(manifest, id, altOn);
+    altOn = alt.useAlt;          // a mech with no alternate falls back silently
     const u = new URL(location.href);
     u.searchParams.set('mech', id);
     u.searchParams.set('model', useGlb ? 'glb' : 'proc');
+    if (altOn) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
     history.replaceState(null, '', u);
     gizmo.detach(); selJoint = null; hoverJoint = null;
     if (mech) {
@@ -116,8 +129,8 @@ export async function runPoseWork(startId) {
       });
     }
     const def = ROSTER_BY_ID[id];
-    const hasGlb = !!manifest[id]?.url;
-    mech = (useGlb && hasGlb) ? (await buildGlbForTool(def)).mech : buildMech(def);
+    const hasGlb = !!alt.entry?.url;
+    mech = (useGlb && hasGlb) ? (await buildGlbForTool(def, null, { alt: altOn })).mech : buildMech(def);
     mech.group.position.set(0, 0, 0);
     scene.add(mech.group);
     animator = mech.premadeAnimator || new Animator(mech);
@@ -140,6 +153,8 @@ export async function runPoseWork(startId) {
     }
     modelRow.style.display = hasGlb ? 'flex' : 'none';
     glbNote.textContent = (useGlb && !hasGlb) ? 'no GLB for this mech — procedural shown' : '';
+    refreshAltRow();
+    panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${mech.isGLB ? 'GLB' : 'procedural'}`);
     buildJointButtons();
     buildBoneMarks();
     buildClipOptions();
@@ -182,7 +197,10 @@ export async function runPoseWork(startId) {
   // so vulcan's list carries his ult's hurricaneSpin and nobody else's.
   function clipsForMech() {
     const def = ROSTER_BY_ID[curId];
-    return mechClipList(def, mech?.isGLB ? profileFor(curId) : null).filter((c) => CLIPS[c.name]);
+    // the built mech's OWN profile first — an alternate build may carry its own
+    // (`profileKey`), and that's the clip set it actually plays
+    const profile = mech?.isGLB ? (mech.animProfile || profileFor(curId)) : null;
+    return mechClipList(def, profile).filter((c) => CLIPS[c.name]);
   }
   function buildClipOptions() {
     const list = clipsForMech();
@@ -513,7 +531,7 @@ export async function runPoseWork(startId) {
     background:#121821ee;border:1px solid #2c3648;border-radius:8px;padding:10px;
     font:12px/1.4 system-ui,sans-serif;color:#dfe8f5;z-index:20`;
   document.body.appendChild(panel);
-  setupDevPanel(panel, { key: 'posework' });
+  const panelUI = setupDevPanel(panel, { key: 'posework', workbench: 'pose' });
   const el = (tag, css) => { const e = document.createElement(tag); e.style.cssText = css; return e; };
   const label = (t) => { const d = el('div', 'color:#7d8ea3;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 2px'); d.textContent = t; return d; };
   const btn = (text, fn, primary) => { const b = el('button', `flex:1;padding:6px;border-radius:5px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:${primary ? '#1f7a4d' : '#1a2433'};color:${primary ? '#fff' : '#cfe0f5'}`); b.textContent = text; b.onclick = fn; return b; };
@@ -528,14 +546,20 @@ export async function runPoseWork(startId) {
   const rnd = (v, d = 2) => { const m = 10 ** d; return Math.round(v * m) / m; };
 
   panel.appendChild(label('Mech'));
-  const mechSel = el('select', 'width:100%;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px;border-radius:4px');
-  for (const r of ROSTER) {
-    const o = document.createElement('option');
-    o.value = r.id; o.textContent = r.name + (manifest[r.id]?.url ? '' : '  (procedural only)');
-    mechSel.appendChild(o);
-  }
-  mechSel.onchange = () => load(mechSel.value);
+  const mechSel = mechSelect({
+    value: curId,
+    note: (id) => (manifest[id]?.url ? '' : '  (procedural only)'),
+    onPick: (id) => load(id),
+  });
   panel.appendChild(mechSel);
+  // rebuilt per mech — the control only exists for mechs that have an alternate
+  const altSlot = el('div', 'margin-top:6px');
+  panel.appendChild(altSlot);
+  function refreshAltRow() {
+    altSlot.textContent = '';
+    const row = altCheckbox(altChoice(manifest, curId, altOn), (next) => { altOn = next; load(curId); });
+    if (row) altSlot.appendChild(row);
+  }
 
   const modelRow = el('div', 'display:flex;gap:6px;margin-top:6px');
   const bGlb = btn('GLB', () => { useGlb = true; load(curId); });
