@@ -110,7 +110,17 @@ export async function runPoseWork(startId) {
   const _wa = new THREE.Vector3(), _wb = new THREE.Vector3();
 
   // ================= build =================
-  async function load(id) {
+  // `keepCam`: a BUILD switch (GLB↔procedural, primary↔alt) must not move the
+  // camera. Those three toggles exist to A/B one mech against itself, and
+  // re-framing between them reads as the model changing size — it doesn't: the
+  // framing height (measureHeadTop) is measured off whatever geometry the HEAD
+  // BONE owns, which is a property of the RIG, not of the model. Colossus'
+  // custom rig gives `head` the collar block (top 8.06) where the Tripo rig's
+  // head bone owns the upper chest (7.71), so the camera used to jump 4.5%
+  // closer on the alt while the mesh stayed the exact same 9.594 units tall.
+  // Framing follows the MECH, so switching mech still re-frames.
+  async function load(id, { keepCam = false } = {}) {
+    const sameMech = keepCam && id === curId;
     curId = id;
     const alt = altChoice(manifest, id, altOn);
     altOn = alt.useAlt;          // a mech with no alternate falls back silently
@@ -158,7 +168,7 @@ export async function runPoseWork(startId) {
     buildJointButtons();
     buildBoneMarks();
     buildClipOptions();
-    frameCamera();
+    if (!sameMech) frameCamera();
     out.style.display = 'none';
     note.textContent = '';
     window.__poseWork = {
@@ -557,13 +567,13 @@ export async function runPoseWork(startId) {
   panel.appendChild(altSlot);
   function refreshAltRow() {
     altSlot.textContent = '';
-    const row = altCheckbox(altChoice(manifest, curId, altOn), (next) => { altOn = next; load(curId); });
+    const row = altCheckbox(altChoice(manifest, curId, altOn), (next) => { altOn = next; load(curId, { keepCam: true }); });
     if (row) altSlot.appendChild(row);
   }
 
   const modelRow = el('div', 'display:flex;gap:6px;margin-top:6px');
-  const bGlb = btn('GLB', () => { useGlb = true; load(curId); });
-  const bProc = btn('Procedural', () => { useGlb = false; load(curId); });
+  const bGlb = btn('GLB', () => { useGlb = true; load(curId, { keepCam: true }); });
+  const bProc = btn('Procedural', () => { useGlb = false; load(curId, { keepCam: true }); });
   modelRow.append(bGlb, bProc);
   panel.appendChild(modelRow);
   const glbNote = el('div', 'color:#ffd9a0;font-size:10px;margin-top:3px');
