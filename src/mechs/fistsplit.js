@@ -37,9 +37,15 @@
 // and cannot leave a gap however jagged the cut is.
 import * as THREE from 'three';
 
+// `interior` is the set of bones whose shell the dark backface layer covers while
+// that fist is away. It has to be the WHOLE ARM, not just the wrist: with the
+// fist gone you are looking down an open tube, and the walls you see are the
+// forearm and upper-arm shells (the elbow and shoulder bones), not the couple of
+// centimetres of wrist right at the cut. Covering only the wrist left the arm
+// see-through from the knuckles up.
 const DEFAULT_PAIRS = [
-  { side: 'R', hand: 'handR', tip: 'fistR' },
-  { side: 'L', hand: 'handL', tip: 'fistL' },
+  { side: 'R', hand: 'handR', tip: 'fistR', interior: ['handR', 'fistR', 'elbowR', 'shoulderR'] },
+  { side: 'L', hand: 'handL', tip: 'fistL', interior: ['handL', 'fistL', 'elbowL', 'shoulderL'] },
 ];
 
 // The exposed interior. Dark, but NOT near-black: at 0x15161b it read as a hole
@@ -169,20 +175,24 @@ export function buildFistSplit(mesh, pairs = DEFAULT_PAIRS) {
       if (!added) break;
     }
 
-    // ---- claim WHOLE triangles; collect the wrist-side shell for the interior
+    // ---- claim WHOLE triangles; collect the ARM shell for the interior layer
+    // (see `interior` on the pair spec — the whole limb, not just the wrist)
+    const armBones = new Set((spec.interior || [spec.hand, spec.tip])
+      .map(boneIndexOf).filter((x) => x >= 0));
+    const onArm = new Uint8Array(pos.count);
+    for (let i = 0; i < pos.count; i++) if (armBones.has(si.getX(i))) onArm[i] = 1;
     let tris = 0;
-    const wristTris = [];
+    const armTris = [];
     for (let t = 0; t < triCount; t++) {
       const i0 = idx.getX(t * 3), i1 = idx.getX(t * 3 + 1), i2 = idx.getX(t * 3 + 2);
       const isFist = inFist[i0] && inFist[i1] && inFist[i2];
       if (isFist && triOwner[t] === -1) { triOwner[t] = pi; tris++; continue; }
-      // the wrist shell near the cut is what the interior layer has to cover
-      if (!isFist && region[i0] && region[i1] && region[i2]) wristTris.push(t);
+      if (!isFist && onArm[i0] && onArm[i1] && onArm[i2]) armTris.push(t);
     }
     if (!tris) continue;
     found.push({
       ...spec, pairIndex: pi, axis, cutT: cut.t, tris, cut,
-      handBone: bones[hi], handIndex: hi, wristTris,
+      handBone: bones[hi], handIndex: hi, armTris,
     });
   }
   if (!found.length) return null;
@@ -218,13 +228,13 @@ export function buildFistSplit(mesh, pairs = DEFAULT_PAIRS) {
   }
   mesh.material = mats;
 
-  // ---- the wrist interior: a dark BackSide layer over the shell around the
-  // cut, sharing the mech's vertex buffers and skeleton, so it deforms with the
-  // arm. Shown only while the fist is away.
+  // ---- the arm interior: a dark BackSide layer over the whole limb's shell,
+  // sharing the mech's vertex buffers and skeleton so it deforms with the arm.
+  // Shown only while that fist is away.
   const interiorMat = makeInteriorMaterial();
   for (const f of found) {
-    if (!f.wristTris.length) continue;
-    const g = subGeometry(geo, f.wristTris, idx);
+    if (!f.armTris.length) continue;
+    const g = subGeometry(geo, f.armTris, idx);
     const inner = new THREE.SkinnedMesh(g, interiorMat);
     inner.name = `fistSocket${f.side}`;
     inner.frustumCulled = false;
@@ -244,7 +254,7 @@ export function buildFistSplit(mesh, pairs = DEFAULT_PAIRS) {
     mesh,
     sides: found.map((f) => f.side),
     info: () => found.map((f) => ({
-      side: f.side, tris: f.tris, wristTris: f.wristTris.length,
+      side: f.side, tris: f.tris, armTris: f.armTris.length,
       cutT: +f.cutT.toFixed(4), axis: f.axis.toArray().map((x) => +x.toFixed(3)),
       separation: +(f.cut.score / f.cut.total).toFixed(4),
       socket: !!f.socket, detached: !!f.detached,

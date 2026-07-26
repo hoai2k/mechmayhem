@@ -2966,3 +2966,66 @@ controllers via Gamepad API), AI opponents.
   knuckles leading); titanus attackmatrix ALL CONNECT; ace soaks crash-free
   (titanus/viper, and two titanus + glacier so both fighters' splits and both
   hands are exercised at once); `vite build` green.
+
+## Titanus: punch aim, heavy double-motion, fist return hand, arm interior (user request, 2026-07-25)
+
+Four reports off the ?debug=models workbench, all real, none of them a workbench
+artifact — the workbench was showing shipping behaviour correctly.
+
+- **Light punch went through his own body.** Not the clip and not a missing
+  target: the no-target phantom was already correct (measured `preyAz` = 0,
+  dead ahead, and the two preview mechs are already flagged allies so neither
+  aims at the other). The culprit was `clampPalmsTo`, which SQUEEZES BOTH PALMS
+  together onto the victim — right for a two-fisted pound or a body-slam carry,
+  badly wrong for a one-armed haymaker, because rolling both shoulders inward
+  (up to 1.3 rad) hauls the punching arm across his chest. Measured: the fist
+  ended up at yaw 141° with the hand 2.2 units BEHIND the shoulder.
+  · Clips now declare `strikeArm` ('L'/'R') when a blow is one-armed —
+    light1/2/3, bigPunch1/2, punchHold1/2, punchRelease1/2, fistLaunch/L,
+    fistCatch/L — carried through `compile()` and FLIPPED by `mirrorRaw`. For
+    those, `aimStrikeAt` steers off the striking fist rather than the midpoint
+    of both palms (with the idle arm at the hip that midpoint sits inside his
+    own chest, and its azimuth said nothing about where the punch was going),
+    and the two-fisted squeeze is skipped entirely. There was precedent for
+    exactly this shape: `_oneArmLift` already skips the squeeze for the
+    one-hand giant lift.
+  · After: the fist peaks at yaw 40° with the hand 2.5 units in FRONT.
+- **Heavy did a double motion.** Two causes, both fixed.
+  · The strike-aim window ran for `dur * 0.95` — 0.665s of a 0.7s clip whose hit
+    lands at 0.18s. So the twist servo (pinned at its -40° cap) and the palm
+    clamp kept working through the whole follow-through, dragging the arms back
+    around behind him after the slam: a second, unmotivated wind-up. It now ends
+    a short tail past the clip's own `hit` event — there is nothing to steer once
+    the blow has landed.
+  · `_palmFix = 0` on window close SNAPPED the arms back onto the clip pose in a
+    single frame. Both the clamp and the twist now unwind (x0.72/frame), with a
+    new `applyPalmRoll()` that applies the banked roll WITHOUT servoing it —
+    `clampPalmsTo` both applies and grows the fix, so it cannot let one go.
+  · The hold clip is also played with a 0.02 fade instead of 0.07: a tap only
+    holds for CHARGE_MIN_WINDUP (0.15s), and between the fade and the animator's
+    own pose smoothing (26/s) the raise was still short when the release fired,
+    so the release clip — whose t=0 IS the raised pose — finished lifting the
+    arms before slamming.
+- **The fist always came home to muzzleR.** `projectiles.js` boomerang homing
+  hardcoded `joints.handR`; it now homes on `hand${p.fistSide}`. Verified by
+  tracking the returning fist: thrown left it closes on the left wrist (0.92 vs
+  7.68 units), thrown right on the right (0.84 vs 6.61), with the matching catch
+  clip each time.
+- **Interior showed through the elbow/shoulder** while the fist was away. The
+  dark BackSide layer only covered the wrist region (2061 triangles), but with
+  the fist gone you are looking down an open tube and the walls are the forearm
+  and upper-arm shells. The pair spec gained an `interior` bone list, so the
+  layer now covers the whole limb — hand + fist + elbow + shoulder, 16842
+  triangles. (Preferred over the suggested fill-plane: the cut is jagged at
+  triangle scale across ~20 separate armour plates, so a plane either gaps at
+  the rim or pokes through it, while a backface layer cannot do either.)
+- Verified: light and heavy contact sheets VIEWed frame by frame in the
+  workbench (punch extends forward with the impact glow; heavy reads raise ->
+  slam -> settle, no second wind-up); per-frame servo traces before/after;
+  return-hand probe PASS on both sides; socket VIEWed from three angles, opaque;
+  melee still lands (titanus/viper and colossus/aegis ace soaks both resolve to
+  a KO, and hit resolution is range-based — `reach = atk.range` — so the palm
+  clamp was always cosmetic); attackmatrix connects for every alternating-side
+  and hold-charge mech (titanus/viper/glacier/colossus/frogger/tempest), the one
+  `viper ranged: 0` being the full-suite flake (27/27/54 in isolation);
+  `vite build` green.
