@@ -57,6 +57,15 @@ audio). Progress history: `TASKS.md`.
   dropdown: `mechSelect()` for tools that rebuild in place, `gotoMech()` for
   `?rigedit`, which builds its world around one id and so switches by
   navigating.
+- SAVING FROM A WORKBENCH (dev server only): `?debug=skin` has **Save to
+  manifest** and `?rigedit` has **Save rig to file** — they write
+  `public/models/manifest.json` / `src/mechs/rigs/<id>.rig.js` on this machine
+  through `POST /__rw/manifest` / `/__rw/rig` (vite.config.js). Both SPLICE:
+  `tools/manifestfmt.mjs` replaces one value in the JSON text, `tools/rigfmt.mjs`
+  replaces only the `bones` array and keeps the header, `skinSpan`/`cutWelds`
+  and the in-array comments. Saving is local — **Export uncommitted saves**
+  (both tools, enabled only when the tree is dirty) downloads every uncommitted
+  change as ONE `git apply`-able patch to hand over for committing.
 - Skin workbench selections: click = the bone-island under the cursor ·
   SHIFT-click = the BLEND PATCH (the run of geometry sharing that vertex's own
   bone plus a minority weight on another — the bit of torso that wiggles with

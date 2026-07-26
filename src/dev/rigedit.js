@@ -16,6 +16,7 @@ import { loadRawGlbScene, fetchRawManifest } from '../mechs/gltf.js';
 import { rigFor, rigIds } from '../mechs/rigs/index.js';
 import { applyCustomRig, setWeights, rebindRest, buildRigPosts } from '../mechs/reskin.js';
 import { setupDevPanel } from './panelui.js';
+import { saveRigBones, wireExportChanges } from './savefile.js';
 import { JOINT_ORDER } from '../mechs/rigadapter.js';
 import { altChoice, altCheckbox, reloadWithAlt } from './altpick.js';
 import { mechSelect, gotoMech } from './mechpick.js';
@@ -542,6 +543,39 @@ export async function runRigEdit(startId) {
   }
 
   // ---- export ----
+  // the bone list as data — what Export prints and Save posts, from one place
+  function rigBonesPayload() {
+    syncRigFromBones();
+    return rigObj.bones.map((b) => {
+      const o = { name: b.name, parent: b.parent ?? null, pos: b.pos.map((v) => +Number(v).toFixed(3)) };
+      if (b.post !== undefined) o.post = b.post;
+      if (b.bias !== undefined) o.bias = b.bias;
+      return o;
+    });
+  }
+
+  // SAVE — write the bones into src/mechs/rigs/<id>.rig.js via the dev server.
+  // Only the bone array is replaced: the file's header comment and its
+  // skinSpan/softSkin/cutWelds/cutPairs survive (tools/rigfmt.mjs), which is
+  // the whole reason this is a splice and not a file write.
+  async function saveRig() {
+    const bones = rigBonesPayload();
+    saveBtn.disabled = true;
+    setNote(`Saving ${bones.length} bones to ${id}.rig.js…`);
+    const res = await saveRigBones(id, bones);
+    saveBtn.disabled = false;
+    if (res.ok) {
+      setNote(`SAVED — ${res.bones} bones written to ${res.file}`
+        + (res.kept ? ' (skinSpan / softSkin / cut* preserved)' : '')
+        + '. Reload to see it rebuilt from file. Commit to publish.');
+      changes?.refresh();
+    } else if (res.offline) {
+      setNote(`No dev server to save through (${res.error}). Run \`npm run dev\`, or use Export rig.`);
+    } else {
+      setNote(`Save FAILED: ${res.error}\nNothing was written — Export rig is the fallback.`);
+    }
+  }
+
   function exportRig() {
     syncRigFromBones();
     const lines = rigObj.bones.map((b) => {
@@ -641,6 +675,10 @@ export async function runRigEdit(startId) {
   swChk.onchange = () => { swinging = swChk.checked; if (!swinging) resetPose(); };
   swRow.append(swChk, document.createTextNode(' Swing claws/legs (loop)')); panel.appendChild(swRow);
 
+  const saveBtn = btn('Save rig to file ▶', saveRig, true);
+  panel.appendChild(saveBtn);
+  const exportChangesBtn = btn('Export uncommitted saves', () => {});
+  panel.appendChild(exportChangesBtn);
   panel.appendChild(btn('Export rig ▶', exportRig, true));
   panel.appendChild(btn('Reset to file rig', () => {
     pushUndo();
@@ -651,6 +689,11 @@ export async function runRigEdit(startId) {
   }));
   const out = el('textarea', `width:100%;height:150px;margin-top:8px;background:#0b0f16;color:#8fe;border:1px solid #2c3648;font:10.5px/1.35 ui-monospace,monospace;display:none`);
   panel.appendChild(out);
+  const note = el('div', 'margin-top:6px;color:#9fb2c8;font-size:11px;white-space:pre-line;min-height:1.2em');
+  panel.appendChild(note);
+  const setNote = (t) => { note.textContent = t; };
+  const changes = wireExportChanges(exportChangesBtn, { setStatus: setNote });
+
   const help = el('div', 'margin-top:8px;color:#69788c;font-size:10.5px;line-height:1.5');
   help.innerHTML = 'Orbit: drag empty space · Zoom: wheel<br>Red/orange = claws (arms) · blue/cyan = legs · gray = struts.<br>'
     + 'Drag a bone into the geometry it should drive, then Color view to check ownership.<br>'
