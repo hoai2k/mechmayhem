@@ -42,7 +42,11 @@ audio). Progress history: `TASKS.md`.
   added. "Revert clip edits" restores the shipped clip. "Copy pose" then exports
   the WHOLE key list: `keys[]` with a per-joint `changed: {from, to}` on each
   edited key, `editedKeys`, and `js` — the key list already formatted for
-  `animations.js`. "Bind patch" emits the GLB manifest
+  `animations.js`. UNDO/REDO (Ctrl/⌘+Z · Ctrl/⌘+Shift+Z or Ctrl+Y, plus buttons)
+  covers every edit, reset and clip swap; steps are deduped by content, so
+  scrubbing and key-stepping never flood the stack, and a mech/GLB/alt rebuild
+  clears it (different rig, so old transforms mean nothing).
+  "Bind patch" emits the GLB manifest
   `boneCorrections`/`bonePos`. "Apply constraints" (default on) is the
   animation framework's rule — rotation only, hips may also translate — so
   limbs can't be stretched into a pose no clip could reproduce.
