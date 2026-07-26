@@ -88,13 +88,22 @@ const CLIPS_RAW = {
     ],
     events: [{ t: 0.22, type: 'sfx', arg: 'whoosh' }, { t: 0.25, type: 'hit', arg: 1 }],
   },
-  light3: { // rising uppercut — deep coil, launch onto tiptoes, arm at full stretch
+  light3: { // rising uppercut — deep coil, launch onto tiptoes, fist driven up
+    // THROUGH the target line. The strike used to swing the arm to −150° pitch,
+    // which is past vertical: measured on the rig, the fist ended 0.16 units in
+    // front of the hips and 5.1 up — directly over his own shoulder, so the blow
+    // read as raising an arm rather than punching. It now lands where the jab and
+    // cross land (fwd 2.8 vs their ~3.0) but higher (up 2.9 vs 2.1) and ON the
+    // centreline (lat 0.04, was 0.89 across to the far side): a rising blow into
+    // the same spot, with the torso unwinding to drive the shoulder through it
+    // rather than arching away from it. Solved with a grid search over the
+    // strike-frame shoulder/elbow/torso against those measured fist positions.
     strikeArm: 'R', // ONE-ARMED blow — see Fighter.aimStrikeAt
     dur: 0.62,
     keys: [
       { t: 0, pose: {} },
       { t: 0.18, ease: 'inOutCubic', pose: { hipsPos: [0, -0.7, 0], hipsRot: [0, 16, 0], torso: [30, 20, -10], head: [8, -8, 0], shoulderR: [22, 0, 14], elbowR: [-130, 0, 0], shoulderL: [-20, 0, -30], elbowL: [-40, 0, 0], kneeL: [55, 0, 0], kneeR: [55, 0, 0], thighL: [-28, 0, 0], thighR: [-28, 0, 0] } },
-      { t: 0.32, ease: 'outBack', pose: { hipsPos: [0, 0.35, 0], hipsRot: [0, -14, 0], torso: [-24, -22, 8], head: [-14, 6, 0], shoulderR: [-150, 10, 6], elbowR: [-10, 0, 0], shoulderL: [10, 0, -36], elbowL: [-60, 0, 0], kneeL: [4, 0, 0], kneeR: [12, 0, 0], thighL: [6, 0, 0], thighR: [-8, 0, 0], ankleL: [22, 0, 0], ankleR: [22, 0, 0] } },
+      { t: 0.32, ease: 'outBack', pose: { hipsPos: [0, 0.35, 0], hipsRot: [0, -14, 0], torso: [-14, -22, 8], head: [-14, 6, 0], shoulderR: [-80, 24, 0], elbowR: [-25, 0, 0], shoulderL: [10, 0, -36], elbowL: [-60, 0, 0], kneeL: [4, 0, 0], kneeR: [12, 0, 0], thighL: [6, 0, 0], thighR: [-8, 0, 0], ankleL: [22, 0, 0], ankleR: [22, 0, 0] } },
       { t: 0.62, ease: 'inOutQuad', pose: REST_FULL },
     ],
     events: [{ t: 0.27, type: 'sfx', arg: 'whooshBig' }, { t: 0.3, type: 'hit', arg: 2 }],
