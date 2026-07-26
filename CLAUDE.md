@@ -17,6 +17,15 @@ audio). Progress history: `TASKS.md`.
   · `?rigtest` (GLB retarget math check) · `?rigedit=<id>` (edit a mech's
   hand-authored rig, `src/mechs/rigs/<id>.rig.js`) · `?showall=1` (force
   SETTINGS → SHOW ALL ROBOTS on for the session)
+- Workbenches: `?debug=models[&mech=<id>]` — procedural-vs-GLB ACTION
+  comparison (trigger any move on both at once, slow-mo, live anchor editor).
+  `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]` — pose a single
+  mech by joint: load one of THAT mech's own clip poses as a starting point,
+  drag joints, "Copy pose" emits a clip-key pose block in degrees (paste
+  straight into `animations.js`), "Bind patch" emits the GLB manifest
+  `boneCorrections`/`bonePos`. "Apply constraints" (default on) is the
+  animation framework's rule — rotation only, hips may also translate — so
+  limbs can't be stretched into a pose no clip could reproduce.
 - Work-in-progress mechs: a roster def flagged `hidden: true` (currently
   AEGIS + NOVA) is kept out of the GAME's roster — mech select, RANDOM
   picks, CPU picks, title line-up — until SETTINGS → SHOW ALL ROBOTS is

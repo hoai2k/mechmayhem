@@ -40,8 +40,9 @@
 //   • A change to a procedural mech's personality           -> animator.signature()
 //   • A change to how ONE GLB interprets the shared motion   -> its profile here
 //   • Static rest-pose alignment of a GLB (arms-down bind)   -> manifest
-//     boneCorrections (via ?debug=models), NOT restPose here — keep the two
-//     concerns separate so the pose tool stays the source of truth for bind.
+//     boneCorrections (via the ?debug=pose workbench's "Bind patch" export),
+//     NOT restPose here — keep the two concerns separate so the pose workbench
+//     stays the source of truth for bind.
 //
 // Procedural mechs have NO profile (mech.animProfile is undefined) and run the
 // engine unchanged. Only GLB mechs (buildGlbMech) attach one.

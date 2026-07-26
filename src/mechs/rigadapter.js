@@ -157,7 +157,7 @@ export class RigAdapter {
         for (let a = bone.parent; a && a !== parentEntry.bone; a = a.parent) chain.push(a);
         for (let i = chain.length - 1; i >= 0; i--) interQ.multiply(chain[i].quaternion);
       }
-      // optional hand-authored correction (from the ?debug=models pose tool):
+      // optional hand-authored correction (from the ?debug=pose workbench):
       // a fixed extra rotation applied in bone-LOCAL space after retargeting,
       // to fix systematic bind mismatches (e.g. a shoulder always splayed too
       // far). Degrees [x,y,z] per joint in opts.corrections.
