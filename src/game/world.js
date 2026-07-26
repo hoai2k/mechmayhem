@@ -763,7 +763,18 @@ const WEAPONS = {
     // off that side's barrel, and it is that side's dagger which disappears.
     const left = !!(f._shotSide && anchors.muzzleL);
     const bFrom = left ? anchors.muzzleL.getWorldPosition(new THREE.Vector3()) : from;
-    const bDir = left ? dirFrom(anchors.muzzleL) : dir;
+    // A blind throw leaves FORWARD RELATIVE TO THE ROBOT — flat along the
+    // facing, ignoring both the barrel axis and the muzzle's height. Neither of
+    // those suits a thrown dagger: the clip whips her hand overhead, so the
+    // barrel swings several degrees frame to frame and the muzzle ends up above
+    // head height, which made a phantom-ranged shot dive ~6 degrees into the
+    // floor. The throw should not care what the animation is doing with the arm.
+    // A real enemy squarely down the barrel (or a crosshair-aimed shot) still
+    // uses the full aim, so airborne targets stay hittable.
+    const aimed = !!aimP || (e && barrelDot > 0.86);
+    const bDir = aimed
+      ? (left ? dirFrom(anchors.muzzleL) : dir)
+      : new THREE.Vector3(Math.sin(f.yaw), 0, Math.cos(f.yaw));
     w.projectiles.spawn('blade', f, bFrom, bDir, {
       dmg: mv.dmg * f.dmgMult(), speed: mv.speed, color: 0x5aff2e, knock: 5,
       status: { slow: 0.85, slowT: 1 },

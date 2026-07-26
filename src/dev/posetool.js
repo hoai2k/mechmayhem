@@ -14,7 +14,12 @@
 //    patch (boneCorrections / bonePos). A head-height guide shows the
 //    canonical size (GLB head matched to procedural head-top).
 //
-//   ?debug=models[&mech=<id>][&mode=action|pose]
+//   ?debug=models[&mech=<id>][&mode=action|pose][&left=proc|alt|solo]
+//
+// LEFT SLOT (&left): what stands beside the mech under study — the procedural
+// body (default), the mech's alternate GLB, or nothing at all ('solo', which
+// centres the survivor). Mechs without an alternate get a Solo checkbox
+// instead of the three-way dropdown.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -85,6 +90,14 @@ export async function runPoseTool(startId) {
 
   // ---- live state ----
   let procF = null, glbF = null;
+  // LEFT-SLOT mode: what stands next to the mech under study.
+  //   'proc' — the procedural body (the default comparison)
+  //   'alt'  — the mech's alternate GLB (only offered when it has one)
+  //   'solo' — nothing: the main GLB alone, centred on the stage
+  let soloMode = false;
+  // where each fighter's home spot is. Solo re-centres the survivor so a lone
+  // mech isn't parked off to one side of the camera.
+  const homeX = (f) => (f && f === procF ? -PAIR_X : (soloMode ? 0 : PAIR_X));
   let selJoint = null;
   const base = {};                         // gizmo baseline (pose mode)
   const refGroup = new THREE.Group(); scene.add(refGroup);
@@ -112,8 +125,9 @@ export async function runPoseTool(startId) {
   // the moment the next action starts — so the animation can be studied
   // without chasing the mechs around the stage.
   function resetPositions() {
-    for (const [f, x] of [[procF, -PAIR_X], [glbF, PAIR_X]]) {
+    for (const f of [procF, glbF]) {
       if (!f) continue;
+      const x = homeX(f);
       f.pos.set(x, 0, 0);
       f.vel.set(0, 0, 0);
       f.yaw = f.targetYaw = f.torsoYaw = 0;
@@ -227,20 +241,25 @@ export async function runPoseTool(startId) {
     if (Array.isArray(world.projectiles)) world.projectiles.length = 0;
 
     const def = ROSTER_BY_ID[id];
-    // LEFT slot: procedural by default; with "Compare Alternate GLB" on, the
-    // mech's alternate model instead (own intake — full independent fighter),
-    // so alt-vs-original can be judged directly side by side.
-    const useAlt = compareAlt && manifest[id]?.alt?.url;
-    if (useAlt) {
-      const altBuilt = await buildGlbForTool(def, null, { alt: true });
-      procF = makeFighter(def, -PAIR_X, { pi: 0, mech: altBuilt.mech });
-    } else {
-      procF = makeFighter(def, -PAIR_X, { pi: 0 });
+    const hasAlt = !!manifest[id]?.alt?.url;
+    // LEFT slot: procedural by default; 'alt' puts the mech's alternate model
+    // there instead (own intake — a full independent fighter) so alt-vs-original
+    // can be judged side by side; 'solo' leaves the slot EMPTY so the mech under
+    // study stands alone, centred, with nothing else to read past.
+    const slot = (leftSlot === 'alt' && !hasAlt) ? 'proc' : leftSlot;
+    soloMode = slot === 'solo';
+    procF = null;
+    if (!soloMode) {
+      if (slot === 'alt') {
+        const altBuilt = await buildGlbForTool(def, null, { alt: true });
+        procF = makeFighter(def, -PAIR_X, { pi: 0, mech: altBuilt.mech });
+      } else {
+        procF = makeFighter(def, -PAIR_X, { pi: 0 });
+      }
     }
     const built = await buildGlbForTool(def);
-    glbF = makeFighter(def, PAIR_X, { pi: 1, mech: built.mech });
-    altRow.style.display = manifest[id]?.alt?.url ? 'flex' : 'none';
-    altCheck.checked = !!useAlt;
+    glbF = makeFighter(def, soloMode ? 0 : PAIR_X, { pi: 1, mech: built.mech });
+    syncSlotUI(hasAlt, slot);
     // NO stand-in enemies on the stage. Attacks aim at the combat code's own
     // no-target phantom (Fighter.aimPhantom): an imagined opponent dead ahead
     // at the move's ideal distance — close for melee, out at working range for
@@ -249,10 +268,10 @@ export async function runPoseTool(startId) {
     // behaviour rather than a rig-only special case. The two previewed mechs
     // are flagged ALLIES of each other so neither counts as the other's
     // nearest enemy and slews to aim across the stage.
-    procF.allyOf = glbF;
-    world.fighters.push(procF, glbF);
+    if (procF) procF.allyOf = glbF;
+    world.fighters.push(...[procF, glbF].filter(Boolean));
 
-    window.__poseDebug = { proc: procF.mech, glb: glbF.mech, procF, glbF, world, engine, camera, scene,
+    window.__poseDebug = { proc: procF?.mech || null, glb: glbF.mech, procF, glbF, world, engine, camera, scene,
       // anchor-editor hooks (scripting / automated checks)
       anchors: { select: selectAnchor, drop: onAnchorDrop, output: outputAnchors,
         patch: buildAnchorPatch, reset: resetAnchor, changed: anchorChanged,
@@ -277,7 +296,7 @@ export async function runPoseTool(startId) {
     actionModeUI.style.display = poseMode ? 'none' : 'block';
     if (poseMode) {
       // freeze both at the deterministic rest and capture the gizmo baseline
-      procF.animator.poseStatic();
+      procF?.animator.poseStatic();
       glbF.animator.poseStatic();
       for (const f of [procF, glbF]) { if (f) { f._floorLift = 0; f.mech.visualFloorLift?.(0); } }
       drawSizeRef();
@@ -345,7 +364,8 @@ export async function runPoseTool(startId) {
       const mm = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: col }));
       mm.position.set(x, y, 0); refGroup.add(mm);
     };
-    dot(-PAIR_X, procHeadY, 0x8fd8ff); dot(PAIR_X, glbHeadY, 0xffd060);
+    if (procF) dot(-PAIR_X, procHeadY, 0x8fd8ff);
+    dot(homeX(glbF), glbHeadY, 0xffd060);
     sizeReadout = `head top  proc ${procHeadY.toFixed(2)}  ·  glb ${glbHeadY.toFixed(2)}  (Δ ${(glbHeadY - procHeadY >= 0 ? '+' : '') + (glbHeadY - procHeadY).toFixed(2)})`;
     if (sizeEl) sizeEl.textContent = sizeReadout;
   }
@@ -509,22 +529,41 @@ export async function runPoseTool(startId) {
   mechSel.value = curId; mechSel.onchange = () => load(mechSel.value);
   panel.appendChild(mechSel);
 
-  // Compare Alternate GLB — only shown for mechs that have manifest[id].alt.
-  // Checked: the LEFT slot shows the alternate model instead of procedural.
-  let compareAlt = params.get('alt') === '1';
-  const altRow = el('label', 'display:none;gap:6px;align-items:center;cursor:pointer;margin-bottom:8px;font-size:11px;color:#cfe0f5');
-  const altCheck = document.createElement('input');
-  altCheck.type = 'checkbox';
-  altRow.appendChild(altCheck);
-  altRow.appendChild(document.createTextNode(' Compare Alternate GLB (left slot)'));
-  altCheck.onchange = () => {
-    compareAlt = altCheck.checked;
+  // LEFT SLOT — what stands beside the mech under study.
+  // A mech WITH an alternate GLB gets the full three-way dropdown; one without
+  // has nothing to compare against but procedural, so it gets a plain Solo
+  // checkbox instead of a two-item select.
+  let leftSlot = params.get('left') || (params.get('alt') === '1' ? 'alt' : 'proc');
+  if (!['proc', 'alt', 'solo'].includes(leftSlot)) leftSlot = 'proc';
+  const setLeftSlot = (v) => {
+    leftSlot = v;
     const u = new URL(location.href);
-    if (compareAlt) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
+    u.searchParams.delete('alt');                 // legacy flag, superseded
+    if (v === 'proc') u.searchParams.delete('left'); else u.searchParams.set('left', v);
     history.replaceState(null, '', u);
     load(curId);
   };
-  panel.appendChild(altRow);
+  panel.appendChild(label('Left slot'));
+  const slotSel = el('select', 'width:100%;margin-bottom:8px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px;display:none');
+  for (const [v, t] of [['proc', 'Procedural Robot'], ['alt', 'Alternate GLB'], ['solo', 'Solo (this robot only)']]) {
+    const o = document.createElement('option'); o.value = v; o.textContent = t; slotSel.appendChild(o);
+  }
+  slotSel.onchange = () => setLeftSlot(slotSel.value);
+  panel.appendChild(slotSel);
+  const soloRow = el('label', 'display:none;gap:6px;align-items:center;cursor:pointer;margin-bottom:8px;font-size:11px;color:#cfe0f5');
+  const soloCheck = document.createElement('input');
+  soloCheck.type = 'checkbox';
+  soloRow.appendChild(soloCheck);
+  soloRow.appendChild(document.createTextNode(' Solo (this robot only)'));
+  soloCheck.onchange = () => setLeftSlot(soloCheck.checked ? 'solo' : 'proc');
+  panel.appendChild(soloRow);
+  // called from load() once the mech's alt availability is known
+  function syncSlotUI(hasAlt, slot) {
+    slotSel.style.display = hasAlt ? 'block' : 'none';
+    soloRow.style.display = hasAlt ? 'none' : 'flex';
+    slotSel.value = slot;
+    soloCheck.checked = slot === 'solo';
+  }
 
   // mode toggle
   const modeRow = el('div', 'display:flex;gap:6px;margin-bottom:8px');
@@ -797,6 +836,7 @@ export async function runPoseTool(startId) {
       // from the reference spot (translation from the previous move is temporary)
       if (detectAction()) { resetPositions(); lastWasWalk = false; }
       for (const f of [procF, glbF]) {
+        if (!f) continue;
         copyIntent(f.intent, scratch);
         f.hp = f.maxHp; f.ult = 1; f.specialCd = 0; f.rangedCd = 0; f.iframes = 0;
         if (f.ammoMax !== undefined) f.ammo = f.ammoMax;
@@ -809,9 +849,9 @@ export async function runPoseTool(startId) {
         // geometry under the handle stays still while you place the point.
         // poseStatic only rewrites the visual pose — the action state machine
         // keeps running underneath, so firing still previews from the anchor.
-        for (const [f, x] of [[procF, -PAIR_X], [glbF, PAIR_X]]) {
+        for (const f of [procF, glbF]) {
           if (!f) continue;
-          f.pos.set(x, 0, 0); f.vel.set(0, 0, 0);
+          f.pos.set(homeX(f), 0, 0); f.vel.set(0, 0, 0);
           f.yaw = f.targetYaw = f.torsoYaw = 0;
           f._floorLift = 0; f.mech.visualFloorLift?.(0);
           f.animator.poseStatic();
@@ -827,7 +867,7 @@ export async function runPoseTool(startId) {
       const walking = Math.abs(scratch.moveX) > 0.08 || Math.abs(scratch.moveZ) > 0.08;
       if (walking) lastWasWalk = true;
       const busy = walking || fighterBusy(procF) || fighterBusy(glbF);
-      const moved = displaced(procF, -PAIR_X) || displaced(glbF, PAIR_X);
+      const moved = displaced(procF, homeX(procF)) || displaced(glbF, homeX(glbF));
       if (busy) idleT = 0;
       else if (moved) {
         idleT += dt / (engine.timeScale || 1);
