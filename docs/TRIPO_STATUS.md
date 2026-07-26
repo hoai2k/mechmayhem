@@ -281,3 +281,23 @@ Two selections the workbench could not express, both now first-class:
   anything (every selected vert rigid on the target), so "wiggles with the arm
   but reads as torso" is fixable in one click.
 
+## Session 10 (2026-07-26): inferno alt skin pass + saving from the workbenches
+
+- inferno.alt skinOps replaced with the authored pass (2 → 16 ops).
+- The authoring loop no longer runs through copy-paste. `?debug=skin` saves the
+  manifest, `?rigedit` saves the rig file, both through a dev-ONLY Vite
+  middleware (`/__rw/manifest`, `/__rw/rig`) that exists in `vite dev` and
+  nowhere else.
+- Both writers splice rather than rewrite, which is the whole point:
+  `tools/manifestfmt.mjs` replaces the value at one JSON path in the raw text
+  (a skinOps update is a 16-line diff, a muzzle offset 2 lines, and re-saving
+  unchanged ops is byte-identical), and `tools/rigfmt.mjs` swaps only the
+  `bones` array — header comment, `skinSpan`/`softSkin`/`cutWelds`/`cutPairs`
+  and the "---- LEFT arm ----" group comments all survive, and the result is
+  imported from a temp file before it replaces the real one, so a rig that
+  doesn't parse never lands.
+- `Export uncommitted saves` (both tools, enabled only when `git status` is
+  dirty) hands the whole batch over as one patch — tracked edits plus untracked
+  files as /dev/null diffs, verified to `git apply --check` clean against a
+  pristine tree.
+

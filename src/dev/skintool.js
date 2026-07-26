@@ -37,7 +37,7 @@ import { analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson, blendPatch, w
 import { CLIPS } from '../mechs/animations.js';
 import { mechClipList } from './mechclips.js';
 import { setupDevPanel } from './panelui.js';
-import { saveManifestPatch } from './savefile.js';
+import { saveManifestPatch, wireExportChanges } from './savefile.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
 
@@ -1282,6 +1282,7 @@ export async function runSkinTool(startId) {
     if (res.ok) {
       setStatus(`SAVED — ${list.length} op(s) written to public/models/manifest.json (${res.written.join(', ')}).` +
         `\nThis machine's canonical state; commit to publish it.`);
+      changes.refresh();
     } else if (res.offline) {
       setStatus(`No dev server to save through (${res.error}).` +
         `\nRun \`npm run dev\` and reload, or use Export ops and paste it in.`);
@@ -1290,6 +1291,10 @@ export async function runSkinTool(startId) {
     }
   }, true);
   panel.appendChild(saveBtn);
+  // hand the whole batch of local saves to whoever commits them
+  const exportChangesBtn = actionBtn('Export uncommitted saves', () => {});
+  panel.appendChild(exportChangesBtn);
+  const changes = wireExportChanges(exportChangesBtn, { setStatus: (t) => setStatus(t) });
 
   panel.appendChild(actionBtn('Export ops ▶', () => {
     // export compacted (superseded ops dropped) + one-op-per-line so pasting
