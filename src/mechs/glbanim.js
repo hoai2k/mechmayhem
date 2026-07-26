@@ -155,15 +155,22 @@ const VULCAN_CLIP_ROLL = 138 * Math.PI / 180;   // the clip's own roll at full r
 // VULCAN (custom rig). His bones ARE the game joints now, so the shared clips
 // land close to the procedural body and only two trims are left, both measured
 // off the muzzleR anchor's +Z in ?debug=models:
-//   FIRE_PITCH/_YAW — the gatlingLoop drives the shoulder to -90 deg, which on
-//     this arm throws the barrel 24 deg high; -1.10 rad pitch with -0.40 yaw
-//     puts it dead level and on the centreline (procedural reads 0.00/+0.06).
+//   VULCAN_FIRE     — the gatlingLoop drives the FIRING shoulder to -90 deg,
+//     which on this arm throws the barrel high and wide, so each side is pinned
+//     to the pitch/yaw that puts ITS barrel dead level and on the centreline.
+//     The two sides are NOT mirror images, and that is not a bug: muzzleR and
+//     muzzleL are hand-placed anchors carried over from the old rig with their
+//     own world aim preserved, so the guns genuinely sit at slightly different
+//     angles on their bones. Each trim is measured against its own barrel, by
+//     reading the mean spawn direction of the rounds in ?debug=models.
 //   HURRICANE_ARM   — the ult's arms-out gathering pose. The clip's roll reads
 //     shallower here than on the procedural shoulder, so the whole triple is
 //     substituted: barrels 33 deg up and out, hand 4.7 out / 8.8 up (the
 //     procedural's 4.9 / 8.0).
-const VULCAN_FIRE_PITCH = -1.10;
-const VULCAN_FIRE_YAW = -0.40;
+const VULCAN_FIRE = {
+  R: { pitch: -1.10, yaw: -0.40 },
+  L: { pitch: -1.25, yaw: 0.00 },
+};
 const VULCAN_HURRICANE_ARM = [0.7, 0.45, 1.88];
 const WRAITH_SHOTS = new Set(['shoot', 'aim']);
 function levelBarrel(anim, tgt) {
@@ -640,11 +647,19 @@ export const GLB_ANIM = {
   // below, for the alt build that still runs that skeleton.
   vulcan: {
     post(anim, dt, ctx, tgt) {
-      const n = anim.action && !anim.action.fadingOut ? anim.action.clip.name : '';
-      if (ctx.firing || n === 'gatlingLoop' || n === 'shootLoop' || n === 'shoot') {
+      const raw = anim.action?.clip.name || '';
+      const n = anim.action && !anim.action.fadingOut ? raw : '';
+      if (ctx.firing || n === 'gatlingLoop' || n === 'gatlingLoopL'
+        || n === 'shootLoop' || n === 'shoot') {
+        // The trim follows whichever gatling is LEADING — he trades hands in
+        // bursts, and the mirrored clip wants the mirrored yaw. Read the raw
+        // clip name (fade-out included) so the arm keeps its aim on the way out.
+        const left = raw.endsWith('L');
+        const sh = left ? tgt.shoulderL : tgt.shoulderR;
+        const fire = left ? VULCAN_FIRE.L : VULCAN_FIRE.R;
         // clamp, not set: the clip only ever drives the shoulder PAST level
-        tgt.shoulderR[0] = Math.max(tgt.shoulderR[0], VULCAN_FIRE_PITCH);
-        tgt.shoulderR[1] = VULCAN_FIRE_YAW;
+        sh[0] = Math.max(sh[0], fire.pitch);
+        sh[1] = fire.yaw;
       }
       // Read off the RAW clip name so the correction stays on through the
       // fade-out: the arms come down from where they actually were.
@@ -678,21 +693,24 @@ export const GLB_ANIM = {
   // brace arm level with it — both pods read as blazing forward).
   vulcan_tripo: {
     post(anim, dt, ctx, tgt) {
-      const n = anim.action && !anim.action.fadingOut ? anim.action.clip.name : '';
-      if (ctx.firing || n === 'gatlingLoop' || n === 'shootLoop' || n === 'shoot') {
-        // -1.13 rad is where THIS model's gatling barrel comes out level: the
-        // gun is fused along the hand's own axis, so the arm chain's raise is
-        // what pitches the muzzle (checked against the muzzleR anchor's +Z in
-        // ?debug=models). Lower and he hoses the dirt, higher and he shoots sky.
-        tgt.shoulderR[0] = Math.max(tgt.shoulderR[0], -1.13);
-        tgt.elbowR[0] = Math.max(tgt.elbowR[0], -0.15);
-        // ...and this model's arm hangs OUTBOARD of the shoulder, so the
-        // barrel line still ran ~10 deg wide of the aim once it was level.
-        // The wrist tucks it back onto the centreline (procedural vulcan
-        // already fires straight, hence GLB-only).
-        tgt.handR[1] = -0.44;
-        tgt.shoulderL[0] = Math.max(tgt.shoulderL[0], -0.55);
-        tgt.elbowL[0] = Math.max(tgt.elbowL[0], -0.4);
+      const raw = anim.action?.clip.name || '';
+      const n = anim.action && !anim.action.fadingOut ? raw : '';
+      if (ctx.firing || n === 'gatlingLoop' || n === 'gatlingLoopL'
+        || n === 'shootLoop' || n === 'shoot') {
+        // Per-side, by whichever gatling is leading (he trades hands in bursts).
+        // The pitch is where THAT barrel comes out level: the gun is fused along
+        // the hand's own axis, so the arm chain's raise is what pitches the
+        // muzzle. Lower and he hoses the dirt, higher and he shoots sky. The
+        // right also wants a wrist tuck — this model's right arm hangs OUTBOARD
+        // of the shoulder, so its barrel line ran ~10 deg wide once level; the
+        // left needs none. Both measured off the rounds' own spawn direction.
+        const left = raw.endsWith('L');
+        const S = left ? 'L' : 'R', O = left ? 'R' : 'L';
+        tgt['shoulder' + S][0] = Math.max(tgt['shoulder' + S][0], left ? -1.28 : -1.13);
+        tgt['elbow' + S][0] = Math.max(tgt['elbow' + S][0], -0.15);
+        tgt['hand' + S][1] = left ? 0 : -0.44;
+        tgt['shoulder' + O][0] = Math.max(tgt['shoulder' + O][0], -0.55);
+        tgt['elbow' + O][0] = Math.max(tgt['elbow' + O][0], -0.4);
       }
       // Checked on the raw clip name (not `n`) so the correction stays on
       // through the FADE-OUT: the arms come down from where they actually were

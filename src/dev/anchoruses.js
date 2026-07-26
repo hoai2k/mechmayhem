@@ -16,7 +16,10 @@
 // Each entry: anchors the action reads, and what happens when one is absent.
 // `fallback` is what the code ACTUALLY does — it differs per call site.
 const RANGED = {
-  gatling: {}, flame: {}, rocket: {}, fist: {}, plasma: {}, dart: {}, blade: {},
+  // vulcan's twin gatlings trade the lead in bursts (def.channelClipL) — the
+  // stream leaves whichever gun the animation has punched forward
+  gatling: { alt: 'muzzleL' },
+  flame: {}, rocket: {}, fist: {}, plasma: {}, dart: {}, blade: {},
   spear: {}, wave: {}, shell: {}, lightning: {}, railgun: {}, shard: {},
   glitch: {}, bats: {}, groundpound: {}, spikes: {}, flea: {},
   // alternate sides shot to shot; muzzleL absent -> both barrels use muzzleR
