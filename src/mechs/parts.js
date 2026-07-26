@@ -335,7 +335,17 @@ export class Assembler {
       const r = c.opts.r || [0, 0, 0];
       mesh.position.set(p[0], p[1], p[2]);
       mesh.rotation.set(r[0], r[1], r[2]);
-      if (c.opts.s) mesh.scale.setScalar(c.opts.s);
+      // `s` takes the same forms as part()'s: a number OR a per-axis triple.
+      // It used to be setScalar() only, so a design passing [1, 0.88, 1] —
+      // which is exactly how every OTHER builder here squashes a ring —
+      // assigned the ARRAY to x/y/z and produced a NaN world matrix. The
+      // part then rendered as nothing (jerry lost his three torso seam bands)
+      // and poisoned any Box3 taken over the mech, silently.
+      if (c.opts.s !== undefined) {
+        const s = c.opts.s;
+        if (typeof s === 'number') mesh.scale.setScalar(s);
+        else mesh.scale.set(s[0], s[1], s[2]);
+      }
       mesh.castShadow = castShadow;
       joint.add(mesh);
     }

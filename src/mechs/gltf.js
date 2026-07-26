@@ -46,6 +46,14 @@ const KNOWN_ENTRY_KEYS = new Set([
   'skinOps', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
 ]);
 const _entryWarned = new Set(); // "<id>|<msg>" — each complaint fires once per entry
+// Fields of a manifest entry that decide where the bones end up, and
+// therefore what anything measured off this build is true of. See mech.glbKey.
+const SKELETON_KEYS = ['url', 'rig', 'boneOverrides', 'stretch', 'bonePos',
+  'boneCorrections', 'reparent', 'skinOps', 'modelScale', 'heightScale', 'noHeadMatch'];
+function glbBuildKey(entry) {
+  return SKELETON_KEYS.map((k) => (entry?.[k] === undefined ? '' : JSON.stringify(entry[k]))).join('|');
+}
+
 function warnEntryOnce(id, msg) {
   const key = id + '|' + msg;
   if (_entryWarned.has(key)) return;
@@ -483,8 +491,13 @@ function buildGlbMech(def, entry, gltf) {
   // `materials` carries this build's OWN material clones (see glbMats above) so
   // the whole-body tints reach a GLB body; GLB_DRESS may add named slots on top.
   const mech = { group: root, joints, anchors: {}, materials: glbMats, dims: D, def, isGLB: true };
-  mech.glbUrl = entry.url || '';  // identifies the MODEL (not just the mech) —
-                                  // hurtbox.js caches its measured capsules by it
+  // Identity of THIS BUILD's skeleton+geometry, for caches keyed on "same
+  // bones in the same places" (hurtbox.js measures its capsules once per
+  // model and shares them across clones). The url alone is not enough: a
+  // mech's primary and `alt` entries routinely point at the SAME file and
+  // differ only in how it is rigged — inferno, rhino, titanus and vulcan all
+  // do — so an alt would silently inherit the primary's measurements.
+  mech.glbKey = glbBuildKey(entry);
   mech.fistSplit = fistSplit;   // Fighter.launchFist/catchFist + WEAPONS.fist
   // reinterpret shared anims for this model. entry.profileKey lets a model
   // VARIANT (e.g. an alt whose weapon sits in the other hand) carry its own

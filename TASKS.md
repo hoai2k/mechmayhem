@@ -22,6 +22,14 @@ controllers via Gamepad API), AI opponents.
   capsules. `hitRadius` is untouched (AoE falloff, camera). New workbench
   `?debug=collider`, plus `tools/hurtboxfit.mjs` (per-mech fit audit) and
   `tools/hitprobe.mjs` (new-vs-old melee comparison on a live fight).
+- **Also:** INFERNO custom rig (`rigs/inferno.rig.js`), staged on his manifest
+  `alt` entry so the shipped mech is unchanged — 24 hand-placed bones, zero
+  far-hierarchy seam edges (the Tripo rig had 19), worst clip stretch 0.108 vs
+  0.208, and a complete 15/15 hurtbox against the primary's 9/15. `?debug=skin`
+  and `?rigedit` gained an **Edit Alternate GLB** checkbox (`src/dev/altpick.js`);
+  `?rigedit` opens the alt automatically when only that build has a rig.
+  Fixed `Assembler.custom` ignoring a per-axis `s` — jerry's three torso seam
+  bands had a NaN world matrix and never rendered.
 - **Branch:** `claude/3d-mech-battle-game-uxps6q`
 
 ## Tech stack

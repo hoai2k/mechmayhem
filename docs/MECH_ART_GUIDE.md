@@ -64,9 +64,15 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
 4. Keep the OLD entry verbatim as `alt` (+ `profileKey` if it needs its own
    glbanim profile) so the two builds can be compared: `?rigedit=<id>&alt=1`,
    `?debug=models`'s *Compare Alternate GLB*, `node tools/variantcheck.mjs <id>`.
+   The reverse staging also works and is how a re-rig gets reviewed before it
+   ships: leave the primary alone and put the new `rig` on the `alt` entry
+   (inferno, rhino). `?rigedit=<id>` then opens the alt on its own — the
+   primary has no rig to edit — with *Edit Alternate GLB* ticked and disabled;
+   `?debug=skin` offers the same checkbox unticked. Promotion is a manifest
+   edit only: move `rig` onto the primary and keep the old entry as `alt`.
 
-Precedents: `cranky`, `fenrir`, `glacier`, `jerry`, `rhino`, `titanus`, `viper`,
-`vulcan`, `wraith`.
+Precedents: `cranky`, `fenrir`, `glacier`, `inferno` (staged on `alt`),
+`jerry`, `rhino` (staged on `alt`), `titanus`, `viper`, `vulcan`, `wraith`.
 
 **Route B steps** (also see IMAGE_TO_MECH.md): §1–§4 below.
 

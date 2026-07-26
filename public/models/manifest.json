@@ -2009,7 +2009,19 @@
       {"sel":{"comp":146},"to":"bone_40"},
       {"sel":{"comp":148},"to":"bone_40"},
       {"purgePair":["bone_42","bone_40"]}
-    ]
+    ],
+    "alt": {
+      "url": "models/mech_inferno.glb",
+      "modelScale": 7.70717,
+      "bindPose": "native",
+      "yawOffset": 270,
+      "heightScale": 1.05,
+      "rig": "inferno",
+      "muzzles": {
+        "R": {"bone": "nozzleR", "offset": [0, 0, 0], "rot": [0, 90, 0]},
+        "L": {"bone": "nozzleL", "offset": [0, 0, 0], "rot": [0, 90, 0]}
+      }
+    }
   },
   "cranky": {
     "url": "models/mech_cranky.glb",
