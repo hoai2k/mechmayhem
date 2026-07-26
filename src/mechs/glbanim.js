@@ -140,7 +140,7 @@ function wraithCapeGrow(anim, dt) {
 const WRAITH_LEVEL = -99.5 * Math.PI / 180;
 const WRAITH_LEAD = 26 * Math.PI / 180;
 
-// VULCAN (GLB): the BULLET HURRICANE's outstretched-arms gathering pose, where
+// VULCAN (retired TRIPO rig, `alt`): the BULLET HURRICANE's arms pose, where
 // the gatlings must ride diagonally UP-and-out. This rig hangs the guns at an
 // angle to the forearm and reads the clip's shoulder angles differently, so the
 // procedural pose retargets to barrels drooping ~25° BELOW the horizon. Found by
@@ -149,8 +149,22 @@ const WRAITH_LEAD = 26 * Math.PI / 180;
 // the side with no fore/aft skew (hand out 4.4, up 4.0 over the shoulder).
 // Applied as a SCALE of how far the clip has flung the arms, so the GLB reaches
 // out on the same beat (and comes back down on it).
-const VULCAN_HURRICANE_ARM = [0.45, 0.45, 1.68];
+const VULCAN_TRIPO_HURRICANE_ARM = [0.45, 0.45, 1.68];
 const VULCAN_CLIP_ROLL = 138 * Math.PI / 180;   // the clip's own roll at full reach
+
+// VULCAN (custom rig). His bones ARE the game joints now, so the shared clips
+// land close to the procedural body and only two trims are left, both measured
+// off the muzzleR anchor's +Z in ?debug=models:
+//   FIRE_PITCH/_YAW — the gatlingLoop drives the shoulder to -90 deg, which on
+//     this arm throws the barrel 24 deg high; -1.10 rad pitch with -0.40 yaw
+//     puts it dead level and on the centreline (procedural reads 0.00/+0.06).
+//   HURRICANE_ARM   — the ult's arms-out gathering pose. The clip's roll reads
+//     shallower here than on the procedural shoulder, so the whole triple is
+//     substituted: barrels 33 deg up and out, hand 4.7 out / 8.8 up (the
+//     procedural's 4.9 / 8.0).
+const VULCAN_FIRE_PITCH = -1.10;
+const VULCAN_FIRE_YAW = -0.40;
+const VULCAN_HURRICANE_ARM = [0.7, 0.45, 1.88];
 const WRAITH_SHOTS = new Set(['shoot', 'aim']);
 function levelBarrel(anim, tgt) {
   const act = anim.action;
@@ -611,14 +625,50 @@ export const GLB_ANIM = {
   jerry: {},     // crustacean — antennae/struts are procedural-only joints
   nullbot: {},   // humanoid — direct map (glitch strobe is material-only)
 
-  // VULCAN — twin gatling pods FUSED along the forearms. The shared
+  // VULCAN — hand-authored custom rig (src/mechs/rigs/vulcan.rig.js): his bones
+  // ARE the game joints, placed where the model's own shoulders/elbows/wrists
+  // sit, so the shared clips retarget onto him without reinterpretation. The
+  // stack of corrections the Tripo auto-rig needed lives on as `vulcan_tripo`
+  // below, for the alt build that still runs that skeleton.
+  vulcan: {
+    post(anim, dt, ctx, tgt) {
+      const n = anim.action && !anim.action.fadingOut ? anim.action.clip.name : '';
+      if (ctx.firing || n === 'gatlingLoop' || n === 'shootLoop' || n === 'shoot') {
+        // clamp, not set: the clip only ever drives the shoulder PAST level
+        tgt.shoulderR[0] = Math.max(tgt.shoulderR[0], VULCAN_FIRE_PITCH);
+        tgt.shoulderR[1] = VULCAN_FIRE_YAW;
+      }
+      // Read off the RAW clip name so the correction stays on through the
+      // fade-out: the arms come down from where they actually were.
+      if (anim.action?.clip.name === 'hurricaneSpin') {
+        const k = clamp01(tgt.shoulderR[2] / VULCAN_CLIP_ROLL);
+        for (let i = 0; i < 3; i++) {
+          const v = VULCAN_HURRICANE_ARM[i] * k;
+          tgt.shoulderR[i] = v;
+          tgt.shoulderL[i] = i ? -v : v;   // mirrored: pitch kept, yaw/roll flipped
+        }
+      }
+    },
+  },
+
+  // ---- model VARIANTS (manifest entry.profileKey) ----
+  // AEGIS ALT (P1) — carries a great SPEAR in the right hand and banner
+  // panels instead of a forearm shield, so it must NOT inherit base aegis's
+  // shield-forward guard hook (raising that arm would hoist a banner).
+  // Identity for now; a javelin-style ranged reinterpretation belongs here
+  // if this model is promoted.
+  aegis_alt: {},
+
+  // VULCAN (retired TRIPO auto-rig, manifest `alt` -> profileKey vulcan_tripo).
+  // Every number here was measured against THAT skeleton and means nothing on
+  // the custom rig. Twin gatling pods FUSED along the forearms. The shared
   // shootLoop raises the virtual shoulder to horizontal (procedural arms
   // hang straight at bind), but this GLB's bind already carries the arms
   // forward-raised — the retarget stacks the two and the pods aim SKYWARD
   // while the bullet stream flies flat from the muzzle line. While firing,
   // cap the raise so the visible barrels sit ON the fire line (and keep the
   // brace arm level with it — both pods read as blazing forward).
-  vulcan: {
+  vulcan_tripo: {
     post(anim, dt, ctx, tgt) {
       const n = anim.action && !anim.action.fadingOut ? anim.action.clip.name : '';
       if (ctx.firing || n === 'gatlingLoop' || n === 'shootLoop' || n === 'shoot') {
@@ -642,21 +692,13 @@ export const GLB_ANIM = {
       if (anim.action?.clip.name === 'hurricaneSpin') {
         const k = clamp01(tgt.shoulderR[2] / VULCAN_CLIP_ROLL);
         for (let i = 0; i < 3; i++) {
-          const v = VULCAN_HURRICANE_ARM[i] * k;
+          const v = VULCAN_TRIPO_HURRICANE_ARM[i] * k;
           tgt.shoulderR[i] = v;
           tgt.shoulderL[i] = i ? -v : v;   // mirrored: pitch kept, yaw/roll flipped
         }
       }
     },
   },
-
-  // ---- model VARIANTS (manifest entry.profileKey) ----
-  // AEGIS ALT (P1) — carries a great SPEAR in the right hand and banner
-  // panels instead of a forearm shield, so it must NOT inherit base aegis's
-  // shield-forward guard hook (raising that arm would hoist a banner).
-  // Identity for now; a javelin-style ranged reinterpretation belongs here
-  // if this model is promoted.
-  aegis_alt: {},
 };
 
 export function profileFor(id) { return GLB_ANIM[id] || null; }
