@@ -447,8 +447,13 @@ export class Fighter {
     this.comboIdx = 0;
     // track the actual victim through the whole swing: torso twists and the
     // fists CONVERGE onto their body, so a landed pound visibly LANDS
-    // instead of slamming down on both sides of a slim target
-    this.trackStrikeVictim(mv.range, dur);
+    // instead of slamming down on both sides of a slim target.
+    // A SPREAD heavy opts out (`heavyNoStrikeAim`): the convergence servo
+    // pulls the palms together by up to 1.3 rad of shoulder roll, which on a
+    // whirl whose whole shape is arms-out flattens it — measured on tempest,
+    // a -92° T collapsed to -24° in battle while the showcase (no victim to
+    // converge on) showed it perfectly.
+    if (!this.def.heavyNoStrikeAim) this.trackStrikeVictim(mv.range, dur);
   }
 
   // post-pose strike tracking: torso yaw slides the palms along an arc
