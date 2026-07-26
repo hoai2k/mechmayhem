@@ -139,15 +139,17 @@ function wraithCapeGrow(anim, dt) {
 const WRAITH_LEVEL = -99.5 * Math.PI / 180;
 const WRAITH_LEAD = 26 * Math.PI / 180;
 
-// VULCAN (GLB): the BULLET HURRICANE's outstretched-arms gathering pose. The
-// procedural arms come level and wide at a shoulder ROLL of ~1.66 rad, but this
-// rig reads that roll steeper — at 1.66 the gatlings are hoisted in a 40° V
-// instead of held out at the sides. Measured in ?debug=models by sweeping the
-// roll and reading each hand's offset from the mech: 1.0 rad puts them at
-// (4.99, 6.69), the procedural's (4.62, 6.55). Applied as a SCALE of however
-// far the clip has flung them, so the GLB reaches out on the same beat.
-const VULCAN_HURRICANE_ROLL = 1.0;
-const VULCAN_CLIP_ROLL = 1.66;
+// VULCAN (GLB): the BULLET HURRICANE's outstretched-arms gathering pose, where
+// the gatlings must ride diagonally UP-and-out. This rig hangs the guns at an
+// angle to the forearm and reads the clip's shoulder angles differently, so the
+// procedural pose retargets to barrels drooping ~25° BELOW the horizon. Found by
+// sweeping the whole shoulder triple in ?debug=models and reading the muzzle
+// anchor's +Z: this one lands each barrel 16° above the horizon, straight out to
+// the side with no fore/aft skew (hand out 4.4, up 4.0 over the shoulder).
+// Applied as a SCALE of how far the clip has flung the arms, so the GLB reaches
+// out on the same beat (and comes back down on it).
+const VULCAN_HURRICANE_ARM = [0.45, 0.45, 1.68];
+const VULCAN_CLIP_ROLL = 138 * Math.PI / 180;   // the clip's own roll at full reach
 const WRAITH_SHOTS = new Set(['shoot', 'aim']);
 function levelBarrel(anim, tgt) {
   const act = anim.action;
@@ -638,8 +640,11 @@ export const GLB_ANIM = {
       // instead of popping up to the uncorrected pose on the way out.
       if (anim.action?.clip.name === 'hurricaneSpin') {
         const k = clamp01(tgt.shoulderR[2] / VULCAN_CLIP_ROLL);
-        tgt.shoulderR[2] = VULCAN_HURRICANE_ROLL * k;
-        tgt.shoulderL[2] = -VULCAN_HURRICANE_ROLL * k;
+        for (let i = 0; i < 3; i++) {
+          const v = VULCAN_HURRICANE_ARM[i] * k;
+          tgt.shoulderR[i] = v;
+          tgt.shoulderL[i] = i ? -v : v;   // mirrored: pitch kept, yaw/roll flipped
+        }
       }
     },
   },
