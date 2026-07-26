@@ -3113,3 +3113,60 @@ artifact — the workbench was showing shipping behaviour correctly.
 - Verified: left uppercut frames VIEWed on rhino and nullbot (clean mirror,
   full extension, correct chamber); ace soaks crash-free rhino/titanus,
   nullbot/viper, cranky/fenrir; `vite build` green.
+## Titanus: alternating light arms, GLB charge tell, and the pound stutter (user request, 2026-07-25)
+
+- **The hold-charge light attack always used the same arm.** `_punchIdx` was
+  `comboIdx % 2`, but `updatePunchHold` bumps `comboIdx` on release WITHOUT ever
+  opening a `comboWindow` — so the combo-expiry reset (`comboWindow <= 0 =>
+  comboIdx = 0`) zeroed it on the very next frame and every punch came from the
+  left. It now rides its own persistent flip. Verified: four punches go L,R,L,R
+  with `punchHold1/2` + `punchRelease1/2` matching, and the arm that actually
+  travels furthest matching too. (Affects COLOSSUS as well — same `punchHold`.)
+- **The red charge tell never showed on GLB bodies.** `ensureChargeShells`
+  traverses the virtual JOINTS for meshes and clones each part inflated 4.5% —
+  but a GLB has no geometry on its joints at all, it is one skinned mesh riding
+  bones, so the traverse found nothing and the tell silently did not exist.
+  New `src/mechs/glbshell.js` builds the equivalent out of the skinned mesh: the
+  triangles riding the charging limb's BONE SUBTREE (so shoulder also picks up
+  elbow/hand/fist, matching what the procedural joint traverse covers), sharing
+  the mesh's vertex buffers, skeleton and bind matrix. Coincident with the
+  surface rather than inflated — inflating would need its own displaced vertex
+  buffer — so it carries a negative `polygonOffset` and never z-fights.
+  · Cached per key and HIDDEN rather than rebuilt per wind-up: its geometry
+    shares the body's attributes, so it must never be disposed (that would free
+    the real mesh's GPU buffers), and re-deriving a 17k-triangle index buffer
+    every charge is pure garbage.
+  · `fistsplit.js` now imports `subGeometry` from there instead of keeping its
+    own copy.
+  · Verified: sheath appears on the charging arm, follows the alternating side
+    (`armL`/`armR`), ramps #ff2818 -> #ff8850 at the cap, peak opacity 0.66 —
+    and screenshotted side by side against `?debug=fallback`, matching.
+- **The pound "stutter" was two things, both now fixed.**
+  · A hold->release handover CROSS-FADED. The animator keeps a single `action`,
+    so `play()` REPLACES the hold and the new clip's weight ramps up from the
+    BASE STANCE, not from the outgoing clip — at weight 0.24 the pose is
+    three-quarters resting stance. Measured, the shoulder went -167 -> -116 ->
+    -103 -> -145 before the slam: the arms dipped back toward his sides and
+    climbed again. Release clips are authored so their t=0 IS the hold pose, so
+    both the heavy and punch releases now take `fade: 0` and continue seamlessly
+    (the animator's own pose smoothing still eases it).
+  · The wind-up parked PAST the fist's apex. Swept the pound pose: the fist peaks
+    at shoulder pitch **-124**, but the clip held -172/-176 — 0.95 units below
+    the apex and 2.83 units behind him. So the slam had to lift the fists back
+    over the top before descending. `poundHold`/`poundSlam` now wind up to
+    -142/-146, which keeps the arched-back read (fist still 1.6 behind) while
+    sitting essentially at the apex.
+  · After: fist height rises once to the apex, trembles +-0.2 (the clip's
+    deliberate "quaking"), then descends monotonically into the slam. The 1.44-
+    unit dip is gone.
+- Verified: heavy contact sheet VIEWed (single rise -> held arched wind-up with
+  the tell -> single slam); per-frame fist-height and animator-target traces
+  before/after; ranged alternation + detach + aim unchanged (L,R,L,R, yaw 0.0°);
+  ace soaks crash-free and resolving to KOs for titanus/viper and
+  colossus/aegis (both hold-charge mechs); attackmatrix connects for every
+  alternating-side and hold-charge mech, `titanus ranged: 0` being the usual
+  full-suite flake (92/92 in isolation); `vite build` green.
+  · Probe note for the next session: the workbench's own render loop steps the
+    world, so a probe that also calls `world.update` double-steps and
+    manufactures jitter — set `engine.onUpdate = () => {}` first. `Input.readIntent`
+    likewise overwrites `intent` every frame, so held-button probes must stub it.

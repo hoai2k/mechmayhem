@@ -5,6 +5,7 @@ import { clamp, clamp01, lerp, angleDamp, angleDiff, TAU, rand } from '../core/u
 import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
+import { buildBoneShell } from '../mechs/glbshell.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { CONFIG } from '../core/config.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -404,7 +405,12 @@ export class Fighter {
     // while X stays down; the punch itself fires on release (updatePunchHold)
     if (this.def.punchHold) {
       this._moveAttack = false; // rooted wind-up haymaker
-      this._punchIdx = this.comboIdx % 2; // alternate arms
+      // Alternate arms every wind-up, so both fists get used. This rides its
+      // OWN flip rather than comboIdx: updatePunchHold bumps comboIdx on release
+      // but never opens a comboWindow, so the combo-expiry reset zeroed it again
+      // on the very next frame and a hold-charge mech threw every single punch
+      // with the same arm.
+      this._punchIdx = this._punchAlt = (this._punchAlt === 0 ? 1 : 0);
       this._punchHold = 0.0001;
       this._punchFull = false;
       this.faceNearestEnemyIfClose(12);
@@ -971,7 +977,11 @@ export class Fighter {
     this._heavyLungeK = k;
     this.faceNearestEnemyIfClose(14); // re-square: they moved during the hold
     const mv = this.def.moves.heavy;
+    // fade 0 — see updatePunchHold for why a hold->release handover must not
+    // cross-fade. This is the pound's "stutter": the arms dipped back toward the
+    // resting stance mid-handover and then climbed again before slamming.
     const dur = this.animator.play(this.smashClip(this.def.heavyReleaseClip, false), {
+      fade: 0,
       onEvent: (type, arg) => this.onAttackEvent(type, arg, {
         dmg: mv.dmg * (0.8 + 0.8 * k) * this.dmgMult(),
         knock: mv.knock * (1 + 0.9 * k),
@@ -1087,7 +1097,16 @@ export class Fighter {
     // released: throw the banked punch
     const mv = this.def.moves.light;
     this.faceNearestEnemyIfClose(12);
+    // A hold->release handover must NOT cross-fade. The animator keeps a single
+    // action, so `play` REPLACES the hold and the new clip's weight ramps up from
+    // the BASE stance — not from the outgoing clip. At weight 0.24 the pose is
+    // three-quarters resting stance, so the wound-up arm dipped back down toward
+    // his side and then climbed again before firing: the "stutter". The release
+    // clip's t=0 is authored to BE the hold pose, so taking it at full weight
+    // immediately is a seamless continuation. (The animator's own pose smoothing
+    // still eases the motion, so this is not a snap.)
     const dur = this.animator.play(idx ? 'punchRelease2' : 'punchRelease1', {
+      fade: 0,
       onEvent: (type, arg) => this.onAttackEvent(type, arg, {
         dmg: mv.dmg[idx] * (1 + 1.1 * k) * this.dmgMult(),
         knock: mv.knock[idx] * (1 + 1.2 * k),
@@ -1135,10 +1154,14 @@ export class Fighter {
     if (this._glowKey !== key) this.ensureChargeShells(key);
     this._glowPhase = (this._glowPhase || 0) + dt * (5 + 20 * u);
     const on = Math.sin(this._glowPhase * TAU) > -0.35;
-    this._glowMat.opacity = on ? 0.2 + 0.46 * u : 0.03;
-    this._glowMat.color.setHex(dash
-      ? (k >= 1 ? 0x9fd8ff : 0x2470ff)
-      : (k >= 1 ? 0xff8850 : 0xff2818));
+    const op = on ? 0.2 + 0.46 * u : 0.03;
+    const col = dash ? (k >= 1 ? 0x9fd8ff : 0x2470ff) : (k >= 1 ? 0xff8850 : 0xff2818);
+    this._glowMat.opacity = op;
+    this._glowMat.color.setHex(col);
+    if (this._glowSkinMat) {          // the GLB sheath rides its own clone
+      this._glowSkinMat.opacity = op;
+      this._glowSkinMat.color.setHex(col);
+    }
   }
 
   ensureChargeShells(key) {
@@ -1149,8 +1172,9 @@ export class Fighter {
         blending: THREE.AdditiveBlending, depthWrite: false,
       });
     }
+    const joints = CHARGE_GLOW_SETS[key] || [];
     const shells = [];
-    for (const jn of CHARGE_GLOW_SETS[key] || []) {
+    for (const jn of joints) {
       const j = this.mech.joints[jn];
       if (!j) continue;
       const meshes = [];
@@ -1164,13 +1188,60 @@ export class Fighter {
         shells.push(shell);
       }
     }
+    // GLB bodies carry NO geometry on the virtual joints — the whole mech is one
+    // skinned mesh riding bones — so the traverse above finds nothing and the
+    // charge tell simply never appeared on them. Build the sheath out of the
+    // skinned mesh instead: the triangles that ride this limb's bone subtree,
+    // sharing the mesh's buffers and skeleton. Coincident with the surface rather
+    // than inflated (inflating would need its own displaced vertex buffer), so it
+    // is pulled toward the camera with polygonOffset and never z-fights.
+    if (!shells.length && this.mech.isGLB) {
+      const sk = this._glowSkin || (this._glowSkin = (() => {
+        let m = null;
+        this.mech.group.traverse((o) => {
+          if (o.isSkinnedMesh && !m && !o.userData.chargeShell && !/^(fistSocket|boneShell)/.test(o.name || '')) m = o;
+        });
+        return m;
+      })());
+      const roots = joints.map((jn) => this.mech.boneMap?.[jn] || this.mech.rigBones?.[jn]).filter(Boolean);
+      if (sk && roots.length) {
+        if (!this._glowSkinMat) {
+          this._glowSkinMat = this._glowMat.clone();
+          this._glowSkinMat.polygonOffset = true;
+          this._glowSkinMat.polygonOffsetFactor = -2;
+          this._glowSkinMat.polygonOffsetUnits = -2;
+        }
+        // Cached per key and HIDDEN rather than rebuilt on every charge: the
+        // shell's geometry shares the body's vertex attributes, so it must never
+        // be disposed (that would free the real mesh's GPU buffers), and
+        // re-deriving a 17k-triangle index buffer per wind-up is pure garbage.
+        this._glbShells = this._glbShells || {};
+        let shell = this._glbShells[key];
+        if (!shell) {
+          shell = buildBoneShell(sk, roots, this._glowSkinMat, 'chargeShellGLB');
+          if (shell) {
+            shell.userData.chargeShell = true;
+            shell.userData.glbShell = true;
+            this._glbShells[key] = shell;
+          }
+        }
+        if (shell) { shell.visible = true; shells.push(shell); }
+      }
+    }
     this._glowShells = shells;
     this._glowKey = key;
     this._glowPhase = 0;
   }
 
   clearChargeGlow() {
-    if (this._glowShells) for (const s of this._glowShells) s.parent?.remove(s);
+    if (this._glowShells) {
+      // the GLB sheath is kept and hidden (see ensureChargeShells); the
+      // procedural twins are throwaway and come off the part they ride
+      for (const s of this._glowShells) {
+        if (s.userData.glbShell) s.visible = false;
+        else s.parent?.remove(s);
+      }
+    }
     this._glowShells = null;
     this._glowKey = null;
   }

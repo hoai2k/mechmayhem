@@ -36,6 +36,7 @@
 // the break with a dark surface on the hand AND the arm, needs no rim geometry,
 // and cannot leave a gap however jagged the cut is.
 import * as THREE from 'three';
+import { subGeometry } from './glbshell.js';
 
 // `interior` is the set of bones whose shell the dark backface layer covers while
 // that fist is away. It has to be the WHOLE ARM, not just the wrist: with the
@@ -79,24 +80,6 @@ function bestThreshold(samples) {
     }
   }
   return { t: bestT, score: best, total: samples.length };
-}
-
-// A geometry that SHARES another's vertex attributes but carries its own index —
-// a sub-mesh with no duplicated vertex data.
-function subGeometry(src, triangles, idx) {
-  const g = new THREE.BufferGeometry();
-  for (const name of ['position', 'normal', 'uv', 'skinIndex', 'skinWeight']) {
-    if (src.attributes[name]) g.setAttribute(name, src.attributes[name]);
-  }
-  const arr = new Uint32Array(triangles.length * 3);
-  for (let i = 0; i < triangles.length; i++) {
-    const t = triangles[i];
-    arr[i * 3] = idx.getX(t * 3);
-    arr[i * 3 + 1] = idx.getX(t * 3 + 1);
-    arr[i * 3 + 2] = idx.getX(t * 3 + 2);
-  }
-  g.setIndex(new THREE.BufferAttribute(arr, 1));
-  return g;
 }
 
 /**
