@@ -108,6 +108,17 @@ audio). Progress history: `TASKS.md`.
   lasso cutting THROUGH the model — near side, far side and anything buried
   between, for geometry you'd otherwise have to orbit around; the outline
   draws amber instead of violet to say so).
+- A fighter grown at RUNTIME (colossus' COLOSSAL FORM ult scales him 4×) must
+  tell the animation layer: `animator.sizeMul = <factor>`. Everything in
+  animator.js is authored in the model's own local units, so without it the
+  legs keep their small-body TIMING over four times the distance — four
+  strides per stride's worth of ground, feet skating and jump-cutting. It
+  scales the walk cadence (full 1/sizeMul — a planted foot must sweep at
+  ground speed), the leg smoothing + a hard angular cap (1/√sizeMul — dynamic
+  similarity: big limbs swing slower), and the pelvis foot-follow, whose
+  world-measured clearance has to be divided back into local units or the
+  correction loop runs at gain × sizeMul and rings. Measure any of it with
+  `node tools/footprobe.mjs <mech> <scale>`.
 - Hitboxes: `src/combat/hurtbox.js`. Bone-bound capsules measured off each
   model's own geometry, so they follow the animation; melee resolves on the
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
@@ -145,6 +156,14 @@ that combat silently depends on. Never rebuild a design without it.
   (sculpting vocabulary + Assembler), factory.js (rig + materials),
   animations.js + animator.js (pose-blend engine), gltf.js + rigadapter.js
   (GLB loading + humanoid retargeting), roster `skin` blocks drive pbrtex
+- PER-ROUTE animation: when a move only works on ONE of a mech's two models,
+  author it as a `GLB_CLIP_VARIANTS` entry compiled under the SHARED clip's name
+  and point the mech's glbanim profile `clipOverrides` at it. The roster keeps the
+  shared name, so every check keyed on `def.heavyClip`/`isPlaying`/the mirror
+  alternation matches either build and the procedural one keeps the default.
+  Colossus is the worked example (clap on the GLB, pound procedurally) — and note
+  a clip in `SMASH_MIRRORS` needs its `*Mirror` name overridden too, or half the
+  swings fall through to the shared clip
 - `src/combat/` — fighter.js (state machine), specials.js (24 specials/ults
   by id), projectiles.js, effects.js (pooled VFX)
 - `src/arena/` — themes.js (12 arena configs), arena.js, destructible.js
