@@ -301,3 +301,29 @@ Two selections the workbench could not express, both now first-class:
   files as /dev/null diffs, verified to `git apply --check` clean against a
   pristine tree.
 
+
+## Session 11 (2026-07-26): colossus custom rig PROMOTED to primary
+
+The hand-authored rig (`src/mechs/rigs/colossus.rig.js`) staged on
+`colossus.alt` since session 7 is now the mech the GAME loads; the retired
+Tripo auto-rig entry (15 boneOverrides, 64 tripo-named skinOps) moved into
+`alt` as the reference copy. Entries were swapped whole — both are complete
+standalone entries, so each keeps its own url/modelScale/bindPose/yawOffset,
+its own muzzles and its own skinOps. No glbanim change was needed: colossus'
+profile is `{}` on both skeletons (unlike vulcan, whose auto-rig corrections
+had to move to `vulcan_tripo`).
+
+Promoted with the owner's third skin pass on it: 39 skinOps (+9 over the
+previous list — ankleR 2619v, ankleL 2280v, kneeL 492v, kneeR 416v and five
+small ankle patches).
+
+What the swap buys, measured:
+- clip-seam stretch (`tools/cliptear.mjs`): **98/98 clips clean, 0 far-seam
+  edges, worst +0.00** — the Tripo primary's worst was +0.34.
+- hurtbox fit (`tools/hurtboxfit.mjs`): 15/15 parts, containment 74% → **80%**
+  (upperArmL had no capsule at all on the auto-rig). Bloat 1.12 → 1.26, so his
+  capsules are a little looser — he is a slightly bigger target than he was.
+- anchors (`tools/anchorkeep.mjs colossus`): **PASS**, every muzzle/anchor
+  identical at rest (Δpos 0, Δaim 0°) between the two builds.
+- `?rigedit=colossus` now opens the PRIMARY directly instead of being forced
+  onto the alt with the checkbox disabled.

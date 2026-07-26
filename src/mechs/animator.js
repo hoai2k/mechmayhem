@@ -19,6 +19,18 @@ const ALL_JOINTS = [
   'torso', 'head', 'shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'handL', 'handR',
   'thighL', 'thighR', 'kneeL', 'kneeR', 'ankleL', 'ankleR',
 ];
+// The chain that carries a foot. Only these get the grown-body smoothing in
+// update() — an arm may whip at giant size (that reads as power), a foot may
+// not (that reads as a dropped frame).
+const LEG_SMOOTH = new Set(['thighL', 'thighR', 'kneeL', 'kneeR', 'ankleL', 'ankleR']);
+// Ceiling on leg-joint angular speed for a GROWN body, in rad/s before the
+// √sizeMul divide (see update()). Measured against colossus at normal size: his
+// leg joints sit at 2.5 rad/s for the 95th percentile of frames and 5 for the
+// 99th, spiking to ~13 on a clip's first frame — so 6 is above everything a
+// clip does habitually and only catches the snaps. It never applies at
+// sizeMul 1; at 4× it becomes 3 rad/s, which is what stops a stomp from
+// teleporting a foot across half an arena block.
+const LEG_W_REF = 6;
 
 
 function sampleTrack(track, t) {
@@ -81,6 +93,18 @@ export class Animator {
     this.footFlat = 0;
     this.footDepth = 0.32 * this.s;
 
+    // BODY SIZE MULTIPLIER — 1 normally; a fighter that is grown at RUNTIME
+    // (colossus' COLOSSAL FORM scales his group to 4×) sets it to the live
+    // factor. Everything in this animator is authored in the model's own local
+    // units, so without it a scaled mech's limbs keep their small-body TIMING
+    // while covering four times the distance, and the feet skate and teleport.
+    // Two places read it, for two different reasons — see update():
+    //   · the walk cadence, because a planted foot must sweep at ground speed
+    //     (a CONTACT constraint: full 1/sizeMul, or he skates);
+    //   · the pose smoothing on the leg joints, because a big limb swings
+    //     slower (DYNAMIC SIMILARITY: 1/√sizeMul, the same √L that makes a
+    //     giant's stride look heavy instead of frantic).
+    this.sizeMul = 1;
     this.cur = this.makeRestTarget();   // smoothed applied pose
     this.phase = Math.random() * TAU;   // gait phase
     this.t = Math.random() * 100;       // global time (desyncs idles)
@@ -275,8 +299,13 @@ export class Animator {
       // legReach * swing * dφ/dt at mid-stance — advance the gait phase so
       // that equals the actual ground speed. Feet plant and push off one
       // spot per step instead of skating under a canned walk cycle.
-      const legReach = (this.D.thighLen + this.D.shinLen) * 0.92;
-      this.phase += Math.min(14, speed / Math.max(0.2, legReach * swing)) * dt;
+      // legReach is in the model's LOCAL units; a grown body's legs really are
+      // sizeMul times longer, so the same ground speed is that many times fewer
+      // steps. Miss this and a 4× colossus takes four strides per stride's
+      // worth of ground — the skating the giant form was full of. The cadence
+      // ceiling scales with it for the same reason.
+      const legReach = (this.D.thighLen + this.D.shinLen) * 0.92 * this.sizeMul;
+      this.phase += Math.min(14 / this.sizeMul, speed / Math.max(0.2, legReach * swing)) * dt;
       const ph = this.phase;
       const sinL = Math.sin(ph), sinR = Math.sin(ph + Math.PI);
 
@@ -607,9 +636,20 @@ export class Animator {
     if (this.soles) {
       const wantFollow = grounded && speed > 0.4 && !this.action && !ctx.duck && !ctx.dashT;
       if (wantFollow) {
-        const clr = this._soleClr;   // measured at the end of the last frame
-        if (clr !== null && clr !== undefined) {
-          this._footBias = damp(this._footBias || 0, (this._footBias || 0) - clr, 20, dt);
+        // soleClearance() measures in WORLD units; _footBias is spent in LOCAL
+        // ones (applyPose writes hips.position, which the group scale then
+        // multiplies). At sizeMul 1 those are the same thing and the 1:1
+        // correction below is exact — but a 4× body was feeding a world
+        // measurement into a local correction, i.e. correcting FOUR times what
+        // it measured. A feedback loop with gain 4 doesn't converge, it rings:
+        // that was the giant's feet buzzing up and down. Convert first, and the
+        // rate follows the same √ law as the legs so the pelvis doesn't snap
+        // over four times the distance in the same instant.
+        const clr = this._soleClr === null || this._soleClr === undefined
+          ? null : this._soleClr / this.sizeMul;
+        if (clr !== null) {
+          this._footBias = damp(this._footBias || 0, (this._footBias || 0) - clr,
+            20 / Math.sqrt(this.sizeMul), dt);
           // never lift the body more than a foot's depth: a bad measurement
           // must not launch the mech off the floor
           this._footBias = clamp(this._footBias, -this.footDepth, this.footDepth);
@@ -622,11 +662,33 @@ export class Animator {
 
     // ===== smooth & apply =====
     const rate = 1 - Math.exp(-26 * dt);
+    // GROWN BODY, HEAVY LEGS. Everything above (clips especially) is authored
+    // for a normal-sized mech: a kick or a stomp swings the leg through the
+    // same angle in the same fraction of a second, so at 4× the leg length the
+    // FOOT covers four times the distance in that time and reads as
+    // teleporting. Slowing the whole clip would slow the attack itself, so
+    // instead the LEG joints alone get a lazier approach to whatever the clip
+    // asks for: a first-order lag scales peak angular speed by its rate, so
+    // dividing by √sizeMul lands the foot at √S times a normal foot's speed —
+    // still fast for a giant, no longer a jump cut. (√L, not L: a giant that
+    // moved its feet at exactly normal speed would look like it was wading.)
+    const legRate = this.sizeMul > 1.001
+      ? 1 - Math.exp(-(26 / Math.sqrt(this.sizeMul)) * dt)
+      : rate;
+    // ...and a hard ceiling on top of the lag. The lag alone only helps where
+    // the clip STEPS; a clip that sweeps a leg fast and smoothly sails through
+    // a first-order filter unchanged, and at 4× that sweep is still four times
+    // the ground per second. This is the cap that actually holds.
+    const legCap = this.sizeMul > 1.001 ? (LEG_W_REF / Math.sqrt(this.sizeMul)) * dt : Infinity;
     for (const key of Object.keys(tgt)) {
       const c = this.cur[key] || (this.cur[key] = [...tgt[key]]);
-      c[0] = lerp(c[0], tgt[key][0], rate);
-      c[1] = lerp(c[1], tgt[key][1], rate);
-      c[2] = lerp(c[2], tgt[key][2], rate);
+      const leg = LEG_SMOOTH.has(key);
+      const r = leg ? legRate : rate;
+      for (let i = 0; i < 3; i++) {
+        const prev = c[i];
+        const v = lerp(prev, tgt[key][i], r);
+        c[i] = leg && legCap !== Infinity ? clamp(v, prev - legCap, prev + legCap) : v;
+      }
     }
     this.applyPose(this.cur);
     this.mech.postAnimate?.(); // GLB rigs: retarget virtual joints onto bones

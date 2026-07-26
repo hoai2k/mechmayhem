@@ -1970,13 +1970,18 @@ export const ULTS = {
     const S = u.scale || 4;
     const GROW = 1.3, DUR = u.duration || 9;
     f.status.buff = { spd: 1.3, dmg: 1.4, t: DUR };
-    let t = 0, crushT = 0, stompT = 0;
+    let t = 0, crushT = 0, lastStep = null;
     const apply = (s) => {
       f.group.scale.setScalar(s);
       f.scale = base.scale * s;
       f.baseHeight = base.h * s;
       f.baseHitRadius = base.hr * s;
       f.radius = base.r * s;
+      // Tell the animation layer how big he is right now. Without it the walk
+      // keeps its small-body cadence — four strides for one stride's worth of
+      // ground, feet skating — and every clip's leg swing covers four times
+      // the distance in the same instant. See Animator.sizeMul.
+      if (f.animator) f.animator.sizeMul = s;
     };
     w.addUpdater((dt) => {
       t += dt;
@@ -2002,13 +2007,22 @@ export const ULTS = {
           _v.set(f.pos.x, f.pos.y + 1.5, f.pos.z);
           w.arena?.damageSphere(_v, f.radius * 1.9, 55 * k, null, true);
         }
-        // thundering footfalls
-        stompT -= dt;
-        if (stompT <= 0 && Math.hypot(f.vel.x, f.vel.z) > 3 && f.grounded) {
-          stompT = 0.38;
-          w.effects.dustPuff(f.pos, 6, 0x9a9088);
-          w.effects.addShake(0.3 * k);
-          w.audio?.play('slam', { vol: 0.35 });
+        // THUNDERING FOOTFALLS, ON THE ACTUAL FOOTFALLS. This used to be a
+        // fixed 0.38s metronome, which was roughly a walking mech's cadence —
+        // but a giant's stride is now several times longer (Animator.sizeMul),
+        // so a timer drums out steps he isn't taking. Ride the gait phase
+        // instead: one plant per half cycle, whenever that happens to be.
+        if (f.grounded && Math.hypot(f.vel.x, f.vel.z) > 3) {
+          const step = Math.floor((f.animator?.phase || 0) / Math.PI);
+          if (lastStep === null) lastStep = step;
+          else if (step !== lastStep) {
+            lastStep = step;
+            w.effects.dustPuff(f.pos, 6, 0x9a9088);
+            w.effects.addShake(0.3 * k);
+            w.audio?.play('slam', { vol: 0.35 });
+          }
+        } else {
+          lastStep = null;   // re-seed on the next step so a stop doesn't fire one
         }
       }
       return t <= DUR;
