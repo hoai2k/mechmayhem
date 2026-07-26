@@ -13,6 +13,7 @@
 // dispatcher applies it, procedural bodies only).
 import * as THREE from 'three';
 import { lerp, clamp, clamp01 } from '../core/utils.js';
+import { PRONE_CLIPS } from './animations.js';
 
 const _qa = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
@@ -246,7 +247,9 @@ export const SIGNATURES = {
     // crab menace: the pincers gape WIDE through a strike's wind-up, then
     // SNAP shut at the clamp (synced to the shared clip's own timing via
     // act.t/dur), easing back open after — otherwise breathe at rest.
-    const striking = act && !act.fadingOut && !act.clip.loop;
+    // ...but a rollover clip is a one-shot too, and a mech on its back is not
+    // striking anything — the pincers just keep breathing while he's stranded
+    const striking = act && !act.fadingOut && !act.clip.loop && !PRONE_CLIPS.has(act.clip.name);
     let gape;
     if (striking) {
       const ph = Math.min(1, act.t / act.clip.dur);

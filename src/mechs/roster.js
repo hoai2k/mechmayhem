@@ -400,6 +400,12 @@ export const ROSTER = [
     levelHands: true, // wrist counter-pitch keeps the hand hardware on the aim line (signatures.js)
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.1, 0], torso: [6, 0, 0], head: [-4, 0, 0], shoulderL: [-38, 0, -14], shoulderR: [-38, 0, 14], elbowL: [-26, 0, 0], elbowR: [-26, 0, 0], thighL: [-6, 0, -6], thighR: [-6, 0, 6] },
+    // TOP-HEAVY SHELL: a big enough blow doesn't just floor him, it turns him
+    // clean over onto his back — legs at the sky, stranded until he rolls
+    // himself upright. Threshold + odds live in fighter.js (ROLLOVER_*), keyed
+    // off the damage DEALT: nothing VIPER throws can do it, a fully charged
+    // COLOSSUS haymaker is a coin flip, his charged heavy nearly always does.
+    rollover: true,
     heavyClip: 'clawSnap', // giant pincer SNAP, not a pound
     // the pincer clap is ARM-driven: hold off the torso/head aim twist so the
     // claws yaw out and back in without the shell slewing round (fighter.js)
