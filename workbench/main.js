@@ -1,0 +1,45 @@
+// Workbench entry — /workbench/?edit=<tool>&mech=<id>
+//
+// One page, one router, five tools. Everything game-specific arrives through
+// the adapter (workbench/adapters/robotworld), which fills the contract in
+// workbench/config/contract.js; the tools themselves import no game code.
+//
+//   /workbench/?edit=animation&mech=colossus     GLB vs procedural, actions, anchors
+//   /workbench/?edit=pose&mech=colossus          pose + keyframe a clip
+//   /workbench/?edit=skin&mech=colossus          bone-island skin repair
+//   /workbench/?edit=rig&mech=colossus           hand-place a skeleton
+//   /workbench/?edit=hurtbox&mech=colossus       what combat actually hits
+//
+// `&variant=alt|proc` picks which build a tool opens; the legacy `&alt=1` is
+// still accepted (see workbench/ui/variantpick.js).
+import '../src/style.css';
+
+const TOOLS = {
+  animation: () => import('./tools/animation.js').then((m) => m.runAnimationWorkbench),
+  pose: () => import('./tools/pose.js').then((m) => m.runPoseWorkbench),
+  skin: () => import('./tools/skin.js').then((m) => m.runSkinWorkbench),
+  rig: () => import('./tools/rig.js').then((m) => m.runRigWorkbench),
+  hurtbox: () => import('./tools/hurtbox.js').then((m) => m.runHurtboxWorkbench),
+};
+
+const params = new URLSearchParams(location.search);
+const which = (params.get('edit') || 'animation').toLowerCase();
+
+if (!TOOLS[which]) {
+  document.body.innerHTML = `<div style="font:14px/1.6 system-ui;color:#dfe8f5;background:#0b0f16;
+    position:fixed;inset:0;padding:40px">
+    <h2 style="color:#ffb4a2">Unknown workbench "${which}"</h2>
+    <p>Try one of:</p>
+    <ul>${Object.keys(TOOLS).map((k) => `<li><a style="color:#8fe" href="?edit=${k}${
+      params.get('mech') ? `&mech=${params.get('mech')}` : ''}">?edit=${k}</a></li>`).join('')}</ul>
+  </div>`;
+} else {
+  // wrapped rather than top-level await: the build targets es2020, where TLA
+  // isn't available
+  (async () => {
+    const { loadRobotworldConfig } = await import('./adapters/robotworld/index.js');
+    const config = await loadRobotworldConfig();
+    const run = await TOOLS[which]();
+    await run(config, params);
+  })();
+}

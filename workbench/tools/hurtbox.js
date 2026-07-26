@@ -23,17 +23,8 @@
 // reach change.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Engine } from '../core/engine.js';
-import { buildMech } from '../mechs/factory.js';
-import { Animator } from '../mechs/animator.js';
-import { buildGlbForTool, fetchRawManifest } from '../mechs/gltf.js';
-import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
-import { CLIPS } from '../mechs/animations.js';
-import { buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } from '../combat/hurtbox.js';
-import { mechClipList } from './mechclips.js';
-import { profileFor } from '../mechs/glbanim.js';
-import { setupDevPanel } from './panelui.js';
-import { altChoice, altCheckbox } from './altpick.js';
+import { setupDevPanel } from '../ui/panel.js';
+import { altChoice, altCheckbox } from '../ui/variantpick.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _mid = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -70,8 +61,10 @@ function fitCapsule(mesh, a, b, r) {
   }
 }
 
-export async function runCollider(startId) {
-  const engine = new Engine(document.getElementById('game-canvas'));
+export async function runHurtboxWorkbench(config, params) {
+  const startId = params.get('mech') || params.get('id');
+  const { build: buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } = config.hurtbox;
+  const engine = config.stage.engine();
   const { scene, camera, renderer } = engine;
   scene.background = new THREE.Color(0x1b2028);
   scene.add(new THREE.HemisphereLight(0xdfe6f2, 0x565c66, 2.0));
@@ -84,9 +77,8 @@ export async function runCollider(startId) {
   scene.add(ground);
   scene.add(new THREE.GridHelper(80, 80, 0x3a4658, 0x252d3a));
 
-  const params = new URLSearchParams(location.search);
-  const manifest = await fetchRawManifest();
-  let curId = ROSTER_BY_ID[startId] ? startId : ROSTER[0].id;
+  const manifest = config.manifest();
+  let curId = config.catalogue.get(startId) ? startId : config.catalogue.list()[0].id;
   let useGlb = params.get('model') !== 'proc';
   // ?alt=1 — measure the manifest's ALTERNATE build instead of the primary, so
   // a staged re-rig's hurtboxes can be judged before it is promoted.
@@ -132,21 +124,22 @@ export async function runCollider(startId) {
   }
 
   async function build(id, z) {
-    const d = ROSTER_BY_ID[id];
     const hasGlb = !!altChoice(manifest, id, altOn).entry?.url;
-    const m = (useGlb && hasGlb) ? (await buildGlbForTool(d, null, { alt: altOn })).mech : buildMech(d);
+    const m = await config.variants.build(id, {
+      variant: (useGlb && hasGlb) ? (altOn ? 'alt' : 'glb') : 'proc',
+    });
     // the rig faces +Z, so the dummy stands there — a strike aimed by the
     // limb only means anything when the attacker is actually facing it
     m.group.position.set(0, 0, z);
     scene.add(m.group);
-    const an = m.premadeAnimator || new Animator(m);
+    const an = config.anim.animator(m, id);
     an.poseStatic();
     return { mech: m, animator: an, hasGlb };
   }
 
   async function load(id) {
     curId = id;
-    def = ROSTER_BY_ID[id];
+    def = config.catalogue.get(id);
     const u = new URL(location.href);
     u.searchParams.set('mech', id);
     u.searchParams.set('model', useGlb ? 'glb' : 'proc');
@@ -165,10 +158,8 @@ export async function runCollider(startId) {
 
     // clip list for THIS mech, the ones that carry a `hit` event first —
     // those are the only ones with a strike to inspect
-    const profile = mech.animProfile || profileFor?.(def.id) || null;
-    const hits = (n) => !!(profile?.clipOverrides?.[n] || CLIPS[n])?.events
-      ?.some((e) => e.type === 'hit');
-    const list = mechClipList(def, profile)
+    const hits = (n) => !!config.anim.clip(n, mech)?.events?.some((e) => e.type === 'hit');
+    const list = config.anim.clipsFor(id, mech)
       .map((c) => c.name)
       .sort((a, b) => (hits(a) ? 0 : 1) - (hits(b) ? 0 : 1) || a.localeCompare(b));
     clipSel.innerHTML = '<option value="">— rest pose —</option>' + list.map((c) =>
@@ -301,7 +292,7 @@ export async function runCollider(startId) {
   const mechRow = row('<span style="width:44px;color:#8ba0b8">mech</span>');
   const mechSel = document.createElement('select');
   mechSel.style.cssText = 'flex:1;background:#0f151d;color:#dbe6f5;border:1px solid #2f3c4e;border-radius:5px;padding:3px';
-  mechSel.innerHTML = ROSTER.map((r) => `<option value="${r.id}">${r.id}</option>`).join('');
+  mechSel.innerHTML = config.catalogue.list().map((r) => `<option value="${r.id}">${r.id}</option>`).join('');
   mechRow.appendChild(mechSel);
   mechSel.onchange = () => load(mechSel.value);
   // rebuilt per mech — only mechs with an alternate entry get the control

@@ -86,12 +86,21 @@ export function manifestHasGlb(id) {
   return !!(manifest && manifest[id]?.url);
 }
 
+// WHERE THE ASSETS LIVE. Model urls in the manifest ("models/mech_x.glb") are
+// relative, and until the workbenches moved to their own page that was always
+// relative to the game's index.html. /workbench/ is one directory deeper, so a
+// page there must say so once, at boot, or every url resolves under
+// /workbench/ and quietly 404s into "no GLB for this mech".
+let assetBase = document.baseURI;
+export function setAssetBase(href) { assetBase = new URL(href, document.baseURI).href; }
+export function assetUrl(rel) { return new URL(rel, assetBase).href; }
+
 // One fetch+parse of public/models/manifest.json, shared by every manifest
 // reader. Missing/broken file resolves {} so the game always works. NOT
 // cached: loadManifest keeps its own promise cache, and the tool/raw readers
 // deliberately re-read the on-disk file each call.
 function fetchManifestJson() {
-  return fetch(new URL('models/manifest.json', document.baseURI))
+  return fetch(assetUrl('models/manifest.json'))
     .then((r) => (r.ok ? r.json() : {}))
     .catch(() => ({}));
 }
@@ -112,7 +121,7 @@ export function loadManifest() {
 function loadGLTF(url) {
   if (!gltfCache.has(url)) {
     gltfCache.set(url, new Promise((resolve, reject) => {
-      loader.load(new URL(url, document.baseURI).href, resolve, undefined, reject);
+      loader.load(assetUrl(url), resolve, undefined, reject);
     }));
   }
   return gltfCache.get(url);

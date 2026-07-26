@@ -7,7 +7,40 @@
 // legacy ?debug=3d that now just means "default") is deliberately NOT handled
 // here — choosing the model set is a real game toggle, routed through the
 // normal boot path, not a dev mode.
+// The five model workbenches moved to their own page (/workbench/), so the
+// old URLs are now redirects. Every node tool, bookmark and doc link that says
+// ?debug=skin keeps working, and lands on the same tool with the same mech.
+const WORKBENCH_REDIRECTS = {
+  'debug=models': 'animation',
+  'debug=pose': 'pose',
+  'debug=skin': 'skin',
+  'debug=collider': 'hurtbox',
+  'rigedit': 'rig',
+};
+
+function workbenchRedirect(params) {
+  const debug = params.get('debug');
+  let tool = debug ? WORKBENCH_REDIRECTS['debug=' + debug] : null;
+  if (!tool && params.has('rigedit')) tool = 'rig';
+  if (!tool) return false;
+  const next = new URLSearchParams();
+  next.set('edit', tool);
+  // the mech can arrive as ?mech=, ?id= or as the value of ?rigedit=
+  const rig = params.get('rigedit');
+  const mech = params.get('mech') || params.get('id')
+    || (rig && rig !== '1' && rig !== 'true' ? rig : null);
+  if (mech) next.set('mech', mech);
+  // per-tool params that still mean the same thing on the other side
+  for (const k of ['alt', 'variant', 'model', 'clip', 'left', 'at', 'dummy', 'ball']) {
+    if (params.has(k)) next.set(k, params.get(k));
+  }
+  const base = location.pathname.replace(/[^/]*$/, '');
+  location.replace(`${base}workbench/?${next.toString()}`);
+  return true;
+}
+
 export function runDevMode(params) {
+  if (workbenchRedirect(params)) return true;
   const debug = params.get('debug');
   if (params.get('edit') === 'level') {
     import('../editor/leveleditor.js').then(({ runLevelEditor }) => runLevelEditor(params));
@@ -15,14 +48,6 @@ export function runDevMode(params) {
     import('./showcase.js').then(({ runShowcase }) => runShowcase(params.get('showcase')));
   } else if (debug === 'actions') {
     import('./actiontest.js').then(({ runActionTest }) => runActionTest());
-  } else if (debug === 'models') {
-    import('./posetool.js').then(({ runPoseTool }) => runPoseTool(params.get('mech') || params.get('id')));
-  } else if (debug === 'pose') {
-    import('./posework.js').then(({ runPoseWork }) => runPoseWork(params.get('mech') || params.get('id')));
-  } else if (debug === 'collider') {
-    import('./collider.js').then(({ runCollider }) => runCollider(params.get('mech') || params.get('id')));
-  } else if (debug === 'skin') {
-    import('./skintool.js').then(({ runSkinTool }) => runSkinTool(params.get('mech') || params.get('id')));
   } else if (params.has('battle') || debug === 'finisher' || params.get('finisherdemo') === '1') {
     import('./battletest.js').then(({ runBattleTest }) => runBattleTest());
   } else if (params.has('ultfx')) {
@@ -33,8 +58,6 @@ export function runDevMode(params) {
     import('./geysertest.js').then(({ runGeyserTest }) => runGeyserTest());
   } else if (params.has('glbview')) {
     import('./glbview.js').then(({ runGlbView }) => runGlbView(params.get('glbview')));
-  } else if (params.has('rigedit')) {
-    import('./rigedit.js').then(({ runRigEdit }) => runRigEdit(params.get('rigedit')));
   } else if (params.has('bake')) {
     import('./bake.js').then(({ runBake }) => runBake(params.get('bake')));
   } else if (params.has('rigtest')) {
