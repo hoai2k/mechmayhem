@@ -1151,21 +1151,22 @@ export const ULTS = {
     const w = f.world;
     const N = u.count || 100;
     const SPIN = 18.6;          // rad/s at full whirl — ~3 turns a second
-    const RAMP = 0.333;         // hard acceleration up to full whirl
-    const BRAKE = 0.55;         // eased back down to a standstill
+    const RAMP = 0.333;         // hard acceleration up to full whirl...
+    const BRAKE = RAMP;         // ...and the SAME deceleration back down, so the
+    // spin-up and the spin-down are mirror images (fighter.js eases the brake
+    // out at a constant rate, matching the ramp's constant acceleration).
     // The whirl starts on frame ONE: the arms fling out (hurricaneSpin's own
     // 0.34s reach) while the torso is already turning under them, instead of
     // the body waiting for the pose to finish.
     const DELAY = 0;
-    // He completes WHOLE TURNS, so the whirl coasts to a stop facing front
-    // instead of unwinding backwards into place: the ramp covers SPIN*RAMP/2
-    // and the smoothstep brake covers SPIN*BRAKE*2/3 (that's a deceleration
-    // from full speed with no jump at the hand-off), and the full-speed hold
-    // is however long it takes to make up the difference. TURNS is what keeps
-    // the move's LENGTH steady as SPIN changes — six of them at this rate is
-    // the same ~1.5s flat-out run two were at a third of the speed.
+    // He completes WHOLE TURNS, so the whirl stops facing front instead of
+    // unwinding backwards into place. Ramp and brake are triangles of the same
+    // area (SPIN*RAMP/2 each), so the hold is whatever makes the total a whole
+    // number of turns. TURNS is what keeps the move's LENGTH steady as SPIN
+    // changes — six of them at this rate is the same flat-out run two were at a
+    // third of the speed.
     const TURNS = 6;
-    const HOLD = (TURNS * TAU - SPIN * RAMP / 2 - SPIN * BRAKE * 2 / 3) / SPIN;
+    const HOLD = (TURNS * TAU - SPIN * RAMP) / SPIN;
     const FIRE0 = DELAY + RAMP * 0.5;          // guns open at half whirl speed
     const FIRE1 = DELAY + RAMP + HOLD * 0.75;  // ...and fall silent before he slows
     const SPUN = DELAY + RAMP + HOLD + BRAKE;
