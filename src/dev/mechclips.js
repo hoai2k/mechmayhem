@@ -105,7 +105,7 @@ export function mechClipList(def, profile) {
   if (mv.ranged) {
     // doRanged: a channel weapon loops ONE clip; everything else fires a
     // per-shot clip, and only one of these branches can ever run.
-    if (CHANNEL_TYPES.has(mv.ranged.type)) add([def.channelClip || 'shootLoop'], 'Ranged (channel)');
+    if (CHANNEL_TYPES.has(mv.ranged.type)) add([def.channelClip || 'shootLoop', def.channelClipL], 'Ranged (channel)');
     else if (def.rangedClip) add([def.rangedClip], 'Ranged');
     else add(RANGED_BY_TYPE[mv.ranged.type] || ['shoot'], 'Ranged');
     if (mv.ranged.type === 'fist') add(['fistCatch'], 'Catch fist');

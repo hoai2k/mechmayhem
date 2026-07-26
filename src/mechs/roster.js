@@ -58,6 +58,8 @@ export const ROSTER = [
     ui: { power: 7, speed: 5, defense: 5 },
     levelHands: true, // wrist counter-pitch keeps the hand hardware on the aim line (signatures.js)
     channelClip: 'gatlingLoop', // gun arm punched forward, torso twist eased — barrel on the aim line
+    channelClipL: 'gatlingLoopL', // ...and its mirror, so BOTH gatlings take a turn leading
+    channelBurst: 5, // shots per hand before he swaps (0.43s a side at this cooldown)
     moves: {
       light: { dmg: [30, 32, 44], knock: [4, 5, 11], range: 2.9 },
       heavy: { dmg: 78, knock: 18, range: 3.2, launch: 7 },

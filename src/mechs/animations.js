@@ -1094,6 +1094,7 @@ function mirrorRaw(raw) {
 CLIPS_RAW.braceL = mirrorRaw(CLIPS_RAW.brace); // colossus fires the OTHER cannon
 CLIPS_RAW.shootL = mirrorRaw(CLIPS_RAW.shoot); // frogger's other gunk cannon
 CLIPS_RAW.shootLoopL = mirrorRaw(CLIPS_RAW.shootLoop); // channel held in the LEFT hand (glacier's cryo beam)
+CLIPS_RAW.gatlingLoopL = mirrorRaw(CLIPS_RAW.gatlingLoop); // vulcan's OTHER gatling takes the lead
 CLIPS_RAW.fistLaunchL = mirrorRaw(CLIPS_RAW.fistLaunch); // titanus' other rocket fist
 CLIPS_RAW.fistCatchL = mirrorRaw(CLIPS_RAW.fistCatch);   // ...and catching it back
 CLIPS_RAW.bigPunch2 = mirrorRaw(CLIPS_RAW.bigPunch1); // right haymaker, same wind-up

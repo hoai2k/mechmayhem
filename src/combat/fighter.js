@@ -681,13 +681,11 @@ export class Fighter {
     if (this._lockAim) this._aimPoint = this._lockAim.clone();
 
     if (isChannel) {
-      const cclip = this.def.channelClip || 'shootLoop';
-      if (!this.animator.isPlaying(cclip)) this.animator.play(cclip);
       this.setState('channel', 0.1);
       this.firing = true;
       this.rangedCd = mv.cooldown;
       if (this.ammoMax !== undefined) this.ammo--;
-      this.world.fireRanged(this, mv);
+      this.channelTick(mv);
     } else {
       // Two-weapon mechs alternate sides shot to shot (mirrored animation) —
       // mortar (colossus), slime (frogger), lightning (tempest's arc bolts,
@@ -749,6 +747,33 @@ export class Fighter {
       // and is MEANT to plant him for the shot.)
       if (!RUN_AND_GUN_CLIPS.has(clip)) this.setState('attack', dur * 0.6);
     }
+  }
+
+  // ONE TICK of a held channel weapon (gatling / flame / hose). Called for the
+  // opening shot by doRanged and for every shot after by the 'channel' state
+  // branch, so both paths pick the same gun and keep the same loop playing.
+  //
+  // TWIN-GUN CHANNEL (vulcan): a mech with a mirrored channel clip trades hands
+  // so both guns get in on it. It swaps in BURSTS, not shot to shot — at an
+  // 0.085s cooldown a per-shot swap would ask the arms to trade places twelve
+  // times a second, which the pose smoother just averages into one limp
+  // half-raised stance. A burst is long enough for the arm to arrive, so it
+  // reads as brrrt-left, brrrt-right.
+  channelTick(mv) {
+    if (this.def.channelClipL && this.mech.anchors.muzzleL) {
+      this._burstN = (this._burstN || 0) + 1;
+      if (this._burstN >= (this.def.channelBurst || 5)) {
+        this._burstN = 0;
+        this._altSide = !this._altSide;
+      }
+    }
+    const cclip = (this._altSide && this.def.channelClipL)
+      || this.def.channelClip || 'shootLoop';
+    if (!this.animator.isPlaying(cclip)) this.animator.play(cclip);
+    // the barrel world.js should fire from — same stamp the single-shot weapons
+    // use, so the round always leaves the gun the animation has led with
+    this._shotSide = !!(this._altSide && this.def.channelClipL);
+    this.world.fireRanged(this, mv);
   }
 
   doSpecial() {
@@ -2482,7 +2507,7 @@ export class Fighter {
           this.rangedCd = this.def.moves.ranged.cooldown;
           if (this.ammoMax !== undefined) this.ammo--;
           if (this._lockAim) this._aimPoint = this._lockAim.clone();
-          this.world.fireRanged(this, this.def.moves.ranged);
+          this.channelTick(this.def.moves.ranged);
         }
         this.faceAim();
       }

@@ -22,6 +22,7 @@ const NOTES = {
   vulcan: [
     { a: 'ranged', t: 'Gatling barrels spin up while firing', v: 'proc' },
     { a: 'ranged', t: 'Gun arm punched forward on its own channel clip (gatlingLoop)' },
+    { a: 'ranged', t: 'Trades hands every 5 rounds — mirrored clip, and the stream swaps muzzle with it' },
     { a: 'special', t: 'Missile salvo ripple-fires alternating shoulder pods (podL/podR)' },
   ],
   colossus: [{ a: 'ranged', t: 'Shoulder mortar tubes pitch and alternate', v: 'proc' }],
