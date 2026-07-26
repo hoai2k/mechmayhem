@@ -12,6 +12,16 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
+- **Latest:** per-mech HITBOXES (`src/combat/hurtbox.js`). Every mech was one
+  1.7×scale sphere; it is now a set of bone-bound capsules measured off the
+  model's own geometry (GLB: skinned verts bucketed by dominant bone; proc:
+  meshes under each rig joint), so the shape matches the silhouette AND
+  follows the animation. Melee resolves on the STRIKING LIMB — a swept
+  capsule from elbow/knee to just past the fist/foot — instead of a ball
+  hung off the sternum, and bullets/beams test the swept step against the
+  capsules. `hitRadius` is untouched (AoE falloff, camera). New workbench
+  `?debug=collider`, plus `tools/hurtboxfit.mjs` (per-mech fit audit) and
+  `tools/hitprobe.mjs` (new-vs-old melee comparison on a live fight).
 - **Branch:** `claude/3d-mech-battle-game-uxps6q`
 
 ## Tech stack

@@ -19,6 +19,8 @@ export function runDevMode(params) {
     import('./posetool.js').then(({ runPoseTool }) => runPoseTool(params.get('mech') || params.get('id')));
   } else if (debug === 'pose') {
     import('./posework.js').then(({ runPoseWork }) => runPoseWork(params.get('mech') || params.get('id')));
+  } else if (debug === 'collider') {
+    import('./collider.js').then(({ runCollider }) => runCollider(params.get('mech') || params.get('id')));
   } else if (debug === 'skin') {
     import('./skintool.js').then(({ runSkinTool }) => runSkinTool(params.get('mech') || params.get('id')));
   } else if (params.has('battle') || debug === 'finisher' || params.get('finisherdemo') === '1') {
