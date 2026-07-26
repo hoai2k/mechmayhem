@@ -374,7 +374,14 @@ const CLIPS_RAW = {
     //            and reads as the arms going UP over the shoulders. Cubic
     //            stops them dead flat.
     //   drop     roll ±16 with elbow -22: arms swing back down along the body
-    //            between passes, hands at y -0.7, so the next launch reads.
+    //            between passes so the next launch reads (measured in battle,
+    //            the hands swing from y 1.7 at the T down to y 0.3).
+    //   dwell    each T is keyed TWICE (0.26+0.30, 0.46+0.50, 0.68+0.72) —
+    //            without the second key the target starts falling the instant
+    //            it arrives, and the animator's 26/s pose-chase only ever
+    //            reaches ~-83 of the -92. The dwell lets it saturate: measured
+    //            in battle, -88 and full hand spread by t≈0.30, well inside
+    //            the first revolution (which ends at 0.26 + 2π/28.8 ≈ 0.48).
     // heavySpin runs t 0.26-1.07 at 28.8 rad/s ≈ 3.7 turns (0.22s a turn), so
     // the T's (0.26, 0.46, 0.68, 0.90) and the drops between them sit about
     // one pump per revolution, with a T carrying each hit beat.
@@ -383,11 +390,14 @@ const CLIPS_RAW = {
       { t: 0, pose: {} },
       { t: 0.18, ease: 'inOutCubic', pose: { hipsPos: [0, -0.4, 0], torso: [10, 20, 0], head: [0, -10, 0], shoulderL: [-20, 30, -20], shoulderR: [-20, -30, 20], elbowL: [-110, 0, 0], elbowR: [-110, 0, 0], kneeL: [40, 0, 0], kneeR: [40, 0, 0], thighL: [-22, 0, 0], thighR: [-22, 0, 0] } },
       { t: 0.26, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], torso: [-6, 0, 0], head: [-8, 0, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0], kneeL: [8, 0, 0], kneeR: [8, 0, 0], thighL: [-4, 0, 0], thighR: [-4, 0, 0] } },
-      { t: 0.36, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.30, ease: 'inOutQuad', pose: { shoulderL: [0, 0, -92], shoulderR: [0, 0, 92] } },
+      { t: 0.39, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
       { t: 0.46, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
-      { t: 0.58, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.50, ease: 'inOutQuad', pose: { shoulderL: [0, 0, -92], shoulderR: [0, 0, 92] } },
+      { t: 0.59, ease: 'inQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
       { t: 0.68, ease: 'outCubic', pose: { hipsPos: [0, 0.2, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
-      { t: 0.8, ease: 'inQuad', pose: { hipsPos: [0, 0.12, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
+      { t: 0.72, ease: 'inOutQuad', pose: { shoulderL: [0, 0, -92], shoulderR: [0, 0, 92] } },
+      { t: 0.81, ease: 'inQuad', pose: { hipsPos: [0, 0.12, 0], shoulderL: [6, 0, -16], shoulderR: [6, 0, 16], elbowL: [-22, 0, 0], elbowR: [-22, 0, 0] } },
       { t: 0.9, ease: 'outCubic', pose: { hipsPos: [0, 0.18, 0], shoulderL: [0, 0, -92], shoulderR: [0, 0, 92], elbowL: [0, 0, 0], elbowR: [0, 0, 0] } },
       { t: 1.07, ease: 'inOutQuad', pose: { hipsPos: [0, 0.1, 0], shoulderL: [0, 0, -88], shoulderR: [0, 0, 88], elbowL: [-4, 0, 0], elbowR: [-4, 0, 0] } },
       { t: 1.22, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0] } },

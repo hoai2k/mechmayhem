@@ -211,6 +211,10 @@ export const ROSTER = [
     // longer (0.6s -> 0.81s), so the clip carries a longer recovery tail;
     // the drive window stretches with it so the tornado keeps travelling for
     // as long as it keeps turning
+    // the tornado's whole shape is arms-OUT, so it opts out of the strike
+    // servo's palm convergence (fighter.js doHeavy) — that servo is built for
+    // a two-fisted pound and would drag the T back onto the body
+    heavyNoStrikeAim: true,
     heavySpin: { joint: 'hips', axis: 'y', rate: 28.8, t0: 0.26, t1: 1.07 },
     heavyDrive: { t0: 0.3, t1: 1.03, speed: 18 },
     heavyAura: 'tornado',
