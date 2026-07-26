@@ -73,7 +73,9 @@ export async function runPoseTool(startId) {
   scene.add(anchorGizmo.getHelper ? anchorGizmo.getHelper() : anchorGizmo);
   anchorGizmo.addEventListener('dragging-changed', (e) => {
     orbit.enabled = !e.value;
-    if (!e.value) onAnchorDrop();   // rebind on release
+    // one drag = one undo step, taken AFTER the drop so the auto-bind
+    // re-parent is part of the same step
+    if (!e.value) { onAnchorDrop(); pushAnchorHistory(); }
   });
 
   const params = new URLSearchParams(location.search);
@@ -266,8 +268,14 @@ export async function runPoseTool(startId) {
       anchors: { select: selectAnchor, drop: onAnchorDrop, output: outputAnchors,
         patch: buildAnchorPatch, reset: resetAnchor, changed: anchorChanged,
         nearestBone, boneRefName, base: anchorBase,
+        undo: anchorUndo, redo: anchorRedo, push: pushAnchorHistory,
+        get history() { return { at: aHistIdx, len: aHist.length }; },
         get sel() { return selAnchor; } } };
     captureAnchorBase();
+    // the mech was rebuilt: old anchor objects and parents are gone, so the
+    // stack starts again from this load's state
+    resetAnchorHistory();
+    pushAnchorHistory();
     buildAnchorButtons();
     anchorNote.textContent = '';
     anchorOut.style.display = 'none';
@@ -378,6 +386,7 @@ export async function runPoseTool(startId) {
       || Math.abs(obj.rotation.y - bs.rot.y) > 1e-4
       || Math.abs(obj.rotation.z - bs.rot.z) > 1e-4;
   }
+  // load-time baseline: the state Undo can always walk back to
   function captureAnchorBase() {
     for (const k of Object.keys(anchorBase)) delete anchorBase[k];
     for (const [name, obj] of Object.entries(glbF?.mech?.anchors || {})) {
@@ -413,6 +422,84 @@ export async function runPoseTool(startId) {
     if (!obj || !bs) return;
     if (obj.parent !== bs.parent) bs.parent.add(obj);
     obj.position.copy(bs.pos); obj.rotation.copy(bs.rot); obj.scale.setScalar(1);
+  }
+
+  // ================= anchor undo / redo =================
+  // Same model as the pose workbench: a step is a STATE, not a delta — every
+  // anchor's parent + local transform, which is exactly what the manifest
+  // records, so restoring one reproduces what that step looked like including
+  // the auto-bind re-parent a drop performed.
+  //
+  // A drag is ONE step (the snapshot is taken when the gizmo lets go, after
+  // the drop has rebound), and states are deduped by content, so clicking
+  // anchors, switching Move/Rotate or firing actions never floods the stack.
+  // Rebuilding the mech clears it: the anchor objects and their parents are
+  // new, so a state from before the switch means nothing after it.
+  const A_HIST_CAP = 100;
+  let aHist = [], aHistIdx = -1, aRestoring = false;
+  function anchorSnapshot() {
+    const out = {};
+    for (const [name, obj] of Object.entries(glbF?.mech?.anchors || {})) {
+      if (!obj?.isObject3D) continue;
+      out[name] = { parent: obj.parent, pos: obj.position.toArray(), rot: [obj.rotation.x, obj.rotation.y, obj.rotation.z] };
+    }
+    return out;
+  }
+  // content of a state — parents by uuid, so a re-parent registers as a change
+  const anchorSig = (s) => JSON.stringify(Object.entries(s).map(([n, a]) =>
+    [n, a.parent?.uuid || null, a.pos.map((v) => +v.toFixed(5)), a.rot.map((v) => +v.toFixed(5))]));
+  function pushAnchorHistory() {
+    if (aRestoring || !glbF?.mech) return;
+    const snap = anchorSnapshot();
+    if (aHistIdx >= 0 && anchorSig(aHist[aHistIdx]) === anchorSig(snap)) { syncAnchorHistUI(); return; }
+    aHist.length = aHistIdx + 1;        // a new edit discards the redo tail
+    aHist.push(snap);
+    if (aHist.length > A_HIST_CAP) aHist.shift();
+    aHistIdx = aHist.length - 1;
+    syncAnchorHistUI();
+  }
+  function restoreAnchorState(snap) {
+    aRestoring = true;
+    try {
+      for (const [name, a] of Object.entries(snap)) {
+        const obj = glbF?.mech?.anchors?.[name];
+        if (!obj || !a.parent) continue;
+        // add() (not attach()) — the snapshot holds LOCAL numbers, and those
+        // are what the manifest carries; attach would re-solve them from world
+        if (obj.parent !== a.parent) a.parent.add(obj);
+        obj.position.fromArray(a.pos);
+        obj.rotation.set(a.rot[0], a.rot[1], a.rot[2]);
+        obj.scale.setScalar(1);
+      }
+    } finally { aRestoring = false; }
+    refreshAnchorUI();
+  }
+  function anchorUndo() {
+    if (aHistIdx <= 0) { anchorNote.textContent = 'Nothing to undo.'; return; }
+    aHistIdx--;
+    restoreAnchorState(aHist[aHistIdx]);
+    anchorNote.textContent = `Undo · anchor step ${aHistIdx + 1}/${aHist.length}`;
+  }
+  function anchorRedo() {
+    if (aHistIdx >= aHist.length - 1) { anchorNote.textContent = 'Nothing to redo.'; return; }
+    aHistIdx++;
+    restoreAnchorState(aHist[aHistIdx]);
+    anchorNote.textContent = `Redo · anchor step ${aHistIdx + 1}/${aHist.length}`;
+  }
+  function resetAnchorHistory() { aHist = []; aHistIdx = -1; }
+  function syncAnchorHistUI() {
+    const canU = aHistIdx > 0, canR = aHistIdx < aHist.length - 1;
+    for (const [b, on] of [[aUndoBtn, canU], [aRedoBtn, canR]]) {
+      if (!b) continue;
+      b.disabled = !on;
+      b.style.opacity = on ? '1' : '0.4';
+      b.style.cursor = on ? 'pointer' : 'not-allowed';
+    }
+    if (aHistStep) {
+      aHistStep.textContent = aHist.length > 1
+        ? `step ${aHistIdx + 1}/${aHist.length} · Ctrl/⌘+Z`
+        : 'Ctrl/⌘+Z · Shift to redo';
+    }
   }
   // Emits the mech's COMPLETE muzzles block (existing manifest entries carried
   // through, edited ones replaced) so it can be pasted over the manifest whole
@@ -591,9 +678,31 @@ export async function runPoseTool(startId) {
   bindRow.appendChild(document.createTextNode(' Bind to nearest geometry on drop'));
   panel.appendChild(bindRow);
   const aResetRow = el('div', 'display:flex;gap:6px;margin-bottom:5px');
-  aResetRow.appendChild(btn('Reset anchor', () => { if (selAnchor) { resetAnchor(selAnchor); refreshAnchorUI(); } }));
-  aResetRow.appendChild(btn('Reset all anchors', () => { for (const n of Object.keys(anchorBase)) resetAnchor(n); refreshAnchorUI(); }));
+  aResetRow.appendChild(btn('Reset anchor', () => {
+    if (selAnchor) { resetAnchor(selAnchor); refreshAnchorUI(); pushAnchorHistory(); }
+  }));
+  aResetRow.appendChild(btn('Reset all anchors', () => {
+    for (const n of Object.keys(anchorBase)) resetAnchor(n);
+    refreshAnchorUI();
+    pushAnchorHistory();
+  }));
   panel.appendChild(aResetRow);
+  const aHistRow = el('div', 'display:flex;gap:6px;margin-bottom:4px');
+  const aUndoBtn = btn('↶ Undo', () => anchorUndo());
+  const aRedoBtn = btn('↷ Redo', () => anchorRedo());
+  aHistRow.append(aUndoBtn, aRedoBtn);
+  panel.appendChild(aHistRow);
+  const aHistStep = el('div', 'color:#69788c;font-size:10px;margin-bottom:5px');
+  panel.appendChild(aHistStep);
+  syncAnchorHistUI();
+  // Ctrl/⌘+Z · Shift to redo · Ctrl+Y — chorded, so they can't collide with
+  // the single-key action triggers the workbench feeds to the game input
+  window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z') { e.preventDefault(); (e.shiftKey ? anchorRedo : anchorUndo)(); }
+    else if (k === 'y') { e.preventDefault(); anchorRedo(); }
+  });
   const outBtn = btn('Output changes ▶', outputAnchors, true);
   panel.appendChild(outBtn);
   const anchorNote = el('div', 'margin-top:5px;color:#9fb2c8;font-size:10.5px;line-height:1.45');
