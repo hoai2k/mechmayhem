@@ -647,13 +647,21 @@ const CLIPS_RAW = {
   // swings in the HORIZONTAL plane: the arms stretch out wide to either side of
   // that huge body on the wind-up, then scythe forward and inward to meet in
   // front of the chest. Nothing crosses the torso volume at any point.
-  colossusClapHold: { // charged clap wind-up: arms flung out wide and back,
-    // chest open, the whole span trembling until Y releases
+  // The chamber both clips share, HAND-AUTHORED in ?debug=pose (owner's pose,
+  // squared up L/R — a dragged pose lands a few degrees off symmetry and a
+  // clap's wind-up shows that). Upper arms out wide and level at roll 96; past
+  // roll 90 the shoulder's pitch channel twists the arm about its own axis
+  // rather than lifting it, so pitch -58 is what swings the ELBOWS forward, and
+  // elbow -58 folds the forearms in ahead of the chest. Reads as a bear-hug
+  // cocked to snap shut, and the fists start the swing already on the plane
+  // they end it on.
+  colossusClapHold: { // charged clap wind-up: the span held open and quaking
+    // until Y releases
     dur: 0.8, loop: true,
     keys: [
-      { t: 0, pose: { hipsPos: [0, -0.26, -0.05], hipsRot: [-6, 0, 0], torso: [-16, 0, 0], head: [-10, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0] } },
-      { t: 0.4, ease: 'inOutQuad', pose: { hipsPos: [0, -0.3, -0.06], torso: [-18, 0, 0], shoulderL: [-12, -25, -104], shoulderR: [-12, 25, 104], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0] } },
-      { t: 0.8, ease: 'inOutQuad', pose: { hipsPos: [0, -0.26, -0.05], torso: [-16, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0] } },
+      { t: 0, pose: { hipsPos: [0, -0.261, -0.05], hipsRot: [-6, 0, 0], torso: [-16, 0, 0], shoulderL: [-58, -16, -96], shoulderR: [-58, 16, 96], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0] } },
+      { t: 0.4, ease: 'inOutQuad', pose: { hipsPos: [0, -0.3, -0.06], torso: [-18, 0, 0], shoulderL: [-61, -19, -100], shoulderR: [-61, 19, 100], elbowL: [-54, 0, 0], elbowR: [-54, 0, 0] } },
+      { t: 0.8, ease: 'inOutQuad', pose: { hipsPos: [0, -0.261, -0.05], torso: [-16, 0, 0], shoulderL: [-58, -16, -96], shoulderR: [-58, 16, 96], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0] } },
     ],
   },
   colossusClap: { // the banked clap discharges: the wide span sweeps forward
@@ -661,8 +669,9 @@ const CLIPS_RAW = {
     // hit-at-0.18 shape as poundSlam, so the charged heavy plays identically.
     dur: 0.7,
     keys: [
-      { t: 0, pose: { hipsPos: [0, -0.26, -0.05], hipsRot: [-6, 0, 0], torso: [-16, 0, 0], head: [-10, 0, 0], shoulderL: [-10, -22, -100], shoulderR: [-10, 22, 100], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0] } },
-      // impact: fists meet dead ahead at chest height, arms clear of the body
+      // t=0 IS colossusClapHold's base pose — the release takes the handover at
+      // fade 0, so any drift here reads as a hitch mid-charge. Keep them equal.
+      { t: 0, pose: { hipsPos: [0, -0.261, -0.05], hipsRot: [-6, 0, 0], torso: [-16, 0, 0], shoulderL: [-58, -16, -96], shoulderR: [-58, 16, 96], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0] } },
       // Impact. The inward roll is BIG on purpose: his shoulders sit further
       // apart than any other mech's, so a modest roll left the fists a body's
       // width apart and the "clap" read as a shrug. 58deg is what actually
