@@ -21,7 +21,9 @@ audio). Progress history: `TASKS.md`.
   comparison (trigger any move on both at once, slow-mo, live anchor editor).
   `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]` — pose a single
   mech by joint: load one of THAT mech's own clip poses as a starting point,
-  drag joints, "Copy pose" emits a clip-key pose block in degrees (paste
+  CLICK A JOINT IN THE VIEWPORT (the dots, or just the body part — nearest
+  joint wins; R/T rotate/translate, G local/world, Esc deselect) and drag the
+  gizmo. "Copy pose" emits a clip-key pose block in degrees (paste
   straight into `animations.js`), "Bind patch" emits the GLB manifest
   `boneCorrections`/`bonePos`. "Apply constraints" (default on) is the
   animation framework's rule — rotation only, hips may also translate — so
