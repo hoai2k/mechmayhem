@@ -38,6 +38,14 @@ controllers via Gamepad API), AI opponents.
   rendered at a different size and the comparison was meaningless. anchorkeep
   now reports both of those conditions and downgrades to ADVISORY where a
   difference is legitimate (different model, or a rig already promoted).
+- **Inferno alt skin patch** (owner-authored, ?debug=skin): 1852 verts of the
+  lower chest rebound from `hips` to `torso`. Landing it surfaced a bug in
+  `applySkinOps`: an explicit-vertex paint bound only the vertices the brush
+  reached, not their POSITION-WELDED TWINS at the same UV/normal seam, so one
+  copy of a seam point could go to the new bone while its twin stayed on the
+  old one — a zero-length bind edge that opens into a gash the moment the two
+  bones move (403x stretch ratio). Paint ops now carry their weld-mates;
+  neutral on every other mech, 403x -> 143x here.
 - **Branch:** `claude/3d-mech-battle-game-uxps6q`
 
 ## Tech stack

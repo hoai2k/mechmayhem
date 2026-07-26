@@ -49,6 +49,14 @@
 // Tripo primary's 0.208. It keeps climbing, but so does the risk of armour
 // plates reading rubbery, so this stops at vulcan's setting.
 //
+// SKIN OPS: the alt entry also carries a hand-painted `skinOps` patch (1852
+// verts of the lower chest moved off `hips` onto `torso`, authored in
+// ?debug=skin with Edit Alternate GLB on). skinOps run AFTER the re-skin on
+// the custom-rig path, so a paint layers on top of `softSkin` rather than
+// being erased by it — at the cost of being rigid where it lands: measured
+// over all 97 clips, worst cross-bone stretch 0.108 -> 0.148, still well
+// under the Tripo primary's 0.208.
+//
 // `cutWelds` is deliberately NOT set. Rhino and vulcan need it because their
 // meshers spanned the air gap between arm and hip with a hidden membrane that
 // fans out into shards on an uppercut; inferno has no such weld — at the
