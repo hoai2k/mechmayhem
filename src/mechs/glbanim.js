@@ -346,7 +346,22 @@ export const GLB_ANIM = {
       }
     },
   },
-  colossus: {},  // artillery biped — direct map (mortars procedural-only)
+  // COLOSSUS — artillery biped, direct map (mortars procedural-only). The one
+  // reinterpretation: his charged heavy is a THUNDERCLAP on this model instead of
+  // the shared overhead pound, whose follow-through dragged these forearms through
+  // the widest chest slab on the roster. Kept under the POUND's clip names so the
+  // charge machinery matches either build (see the note above COLOSSUS_CLAP in
+  // animations.js); the procedural colossus keeps the pound, which never clipped
+  // on it. Both mirror names map to the same clap — it is symmetric, and without
+  // them half his heavies would fall through to the mirrored pound.
+  colossus: {
+    clipOverrides: {
+      poundHold: GLB_CLIP_VARIANTS.colossusClapHoldGlb,
+      poundHoldMirror: GLB_CLIP_VARIANTS.colossusClapHoldGlb,
+      poundSlam: GLB_CLIP_VARIANTS.colossusClapGlb,
+      poundSlamMirror: GLB_CLIP_VARIANTS.colossusClapGlb,
+    },
+  },
 
   // WRAITH — hand-placed CUSTOM RIG (src/mechs/rigs/wraith.rig.js), so this
   // profile reads very differently from the old Tripo build kept as `alt`

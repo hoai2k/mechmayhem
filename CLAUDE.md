@@ -142,6 +142,14 @@ that combat silently depends on. Never rebuild a design without it.
   (sculpting vocabulary + Assembler), factory.js (rig + materials),
   animations.js + animator.js (pose-blend engine), gltf.js + rigadapter.js
   (GLB loading + humanoid retargeting), roster `skin` blocks drive pbrtex
+- PER-ROUTE animation: when a move only works on ONE of a mech's two models,
+  author it as a `GLB_CLIP_VARIANTS` entry compiled under the SHARED clip's name
+  and point the mech's glbanim profile `clipOverrides` at it. The roster keeps the
+  shared name, so every check keyed on `def.heavyClip`/`isPlaying`/the mirror
+  alternation matches either build and the procedural one keeps the default.
+  Colossus is the worked example (clap on the GLB, pound procedurally) — and note
+  a clip in `SMASH_MIRRORS` needs its `*Mirror` name overridden too, or half the
+  swings fall through to the shared clip
 - `src/combat/` — fighter.js (state machine), specials.js (24 specials/ults
   by id), projectiles.js, effects.js (pooled VFX)
 - `src/arena/` — themes.js (12 arena configs), arena.js, destructible.js
