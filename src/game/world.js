@@ -490,6 +490,7 @@ export class World {
     // Mid-clip the other arm is retracted somewhere behind him, and ranging off
     // that one left his left-hand throw 7° flatter than his right.
     const muzzle = (mv.type === 'fist' && f._fistSide === 'L' && anchors.muzzleL)
+      || (mv.type === 'shell' && f._shotSide && anchors.muzzleL)
       || anchors[f.def.primaryMuzzle] || anchors.muzzleR;
     const from = muzzle.getWorldPosition(new THREE.Vector3());
     const e = f.nearestEnemy();
