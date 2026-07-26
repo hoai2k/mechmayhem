@@ -26,6 +26,12 @@
 // Applying an op binds every vertex of the selected component(s) RIGIDLY
 // (weight 1.0) to the target bone — correct for mech parts, and exactly what
 // hand-rigged hard-surface models do.
+//
+// A part that SHOULD share (a shoulder pad that wants to follow the torso but
+// bend a little with the arm) takes the weighted form instead:
+//   { sel: ..., weights: { '<boneA>': 0.7, '<boneB>': 0.3 } }
+// up to 4 bones, renormalized on apply — authored in the ?debug=skin
+// workbench's "Bind Geometry" panel.
 import * as THREE from 'three';
 
 // Analyze one SkinnedMesh: dominant bone per vertex + bone-islands.
@@ -344,6 +350,28 @@ export function purgePairWeights(mesh, aName, bName) {
   return touched;
 }
 
+// Turn an authored { boneName: weight } map into up to 4 normalized
+// { i, w, name } slots, biggest first. Unknown bones and non-positive weights
+// are dropped; anything past the GPU's 4-influence limit is dropped too (a
+// 5th influence would be silently ignored by three.js, so cut it visibly).
+export function resolveWeightSlots(bones, weights) {
+  const slots = [];
+  for (const [name, w] of Object.entries(weights || {})) {
+    const i = bones.findIndex((b) => b.name === name);
+    if (i < 0) { console.warn('skinOps: unknown bone in weights', name); continue; }
+    if (!(w > 0)) continue;
+    slots.push({ i, w: +w, name });
+  }
+  slots.sort((a, b) => b.w - a.w);
+  if (slots.length > 4) {
+    console.warn('skinOps: weights list past 4 bones truncated:', slots.slice(4).map((s) => s.name).join(', '));
+    slots.length = 4;
+  }
+  const sum = slots.reduce((s, x) => s + x.w, 0);
+  if (sum > 0) for (const s of slots) s.w /= sum;
+  return slots;
+}
+
 // Apply ops to a SkinnedMesh's geometry: rigid-bind selected components to
 // the target bone. Mutates skinIndex/skinWeight in place. Returns a summary.
 export function applySkinOps(mesh, ops, analysis = null) {
@@ -366,6 +394,29 @@ export function applySkinOps(mesh, ops, analysis = null) {
     if (op.purgePair) {
       const n = purgePairWeights(mesh, op.purgePair[0], op.purgePair[1]);
       if (n) { applied++; total += n; }
+      continue;
+    }
+    // {"sel":{...}, "weights":{bone: w, ...}} — bind the selection to a BLEND
+    // of up to 4 bones instead of rigidly to one. Authored in the ?debug=skin
+    // "Bind Geometry" panel; weights are renormalized here, so the authored
+    // numbers can be written as any ratio (0.7/0.3, 7/3 — same result).
+    if (op.weights) {
+      const slots = resolveWeightSlots(bones, op.weights);
+      if (!slots.length) { console.warn('skinOps: no known bones in weights', JSON.stringify(op.weights)); continue; }
+      const verts = op.sel && Array.isArray(op.sel.verts)
+        ? op.sel.verts
+        : selectComps(a, op.sel || {}).flatMap((c) => c.verts);
+      if (!verts.length) { console.warn('skinOps: selection matched nothing', JSON.stringify(op.sel)); continue; }
+      for (const v of verts) {
+        jnt.setXYZW(v, slots[0].i, slots[1]?.i || 0, slots[2]?.i || 0, slots[3]?.i || 0);
+        wgt.setXYZW(v, slots[0].w, slots[1]?.w || 0, slots[2]?.w || 0, slots[3]?.w || 0);
+      }
+      // keep the analysis' owner in step with the new dominant bone, so a
+      // later op selecting {bone: ...} sees what this one left behind
+      if (!(op.sel && Array.isArray(op.sel.verts))) {
+        for (const c of selectComps(a, op.sel || {})) { c.boneIndex = slots[0].i; c.boneName = slots[0].name; }
+      }
+      applied++; total += verts.length;
       continue;
     }
     // {"sel":{"verts":[i,j,...]}, "to":bone} — bind an explicit vertex set
@@ -421,7 +472,8 @@ export function applySkinOpsToGltf(gltfScene, ops) {
 // noise a reader must mentally execute. compactSkinOps drops them.
 //
 // Scope of the guarantee: only PURE global-ordinal selectors ({sel:{comp:N}}
-// with no bone key) are deduped. Global ordinals are assigned once by
+// with no bone key) are deduped — rigid (`to`) and weighted (`weights`) alike,
+// since both rewrite every vertex of the component. Global ordinals are assigned once by
 // analyzeSkin and never shift, so keep-last is exact. {bone,comp} selectors
 // are ordinals WITHIN the bone's current group — earlier rebinds move
 // components in/out of groups and shift those ordinals — so ops using them

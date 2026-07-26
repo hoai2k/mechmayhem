@@ -64,8 +64,17 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
 4. Keep the OLD entry verbatim as `alt` (+ `profileKey` if it needs its own
    glbanim profile) so the two builds can be compared: `?rigedit=<id>&alt=1`,
    `?debug=models`'s *Compare Alternate GLB*, `node tools/variantcheck.mjs <id>`.
+   A rig can also be TRIALLED the other way round — the primary keeps its
+   Tripo intake and the NEW rig ships as the `alt` (`{"rig": "<id>"}` on the
+   alt entry), so nothing in the game moves until someone judges the two side
+   by side and promotes it. `colossus` is set up that way.
+5. Measure, don't eyeball: `node tools/cliptear.mjs <id> primary 1` vs
+   `... <id> alt 1` runs the real Animator over every clip and reports the
+   worst seam stretch for each build. Colossus: Tripo +0.34 mesh units,
+   custom rig +0.15.
 
-Precedents: `cranky`, `fenrir`, `glacier`, `jerry`, `titanus`, `wraith`.
+Precedents: `cranky`, `fenrir`, `glacier`, `jerry`, `titanus`, `wraith`
+(primary), `colossus`, `rhino` (offered as `alt`).
 
 **Route B steps** (also see IMAGE_TO_MECH.md): §1–§4 below.
 
