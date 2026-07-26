@@ -65,7 +65,8 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
    glbanim profile) so the two builds can be compared: `?rigedit=<id>&alt=1`,
    `?debug=models`'s *Compare Alternate GLB*, `node tools/variantcheck.mjs <id>`.
 
-Precedents: `cranky`, `fenrir`, `glacier`, `jerry`, `titanus`, `wraith`.
+Precedents: `cranky`, `fenrir`, `glacier`, `jerry`, `rhino`, `titanus`, `viper`,
+`vulcan`, `wraith`.
 
 **Route B steps** (also see IMAGE_TO_MECH.md): §1–§4 below.
 
