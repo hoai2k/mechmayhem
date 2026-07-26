@@ -21,6 +21,7 @@
 // Art direction: each theme keeps one or two saturated accent hues ("anime
 // pops") against a readable mid-tone stage. Fighters live at y=0..10 within
 // ~±bounds of origin — hemi/sun are balanced so they never sink into murk.
+import { applyArenaText } from '../core/text.js';
 
 export const THEMES = [
   {
@@ -404,5 +405,9 @@ export const THEMES = [
     },
   },
 ];
+
+// Arena names + descriptions come from the central text catalogue
+// (src/core/text.js) — see the note in roster.js.
+THEMES.forEach(applyArenaText);
 
 export const THEMES_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));

@@ -4,6 +4,7 @@ import { mechIcon } from './icons.js';
 import * as THREE from 'three';
 import { PLAYER_COLORS_CSS as COLOR_CSS } from '../core/colors.js';
 import { clamp01 } from '../core/utils.js';
+import { t } from '../core/text.js';
 const _v = new THREE.Vector3();
 
 export class Hud {
@@ -57,8 +58,8 @@ export class Hud {
 
     this.unsubs = [
       world.events.on('damage', (d) => this.onDamage(d)),
-      world.events.on('special', (d) => this.callout(`${d.fighter.def.name} — ${d.name}`)),
-      world.events.on('ult', (d) => this.callout(`⚡ ${d.fighter.def.name}: ${d.name}! ⚡`, true)),
+      world.events.on('special', (d) => this.callout(t('hud.special', { mech: d.fighter.def.name, move: d.name }))),
+      world.events.on('ult', (d) => this.callout(t('hud.ult', { mech: d.fighter.def.name, move: d.name }), true)),
       // combat-driven center-screen text (AEGIS's JUDGEMENT verdict)
       world.events.on('banner', (d) => this.announce(d.text || '', !!d.hold, d.color || null)),
     ];
@@ -73,7 +74,7 @@ export class Hud {
       root.className = 'hud-plate';
       root.innerHTML = `
         <div class="hp-head">
-          <span class="hp-player" style="color:${COLOR_CSS[i % 4]}">${f.isAI ? 'CPU' : 'P' + (i + 1)}</span>
+          <span class="hp-player" style="color:${COLOR_CSS[i % 4]}">${f.isAI ? t('hud.cpu') : t('hud.player', { n: i + 1 })}</span>
           <span class="hp-name">${mechIcon(f.def, 17)}${f.def.name}</span>
         </div>
         <div class="hud-bar hp"><div class="bar-ghost"></div><div class="bar-fill"></div></div>
@@ -154,7 +155,7 @@ export class Hud {
         p.sprintBar.classList.toggle('draining', !!f.sprinting);
       }
       if (p.ammoEl) {
-        p.ammoEl.textContent = f.ammo > 0 ? `AMMO ${f.ammo}` : 'AMMO 0 — FIND A CRATE';
+        p.ammoEl.textContent = f.ammo > 0 ? t('hud.ammo', { n: f.ammo }) : t('hud.ammoEmpty');
         p.ammoEl.style.color = f.ammo > 0 ? '#ffd23c' : '#ff5050';
       }
       p.pips.forEach((pip, i) => pip.classList.toggle('won', f.wins > i));

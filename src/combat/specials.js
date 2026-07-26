@@ -1,6 +1,7 @@
 // Per-mech special & ultimate implementations, dispatched by id from roster.
 import * as THREE from 'three';
 import { rand, clamp, clamp01, angleDiff, TAU } from '../core/utils.js';
+import { t } from '../core/text.js';
 import { GeyserFX } from './geyserfx.js';
 import { FireTornadoFX } from './nadofx.js';
 import { fireCool } from './flamefx.js';
@@ -1304,10 +1305,10 @@ export const ULTS = {
       if (i % 3 === 0) w.audio?.play('beam');
     }, { start: 0.2 });
     const say = (text, color = null, hold = true) => w.events.emit('banner', { text, hold, color });
-    w.schedule(1.0, () => f.alive && say('JUDGEMENT'));
-    w.schedule(1.5, () => f.alive && say('JUDGEMENT .'));
-    w.schedule(2.0, () => f.alive && say('JUDGEMENT . .'));
-    w.schedule(2.5, () => f.alive && say('JUDGEMENT . . .'));
+    w.schedule(1.0, () => f.alive && say(t('combat.judgement.0')));
+    w.schedule(1.5, () => f.alive && say(t('combat.judgement.1')));
+    w.schedule(2.0, () => f.alive && say(t('combat.judgement.2')));
+    w.schedule(2.5, () => f.alive && say(t('combat.judgement.3')));
     w.schedule(3.2, () => {
       if (!f.alive) { say('', null, false); return; }
       // the court tries the nearest REAL defendant (summons don't count)
@@ -1318,14 +1319,14 @@ export const ULTS = {
         const d = dx * dx + dz * dz;
         if (d < best) { best = d; v = e; }
       }
-      if (!v) { say('CASE DISMISSED', '#9fd8ff', false); return; }
+      if (!v) { say(t('combat.judgement.dismissed'), '#9fd8ff', false); return; }
       if (Math.random() < 0.5) {
-        say("INNOCENT: YOU'RE FREE TO GO", '#7dff9a', false);
+        say(t('combat.judgement.innocent'), '#7dff9a', false);
         w.effects.rings.spawn(v.pos, { from: 4, to: 0.5, dur: 0.6, color: 0x7dff9a, y: 0.5 });
         w.audio?.play('uiConfirm');
         return;
       }
-      say('GUILTY: DEATH PENALTY', '#ff4d5e', false);
+      say(t('combat.judgement.guilty'), '#ff4d5e', false);
       // heaven's pillar comes down on the condemned and TAKES them
       const gp = v.pos.clone();
       const top = gp.clone();

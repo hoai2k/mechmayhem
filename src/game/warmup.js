@@ -20,6 +20,7 @@
 // boot's main loop and teardownBattle read B.loading, so it stays there.
 import * as THREE from 'three';
 import { hexCss } from '../core/colors.js';
+import { t } from '../core/text.js';
 
 export class Warmup {
   constructor({ engine, uiRoot, touchControls = null }) {
@@ -80,10 +81,10 @@ export class Warmup {
       </div>`;
     }).join('');
     ov.innerHTML = `
-      <div class="wu-head"><div class="wu-sub">NOW ENTERING</div><div class="wu-arena">${theme.name}</div>
+      <div class="wu-head"><div class="wu-sub">${t('warmup.nowEntering')}</div><div class="wu-arena">${theme.name}</div>
         <div class="wu-bar"><div class="wu-bar-fill"></div></div></div>
       ${caps}
-      <div class="wu-loading">LOADING ARENA… &nbsp;·&nbsp; warm up! <b>MOVE</b> · <b>ATTACK</b> · <b>BLOCK</b> · <b>CROUCH</b></div>`;
+      <div class="wu-loading">${t('warmup.loadingArena.html')}</div>`;
     this.uiRoot.appendChild(ov);
     // a fighter whose model is still downloading is hidden — its panel
     // shows a spinner until the swap-in reveals it (see boot.startBattle)
@@ -94,7 +95,7 @@ export class Warmup {
       sp.className = 'wu-spinwrap';
       sp.style.left = `${(r.x + r.w / 2) * 100}%`;
       sp.style.top = `${(1 - r.y - r.h / 2) * 100}%`;
-      sp.innerHTML = '<div class="wu-spin"></div><div class="wu-spinlabel">LOADING MODEL</div>';
+      sp.innerHTML = `<div class="wu-spin"></div><div class="wu-spinlabel">${t('warmup.loadingModel')}</div>`;
       ov.appendChild(sp);
       f._wuSpin = sp;
     });

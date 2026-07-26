@@ -12,6 +12,7 @@ import { Match } from './match.js';
 import { Hud, toast } from '../ui/hud.js';
 import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen } from '../ui/menus.js';
 import { CONFIG, setInfiniteUltimates, setShowAllRobots } from '../core/config.js';
+import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
 import { createMech, preloadMechModels, loadManifest, is3dMode } from '../mechs/gltf.js';
 import { TouchControls, installTouchZoomGuards } from './touch.js';
@@ -25,6 +26,14 @@ export async function bootGame() {
   const engine = new Engine(document.getElementById('game-canvas'));
   const input = new Input();
   const uiRoot = document.getElementById('ui-root');
+
+  // document chrome (tab title + the portrait "rotate" hint in index.html)
+  // is text too — pull it from the catalogue so nothing lives outside it
+  document.title = t('app.title');
+  const rotT = document.querySelector('#rotate-hint .rot-title');
+  const rotS = document.querySelector('#rotate-hint .rot-sub');
+  if (rotT) rotT.textContent = t('app.rotate.title');
+  if (rotS) rotS.textContent = t('app.rotate.sub');
 
   // Resolve the manifest before any screen builds so manifestHasGlb() can
   // decide spinner-vs-procedural synchronously. Skipped under ?debug=fallback,
@@ -47,7 +56,7 @@ export async function bootGame() {
   try { muted = localStorage.getItem('rw.muted') === '1'; } catch (e) { /* ok */ }
   const muteBtn = document.createElement('div');
   muteBtn.id = 'mute-btn';
-  muteBtn.title = 'sound on/off';
+  muteBtn.title = t('settings.btn.sound');
   muteBtn.style.cssText =
     'position:absolute;right:16px;bottom:58px;z-index:40;cursor:pointer;font-size:26px;' +
     'opacity:0.8;user-select:none;text-shadow:0 2px 6px #000;pointer-events:auto;';
@@ -66,26 +75,26 @@ export async function bootGame() {
   // panel that floats over whatever screen is up (incl. the pause menu) ----
   const gearBtn = document.createElement('div');
   gearBtn.id = 'settings-btn';
-  gearBtn.title = 'settings';
+  gearBtn.title = t('settings.btn.settings');
   gearBtn.textContent = '⚙️';
   gearBtn.style.cssText =
     'position:absolute;right:56px;bottom:58px;z-index:40;cursor:pointer;font-size:26px;' +
     'opacity:0.8;user-select:none;text-shadow:0 2px 6px #000;pointer-events:auto;';
   uiRoot.appendChild(gearBtn);
   const settingsItems = () => [
-    { label: () => (muted ? 'SOUND: OFF' : 'SOUND: ON'), fn: () => setMuted(!muted) },
+    { label: () => t(muted ? 'settings.sound.off' : 'settings.sound.on'), fn: () => setMuted(!muted) },
     {
-      label: () => (CONFIG.debugUltimates ? 'INFINITE ULTIMATES: ON' : 'INFINITE ULTIMATES: OFF'),
+      label: () => t(CONFIG.debugUltimates ? 'settings.infiniteUlts.on' : 'settings.infiniteUlts.off'),
       fn: () => setInfiniteUltimates(!CONFIG.debugUltimates),
     },
     {
       // work-in-progress mechs (roster `hidden`) join the game roster; the
       // workbenches (?showcase, ?rigedit, ?battle=...) always show them
-      label: () => (CONFIG.showAllRobots ? 'SHOW ALL ROBOTS: ON' : 'SHOW ALL ROBOTS: OFF'),
+      label: () => t(CONFIG.showAllRobots ? 'settings.showAllRobots.on' : 'settings.showAllRobots.off'),
       fn: () => setShowAllRobots(!CONFIG.showAllRobots),
     },
     // controller-reachable page reload (via LB/RB → settings → this item)
-    { label: () => 'RELOAD PAGE', fn: () => window.location.reload() },
+    { label: () => t('settings.reload'), fn: () => window.location.reload() },
   ];
   function openSettings() {
     if (S.modal) return;
@@ -146,9 +155,9 @@ export async function bootGame() {
     installTouchZoomGuards();
   }
 
-  input.onPadConnect = (gp) => toast(`🎮 Controller connected: ${gp.id.slice(0, 34)}`);
+  input.onPadConnect = (gp) => toast(t('toast.padConnected', { id: gp.id.slice(0, 34) }));
   input.onPadDisconnect = (gp) => {
-    toast(`🎮 Controller disconnected`);
+    toast(t('toast.padDisconnected'));
     // pause if that pad was driving a fighter
     if (S.mode === 'battle' && S.battle && !S.battle.paused) {
       const inUse = S.battle.humans.some((h) => h.device === 'pad' + gp.index);
@@ -456,7 +465,7 @@ export async function bootGame() {
       onFullscreen: toggleFullscreen,
       onSettings: () => openSettings(),
       splitToggle: S.battle.humans.length === 2 ? {
-        label: () => S.battle.cameraSys.layout2p === 'lr' ? 'SPLIT: SIDE BY SIDE' : 'SPLIT: STACKED',
+        label: () => t(S.battle.cameraSys.layout2p === 'lr' ? 'settings.split.side' : 'settings.split.stacked'),
         fn: () => toggleSplitLayout(),
       } : null,
     }));
