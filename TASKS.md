@@ -3329,3 +3329,71 @@ VIEWED at four phases (sole flush, both feet flat), ace soak crash-free,
     `plantall.mjs [speed] [raw]` (roster sweep; `raw` resets the calibration
     in-page so before/after is one run apart), `bootbox.mjs` (the boot's box in
     its ankle bone's frame), `gaitmap.mjs` (phase -> joint -> sole trace).
+
+## CRANKY rolls right over onto his back on a big hit (user request, 2026-07-26)
+
+A launching blow used to do one thing to everybody: the shared `knockdown`
+sits you DOWN — hips back, knees up, propped, ready to push straight off the
+floor. On a wide top-heavy crab, a fully wound COLOSSUS haymaker landing like
+that reads as far too polite. New opt-in roster flag `rollover` (CRANKY only
+so far): a hard enough hit turns him CLEAN OVER instead — barrel-rolls him
+about his own facing axis until the carapace is on the pavement, every limb at
+the sky, stranded there until he rolls himself back upright.
+
+**The threshold** (`ROLLOVER_*`, fighter.js) is read off the damage the blow
+actually DEALT as a fraction of max HP — so armour, guard chip and any damage
+buff are already in the number and the curve needs no per-attacker tuning.
+Rolled once, at the LAUNCH, so the whole flight is committed to the landing
+that follows. Calibrated against CRANKY (1300 hp, 0.26 armour) to the brief:
+
+| blow | raw | dealt | frac | odds |
+|---|---|---|---|---|
+| VIPER light3 (even buffed) | 40 | 30 | 2.3% | **0%** |
+| VIPER heavy | 70 | 52 | 4.0% | 0% |
+| COLOSSUS light3, uncharged | 62 | 46 | 3.5% | 0% |
+| COLOSSUS light3, FULL charge | 130 | 96 | 7.4% | **49%** |
+| COLOSSUS heavy, FULL charge | 160 | 118 | 9.1% | **79%** |
+
+Sticky while he's down (a light poke can bounce him around but never quietly
+set him back on his feet), and capped at 0.9 — never a certainty.
+
+**The clips** (animations.js): `flipOver` (one-shot hold — contact, past the
+point of no return, carapace hits and rocks PAST level, settles), `proneBack`
+(loop — the shell rocking on its curve, claws pawing at air), `rollUpR` +
+its `mirrorRaw` twin `rollUpL`. The roll axis is `hipsRot.Z`, the mech's own
+FACING axis, so he ends up inverted while still pointing where he pointed — a
+pitch about X (what the shared knockdown does) lays a wide flat crab out on his
+tail-end, not his back. Two rules the family lives by:
+- **Winding.** ±180° is the same pose but not the same number, and the pose
+  smoother lerps numbers. The prone loop sits at +180, the right-hand recovery
+  unwinds 180 -> 0, the left-hand one runs -180 -> 0 after the fighter re-winds
+  the smoother (new `Animator.rewrap`). Both END at 0 — a recovery finishing
+  anywhere else stands the body up facing somewhere other than its own yaw.
+- **`proneBack` keys no leg joint.** That is what leaves the legs to the
+  locomotion layer, so a stranded mech's legs still answer the stick.
+
+**Legs keep moving while he's stranded**: the fighter feeds the STICK itself in
+as the animator's speed while `_onBack`, so the walk cycle (for the GLB, the
+hexapod tripod gait) runs with the body going nowhere — probe-verified,
+`_walkK` 0.00 on a neutral stick and 0.94 with a direction held.
+
+**The player picks the recovery direction**: whatever they're holding when the
+recovery comes up is the flank he goes over, and the roll DRIVES him that way
+for the length of the clip (`ROLLOVER_ROLL_DRIVE`) so he travels out from under
+whoever floored him. Only the lateral half of a press can be honoured — a body
+rolling about its own facing axis travels sideways and nowhere else — so a
+straight forward/back press takes him over his right. Mashing jump starts the
+roll early; there is no escape-spring while upside down.
+
+Rest of the plumbing: the CRANKY GLB profile stands its crab rules down while a
+`PRONE_CLIPS` clip is playing (the walk carry would flatten the prone hips back
+to level, the no-droop arm floor is meaningless on a body whose claws point at
+the sky, and the one-shot flip/roll would otherwise be read as an ATTACK and
+pick up a pincer wind-up); same gate on the signature's jaw snap.
+
+Verified: showcase screenshots of all three clips VIEWED (flipped shell down,
+legs up, claws splayed; mid-roll on the flank; standing square at the end), a
+scripted battle capture through the whole launch -> flip -> prone -> roll ->
+normal sequence with `groundClamp` seating him on the pavement, both roll
+directions picked correctly from the stick, ace soak crash-free (cranky vs
+colossus AND a non-rollover pair), `vite build` green.
