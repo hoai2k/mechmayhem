@@ -777,17 +777,21 @@ export class Fighter {
   // branch, so both paths pick the same gun and keep the same loop playing.
   //
   // TWIN-GUN CHANNEL (vulcan): a mech with a mirrored channel clip trades hands
-  // so both guns get in on it. It swaps in BURSTS, not shot to shot — at an
-  // 0.085s cooldown a per-shot swap would ask the arms to trade places twelve
-  // times a second, which the pose smoother just averages into one limp
-  // half-raised stance. A burst is long enough for the arm to arrive, so it
-  // reads as brrrt-left, brrrt-right.
+  // so both guns get in on it. It swaps on a CLOCK (`channelSwap` seconds), not
+  // per round — a gatling spits a round every 0.085s, and swapping per shot
+  // would ask the arms to trade places twelve times a second, which the pose
+  // smoother just averages into one limp half-raised stance. A second a side
+  // gives each arm a real turn: brrrrrt-left, brrrrrt-right.
+  //
+  // Timed off animator.t (which advances on the same scaled dt as everything
+  // else, so slow-mo slows the swap too) rather than counting rounds, so the
+  // cadence holds whatever the fire rate is doing.
   channelTick(mv) {
     if (this.def.channelClipL && this.mech.anchors.muzzleL) {
-      this._burstN = (this._burstN || 0) + 1;
-      if (this._burstN >= (this.def.channelBurst || 5)) {
-        this._burstN = 0;
-        this._altSide = !this._altSide;
+      const now = this.animator.t;
+      if (this._swapT === undefined || now - this._swapT >= (this.def.channelSwap || 1)) {
+        if (this._swapT !== undefined) this._altSide = !this._altSide;
+        this._swapT = now;
       }
     }
     const cclip = (this._altSide && this.def.channelClipL)
