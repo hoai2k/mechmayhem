@@ -7,7 +7,7 @@ import { PROPS, PROP_MATS, placeProp } from './props.js';
 import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
-import { pbrMaterial } from '../core/texload.js';
+import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
 
 // texture-pack material names per arena / building style
 const GROUND_TEX = {
@@ -27,6 +27,10 @@ const _v = new THREE.Vector3();
 
 function makeSkyDome(theme) {
   const geo = new THREE.SphereGeometry(900, 24, 16);
+  // generated sky panorama (src/textures/sky/sky_<id>/) — equirect, sampled
+  // analytically from the view direction; falls back to the gradient dome
+  const pano = CONFIG.useTextures && hasTex('sky', `sky_${theme.id}`)
+    ? loadMap('sky', `sky_${theme.id}`, 'albedo', { srgb: true }) : null;
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
@@ -34,7 +38,9 @@ function makeSkyDome(theme) {
       uTop: { value: new THREE.Color(theme.sky.top) },
       uBottom: { value: new THREE.Color(theme.sky.bottom) },
       uStars: { value: theme.sky.stars ? skyStarsTexture() : null },
-      uHasStars: { value: theme.sky.stars ? 1 : 0 },
+      uHasStars: { value: theme.sky.stars && !pano ? 1 : 0 },
+      uPano: { value: pano },
+      uHasPano: { value: pano ? 1 : 0 },
     },
     vertexShader: /* glsl */`
       varying vec3 vDir;
@@ -48,10 +54,18 @@ function makeSkyDome(theme) {
     fragmentShader: /* glsl */`
       uniform vec3 uTop; uniform vec3 uBottom;
       uniform sampler2D uStars; uniform float uHasStars;
+      uniform sampler2D uPano; uniform float uHasPano;
       varying vec3 vDir; varying vec2 vUv;
       void main() {
         float h = clamp(vDir.y * 1.4 + 0.18, 0.0, 1.0);
         vec3 col = mix(uBottom, uTop, pow(h, 0.8));
+        if (uHasPano > 0.5) {
+          vec2 uv = vec2(atan(vDir.z, vDir.x) / 6.2831853 + 0.5,
+                         asin(clamp(vDir.y, -1.0, 1.0)) / 3.1415926 + 0.5);
+          vec3 p = texture2D(uPano, uv).rgb;
+          // gradient keeps the very horizon (fog band) — pano owns the sky
+          col = mix(col, p, smoothstep(-0.02, 0.14, vDir.y));
+        }
         if (uHasStars > 0.5 && vDir.y > 0.02) {
           vec3 s = texture2D(uStars, vUv * vec2(3.0, 2.0)).rgb;
           col += s * smoothstep(0.02, 0.3, vDir.y);
@@ -74,6 +88,8 @@ export class Arena {
     this.world = null;
     this.objects = [];   // everything we added (for dispose)
     this.spinners = [];  // props with userData.spin
+    this.bobbers = [];   // props with userData.bob (boats, buoys, gondolas)
+    this.t = 0;
     this.steamSpots = [];
     this.explosives = []; // fuel tanks etc. that cook off when hit
     this.spikes = [];      // ground spike clusters: contact damage + shove
@@ -149,6 +165,24 @@ export class Arena {
       m.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r);
       m.rotation.y = rng.range(0, Math.PI);
       skyline.add(m);
+    }
+    // generated distant-horizon strip (src/textures/sky/horizon_<id>/):
+    // mountains / skyline silhouette on a far ring, camera-locked with the
+    // boxes so it never crosses the wrap seam. Unlit + fog-free — the strip
+    // bakes its own haze.
+    if (CONFIG.useTextures && hasTex('sky', `horizon_${theme.id}`)) {
+      const tex = loadMap('sky', `horizon_${theme.id}`, 'albedo', { srgb: true });
+      tex.repeat.set(3, 1);   // ~8:1 strip tiled 3× around the ring
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(620, 620, 175, 48, 1, true),
+        new THREE.MeshBasicMaterial({
+          map: tex, transparent: true, side: THREE.BackSide,
+          depthWrite: false, fog: false,
+        })
+      );
+      ring.position.y = 175 / 2 - 14;
+      ring.renderOrder = -9;
+      skyline.add(ring);
     }
     this.scene.add(skyline);
     this.objects.push(skyline);
@@ -230,11 +264,19 @@ export class Arena {
     // on flat ground; everything else may ride a hillside — its Y is lifted
     // to the terrain surface so nothing floats or sinks
     const FLAT_PROPS = new Set(['fuelTank', 'obsidianSpikes', 'campfire', 'lavaPool',
-      'moltenChannel', 'railSegment', 'fountain', 'helipad', 'landingPad', 'mineCart', 'conduit']);
+      'moltenChannel', 'railSegment', 'fountain', 'helipad', 'landingPad', 'mineCart', 'conduit',
+      'mine', 'spikeStrip', 'jumpPad', 'teleporter', 'crater', 'geyserVent', 'fumarole',
+      'parkPath', 'netPile']);
     const propSpotOk = (x, z, needFlat) => {
       if (Math.hypot(x, z) < 16) return false;                    // keep plaza center open
       if (this.terrain.onLane(x, z, 1.2)) return false;           // nothing parked on a road/stream
       if (this.terrain.nearBridge(x, z, 2.5)) return false;
+      // nothing standing in a lake/lava pool (sand / lawn / ash are fine),
+      // and nothing under the raised highway's footprint
+      const patch = this.terrain.onPatch(x, z, 1);
+      if (patch && (patch.hazard || patch.kind === 'ice')) return false;
+      if (this.terrain.viaduct &&
+          Math.abs(this.terrain.vLocal(x, z).perp) < this.terrain.viaduct.w / 2 + 1.5) return false;
       if (needFlat && this.terrain.heightAt(x, z) > 0.15) return false;
       return true;
     };
@@ -255,7 +297,37 @@ export class Arena {
         this._regProp(g, o.x, o.z, gy);
       }
     } else {
+      // viaduct piers first: solid destructible columns holding up the loop
+      for (const spot of this.terrain.pylonSpots) {
+        const g = placeProp(this.propGroup, this.objects, 'viaductPylon', spot.x, spot.z,
+          { h: spot.h, ry: spot.axis === 'x' ? Math.PI / 2 : 0, seed: rng.int(1, 99999) });
+        if (g) this._regProp(g, spot.x, spot.z, 0);
+      }
+      const buildAt = (spec, x, z, i, skyAnchored = false) => {
+        let opts = Array.isArray(spec.opts) ? spec.opts[i % spec.opts.length] : { ...(spec.opts || {}) };
+        opts = { ...opts, seed: rng.int(1, 99999) };
+        if (opts.mat === 'ice') opts.mat = PROP_MATS.ice;
+        const gy = skyAnchored ? 0 : this.terrain.heightAt(x, z);
+        const g = placeProp(this.propGroup, this.objects, spec.name, x, z, opts);
+        if (g && gy > 0.01) g.position.y += gy; // seat the prop on the terrain surface
+        if (g) this._regProp(g, x, z, gy);
+        return g;
+      };
       for (const spec of theme.props || []) {
+        // `on: 'water'` (or any patch kind): the prop lives INSIDE a patch —
+        // boats on the harbor basins, buoys on the lake. Skipped when the
+        // seeded layout produced no such patch.
+        if (spec.on) {
+          const pool = this.terrain.patches.filter((p) =>
+            p.kind === spec.on || (spec.on === 'water' && p.kind === 'lake'));
+          if (!pool.length) continue;
+          for (let i = 0; i < spec.count; i++) {
+            const p = pool[rng.int(0, pool.length - 1)];
+            const a = rng.range(0, Math.PI * 2), rr = rng.range(0, Math.max(0, p.r - 3.5));
+            buildAt(spec, p.x + Math.cos(a) * rr, p.z + Math.sin(a) * rr, i);
+          }
+          continue;
+        }
         for (let i = 0; i < spec.count; i++) {
           const skyAnchored = spec.ring[1] <= 6; // aurora-style props place their visuals far away
           let a, r, x, z, tries = 0;
@@ -264,13 +336,23 @@ export class Arena {
             r = rng.range(spec.ring[0], spec.ring[1]) * 1.85; // rings scaled with arena
             x = Math.cos(a) * r; z = Math.sin(a) * r;
           } while (!skyAnchored && !propSpotOk(x, z, FLAT_PROPS.has(spec.name)) && ++tries < 14);
-          let opts = Array.isArray(spec.opts) ? spec.opts[i % spec.opts.length] : { ...(spec.opts || {}) };
-          opts = { ...opts, seed: rng.int(1, 99999) };
-          if (opts.mat === 'ice') opts.mat = PROP_MATS.ice;
-          const gy = skyAnchored ? 0 : this.terrain.heightAt(x, z);
-          const g = placeProp(this.propGroup, this.objects, spec.name, x, z, opts);
-          if (g && gy > 0.01) g.position.y += gy; // seat the prop on the terrain surface
-          if (g) this._regProp(g, x, z, gy);
+          buildAt(spec, x, z, i, skyAnchored);
+          // `clump`: this placement is a NEST — scatter n-1 more of the same
+          // prop around it (groves, container yards, boulder fields), giving
+          // arenas real dense-vs-open texture instead of even sprinkle
+          if (spec.clump) {
+            const extra = rng.int(spec.clump.n[0], spec.clump.n[1]) - 1;
+            for (let k = 0; k < extra; k++) {
+              for (let t2 = 0; t2 < 8; t2++) {
+                const ca = rng.range(0, Math.PI * 2);
+                const cr = rng.range(3, spec.clump.spread ?? 9);
+                const cx = x + Math.cos(ca) * cr, cz = z + Math.sin(ca) * cr;
+                if (!propSpotOk(cx, cz, FLAT_PROPS.has(spec.name))) continue;
+                buildAt(spec, cx, cz, i + k + 1);
+                break;
+              }
+            }
+          }
         }
       }
     }
@@ -320,7 +402,10 @@ export class Arena {
   // spots where an ammo crate would be unreachable or silly
   badPickupSpot(x, z) {
     const lane = this.terrain.onLane(x, z, 1);
-    return (lane && lane.hazard === 'lava') || !!this.terrain.nearBridge(x, z, 1);
+    if (lane && (lane.hazard === 'lava' || lane.hazard === 'acid')) return true;
+    const patch = this.terrain.onPatch(x, z, 1);
+    if (patch && (patch.hazard === 'lava' || patch.hazard === 'acid' || patch.hazard === 'water')) return true;
+    return !!this.terrain.nearBridge(x, z, 1);
   }
 
   // ---- solid destructible props ----
@@ -368,9 +453,16 @@ export class Arena {
   destroyProp(p, dir = null) {
     if (!p.alive) return;
     p.alive = false;
+    // linked multi-body structure: felling one leg brings the whole thing down
+    if (p.link) for (const s of p.link) s.alive = false;
     this.hideProp(p);
     const w = this.world;
     if (!w) return;
+    // a downed viaduct pier takes its deck span with it
+    if (p.group.userData.pylon && this.terrain.viaduct) {
+      this.terrain.damageSphere(
+        new THREE.Vector3(p.x, this.terrain.viaduct.H, p.z), 4.5, 400);
+    }
     const n = Math.min(6, 2 + Math.round(p.r * p.h * 0.14));
     for (let i = 0; i < n; i++) {
       const a = rand(Math.PI * 2), rr = rand(0, p.r * 0.7);
@@ -575,6 +667,14 @@ export class Arena {
   // shared by procedural placement and authored (level-editor) placement.
   _regProp(g, x, z, gy = 0) {
     if (g.userData.spin) this.spinners.push(g);
+    if (g.userData.bob) {
+      const b = g.userData.bob;
+      this.bobbers.push({
+        g, baseY: g.position.y,
+        amp: b.amp ?? 0.22, speed: b.speed ?? 1.1, ph: rand(Math.PI * 2),
+        rock: b.rock ?? 0.03,
+      });
+    }
     if (g.userData.steamY !== undefined) {
       this.steamSpots.push(new THREE.Vector3(x, g.userData.steamY + gy, z));
     }
@@ -588,6 +688,26 @@ export class Arena {
     if (g.userData.spikes) this.spikes.push({ x, z, r: g.userData.spikes.r });
     if (g.userData.campfire) {
       this.campfires.push({ group: g, x, z, r: g.userData.campfire.r, litT: 0 });
+    }
+    // multi-body props (gates, arches, cave mouths): the builder names its
+    // own colliders — walk BETWEEN the legs; killing one leg fells the whole
+    // structure (bodies are linked)
+    if (g.userData.bodies) {
+      const cos = Math.cos(g.rotation.y), sin = Math.sin(g.rotation.y);
+      const link = [];
+      for (const b of g.userData.bodies) {
+        const pb = {
+          group: g, idx: this.propGroup.children.indexOf(g),
+          x: x + b.dx * cos + b.dz * sin,
+          z: z - b.dx * sin + b.dz * cos,
+          r: b.r, h: b.h + gy,
+          hp: b.hp ?? 26 + b.r * Math.min(b.h, 16) * 7,
+          alive: true, tint: b.tint ?? 0x8f887c, link,
+        };
+        link.push(pb);
+        this.propBodies.push(pb);
+      }
+      return;
     }
     // every standing structure is SOLID and BREAKABLE: measure a cylinder
     // collider off the built prop (ground hazards and flat dressing — pads,
@@ -650,6 +770,7 @@ export class Arena {
   }
 
   update(dt) {
+    this.t += dt;
     this.destructo.update(dt);
     this.terrain.update(dt);
     this.updateExplosives();
@@ -657,6 +778,11 @@ export class Arena {
     for (const g of this.spinners) {
       const t = g.userData.spinName ? (g.getObjectByName(g.userData.spinName) || g) : g;
       t.rotation[g.userData.spinAxis || 'z'] += g.userData.spin * dt;
+    }
+    // floating props ride a gentle swell (boats, buoys, hanging gondolas)
+    for (const b of this.bobbers) {
+      b.g.position.y = b.baseY + Math.sin(this.t * b.speed + b.ph) * b.amp;
+      if (b.rock) b.g.rotation.x = Math.sin(this.t * b.speed * 0.8 + b.ph * 1.7) * b.rock;
     }
 
     // ambient particles

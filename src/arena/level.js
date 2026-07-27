@@ -22,6 +22,7 @@
 //       { k:'hill', x, z, R, Rtop, H, deck, color, edge },
 //       { k:'bridge', x, z, axis, flat, H, color, edge },
 //       { k:'lane', kind, style, axis, at, amp, phase, width, glow, dash, color },
+//       { k:'patch', kind, x, z, r, glow, color },   // lake / lava pool / lawn...
 //     ],
 //     spawns: [ { x, z, yaw } ],
 //   }
@@ -51,17 +52,26 @@ export function themeFromLevel(level) {
   const hills = objects.filter((o) => o.k === 'hill');
   const bridges = objects.filter((o) => o.k === 'bridge');
   const lanes = objects.filter((o) => o.k === 'lane');
+  const patches = objects.filter((o) => o.k === 'patch');
 
   const bl = base.layout || {};
   const L = theme.layout = { ...bl };
   L.clearing = level.clearing ?? bl.clearing ?? 38;
   L.plaza = level.plaza ?? bl.plaza ?? false;
   L.clusters = { count: 0, size: [2, 3] };  // no procedural building clusters
+  L.viaduct = null;   // authored levels are exact — no seeded loop
 
   L.lanes = lanes.map((o) => ({
     kind: o.kind, style: o.style || o.kind, axis: o.axis,
     at: o.at, amp: o.amp || 0, phase: o.phase || 0, width: o.width ?? 6,
     glow: o.glow || null, dash: o.dash || null, color: o.color || null,
+  }));
+
+  // patches place exactly where authored (one spec per patch, list of one);
+  // a level with no patch objects gets none — not the base theme's random set
+  L.patches = patches.map((o) => ({
+    kind: o.kind, glow: o.glow || null, color: o.color || null,
+    list: [{ x: o.x, z: o.z, r: o.r ?? 9 }],
   }));
 
   L.hills = hills.length ? {

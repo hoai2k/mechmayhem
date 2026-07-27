@@ -1,0 +1,22 @@
+{
+  "toriiGate": { "file": "toriiGate.glb", "fit": 13 },
+  "blastFurnace": { "file": "blastFurnace.glb", "fit": 24 },
+  "bandshell": { "file": "bandshell.glb", "fit": 10 },
+  "gantryCrane": { "file": "gantryCrane.glb", "fit": 22 },
+  "gondolaRig": { "file": "gondolaRig.glb", "fit": 9 },
+  "buriedMechHand": { "file": "buriedMechHand.glb", "fit": 12 },
+  "headframe": { "file": "headframe.glb", "fit": 20 },
+  "basaltColumns": { "file": "basaltColumns.glb", "fit": 8 },
+  "icebreakerShip": { "file": "icebreakerShip.glb", "fit": 14 },
+  "greatGate": { "file": "greatGate.glb", "fit": 16 },
+  "templeGate": { "file": "templeGate.glb", "fit": 13 },
+  "shuttle": { "file": "shuttle.glb", "fit": 9 },
+  "foodTruck": { "file": "foodTruck.glb", "fit": 4.5 },
+  "carCrusher": { "file": "carCrusher.glb", "fit": 6.5 },
+  "crystalMonolith": { "file": "crystalMonolith.glb", "fit": 11 },
+  "quonsetHut": { "file": "quonsetHut.glb", "fit": 5 },
+  "sphinxStatue": { "file": "sphinxStatue.glb", "fit": 8 },
+  "solarWing": { "file": "solarWing.glb", "fit": 8 },
+  "trawler": { "file": "trawler.glb", "fit": 7 },
+  "snowcat": { "file": "snowcat.glb", "fit": 4 }
+}

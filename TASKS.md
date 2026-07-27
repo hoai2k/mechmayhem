@@ -12,7 +12,33 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** COLOR SCHEMES now work on the WHITE/BLACK/SILVER mechs, and two
+- **Latest:** ARENA REDESIGN PASS — all 12 arenas rebuilt as real
+  battlegrounds with theme-true set pieces, on three new terrain systems
+  (`src/arena/terrain.js`): **patches** (tiling-safe circular lakes / lava
+  lakes / swamp / frozen lakes / lawns / ash fields, live hazards like lanes),
+  a **viaduct** (an endless raised highway/monorail loop following a periodic
+  centerline around the whole wrap cell — walk under it, board it at two ramp
+  dips, blow out deck segments, topple its piers and the span comes down),
+  and prop placement upgrades in arena.js: **clump** nests (groves, container
+  canyons — dense pockets vs open ground), **on:'water'** placement (trawlers
+  and buoys float ON the harbor basins with a new `bob` sway hook), and
+  **multi-body colliders** (`userData.bodies`) so gates/arches/gantry legs
+  are individually solid and walk-through-able — shooting one leg fells the
+  whole structure. ~30 new realistic prop builders (torii gate, blast
+  furnace, gantry crane, buried mech hand, icebreaker, great gate, sphinx,
+  shuttle, basalt columns...), every theme re-authored with a sparse spawn
+  plaza / mid cover / dense-outskirts + one hero landmark, and several
+  arenas grew (harbor 120, uptown 116, frozen/ruins 112 effective radius).
+  Optional generated-asset hooks with full procedural fallback: sky
+  panoramas + distant-horizon strips (`src/textures/sky/`), pack textures on
+  key props (`texMat`), and **Tripo GLB prop overrides**
+  (`public/models/props/` + manifest, auto-scaled by `fit` height, visuals
+  swapped at placement while gameplay hooks stay) — prompts for all of it in
+  `docs/ARENA_ASSET_PROMPTS.md`. Verified: build green, 12/12 arena
+  screenshots eyeballed, ace soaks clean on neon / volcano (4P) / harbor,
+  level editor + authored levels unaffected (authored levels drop the
+  seeded viaduct/patches; `k:'patch'` objects supported in level JSON).
+- **Previous:** COLOR SCHEMES now work on the WHITE/BLACK/SILVER mechs, and two
   new achromatic paint jobs. A scheme used to be a hue swap that kept each
   pixel's own lightness, which only works on a mech with chroma to swap and a
   midtone value to keep: FENRIR (silver), WRAITH (near-black), RHINO + SAURION

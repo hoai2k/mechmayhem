@@ -16,6 +16,7 @@ import { CONFIG, setInfiniteUltimates, setShowAllRobots } from '../core/config.j
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
 import { createMech, preloadMechModels, loadManifest, is3dMode } from '../mechs/gltf.js';
+import { preloadPropModels } from '../arena/propglb.js';
 import { TouchControls, installTouchZoomGuards } from './touch.js';
 import { isTouchDevice } from '../core/utils.js';
 import { MenuStage } from './menustage.js';
@@ -40,6 +41,9 @@ export async function bootGame() {
   // decide spinner-vs-procedural synchronously. Skipped under ?debug=fallback,
   // where is3dMode() is false and the whole roster stays procedural.
   if (is3dMode()) { try { await loadManifest(); } catch (e) { /* falls back to procedural */ } }
+  // arena prop models (Tripo GLBs) warm in the background — any arena built
+  // before they land just keeps its procedural props
+  preloadPropModels();
 
   let audio;
   try {
@@ -325,6 +329,10 @@ export async function bootGame() {
     S.mode = 'battle';
 
     const theme = THEMES_BY_ID[S.themeId];
+    // give the arena-prop GLBs a short window to finish warming (direct
+    // ?battle= URLs build the arena within seconds of boot) — never a hard
+    // gate, the procedural props always work
+    await Promise.race([preloadPropModels(), new Promise((r) => setTimeout(r, 1500))]);
     // shared world/arena/camera wiring (arenaObjs = everything the arena
     // adds, hidden behind the warm-up's neutral backdrop and revealed
     // fully-warmed later)
