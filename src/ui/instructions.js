@@ -16,19 +16,24 @@ const PAD_W = 620, PAD_H = 420;
 // One row per control: where the leader line starts (x, y in pad space), which
 // side the label hangs off, and the label's own y. `id` names the catalogue
 // entries: controls.<id>.name / .action / .detail.
+//
+// `lane` is the x each leader turns the corner on. Every row gets its OWN lane
+// so no two verticals sit on top of each other, and lanes step INWARD as you go
+// down the column — that ordering is what keeps a lower row's horizontal run
+// from crossing a higher row's vertical (the vertical stops above it).
 const CONTROLS = [
   // left column, top to bottom
-  { id: 'lt', from: [216, 118], side: 'left', y: -46 },
-  { id: 'lb', from: [204, 148], side: 'left', y: 14 },
-  { id: 'lstick', from: [248, 205], side: 'left', y: 96 },
-  { id: 'dpad', from: [255, 278], side: 'left', y: 186 },
-  { id: 'view', from: [292, 196], side: 'left', y: 286, drop: 306 },
+  { id: 'lt', from: [216, 112], side: 'left', y: -46, lane: 178 },
+  { id: 'lb', from: [204, 148], side: 'left', y: 14, lane: 168 },
+  { id: 'lstick', from: [248, 205], side: 'left', y: 96, lane: 158 },
+  { id: 'dpad', from: [255, 278], side: 'left', y: 186, lane: 148 },
+  { id: 'view', from: [292, 196], side: 'left', y: 286, lane: 138, drop: 316 },
   // right column, top to bottom
-  { id: 'rt', from: [404, 118], side: 'right', y: -46 },
-  { id: 'rb', from: [416, 148], side: 'right', y: 14 },
-  { id: 'face', from: [372, 205], side: 'right', y: 96 },
-  { id: 'rstick', from: [365, 278], side: 'right', y: 186 },
-  { id: 'menu', from: [328, 196], side: 'right', y: 286, drop: 306 },
+  { id: 'rt', from: [404, 112], side: 'right', y: -46, lane: 442 },
+  { id: 'rb', from: [416, 148], side: 'right', y: 14, lane: 452 },
+  { id: 'face', from: [372, 205], side: 'right', y: 96, lane: 462 },
+  { id: 'rstick', from: [365, 278], side: 'right', y: 186, lane: 472 },
+  { id: 'menu', from: [328, 196], side: 'right', y: 286, lane: 482, drop: 316 },
 ];
 
 const svgNS = 'http://www.w3.org/2000/svg';
@@ -37,6 +42,14 @@ const mk = (tag, attrs) => {
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   return e;
 };
+
+// A centered label drawn onto the pad art.
+function padText(x, y, label, fill, size) {
+  const tx = mk('text', { x, y, 'text-anchor': 'middle', fill,
+    'font-size': size, 'font-weight': 800, 'font-family': 'inherit' });
+  tx.textContent = label;
+  return tx;
+}
 
 // The pad itself: body, grips, sticks, d-pad, face buttons, bumpers/triggers.
 function drawPad(svg) {
@@ -50,11 +63,15 @@ function drawPad(svg) {
     fill: 'rgba(28,42,62,0.95)', stroke: '#5f9fc8', 'stroke-width': 3,
   }));
   // bumpers (LB / RB) and triggers (LT / RT) above them
-  for (const x of [200, 358]) {
+  for (const [x, bumper, trigger] of [[200, 'LB', 'LT'], [358, 'RB', 'RT']]) {
     svg.appendChild(mk('rect', { x, y: 140, width: 62, height: 15, rx: 7,
       fill: 'rgba(60,95,130,0.9)', stroke: '#5f9fc8', 'stroke-width': 2 }));
-    svg.appendChild(mk('rect', { x: x + 8, y: 112, width: 46, height: 22, rx: 10,
+    svg.appendChild(mk('rect', { x: x + 8, y: 108, width: 46, height: 24, rx: 10,
       fill: 'rgba(40,70,100,0.9)', stroke: '#4d86ad', 'stroke-width': 2 }));
+    // the shoulder controls are the ones a player can't see on their own pad
+    // without turning it over, so they get their names printed on
+    svg.appendChild(padText(x + 31, 152, bumper, '#0d1626', 10));
+    svg.appendChild(padText(x + 31, 125, trigger, '#cfe4f4', 12));
   }
   // sticks: left one up top, right one down low (Xbox layout)
   for (const [cx, cy] of [[248, 205], [365, 278]]) {
@@ -111,8 +128,8 @@ export class InstructionsScreen {
       // route: out sideways clear of the pad body, up/down to the label's
       // row, then in to the label — so no leader crosses the pad
       const left = c.side === 'left';
-      const outX = left ? 140 : PAD_W - 140;
-      const endX = left ? 118 : PAD_W - 118;
+      const outX = c.lane;
+      const endX = left ? 122 : PAD_W - 122;
       const ly = c.y + 14;
       // `drop` first walks the leader down the pad's waist (VIEW / MENU sit
       // dead center, and a straight sideways line would cross both sticks)
