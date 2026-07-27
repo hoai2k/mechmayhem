@@ -11,6 +11,7 @@ import { AIController } from './ai.js';
 import { Match } from './match.js';
 import { Hud, toast } from '../ui/hud.js';
 import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen } from '../ui/menus.js';
+import { InstructionsScreen } from '../ui/instructions.js';
 import { CONFIG, setInfiniteUltimates, setShowAllRobots } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
@@ -114,10 +115,36 @@ export async function bootGame() {
   }
   gearBtn.addEventListener('click', () => openSettings());
 
+  // ---- how to play: ⓘ button left of the gear; opens the controller
+  // diagram (src/ui/instructions.js) as another floating modal ----
+  const infoBtn = document.createElement('div');
+  infoBtn.id = 'instructions-btn';
+  infoBtn.textContent = 'ⓘ';
+  infoBtn.style.cssText =
+    'position:absolute;right:96px;bottom:58px;z-index:40;cursor:pointer;font-size:26px;' +
+    'opacity:0.8;user-select:none;text-shadow:0 2px 6px #000;pointer-events:auto;';
+  uiRoot.appendChild(infoBtn);
+  function openInstructions() {
+    if (S.modal) return;
+    audio.play('uiSelect');
+    S.modal = new InstructionsScreen(uiRoot, { audio, onBack: () => closeModal() });
+  }
+  infoBtn.addEventListener('click', () => openInstructions());
+
+  // hover tooltips on all three corner buttons (native `title` is the
+  // fallback; .hot-btn styles the styled bubble)
+  for (const [btn, id] of [[infoBtn, 'settings.btn.instructions'],
+    [gearBtn, 'settings.btn.settings'], [muteBtn, 'settings.btn.sound']]) {
+    btn.title = t(id);
+    btn.dataset.tip = t(id);
+    btn.classList.add('hot-btn');
+  }
+
   // corner buttons as controller-selectable stops: the LB/RB slot selector
   // (mech select) and the title screen both walk this list, and pad pointers
   // can click the elements directly
   const hotButtons = [
+    { id: 'instructions', el: infoBtn, activate: () => openInstructions() },
     { id: 'settings', el: gearBtn, activate: () => openSettings() },
     { id: 'mute', el: muteBtn, activate: () => setMuted(!muted) },
   ];
@@ -132,6 +159,7 @@ export async function bootGame() {
       muteVisible = show;
       muteBtn.style.display = show ? '' : 'none';
       gearBtn.style.display = show ? '' : 'none';
+      infoBtn.style.display = show ? '' : 'none';
     }
   }
 
@@ -266,6 +294,8 @@ export async function bootGame() {
     setScreen(new MechSelectScreen(uiRoot, {
       input, audio, hotButtons, prev: S.slots,
       onPreview: (entries) => S.stage?.showPreviews(entries),
+      onLockFx: (slotIdx) => S.stage?.lockFx(slotIdx),
+      onYaw: (slotIdx, d) => S.stage?.setYaw(slotIdx, d),
       onDone: (picks, variants, slots) => { S.picks = picks; S.variants = variants; S.slots = slots; goArenaSelect(); },
       onBack: () => goTitle(),
     }));

@@ -47,9 +47,17 @@ audio). Progress history: `TASKS.md`.
   scrubber plays YOUR version back. Drag the scrubber and clip time runs smoothly
   (the motion preview); let go and it SNAPS to the nearest key, since a key is the
   only place an edit can be stored — between keys the readout says `between keys`
-  and nothing is editable. ◀ key / key ▶ step them, key times are listed under the
+  and nothing is editable. PLAY (beside the key steppers, or Space) runs the clip
+  at 1× on a loop through the real animator — pausing snaps back to the nearest
+  key. ◀ key / key ▶ step them, key times are listed under the
   slider, `&key=<n>`/`&t=<s>` deep-link one, and it opens on the LAST key (the
-  held pose of a hold/loop clip, the RECOVERY of a one-shot strike). An edit is
+  held pose of a hold/loop clip, the RECOVERY of a one-shot strike). The KEY
+  TRACK under the scrubber edits the key LIST itself: DRAG a diamond to move
+  that key in time (clamped between its neighbours), RIGHT-CLICK bare track for
+  "New keyframe" (born EMPTY, so it changes nothing until you drag a joint on
+  it), RIGHT-CLICK a diamond or press DEL/BACKSPACE to delete it. Amber = the
+  selected key, green = differs from the shipped clip; all of it is undoable
+  and reported in the export (`movedFrom`, `addedKey`, `deletedKeys`). An edit is
   stored as the DELTA you dragged applied to what the key AUTHORS — never the
   on-screen numbers assigned outright, since signature motion and rest bias ride
   on top of those — and keys stay SPARSE, so only the joints you touched are

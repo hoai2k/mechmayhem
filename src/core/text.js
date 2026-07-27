@@ -35,8 +35,11 @@ export const MESSAGES = {
 
   // ----------------------------------------------------------- fighter select
   'select.heading': 'CHOOSE YOUR FIGHTER',
-  'select.ready.html': '<div class="rb-chip">ALL LOCKED — PRESS <b>A / ENTER</b> TO CONTINUE · COLORS CAN STILL BE CHANGED</div>',
-  'select.hint.html': 'press <b>A</b> / <b>ENTER</b> on a controller or keyboard to JOIN&nbsp;&nbsp;·&nbsp;&nbsp;<b>MOVE</b> pick&nbsp;&nbsp;<b>X / R</b> color&nbsp;&nbsp;<b>A / ENTER</b> lock in&nbsp;&nbsp;<b>B / ESC</b> leave · back&nbsp;&nbsp;·&nbsp;&nbsp;<b>LB / RB</b> (Q/E) select a CPU / empty / KB slot / ⚙ / 🔊: <b>↑↓</b> change · <b>A</b> use · <b>B</b> done&nbsp;&nbsp;·&nbsp;&nbsp;pad <b>SELECT</b> mouse pointer',
+  'select.ready.html': '<div class="rb-chip">GAME READY. PRESS <b>A</b> TO PLAY.</div>',
+  // controller vocabulary only — the ⓘ button carries the full diagram, and
+  // keyboard players have the same buttons under the same names
+  'select.hint.html': '<b>A</b> join · lock in&nbsp;&nbsp;<b>D-PAD</b> pick&nbsp;&nbsp;<b>◀ ▶</b> color&nbsp;&nbsp;<b>B</b> leave&nbsp;&nbsp;<b>LB / RB</b> visit a slot&nbsp;&nbsp;<b>RIGHT STICK</b> turn&nbsp;&nbsp;·&nbsp;&nbsp;<b>ⓘ</b> full controls',
+  'select.colorHint': 'change color',
   'select.player': 'PLAYER {n}',
   'select.playerDevice': 'PLAYER {n} · {device}',
   'select.addPlayer': '＋ ADD PLAYER',
@@ -116,6 +119,45 @@ export const MESSAGES = {
   'settings.split.stacked': 'SPLIT: STACKED',
   'settings.btn.sound': 'sound on/off',
   'settings.btn.settings': 'settings',
+  'settings.btn.instructions': 'how to play',
+
+  // ------------------------------------------------------- controls (ⓘ modal)
+  // One control per row: .name is what's printed on the pad, .action the short
+  // label on the diagram, .detail the sentence shown when it's highlighted.
+  'controls.title': 'HOW TO PLAY',
+  'controls.close': 'CLOSE',
+  'controls.foot.html': 'hover a callout — or <b>↑ ↓</b> — for detail&nbsp;&nbsp;·&nbsp;&nbsp;<b>B / ESC</b> close'
+    + '&nbsp;&nbsp;·&nbsp;&nbsp;keyboard P1: <b>WASD</b> move · <b>F</b> light · <b>G</b> heavy · <b>H</b> block · <b>R</b> ranged · <b>T</b> special · <b>Y</b> ultimate · <b>SPACE</b> jump · <b>SHIFT</b> dash',
+  'controls.lstick.name': 'LEFT STICK',
+  'controls.lstick.action': 'move · menu cursor',
+  'controls.lstick.detail': 'walks your mech around the arena, and moves the cursor on menu screens. The arena wraps, so walking off one edge brings you back around the other.',
+  'controls.dpad.name': 'D-PAD',
+  'controls.dpad.action': 'menu cursor',
+  'controls.dpad.detail': 'steps the selection one cell at a time — the precise way to pick a robot, and (once locked in) ◀ ▶ steps your paint scheme back and forward.',
+  'controls.lb.name': 'LB',
+  'controls.lb.action': 'block · visit a slot',
+  'controls.lb.detail': 'in battle, holds your guard up: blocking bleeds damage down and stops chip knockback. On mech select it walks your focus onto another player slot, the ⚙ settings button or the 🔊 sound button.',
+  'controls.lt.name': 'LT',
+  'controls.lt.action': 'dash',
+  'controls.lt.detail': 'a fast burst in the direction you are holding — the way out of a corner, and the way to close distance before a heavy swing lands.',
+  'controls.view.name': 'VIEW',
+  'controls.view.action': 'mouse pointer',
+  'controls.view.detail': 'turns your controller into an on-screen mouse pointer, so you can click any menu, button or swatch directly. Press it again to hand the sticks back to the game.',
+  'controls.menu.name': 'MENU',
+  'controls.menu.action': 'pause',
+  'controls.menu.detail': 'pauses the match and opens the pause menu — settings, sound and quitting to the main menu all live there.',
+  'controls.rstick.name': 'RIGHT STICK',
+  'controls.rstick.action': 'camera · turn your robot',
+  'controls.rstick.detail': 'orbits the battle camera. On mech select, once you have locked your pick in, it spins your robot on the spot so you can look it over from any angle.',
+  'controls.face.name': 'A · B · X · Y',
+  'controls.face.action': 'confirm · back · color · ultimate',
+  'controls.face.detail': 'A confirms and locks in (and is a light attack in battle), B backs out, X cycles your paint scheme on menus and throws a special in battle, Y fires your ultimate once the meter is full.',
+  'controls.rb.name': 'RB',
+  'controls.rb.action': 'ranged · visit a slot',
+  'controls.rb.detail': 'fires your mech\'s ranged weapon in battle. On mech select it walks your focus to the next player slot or corner button, the opposite way from LB.',
+  'controls.rt.name': 'RT',
+  'controls.rt.action': 'heavy attack',
+  'controls.rt.detail': 'a slow, committed swing that hits hard and breaks a guard. It leaves you open on a whiff, so it wants a dash or a block to set it up.',
 
   // ------------------------------------------------------------------ results
   'results.champion': 'CHAMPION',

@@ -80,7 +80,12 @@ function recolorAlbedo(r, g, b, spec) {
     // MIDNIGHT blackout: keep hue, kill saturation + drop value
     [tr, tg, tb] = hslToRgb(h, s * 0.45, Math.max(0.05, l * 0.4));
   } else {
-    [tr, tg, tb] = hslToRgb(spec.hue, Math.max(s, spec.minS), l);
+    // satMul/lumMul are what let a scheme be earthier or paler than a pure hue
+    // swap (UMBER is a desaturated, darkened orange; BLOSSOM a pale pink) —
+    // same math the procedural path's forceHue() runs.
+    [tr, tg, tb] = hslToRgb(spec.hue,
+      Math.min(1, Math.max(s, spec.minS) * (spec.satMul ?? 1)),
+      Math.min(0.96, l * (spec.lumMul ?? 1)));
   }
   // lerp original -> target by paint weight (blends smoothly at metal borders)
   return [r + (tr - r) * w, g + (tg - g) * w, b + (tb - b) * w];

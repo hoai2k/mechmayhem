@@ -3595,3 +3595,116 @@ screenshot VIEWED · crash-free ace soaks on neon (vs viper) and steel (vs
 titanus) · `?rigedit=colossus` now opens the primary directly instead of being
 forced onto the alt, the retired build still loads under `&alt=1` with its 64
 ops · `vite build` green.
+
+## Pose workbench: the timeline became editable (user request, 2026-07-27)
+
+The scrubber could only visit keys; the key LIST was read-only. Under it now
+sits a KEY TRACK — one diamond per key, amber for the selected one, green for
+any that differs from the shipped clip — and it is direct manipulation:
+
+- DRAG a diamond to move that key along the timeline. The drag is clamped
+  between its neighbours (MIN_GAP 0.01s), which is what keeps the list sorted
+  without ever re-sorting it — `curKeyIdx`, which the whole editing path hangs
+  off, stays valid mid-drag. The viewport follows the key, so what you watch
+  reshape is the interpolation on either side of it.
+- RIGHT-CLICK bare track → "New keyframe at t=…". The new key is EMPTY
+  (`pose: {}`) on purpose: compileLive drops empty keys, so adding one changes
+  nothing about how the clip plays until you drag a joint on it, and then only
+  that joint is written. A key that snapshotted the whole interpolated pose
+  would silently freeze every limb passing through — the exact thing the
+  sparse-key rule exists to prevent.
+- RIGHT-CLICK a diamond → "Delete keyframe (t=…)", or press DEL/BACKSPACE with
+  it selected. The last remaining key is refused (a clip needs one).
+
+THE DIFF HAD TO CHANGE FIRST. `editedKeyIdx`/`keyDiff` compared
+`editClip.keys[i]` with `origKeys[i]` BY INDEX, which is fine while the only
+edit is "change a pose in place" and nonsense the moment a key can be inserted:
+key 3 is no longer the shipped key 3, and every key after an insertion reads as
+edited. Keys now carry a stable `id` (assigned in buildEditClip, minted from
+`nextKeyId` for hand-added ones, cloned through undo snapshots), and the diff
+matches on it — so a dragged key is still recognised as itself, a new one
+reports `addedKey`, a moved one `movedFrom: <old t>`, and keys the clip had but
+the edit doesn't come out as `deletedKeys` in the export.
+
+One real bug found while wiring the context menu: dismiss-on-click-away as a
+capture-phase window listener sees the pointerdown on a menu ITEM before the
+item does, so the menu deleted itself out from under the click that chose it —
+"New keyframe" appeared and did nothing. The dismissal now ignores pointerdowns
+inside the menu.
+
+Verified headlessly on colossus/heavy (5 keys): right-click gap → key inserted
+at t=0.08 (6 keys, reported edited) · dragged it to 0.23, clamped short of the
+0.34 neighbour · DEL removed it and the diff went back to clean · right-click
+on the shipped t=0.52 key → deleted, `deletedKeys` 1 · undo restored it exactly,
+redo removed it, undo again restored · a dragged shipped key exported as
+`changed: {movedFrom: 0.52}` and an added one as `changed: {addedKey}` ·
+screenshots VIEWED (diamonds, selection colour, menu) · `tools/wbconfig.mjs`
+PASS · `vite build` green.
+
+## Pose workbench: one timeline, and a Play button (user request, 2026-07-27)
+
+Three small things about the same strip.
+
+THE SCRUBBER AND THE KEY TRACK ARE NOW ONE TIMELINE. They were two different
+widths, so a key's diamond and the scrubber head disagreed about where that time
+was. A range input's thumb travels from half a thumb in to half a thumb from the
+end, so the slider takes the panel's full width and the key track keeps its
+KEY_PAD (= half a thumb) inset: same span, same mapping, head on the diamond.
+Nothing may share the slider's row — the readout beside it was what shortened
+the travel in the first place.
+
+THE READOUT BESIDE THE SCRUBBER IS GONE, as asked; the key you're parked on is
+already the bracketed one in the times line below. The one thing that line did
+not carry is the head's time while it is BETWEEN keys (nothing is bracketed
+then), so in that state it now reads `t 0.87 · 0.00 0.34 0.52 …`.
+
+PLAY / PAUSE beside ◀ key / key ▶ (or Space). It runs the edited clip at 1×
+through the real animator — one update per frame at the frame's own dt, so the
+pose smoother and signature layer behave exactly as they do in a match — and
+LOOPS, because judging a half-second strike means watching it more than once.
+Playing is a look, never an edit: the gizmo is detached for the duration and
+commitEdit is refused, so a stray drag can't be written into a key while the
+pose underneath is moving. Pausing snaps to the nearest key — the editable
+state — and hands the gizmo back. Anything that takes the pose over (clip swap,
+undo, mech rebuild, scrubbing, key stepping) stops playback first.
+
+Verified on colossus/heavy: the slider's box measures exactly the key track's
+box ±8px on each side, and parked on key 3 the thumb sits on that key's diamond
+(screenshot VIEWED) · Play advances clip time and wraps at dur, Pause lands on
+key 4 (t=0.70, the nearest), Space toggles both ways · the times line shows
+`t 0.87 · …` unbracketed while playing · no page errors, `vite build` green.
+
+## MENU UI PASS — instructions modal, selection flourish, nine paint schemes
+
+Eleven changes across the title and mech-select screens.
+
+TITLE keeps no hint bar any more (the controls live behind the new ⓘ button;
+`title.hint.html` stays in the catalogue for anyone who wants it back), and the
+SELECT hint bar is controller vocabulary only — A / D-PAD / ◀ ▶ / B / LB / RB /
+RIGHT STICK — no keyboard chords. "ALL LOCKED…" now reads GAME READY. PRESS A
+TO PLAY. The roster grid is `align-content: safe center`, so it sits centred
+between its heading and the players bar and still falls back to a top-anchored
+scroll when the roster outgrows the strip.
+
+HOW TO PLAY (`src/ui/instructions.js`, ⓘ left of the gear) draws an Xbox pad as
+inline SVG with a leader line from every control to what it does, and a detail
+sentence for whichever callout you're on — hover, or ↑↓ from a pad. One
+coordinate space drives both the drawing and the absolutely-positioned labels,
+so moving a control moves its line. Every string is a `controls.*` catalogue id.
+All three corner buttons (ⓘ ⚙ 🔊) grew tooltip bubbles (`.hot-btn::after`),
+and ⓘ joined `hotButtons`, so LB/RB reaches it from a player's seat.
+
+LOCK-IN FLOURISH: pressing A whips the mech around twice (0.72s, eased out)
+while a player-coloured bloom grows and fades behind it — `MenuStage.lockFx`.
+Once locked, LEFT steps the paint scheme BACKWARD and RIGHT forward (both used
+to go forward), the strip carries a ◀ change color ▶ hint, and the RIGHT STICK
+turns your robot on the spot, overriding the idle turntable while held
+(`Input.menuLookFor` → `MenuStage.setYaw`). A GLB that finishes loading
+mid-flourish inherits the spin and the parked yaw rather than snapping back.
+
+NINE PAINT SCHEMES, up from four: STOCK · EMBER · TIDE · MIDNIGHT · AMETHYST ·
+VERDANT · SOLAR · BLOSSOM · UMBER. Brown and pink need more than a hue swap, so
+`forceHue` gained `satMul`/`lumMul` (a brown is a desaturated, darkened orange)
+and the same two multipliers ride the `recolor` spec into `recolorglb.js`, so
+GLB mechs repaint to match instead of drifting bright orange. The RANDOM "?"
+sprite carries one tint per scheme.
