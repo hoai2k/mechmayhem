@@ -31,10 +31,10 @@ const END_R = Math.round(VB_X + VB_W - LABEL_FRAC * VB_W);
 //   'elbow'  one vertical off the button, then over. Used where the callout
 //            can't sit at the button's height (two controls at the same height,
 //            or a centre button whose sideways run would cross a stick).
-//   'lane'   out, one jog on the control's own `lane`, then in. Last resort,
-//            and nothing needs it now — the callouts are single-line, which
-//            packs them tightly enough that every control reaches its own at
-//            its own height or with one turn.
+//   'lane'   out, one jog on the control's own `lane`, then in. Used by the
+//            face cluster: four buttons inside 44 units of height, whose
+//            callouts want twice that between them, so the lower three step
+//            down to their rows in the margin.
 //
 // Lanes live outside the pad silhouette (x < 150 or x > 470) so a jog is never
 // drawn on the controller. Verticals are placed to clear every other button.
@@ -56,10 +56,16 @@ const CONTROLS = [
   { id: 'rt', from: [404, 112], side: 'right', route: 'elbow', y: 70 },
   { id: 'rb', from: [416, 148], side: 'right', route: 'elbow', y: 120 },
   { id: 'x', from: [350, 205], side: 'right', route: 'elbow', y: 158 },
-  { id: 'y', from: [385, 183], side: 'right', route: 'flat' },
-  { id: 'b', from: [407, 205], side: 'right', route: 'flat' },
-  { id: 'a', from: [385, 227], side: 'right', route: 'flat' },
-  { id: 'rstick', from: [392, 278], side: 'right', route: 'flat' },
+  // Y / B / A / RIGHT STICK take a jog each so the four face callouts (the
+  // buttons that matter most in a fight) get room to breathe instead of being
+  // pinned to the 22 units the buttons themselves are apart. Their lanes
+  // DESCEND as the column goes down, which is what keeps a lower row's run
+  // from ever reaching the lane above it — and all four turn in the right
+  // margin, clear of the pad.
+  { id: 'y', from: [385, 183], side: 'right', route: 'lane', y: 200, lane: 500 },
+  { id: 'b', from: [407, 205], side: 'right', route: 'lane', y: 242, lane: 492 },
+  { id: 'a', from: [385, 227], side: 'right', route: 'lane', y: 284, lane: 484 },
+  { id: 'rstick', from: [392, 278], side: 'right', route: 'lane', y: 340, lane: 476 },
 ];
 
 const svgNS = 'http://www.w3.org/2000/svg';
