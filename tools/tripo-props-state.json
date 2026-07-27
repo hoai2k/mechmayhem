@@ -6,5 +6,9 @@
     "glb": "public/models/props/toriiGate.glb",
     "bytes": 1910188,
     "done": true
+  },
+  "bandshell": {
+    "modelTask": "eff3f64f-8f80-490e-891b-257e483a36f1",
+    "modelFailed": false
   }
 }
