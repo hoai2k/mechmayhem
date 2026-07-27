@@ -28,36 +28,48 @@ function hslToHex(h, s, l) {
   return (f(0) << 16) | (f(8) << 8) | f(4);
 }
 
-const forceHue = (hex, h, minS) => {
+// Repaint to a target hue. `satMul`/`lumMul` are what make the earthier
+// schemes possible: a brown is an orange with the saturation pulled down and
+// the value dropped, which no hue alone can express.
+const forceHue = (hex, h, minS, satMul = 1, lumMul = 1) => {
   const [, s, l] = hexToHsl(hex);
-  return hslToHex(h, Math.max(s, minS), l);
+  return hslToHex(h, Math.min(1, Math.max(s, minS) * satMul), Math.min(0.96, l * lumMul));
 };
 const darken = (hex) => {
   const [h, s, l] = hexToHsl(hex);
   return hslToHex(h, s * 0.5, Math.max(0.06, l * 0.32));
 };
 
-export const SCHEME_NAMES = ['STOCK', 'EMBER', 'TIDE', 'MIDNIGHT'];
+// Nine paint jobs. Names are the mech's, not the crayon's — a robot wears
+// EMBER, not "red". Order is the cycle order in mech select; STOCK first so
+// the default pick is always the mech as its designer painted it.
+export const SCHEME_NAMES = ['STOCK', 'EMBER', 'TIDE', 'MIDNIGHT',
+  'AMETHYST', 'VERDANT', 'SOLAR', 'BLOSSOM', 'UMBER'];
 export const SCHEME_COUNT = SCHEME_NAMES.length;
 const SCHEMES = [
   null,
   { h: 0.02, minS: 0.6, glow: 0xff7a28 },   // EMBER — molten red-orange
   { h: 0.58, minS: 0.55, glow: 0x3fc8ff },  // TIDE — deep-sea blue
   { dark: true },                           // MIDNIGHT — blacked-out stealth
+  { h: 0.77, minS: 0.55, glow: 0xc07aff },  // AMETHYST — purple
+  { h: 0.33, minS: 0.55, glow: 0x5fe08a },  // VERDANT — green
+  { h: 0.09, minS: 0.7, glow: 0xffa62b, lumMul: 1.1 },   // SOLAR — bright orange
+  { h: 0.92, minS: 0.5, glow: 0xff8fd0, lumMul: 1.18, satMul: 0.9 }, // BLOSSOM — pink
+  { h: 0.075, minS: 0.45, glow: 0xc98b4a, satMul: 0.55, lumMul: 0.62 }, // UMBER — brown
 ];
 
 // swatch color for menus (cheap: primary after the scheme)
 export function schemeSwatch(def, v = 0) {
   const S = SCHEMES[v];
   if (!S) return def.colors.primary;
-  return S.dark ? darken(def.colors.primary) : forceHue(def.colors.primary, S.h, S.minS);
+  return S.dark ? darken(def.colors.primary) : forceHue(def.colors.primary, S.h, S.minS, S.satMul, S.lumMul);
 }
 
 // Returns a def clone wearing the scheme; variant 0 is the stock paint.
 export function applyColorScheme(def, v = 0) {
   const S = SCHEMES[v];
   if (!S) return def;
-  const re = (hex) => (S.dark ? darken(hex) : forceHue(hex, S.h, S.minS));
+  const re = (hex) => (S.dark ? darken(hex) : forceHue(hex, S.h, S.minS, S.satMul, S.lumMul));
   const [stockHue, stockSat] = hexToHsl(def.colors.primary); // BEFORE the repaint
   return {
     ...def,
@@ -69,6 +81,8 @@ export function applyColorScheme(def, v = 0) {
       dark: !!S.dark,
       hue: S.h,                                    // undefined for MIDNIGHT
       minS: S.minS,                                // undefined for MIDNIGHT
+      satMul: S.satMul,                            // earthier schemes (UMBER)
+      lumMul: S.lumMul,
       glowHue: S.glow != null ? hexToHsl(S.glow)[0] : null,
       stockHue,
       // A near-grey/tan primary (the "metal" mechs) gives an unreliable hue —

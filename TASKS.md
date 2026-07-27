@@ -3673,3 +3673,38 @@ box ±8px on each side, and parked on key 3 the thumb sits on that key's diamond
 (screenshot VIEWED) · Play advances clip time and wraps at dur, Pause lands on
 key 4 (t=0.70, the nearest), Space toggles both ways · the times line shows
 `t 0.87 · …` unbracketed while playing · no page errors, `vite build` green.
+
+## MENU UI PASS — instructions modal, selection flourish, nine paint schemes
+
+Eleven changes across the title and mech-select screens.
+
+TITLE keeps no hint bar any more (the controls live behind the new ⓘ button;
+`title.hint.html` stays in the catalogue for anyone who wants it back), and the
+SELECT hint bar is controller vocabulary only — A / D-PAD / ◀ ▶ / B / LB / RB /
+RIGHT STICK — no keyboard chords. "ALL LOCKED…" now reads GAME READY. PRESS A
+TO PLAY. The roster grid is `align-content: safe center`, so it sits centred
+between its heading and the players bar and still falls back to a top-anchored
+scroll when the roster outgrows the strip.
+
+HOW TO PLAY (`src/ui/instructions.js`, ⓘ left of the gear) draws an Xbox pad as
+inline SVG with a leader line from every control to what it does, and a detail
+sentence for whichever callout you're on — hover, or ↑↓ from a pad. One
+coordinate space drives both the drawing and the absolutely-positioned labels,
+so moving a control moves its line. Every string is a `controls.*` catalogue id.
+All three corner buttons (ⓘ ⚙ 🔊) grew tooltip bubbles (`.hot-btn::after`),
+and ⓘ joined `hotButtons`, so LB/RB reaches it from a player's seat.
+
+LOCK-IN FLOURISH: pressing A whips the mech around twice (0.72s, eased out)
+while a player-coloured bloom grows and fades behind it — `MenuStage.lockFx`.
+Once locked, LEFT steps the paint scheme BACKWARD and RIGHT forward (both used
+to go forward), the strip carries a ◀ change color ▶ hint, and the RIGHT STICK
+turns your robot on the spot, overriding the idle turntable while held
+(`Input.menuLookFor` → `MenuStage.setYaw`). A GLB that finishes loading
+mid-flourish inherits the spin and the parked yaw rather than snapping back.
+
+NINE PAINT SCHEMES, up from four: STOCK · EMBER · TIDE · MIDNIGHT · AMETHYST ·
+VERDANT · SOLAR · BLOSSOM · UMBER. Brown and pink need more than a hue swap, so
+`forceHue` gained `satMul`/`lumMul` (a brown is a desaturated, darkened orange)
+and the same two multipliers ride the `recolor` spec into `recolorglb.js`, so
+GLB mechs repaint to match instead of drifting bright orange. The RANDOM "?"
+sprite carries one tint per scheme.
