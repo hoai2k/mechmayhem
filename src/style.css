@@ -675,7 +675,7 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
 }
 /* the stage is the SVG's coordinate space: labels are positioned in % of it,
    so a leader line and its label never drift apart as the page resizes */
-.ctrl-stage { position: relative; width: 100%; aspect-ratio: 620 / 430; max-height: 62vh; }
+.ctrl-stage { position: relative; width: 100%; aspect-ratio: 620 / 500; max-height: 68vh; }
 /* the diagram sits over the labels in DOM order — it must not eat their hover */
 .ctrl-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .ctrl-label {

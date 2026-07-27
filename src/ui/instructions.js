@@ -11,29 +11,46 @@
 // with the rest of the game.
 import { t } from '../core/text.js';
 
-const PAD_W = 620, PAD_H = 420;
+const PAD_W = 620, PAD_TOP = -80, PAD_H = 500;
 
-// One row per control: where the leader line starts (x, y in pad space), which
-// side the label hangs off, and the label's own y. `id` names the catalogue
-// entries: controls.<id>.name / .action / .detail.
+// One row per control. `from` is the point on the pad art the leader starts at,
+// `side` which column the callout hangs in, `y` the callout's own row.
 //
-// `lane` is the x each leader turns the corner on. Every row gets its OWN lane
-// so no two verticals sit on top of each other, and lanes step INWARD as you go
-// down the column — that ordering is what keeps a lower row's horizontal run
-// from crossing a higher row's vertical (the vertical stops above it).
+// ROUTING, and why the numbers look fussy. A leader leaves the pad at some
+// height (its `exit` — `from[1]`, or `drop` when it first walks down the waist
+// so it doesn't cross the sticks), runs sideways to its own `lane`, then turns
+// once more to meet its callout. Two rules keep the lines apart:
+//
+//   1. Every row owns a distinct lane, so no two verticals sit on top of
+//      each other.
+//   2. Rows are ordered by EXIT height and lanes step inward as the column
+//      goes down — so a lower row's sideways run passes only lanes whose
+//      verticals have already stopped above it.
+//
+// LT / RT are the exception on purpose: their lane IS the callout edge, so each
+// is a plain horizontal-then-vertical L above everything else.
+// `tools/ctrllines.mjs`-style checking lives in the page itself — see the
+// crossing assertions in the task notes; 0 overlaps, 0 crossings.
 const CONTROLS = [
-  // left column, top to bottom
-  { id: 'lt', from: [216, 112], side: 'left', y: -46, lane: 178 },
-  { id: 'lb', from: [204, 148], side: 'left', y: 14, lane: 168 },
-  { id: 'lstick', from: [248, 205], side: 'left', y: 96, lane: 158 },
-  { id: 'dpad', from: [255, 278], side: 'left', y: 186, lane: 148 },
-  { id: 'view', from: [292, 196], side: 'left', y: 286, lane: 138, drop: 316 },
-  // right column, top to bottom
-  { id: 'rt', from: [404, 112], side: 'right', y: -46, lane: 442 },
-  { id: 'rb', from: [416, 148], side: 'right', y: 14, lane: 452 },
-  { id: 'face', from: [372, 205], side: 'right', y: 96, lane: 462 },
-  { id: 'rstick', from: [365, 278], side: 'right', y: 186, lane: 472 },
-  { id: 'menu', from: [328, 196], side: 'right', y: 286, lane: 482, drop: 316 },
+  // LEFT column, top to bottom (rows ordered by the height each leader leaves
+  // the pad at; lanes step inward as the column descends)
+  { id: 'lt', from: [216, 112], side: 'left', y: -62, lane: 122 },
+  { id: 'lb', from: [204, 148], side: 'left', y: 100, lane: 180 },
+  { id: 'lstick', from: [248, 205], side: 'left', y: 165, lane: 168 },
+  { id: 'dpad', from: [255, 278], side: 'left', y: 230, lane: 156 },
+  // SELECT and START sit dead centre on the pad; their leaders walk down the
+  // waist, out below the grips, and up into the two bottom-left callouts
+  { id: 'select', from: [292, 196], side: 'left', y: 295, lane: 144, drop: 352 },
+  { id: 'start', from: [328, 196], side: 'left', y: 360, lane: 132, drop: 366 },
+  // RIGHT column — the four face buttons get a callout each, fanned out of the
+  // cluster at four different heights so no two leaders share a lane or a run
+  { id: 'rt', from: [404, 112], side: 'right', y: -62, lane: 498 },
+  { id: 'rb', from: [416, 148], side: 'right', y: 100, lane: 430 },
+  { id: 'y', from: [372, 183], side: 'right', y: 150, lane: 440, drop: 150 },
+  { id: 'b', from: [394, 205], side: 'right', y: 200, lane: 450 },
+  { id: 'a', from: [372, 227], side: 'right', y: 250, lane: 460, drop: 260 },
+  { id: 'rstick', from: [365, 278], side: 'right', y: 300, lane: 470 },
+  { id: 'x', from: [350, 205], side: 'right', y: 350, lane: 480, drop: 340 },
 ];
 
 const svgNS = 'http://www.w3.org/2000/svg';
@@ -120,25 +137,22 @@ export class InstructionsScreen {
     stage.className = 'ctrl-stage';
     wrap.appendChild(stage);
 
-    const svg = mk('svg', { viewBox: `0 -70 ${PAD_W} ${PAD_H}`, class: 'ctrl-svg' });
+    const svg = mk('svg', { viewBox: `0 ${PAD_TOP} ${PAD_W} ${PAD_H}`, class: 'ctrl-svg' });
     drawPad(svg);
     this.lines = [];
     this.labels = [];
+    // stage % for a viewBox y — labels and leaders share one coordinate space
+    const pct = (y) => `${((y - PAD_TOP) / PAD_H) * 100}%`;
     CONTROLS.forEach((c, i) => {
-      // route: out sideways clear of the pad body, up/down to the label's
-      // row, then in to the label — so no leader crosses the pad
       const left = c.side === 'left';
-      const outX = c.lane;
-      const endX = left ? 122 : PAD_W - 122;
       const ly = c.y + 14;
-      // `drop` first walks the leader down the pad's waist (VIEW / MENU sit
-      // dead center, and a straight sideways line would cross both sticks)
-      const start = c.drop
-        ? `${c.from[0]},${c.from[1]} ${c.from[0]},${c.drop} ${outX},${c.drop}`
-        : `${c.from[0]},${c.from[1]} ${outX},${c.from[1]}`;
+      // `drop` walks the leader down (or up) the pad first, so it leaves the
+      // art at a height no other leader is using
+      const exit = c.drop ?? c.from[1];
+      const stem = c.drop != null ? `${c.from[0]},${c.from[1]} ${c.from[0]},${c.drop}` : `${c.from[0]},${c.from[1]}`;
+      const points = `${stem} ${c.lane},${exit} ${c.lane},${ly} ${left ? 122 : PAD_W - 122},${ly}`;
       const line = mk('polyline', {
-        points: `${start} ${outX},${ly} ${endX},${ly}`,
-        fill: 'none', stroke: 'rgba(120,190,235,0.5)', 'stroke-width': 2,
+        points, fill: 'none', stroke: 'rgba(120,190,235,0.5)', 'stroke-width': 2,
       });
       svg.appendChild(line);
       this.lines.push(line);
@@ -146,8 +160,7 @@ export class InstructionsScreen {
       const lab = document.createElement('div');
       lab.className = `ctrl-label ${c.side}`;
       lab.innerHTML = `<b>${t(`controls.${c.id}.name`)}</b><span>${t(`controls.${c.id}.action`)}</span>`;
-      // position in the SVG's own coordinate space (the stage is sized to it)
-      lab.style.top = `${((c.y + 70 + 14) / PAD_H) * 100}%`;
+      lab.style.top = pct(ly);
       lab.style[c.side] = '0';
       lab.addEventListener('mouseenter', () => this.select(i));
       lab.addEventListener('click', () => this.select(i));
