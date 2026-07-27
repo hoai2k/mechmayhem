@@ -42,6 +42,10 @@ function workbenchRedirect(params) {
 export function runDevMode(params) {
   if (workbenchRedirect(params)) return true;
   const debug = params.get('debug');
+  // Only boot.js clears the index.html splash, and no dev mode goes through it
+  // — without this every debug page (and so every tools/shot.mjs screenshot)
+  // renders behind a full-screen ROBOTWORLD curtain.
+  const dropSplash = () => document.getElementById('boot-splash')?.remove();
   if (params.get('edit') === 'level') {
     import('../editor/leveleditor.js').then(({ runLevelEditor }) => runLevelEditor(params));
   } else if (params.has('showcase')) {
@@ -65,5 +69,6 @@ export function runDevMode(params) {
   } else {
     return false; // not a dev mode — boot the game
   }
+  dropSplash();
   return true;
 }

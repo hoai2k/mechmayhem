@@ -160,7 +160,7 @@ export class MenuStage {
     const tex = new THREE.CanvasTexture(cv);
     // one tint per SCHEME_NAMES entry, in the same order
     const RANDOM_TINTS = [0x9fd8ef, 0xff7a28, 0x3fc8ff, 0x6a7280,
-      0xc07aff, 0x5fe08a, 0xffa62b, 0xff8fd0, 0xc98b4a];
+      0xc07aff, 0x5fe08a, 0xffa62b, 0xff8fd0, 0xc98b4a, 0xf3e3c4, 0xcfd8e2];
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({
       map: tex, transparent: true, depthWrite: false,
       color: RANDOM_TINTS[variant % RANDOM_TINTS.length],

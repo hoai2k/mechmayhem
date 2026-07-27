@@ -508,8 +508,8 @@ export class MechSelectScreen {
     });
   }
 
-  // scheme selector row inside a locked player card: 4 clickable swatches
-  // for the picked mech (X/R and ←/→ still cycle for pads/keyboards)
+  // scheme selector row inside a locked player card: one clickable swatch per
+  // scheme for the picked mech (X/R and ←/→ still cycle for pads/keyboards)
   pcSchemeRow(m, pk) {
     let row = '';
     for (let v = 0; v < SCHEME_COUNT; v++) {

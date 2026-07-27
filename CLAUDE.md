@@ -141,6 +141,19 @@ audio). Progress history: `TASKS.md`.
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
   leading furthest forward), and bullets/beams test the swept segment.
   `Fighter.hitRadius` is unchanged and still owns AoE falloff + broad phase.
+- Paint jobs (`src/mechs/colorscheme.js` — 11 schemes, cycled in mech select):
+  a scheme is a PAINT TARGET (hue + a saturation floor OR ceiling + the
+  LIGHTNESS the paint wants), never a plain hue swap. The lightness is what
+  makes the white/black/silver mechs work: each mech's armor is dragged 80% of
+  the way to the scheme's value, so WRAITH's EMBER is really red instead of
+  still black, while a mech already in the midtones barely moves. One source of
+  truth for both routes — the procedural path rewrites `skin.primary.base/base2`
+  and pbrtex re-synthesizes, `recolorglb.js` runs the SAME `schemeSat`/
+  `schemeLum` over the baked GLB textures. Which pixels count as "the paint" is
+  per-mech (`neutralMix`): a vivid mech's armor is its saturated stock-hue
+  family; a near-grey mech's armor is the NEUTRAL pixels and its few saturated
+  ones are accents to protect. Judge a change with
+  `node tools/schemesheet.mjs <mech> out.png <schemeIdxCsv>`.
 - Work-in-progress mechs: a roster def flagged `hidden: true` (currently
   AEGIS + NOVA) is kept out of the GAME's roster — mech select, RANDOM
   picks, CPU picks, title line-up — until SETTINGS → SHOW ALL ROBOTS is
