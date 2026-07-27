@@ -27,14 +27,16 @@ const PAD_W = 620, PAD_TOP = -80, PAD_H = 500;
 //      goes down — so a lower row's sideways run passes only lanes whose
 //      verticals have already stopped above it.
 //
-// LT / RT are the exception on purpose: their lane IS the callout edge, so each
-// is a plain horizontal-then-vertical L above everything else.
+// `elbow: 'up'` opts a row out of all that: the leader rises straight off its
+// button to the callout's row and runs over to it, one corner, no lane. LT / RT
+// use it to sit above everything else, and Y uses it to keep off the RB bumper
+// a lane route would otherwise cross.
 // `tools/ctrllines.mjs`-style checking lives in the page itself — see the
 // crossing assertions in the task notes; 0 overlaps, 0 crossings.
 const CONTROLS = [
   // LEFT column, top to bottom (rows ordered by the height each leader leaves
   // the pad at; lanes step inward as the column descends)
-  { id: 'lt', from: [216, 112], side: 'left', y: -62, lane: 122 },
+  { id: 'lt', from: [216, 112], side: 'left', y: -62, elbow: 'up' },
   { id: 'lb', from: [204, 148], side: 'left', y: 100, lane: 180 },
   { id: 'lstick', from: [248, 205], side: 'left', y: 165, lane: 168 },
   { id: 'dpad', from: [255, 278], side: 'left', y: 230, lane: 156 },
@@ -44,9 +46,9 @@ const CONTROLS = [
   { id: 'start', from: [328, 196], side: 'left', y: 360, lane: 132, drop: 366 },
   // RIGHT column — the four face buttons get a callout each, fanned out of the
   // cluster at four different heights so no two leaders share a lane or a run
-  { id: 'rt', from: [404, 112], side: 'right', y: -62, lane: 498 },
+  { id: 'rt', from: [404, 112], side: 'right', y: -62, elbow: 'up' },
   { id: 'rb', from: [416, 148], side: 'right', y: 100, lane: 430 },
-  { id: 'y', from: [372, 183], side: 'right', y: 150, lane: 440, drop: 150 },
+  { id: 'y', from: [372, 183], side: 'right', y: 150, elbow: 'up' },
   { id: 'b', from: [394, 205], side: 'right', y: 200, lane: 450 },
   { id: 'a', from: [372, 227], side: 'right', y: 250, lane: 460, drop: 260 },
   { id: 'rstick', from: [365, 278], side: 'right', y: 300, lane: 470 },
@@ -150,7 +152,12 @@ export class InstructionsScreen {
       // art at a height no other leader is using
       const exit = c.drop ?? c.from[1];
       const stem = c.drop != null ? `${c.from[0]},${c.from[1]} ${c.from[0]},${c.drop}` : `${c.from[0]},${c.from[1]}`;
-      const points = `${stem} ${c.lane},${exit} ${c.lane},${ly} ${left ? 122 : PAD_W - 122},${ly}`;
+      // callout boxes end at 19% of the stage, so the leader runs to 118 (or
+      // its mirror) and touches the box rather than stopping short of it
+      const endX = left ? 118 : PAD_W - 118;
+      const points = c.elbow === 'up'
+        ? `${c.from[0]},${c.from[1]} ${c.from[0]},${ly} ${endX},${ly}`
+        : `${stem} ${c.lane},${exit} ${c.lane},${ly} ${endX},${ly}`;
       const line = mk('polyline', {
         points, fill: 'none', stroke: 'rgba(120,190,235,0.5)', 'stroke-width': 2,
       });

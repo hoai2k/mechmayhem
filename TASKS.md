@@ -3765,3 +3765,15 @@ Renamed VIEW → SELECT and MENU → START (the names people actually use), and
 corrected the mapping while writing the per-button copy: LT blocks (not dash),
 LB is target lock, RB is the ranged weapon, RT the special, Y the heavy, X the
 light, B the dash/sprint coil, D-PAD ▲ the ultimate.
+
+### Follow-up: up-and-over leaders, and lines that touch their boxes
+
+`elbow: 'up'` opts a row out of the lane routing: the leader rises straight off
+its button to the callout's row and runs over to it — one corner, no lane. LT
+and RT use it so they sit above everything else, and Y uses it because its lane
+route ran across the RB bumper. Everything else still fans through lanes.
+
+Leaders also run to 118 (or its mirror) rather than 122, so they TOUCH the
+callout box instead of stopping a few units short — checked in the page by
+comparing each polyline's last point against its box's own rect: 0px short on
+all thirteen, with 0 overlaps and 0 crossings still.
