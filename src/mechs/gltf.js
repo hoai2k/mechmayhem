@@ -21,6 +21,7 @@
 // procedural model — the game always works.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { buildMech, buildRig, computeDims, addAnchor } from './factory.js';
 import { Animator } from './animator.js';
@@ -62,6 +63,12 @@ function warnEntryOnce(id, msg) {
 }
 const gltfCache = new Map(); // url -> Promise<GLTF>
 const loader = new GLTFLoader();
+// EXT_meshopt_compression support. The distribution build (tools/dist.mjs)
+// compresses every model; the models in the repo are uncompressed and load
+// through the same path untouched, so this is registered unconditionally —
+// one decoder that reads both. It is a bundled module, not a fetched wasm
+// blob, so it costs a chunk rather than a round trip.
+loader.setMeshoptDecoder(MeshoptDecoder);
 const _gcTmp = new THREE.Vector3();   // groundClamp scratch
 const _gcTmp2 = new THREE.Vector3();
 

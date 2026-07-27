@@ -7,3 +7,6 @@ release/
 
 # scratch GLB rigging diagnostics (local only)
 /_*.mjs
+
+# web distribution output (tools/dist.mjs)
+dist-web/

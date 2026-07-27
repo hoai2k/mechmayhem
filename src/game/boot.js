@@ -46,7 +46,10 @@ export async function bootGame() {
     audio = new GameAudio();
   } catch (e) {
     console.warn('audio unavailable', e);
-    audio = { play() {}, music() {}, stopMusic() {}, resume() {}, setSfxVolume() {}, setMusicVolume() {} };
+    audio = {
+      play() {}, music() {}, stopMusic() {}, resume() {}, suspend() {},
+      setSfxVolume() {}, setMusicVolume() {},
+    };
   }
   const resumeAudio = () => audio.resume();
   window.addEventListener('pointerdown', resumeAudio);
@@ -577,7 +580,38 @@ export async function bootGame() {
     B.world.camera = B.cameraSys.mode === 'combined' ? engine.camera : null; // popups only in combined view
   }
 
+  // ---- tab/embed visibility ----
+  // Nothing used to react to this: a backgrounded tab kept stepping the match
+  // and kept the music playing. In an itch-style embed the player scrolls away
+  // mid-fight, so treat losing visibility exactly like walking away from the
+  // machine — pause the fight, silence the audio.
+  //
+  // Coming back does NOT auto-resume the match. The pause screen stays up and
+  // the player unpauses when they are actually looking, which is what every
+  // other fighting game does and the only fair option in local multiplayer.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // mid-warm-up is not a pausable state (the loading flow owns the
+      // cameras); it is time-gated and harmless to leave running.
+      if (S.mode === 'battle' && S.battle && !S.battle.paused && !S.battle.loading) pauseBattle();
+      audio.suspend();
+    } else if (!muted) {
+      audio.resume();
+    }
+  });
+
   goTitle();
   engine.start();
-  window.__game = { S, engine, tick: (dt) => engine.onUpdate(dt) }; // debug hook
+
+  // Hand off from the static boot splash in index.html once there is actually
+  // something behind it — two frames, so the title screen has rendered rather
+  // than merely been constructed. CSS fades it out; then it leaves the DOM.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const splash = document.getElementById('boot-splash');
+    if (!splash) return;
+    splash.classList.add('done');
+    setTimeout(() => splash.remove(), 600);
+  }));
+
+  window.__game = { S, engine, audio, tick: (dt) => engine.onUpdate(dt) }; // debug hook
 }

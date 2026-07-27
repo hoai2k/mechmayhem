@@ -8,15 +8,36 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { clamp } from './utils.js';
+import { showContextLost, WebGLUnavailableError } from './fatal.js';
 
 export class Engine {
   constructor(canvas) {
     this.canvas = canvas;
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: false,
-      powerPreference: 'high-performance',
-    });
+    // A machine with no WebGL 2 throws here, and used to leave the player
+    // staring at an empty canvas. Tag it so the entry point can say so.
+    try {
+      this.renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: false,
+        powerPreference: 'high-performance',
+      });
+    } catch (e) {
+      throw new WebGLUnavailableError(e);
+    }
+
+    // The GPU can take the context away at any time — a driver reset, VRAM
+    // pressure, a phone backgrounding the tab. Without preventDefault() the
+    // context never comes back at all; with it, three CAN restore, but every
+    // procedurally generated texture, render target and baked mesh in this
+    // game would have to be regenerated to match. A reload is the honest
+    // recovery, so say so rather than freezing.
+    this._onContextLost = (ev) => {
+      ev.preventDefault();
+      this._running = false;   // stop the loop even if an error panel got here first
+      showContextLost();
+    };
+    canvas.addEventListener('webglcontextlost', this._onContextLost, false);
+
     this.renderer.setPixelRatio(clamp(window.devicePixelRatio, 1, 1.75));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;

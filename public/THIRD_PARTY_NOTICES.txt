@@ -1,0 +1,40 @@
+ROBOTWORLD — third-party notices
+================================
+
+ROBOTWORLD ships with the following third-party software. Their licenses
+are reproduced in full below, as those licenses require.
+
+Textures, animation, visual effects, music and sound in ROBOTWORLD are
+original — generated procedurally in code by this project. The mech models
+were generated with Tripo under a paid plan and then rigged, re-skinned and
+finished for this project; they are used under the rights granted by that
+plan. The only third-party CODE in the shipped build is listed below.
+
+
+--------------------------------------------------------------------------
+three.js 0.166.x — https://github.com/mrdoob/three.js
+3D rendering engine, and the postprocessing / loader / environment modules
+under three/examples/jsm.
+--------------------------------------------------------------------------
+
+The MIT License
+
+Copyright © 2010-2024 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
