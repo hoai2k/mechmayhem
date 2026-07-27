@@ -3737,3 +3737,31 @@ trailing item is now **use pointer** rather than "full controls", and its icon i
 the Xbox MENU/START button drawn (`.xb-btn`: a pale round pill with three bars)
 instead of spelled — naming it "SELECT" reads as a word rather than as the thing
 you press.
+
+### Follow-up: one callout per face button, and leaders that keep their distance
+
+The diagram now carries 13 callouts, six left and seven right, in a taller
+coordinate space (viewBox 620×500).
+
+LT / RT ARE PLAIN Ls. Their lane IS the callout's edge, so each is one
+horizontal run off the trigger and one vertical up to its box — nothing else
+crosses that band because every other row's callout sits below y=112.
+
+EVERYONE ELSE FANS. Each row owns a lane, rows are ordered by the height their
+leader LEAVES the pad at, and lanes step inward as the column descends — so a
+lower row's sideways run only ever passes lanes whose verticals have already
+stopped above it. Verified in the page off the rendered polylines: 0 overlapping
+segments, 0 crossings, 0 overlapping label boxes (and every segment is axis-
+aligned — the check fails on a diagonal).
+
+A · B · X · Y ARE FOUR CALLOUTS, not one line of shorthand — they're the buttons
+a player reaches for most, so each says what it does on menus AND in battle. The
+face cluster fans out at four different heights (Y rises, B leaves straight, A
+and X drop) to make room. SELECT and START moved to the left column, their
+leaders walking down the pad's waist and out below the grips, which is what
+freed the right side.
+
+Renamed VIEW → SELECT and MENU → START (the names people actually use), and
+corrected the mapping while writing the per-button copy: LT blocks (not dash),
+LB is target lock, RB is the ranged weapon, RT the special, Y the heavy, X the
+light, B the dash/sprint coil, D-PAD ▲ the ultimate.
