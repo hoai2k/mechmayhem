@@ -12,7 +12,21 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** ARENA REDESIGN PASS — all 12 arenas rebuilt as real
+- **Latest:** LONG SIGHT LINES ACROSS THE SEAM — the view now runs almost a
+  full wrap period in every direction (corners included), so you see roughly
+  an extra arena-width of the looped world instead of a wall of haze. The
+  world was always ghost-tiled ±1 cell and fighters are never cloned, so
+  nothing here risks seeing yourself mirrored; what blocked the view was
+  three fixed constants, all now derived from the cell period P:
+  fog (`near..0.92P`, was capped at a flat 400), the ground + painted overlay
+  planes (`3P` wide with texel density preserved, were a flat 700 that ended
+  mid-view), and the camera-locked skyline silhouette, which sat at 230–340
+  and cut straight through the real tiled city — it now sits at 0.88–1.08P,
+  scaled to keep its apparent size, where it only tints the haze band. The
+  optional horizon-strip ring follows at `max(620, 1.6P)`. Nothing is drawn
+  that wasn't drawn before (the ghost tiles were always in the scene, merely
+  fogged out), so the cost is unchanged.
+- **Previous:** ARENA REDESIGN PASS — all 12 arenas rebuilt as real
   battlegrounds with theme-true set pieces, on three new terrain systems
   (`src/arena/terrain.js`): **patches** (tiling-safe circular lakes / lava
   lakes / swamp / frozen lakes / lawns / ash fields, live hazards like lanes),

@@ -99,12 +99,27 @@ export class Arena {
     this.ambientT = 0;
     const rng = makeRng(seed * 31 + theme.id.length * 77);
 
+    // Toroidal cell: coordinates wrap at ±wrapHalf (world.bind reads this).
+    // Computed up front — the fog band, ground extent and backdrop distance
+    // are all derived from the cell period P below.
+    const B = this.bounds;
+    this.wrapHalf = B * 1.35;
+    const P = this.wrapHalf * 2;
+
     // ---- environment ----
     this.sky = makeSkyDome(theme);
     this.scene.add(this.sky);
     this.objects.push(this.sky);
-    // fog capped so nothing beyond the ±1-cell ghost tiling is ever visible
-    this.scene.fog = new THREE.Fog(theme.fog.color, theme.fog.near * 1.5, Math.min(theme.fog.far * 1.5, 400));
+    // LONG SIGHT LINES: the world is ghost-tiled ±1 cell in every direction
+    // (corners included), and fighters are never cloned — so the view can
+    // legally run almost a full cell period before the scene would repeat
+    // through your own position. Fog opens at the theme's near distance and
+    // closes just short of P; everything past the ghost ring (>1.5P) sits
+    // beyond full fog, so there is no pop-out to hide.
+    // (0.92P, not 1.0P: a chase camera sits a little outside its fighter's
+    // folded position, so the ghost ring must still cover the far edge)
+    this.scene.fog = new THREE.Fog(theme.fog.color,
+      Math.min(theme.fog.near * 1.5, P * 0.5), P * 0.92);
     this.scene.background = null;
 
     const { sun, hemi, rim } = engine;
@@ -120,12 +135,15 @@ export class Arena {
     engine.renderer.toneMappingExposure = theme.exposure ?? 1.0;
 
     // ---- ground ----
+    // texture repeats are per-700-units of plane, so widening the ground for
+    // the long view keeps its texel density instead of stretching
+    const texScale = (P * 3) / 700;
     let gmat = null;
     if (CONFIG.useTextures && GROUND_TEX[theme.id]) {
       // pack texture, lightly tinted toward the theme's ground color so
       // arena mood grading survives
       gmat = pbrMaterial('ground', GROUND_TEX[theme.id], {
-        repeat: 44,
+        repeat: Math.round(44 * texScale),
         color: new THREE.Color(theme.ground.color).lerp(new THREE.Color(0xffffff), 0.55),
       });
     }
@@ -135,11 +153,14 @@ export class Arena {
       });
       if (theme.ground.road) {
         gmat.map = roadTexture();
-        gmat.map.repeat.set(7, 7);
+        gmat.map.repeat.set(7 * texScale, 7 * texScale);
         gmat.color.set(0xffffff);
       }
     }
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), gmat);
+    // ground reaches past the fog wall (±1.5 cells) so no matter how far the
+    // view runs, the floor never ends inside the visible range
+    this.groundSpan = P * 3;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(this.groundSpan, this.groundSpan), gmat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.scene.add(ground);
@@ -147,20 +168,24 @@ export class Arena {
 
     // No walls anymore: the arena wraps toroidally at ±wrapHalf (set on the
     // world in bind), out in the foggy empty ring where the seam is subtle.
-    const B = this.bounds;
-    this.wrapHalf = B * 1.35;
 
     // ---- skyline backdrop (cheap, far, unlit boxes) ----
     // camera-locked: the engine re-centers it on each view camera before
     // rendering, so it reads as an infinitely distant city and never gets
     // crossed or wrapped (this is what used to look like "grey buildings"
     // popping at the seam).
+    // pushed out past the visible tiling (was a fixed 230–340, which now sits
+    // INSIDE the long view and read as a wall through the real city): the
+    // silhouette belongs at the fog wall, scaled up so it keeps its
+    // apparent size from the middle of the arena
+    const bdR0 = P * 0.88, bdR1 = P * 1.08;
+    const bdScale = bdR0 / 230;
     const skyMatDark = new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fog.color).multiplyScalar(0.55) });
     const skyline = new THREE.Group();
     for (let i = 0; i < 40; i++) {
       const a = (i / 40) * Math.PI * 2 + rng.range(-0.05, 0.05);
-      const r = rng.range(230, 340);
-      const w = rng.range(14, 34), h = rng.range(24, 100), d = rng.range(14, 34);
+      const r = rng.range(bdR0, bdR1);
+      const w = rng.range(14, 34) * bdScale, h = rng.range(24, 100) * bdScale, d = rng.range(14, 34) * bdScale;
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skyMatDark);
       m.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r);
       m.rotation.y = rng.range(0, Math.PI);
@@ -173,14 +198,16 @@ export class Arena {
     if (CONFIG.useTextures && hasTex('sky', `horizon_${theme.id}`)) {
       const tex = loadMap('sky', `horizon_${theme.id}`, 'albedo', { srgb: true });
       tex.repeat.set(3, 1);   // ~8:1 strip tiled 3× around the ring
+      const ringR = Math.max(620, P * 1.6);   // always outside the skyline boxes
+      const ringH = ringR * 0.28;
       const ring = new THREE.Mesh(
-        new THREE.CylinderGeometry(620, 620, 175, 48, 1, true),
+        new THREE.CylinderGeometry(ringR, ringR, ringH, 48, 1, true),
         new THREE.MeshBasicMaterial({
           map: tex, transparent: true, side: THREE.BackSide,
           depthWrite: false, fog: false,
         })
       );
-      ring.position.y = 175 / 2 - 14;
+      ring.position.y = ringH / 2 - ringH * 0.08;
       ring.renderOrder = -9;
       skyline.add(ring);
     }

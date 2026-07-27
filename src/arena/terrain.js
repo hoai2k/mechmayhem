@@ -1157,14 +1157,17 @@ export class Terrain {
       if (ectx) ring(ectx, 34, 0.3, acc, 0.55);
     }
 
+    // the overlay spans the same plane as the ground, so painted roads and
+    // lakes keep tiling all the way out to the fog wall
+    const span = this.arena.groundSpan ?? 700;
     const mkTex = (canvas) => {
       const tex = new THREE.CanvasTexture(canvas);
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
-      // align texture cells with the world cell: overlay plane is 700 wide
-      tex.repeat.set(700 / P, 700 / P);
-      tex.offset.set(0.5 - 350 / P, 0.5 - 350 / P);
+      // align texture cells with the world cell
+      tex.repeat.set(span / P, span / P);
+      tex.offset.set(0.5 - span / 2 / P, 0.5 - span / 2 / P);
       return tex;
     };
     this.overlayMat = new THREE.MeshStandardMaterial({
@@ -1181,7 +1184,7 @@ export class Terrain {
       this.overlayMat.emissive = new THREE.Color(0xffffff);
       this.overlayMat.emissiveIntensity = 1.0;
     }
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), this.overlayMat);
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(span, span), this.overlayMat);
     plane.rotation.x = -Math.PI / 2;
     plane.position.y = 0.03;
     plane.receiveShadow = true;
