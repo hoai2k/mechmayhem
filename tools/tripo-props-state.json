@@ -9,6 +9,154 @@
   },
   "bandshell": {
     "modelTask": "eff3f64f-8f80-490e-891b-257e483a36f1",
-    "modelFailed": false
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/bandshell.glb",
+    "bytes": 960552,
+    "done": true
+  },
+  "basaltColumns": {
+    "modelTask": "c1b1df63-7f77-4dc1-8ace-d351628f4367",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/basaltColumns.glb",
+    "bytes": 1704960,
+    "done": true
+  },
+  "blastFurnace": {
+    "modelTask": "b456adac-4a36-4009-aa0f-4f6aaccb75f7",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/blastFurnace.glb",
+    "bytes": 1982232,
+    "done": true
+  },
+  "buriedMechHand": {
+    "modelTask": "3eeb2a1c-1189-4471-bbda-7626ec3acb2a",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/buriedMechHand.glb",
+    "bytes": 1948560,
+    "done": true
+  },
+  "carCrusher": {
+    "modelTask": "a8be7b95-3a65-4117-8ceb-89f99b07632b",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/carCrusher.glb",
+    "bytes": 2063872,
+    "done": true
+  },
+  "crystalMonolith": {
+    "modelTask": "4daea437-367b-4a00-bee3-cd393fee88b8",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/crystalMonolith.glb",
+    "bytes": 1429196,
+    "done": true
+  },
+  "foodTruck": {
+    "modelTask": "3ca18cb0-cd7b-4db4-a30b-276d2bdfaffa",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/foodTruck.glb",
+    "bytes": 1727756,
+    "done": true
+  },
+  "gantryCrane": {
+    "modelTask": "c583760d-4173-4d3d-accf-711c7b1bb8c7",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/gantryCrane.glb",
+    "bytes": 1972436,
+    "done": true
+  },
+  "gondolaRig": {
+    "modelTask": "54aab7f9-cd07-46f9-9851-6cb92a3fbee8",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/gondolaRig.glb",
+    "bytes": 1911584,
+    "done": true
+  },
+  "greatGate": {
+    "modelTask": "dee4fd15-ee99-4617-8e26-28f47020015c",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/greatGate.glb",
+    "bytes": 1990692,
+    "done": true
+  },
+  "headframe": {
+    "modelTask": "4ec3e4e9-c773-41ab-a00f-2c647d84fe53",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/headframe.glb",
+    "bytes": 2163404,
+    "done": true
+  },
+  "icebreakerShip": {
+    "modelTask": "4f912944-890f-43b6-8577-fed73b7836b7",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/icebreakerShip.glb",
+    "bytes": 2156624,
+    "done": true
+  },
+  "quonsetHut": {
+    "modelTask": "4096493b-4c4c-4be1-a38d-726b0566a23a",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/quonsetHut.glb",
+    "bytes": 1889364,
+    "done": true
+  },
+  "shuttle": {
+    "modelTask": "48f96d81-095a-4e0e-8f1d-68c1a0c48f81",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/shuttle.glb",
+    "bytes": 1952352,
+    "done": true
+  },
+  "snowcat": {
+    "modelTask": "48774ae7-81c4-4188-b807-e938e4b816df",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/snowcat.glb",
+    "bytes": 2100708,
+    "done": true
+  },
+  "solarWing": {
+    "modelTask": "b40b0516-6850-43bd-9cc1-964516adc59d",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/solarWing.glb",
+    "bytes": 1991800,
+    "done": true
+  },
+  "sphinxStatue": {
+    "modelTask": "151c670d-def4-4296-80ac-02cbcbd2c03f",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/sphinxStatue.glb",
+    "bytes": 1922844,
+    "done": true
+  },
+  "templeGate": {
+    "modelTask": "f4f4af5d-2a64-4b05-9c46-e7aa6c587490",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/templeGate.glb",
+    "bytes": 1993272,
+    "done": true
+  },
+  "trawler": {
+    "modelTask": "a9fd4133-2171-4492-86a9-b8b52e22de10",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/trawler.glb",
+    "bytes": 1847984,
+    "done": true
   }
 }
