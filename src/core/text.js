@@ -170,8 +170,8 @@ export const MESSAGES = {
   'controls.rb.action': 'ranged weapon',
   'controls.rb.detail': 'fires your mech\'s ranged weapon. Every one of them runs on AMMO — grab the yellow crates — and while LB target lock is held the shots fly at whoever you are locked onto.',
   'controls.rt.name': 'RT',
-  'controls.rt.action': 'special move',
-  'controls.rt.detail': 'throws your mech\'s signature special — the move named on its card. Each one has its own cooldown, so it is something to open with, not a button to lean on.',
+  'controls.rt.action': 'special attack',
+  'controls.rt.detail': 'throws your mech\'s signature special attack — the move named on its card. Each one has its own cooldown, so it is something to open with, not a button to lean on.',
 
   // ------------------------------------------------------------------ results
   'results.champion': 'CHAMPION',

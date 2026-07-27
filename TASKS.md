@@ -3845,3 +3845,21 @@ change its height and shove the diagram up and down underneath.
 Measured by hovering all thirteen callouts and reading the stage's top edge and
 the detail box's height each time: one value for each, at 1440×810 (top 156,
 height 41) and 985×649 (98, 33) — it used to move by a line's worth.
+
+### Follow-up: roomier callouts, and space for the buttons that matter
+
+Callout padding roughly doubled (0.75cqw × 1.15cqw) — they're hover targets, so
+they may as well be easy to hit.
+
+That needs room, and the face cluster had none: four buttons inside 44 units of
+height, callouts that now stand ~26 units tall. So Y, B, A and RIGHT STICK each
+take one jog out in the right margin and step down to a row of their own —
+X 158, Y 200, B 242, A 284, RIGHT STICK 340, which is 42+ units apart instead of
+22. RIGHT STICK moving down is what freed the middle of that range for the four
+face buttons. Their lanes DESCEND as the column goes down (500, 492, 484, 476),
+which is what stops a lower row's run from ever reaching the lane above it.
+
+RT reads "special attack" now, in the callout and in its detail sentence.
+
+Verified at 985×649, 1440×810 and 1920×1080: 0 line overlaps, 0 crossings,
+0 label overlaps, 0 leaders short of their box, no callout text overflowing.
