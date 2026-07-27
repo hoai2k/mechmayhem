@@ -1,4 +1,4 @@
-// "Which mech am I on?" — the dropdown every workbench needs, in one place.
+// "Which subject am I on?" — the dropdown every workbench needs, in one place.
 //
 // The tools split into two shapes and both are served here:
 //
@@ -9,9 +9,11 @@
 //    re-skin, undo stack — around one id at start-up, so switching mech there
 //    is a navigation: `gotoMech` rewrites the URL and reloads.
 //
-// Either way the URL always names the mech on screen, so a reload, a
+// Either way the URL always names the subject on screen, so a reload, a
 // screenshot or a pasted link lands back on the same thing.
-import { ROSTER } from '../mechs/roster.js';
+//
+// The list itself comes from the CONFIG (config.catalogue.list()), so this
+// file knows nothing about mechs — a port's characters flow through unchanged.
 
 const SEL_CSS = `width:100%;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;
   padding:4px;border-radius:4px;font:12px system-ui,sans-serif`;
@@ -26,11 +28,12 @@ const SEL_CSS = `width:100%;background:#0e131b;color:#dfe8f5;border:1px solid #2
  *   css     — style override for the element
  *   onPick  — (id) => void
  */
-export function mechSelect({ ids, value, label, note, css = SEL_CSS, onPick } = {}) {
+export function subjectSelect({ config, ids, value, label, note, css = SEL_CSS, onPick } = {}) {
   const sel = document.createElement('select');
   sel.style.cssText = css;
-  const list = ids || ROSTER.map((r) => r.id);
-  const byId = Object.fromEntries(ROSTER.map((r) => [r.id, r]));
+  const entries = config?.catalogue.list() || [];
+  const list = ids || entries.map((r) => r.id);
+  const byId = Object.fromEntries(entries.map((r) => [r.id, r]));
   for (const id of list) {
     const def = byId[id] || null;
     const o = document.createElement('option');
@@ -49,9 +52,13 @@ export function mechSelect({ ids, value, label, note, css = SEL_CSS, onPick } = 
  * carrying it over would silently open a different build than the one asked
  * for), and reload.
  */
-export function gotoMech(param, id, drop = ['alt']) {
+export function gotoSubject(id, drop = ['alt', 'variant']) {
   const u = new URL(location.href);
-  u.searchParams.set(param, id);
+  u.searchParams.set('mech', id);
   for (const d of drop) u.searchParams.delete(d);
   location.href = u.toString();
 }
+
+// back-compat aliases while both URL schemes are alive
+export const mechSelect = subjectSelect;
+export const gotoMech = (_param, id, drop) => gotoSubject(id, drop);

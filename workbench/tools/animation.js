@@ -19,29 +19,22 @@
 // joint gizmo, bone display, limb-length constraints, and both the clip-pose
 // and manifest bind-patch (boneCorrections / bonePos) exports.
 //
-//   ?debug=models[&mech=<id>][&compare=proc|alt|solo]
+//   /workbench/?edit=animation&mech=<id>[&compare=proc|alt|solo]
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { Engine } from '../core/engine.js';
-import { World } from '../game/world.js';
-import { Fighter } from '../combat/fighter.js';
-import { Input } from '../game/input.js';
-import { buildMech } from '../mechs/factory.js';
-import { Animator } from '../mechs/animator.js';
-import { buildGlbForTool, fetchRawManifest } from '../mechs/gltf.js';
-import { ROSTER, ROSTER_BY_ID } from '../mechs/roster.js';
-import { setupDevPanel } from './panelui.js';
-import { describeAction, ACTIONS } from './actionchars.js';
-import { anchorUses } from './anchoruses.js';
+import { setupDevPanel } from '../ui/panel.js';
+import { describeAction, ACTIONS } from '../adapters/actionchars.js';
 
 const R2D = 180 / Math.PI;
 const PAIR_X = 6;              // half-separation of the two models
 const INTENT_BTNS = ['light', 'lightHeld', 'heavy', 'heavyHeld', 'ranged', 'rangedHeld',
   'special', 'specialHeld', 'ult', 'block', 'dash', 'jump', 'jumpHeld', 'duck'];
 
-export async function runPoseTool(startId) {
-  const engine = new Engine(document.getElementById('game-canvas'));
+export async function runAnimationWorkbench(config, params) {
+  const startId = params.get('mech') || params.get('id');
+  const anchorUses = (id, name, avail) => config.anchors.uses(id, name, avail);
+  const engine = config.stage.engine();
   const { scene, camera, renderer } = engine;
   scene.background = new THREE.Color(0x232833);
   scene.add(new THREE.HemisphereLight(0xdfe6f2, 0x565c66, 2.0));
@@ -56,8 +49,8 @@ export async function runPoseTool(startId) {
   scene.add(new THREE.GridHelper(60, 60, 0x38445a, 0x222c3a));
 
   // bare world (no arena — clean stage; World's arena hooks are all optional)
-  const world = new World(engine, null);
-  const input = new Input();
+  const world = config.stage.world(engine);
+  const input = config.stage.input();
   world.input = input;
 
   camera.position.set(14, 8, 15);
@@ -73,13 +66,14 @@ export async function runPoseTool(startId) {
   scene.add(anchorGizmo.getHelper ? anchorGizmo.getHelper() : anchorGizmo);
   anchorGizmo.addEventListener('dragging-changed', (e) => {
     orbit.enabled = !e.value;
-    if (!e.value) onAnchorDrop();   // rebind on release
+    // one drag = one undo step, taken AFTER the drop so the auto-bind
+    // re-parent is part of the same step
+    if (!e.value) { onAnchorDrop(); pushAnchorHistory(); }
   });
 
-  const params = new URLSearchParams(location.search);
-  const manifest = await fetchRawManifest();
-  const glbIds = ROSTER.map((r) => r.id).filter((id) => manifest[id]?.url);
-  let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || ROSTER[0].id);
+    const manifest = config.manifest();
+  const glbIds = config.catalogue.list().filter((c) => c.hasModel).map((c) => c.id);
+  let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || config.catalogue.list()[0].id);
   let timeScale = 1;
 
   // ---- live state ----
@@ -212,11 +206,12 @@ export async function runPoseTool(startId) {
     });
   }
 
-  function makeFighter(def, x, opts = {}) {
-    const f = new Fighter(world, def, {
+  // one controllable subject on the stage — the config builds it with the
+  // game's own actor type, so the state machine under it is the real one
+  function makeFighter(id, x, opts = {}) {
+    return config.stage.actor(world, id, {
       pos: new THREE.Vector3(x, 0, 0), yaw: 0, playerIndex: opts.pi ?? 0, isAI: false, mech: opts.mech,
     });
-    return f;
   }
 
   async function load(id) {
@@ -229,7 +224,6 @@ export async function runPoseTool(startId) {
     world.fighters.length = 0;
     if (Array.isArray(world.projectiles)) world.projectiles.length = 0;
 
-    const def = ROSTER_BY_ID[id];
     const hasAlt = !!manifest[id]?.alt?.url;
     // COMPARE TO: procedural by default; 'alt' stands the mech's alternate model
     // there instead (own intake — a full independent fighter) so alt-vs-original
@@ -240,14 +234,16 @@ export async function runPoseTool(startId) {
     procF = null;
     if (!soloMode) {
       if (slot === 'alt') {
-        const altBuilt = await buildGlbForTool(def, null, { alt: true });
-        procF = makeFighter(def, -PAIR_X, { pi: 0, mech: altBuilt.mech });
+        const altModel = await config.variants.build(id, { variant: 'alt' });
+        procF = makeFighter(id, -PAIR_X, { pi: 0, mech: altModel });
       } else {
-        procF = makeFighter(def, -PAIR_X, { pi: 0 });
+        // no `mech` override: the actor builds this game's DEFAULT comparison
+        // body (robotworld: the hand-sculpted procedural one)
+        procF = makeFighter(id, -PAIR_X, { pi: 0 });
       }
     }
-    const built = await buildGlbForTool(def);
-    glbF = makeFighter(def, soloMode ? 0 : PAIR_X, { pi: 1, mech: built.mech });
+    const model = await config.variants.build(id, { variant: 'glb' });
+    glbF = makeFighter(id, soloMode ? 0 : PAIR_X, { pi: 1, mech: model });
     syncSlotUI(hasAlt, slot);
     panelUI.setSubtitle(`${id} · GLB vs ${slot === 'alt' ? 'ALT' : slot === 'solo' ? '(solo)' : 'procedural'}`);
     // NO stand-in enemies on the stage. Attacks aim at the combat code's own
@@ -266,8 +262,14 @@ export async function runPoseTool(startId) {
       anchors: { select: selectAnchor, drop: onAnchorDrop, output: outputAnchors,
         patch: buildAnchorPatch, reset: resetAnchor, changed: anchorChanged,
         nearestBone, boneRefName, base: anchorBase,
+        undo: anchorUndo, redo: anchorRedo, push: pushAnchorHistory,
+        get history() { return { at: aHistIdx, len: aHist.length }; },
         get sel() { return selAnchor; } } };
     captureAnchorBase();
+    // the mech was rebuilt: old anchor objects and parents are gone, so the
+    // stack starts again from this load's state
+    resetAnchorHistory();
+    pushAnchorHistory();
     buildAnchorButtons();
     anchorNote.textContent = '';
     anchorOut.style.display = 'none';
@@ -305,7 +307,7 @@ export async function runPoseTool(startId) {
 
   // ---- status panel ----
   function setStatus(action) {
-    const d = describeAction(ROSTER_BY_ID[curId], action);
+    const d = describeAction(config.catalogue.get(curId), action);
     let html = `<div style="font-weight:600;color:#cfe3ff;margin-bottom:3px">▶ ${d.title}</div>`;
     for (const ln of d.lines) {
       const tag = ln.v === 'proc' ? ' <span style="color:#8fd8ff">(Procedural only)</span>'
@@ -378,6 +380,7 @@ export async function runPoseTool(startId) {
       || Math.abs(obj.rotation.y - bs.rot.y) > 1e-4
       || Math.abs(obj.rotation.z - bs.rot.z) > 1e-4;
   }
+  // load-time baseline: the state Undo can always walk back to
   function captureAnchorBase() {
     for (const k of Object.keys(anchorBase)) delete anchorBase[k];
     for (const [name, obj] of Object.entries(glbF?.mech?.anchors || {})) {
@@ -413,6 +416,84 @@ export async function runPoseTool(startId) {
     if (!obj || !bs) return;
     if (obj.parent !== bs.parent) bs.parent.add(obj);
     obj.position.copy(bs.pos); obj.rotation.copy(bs.rot); obj.scale.setScalar(1);
+  }
+
+  // ================= anchor undo / redo =================
+  // Same model as the pose workbench: a step is a STATE, not a delta — every
+  // anchor's parent + local transform, which is exactly what the manifest
+  // records, so restoring one reproduces what that step looked like including
+  // the auto-bind re-parent a drop performed.
+  //
+  // A drag is ONE step (the snapshot is taken when the gizmo lets go, after
+  // the drop has rebound), and states are deduped by content, so clicking
+  // anchors, switching Move/Rotate or firing actions never floods the stack.
+  // Rebuilding the mech clears it: the anchor objects and their parents are
+  // new, so a state from before the switch means nothing after it.
+  const A_HIST_CAP = 100;
+  let aHist = [], aHistIdx = -1, aRestoring = false;
+  function anchorSnapshot() {
+    const out = {};
+    for (const [name, obj] of Object.entries(glbF?.mech?.anchors || {})) {
+      if (!obj?.isObject3D) continue;
+      out[name] = { parent: obj.parent, pos: obj.position.toArray(), rot: [obj.rotation.x, obj.rotation.y, obj.rotation.z] };
+    }
+    return out;
+  }
+  // content of a state — parents by uuid, so a re-parent registers as a change
+  const anchorSig = (s) => JSON.stringify(Object.entries(s).map(([n, a]) =>
+    [n, a.parent?.uuid || null, a.pos.map((v) => +v.toFixed(5)), a.rot.map((v) => +v.toFixed(5))]));
+  function pushAnchorHistory() {
+    if (aRestoring || !glbF?.mech) return;
+    const snap = anchorSnapshot();
+    if (aHistIdx >= 0 && anchorSig(aHist[aHistIdx]) === anchorSig(snap)) { syncAnchorHistUI(); return; }
+    aHist.length = aHistIdx + 1;        // a new edit discards the redo tail
+    aHist.push(snap);
+    if (aHist.length > A_HIST_CAP) aHist.shift();
+    aHistIdx = aHist.length - 1;
+    syncAnchorHistUI();
+  }
+  function restoreAnchorState(snap) {
+    aRestoring = true;
+    try {
+      for (const [name, a] of Object.entries(snap)) {
+        const obj = glbF?.mech?.anchors?.[name];
+        if (!obj || !a.parent) continue;
+        // add() (not attach()) — the snapshot holds LOCAL numbers, and those
+        // are what the manifest carries; attach would re-solve them from world
+        if (obj.parent !== a.parent) a.parent.add(obj);
+        obj.position.fromArray(a.pos);
+        obj.rotation.set(a.rot[0], a.rot[1], a.rot[2]);
+        obj.scale.setScalar(1);
+      }
+    } finally { aRestoring = false; }
+    refreshAnchorUI();
+  }
+  function anchorUndo() {
+    if (aHistIdx <= 0) { anchorNote.textContent = 'Nothing to undo.'; return; }
+    aHistIdx--;
+    restoreAnchorState(aHist[aHistIdx]);
+    anchorNote.textContent = `Undo · anchor step ${aHistIdx + 1}/${aHist.length}`;
+  }
+  function anchorRedo() {
+    if (aHistIdx >= aHist.length - 1) { anchorNote.textContent = 'Nothing to redo.'; return; }
+    aHistIdx++;
+    restoreAnchorState(aHist[aHistIdx]);
+    anchorNote.textContent = `Redo · anchor step ${aHistIdx + 1}/${aHist.length}`;
+  }
+  function resetAnchorHistory() { aHist = []; aHistIdx = -1; }
+  function syncAnchorHistUI() {
+    const canU = aHistIdx > 0, canR = aHistIdx < aHist.length - 1;
+    for (const [b, on] of [[aUndoBtn, canU], [aRedoBtn, canR]]) {
+      if (!b) continue;
+      b.disabled = !on;
+      b.style.opacity = on ? '1' : '0.4';
+      b.style.cursor = on ? 'pointer' : 'not-allowed';
+    }
+    if (aHistStep) {
+      aHistStep.textContent = aHist.length > 1
+        ? `step ${aHistIdx + 1}/${aHist.length} · Ctrl/⌘+Z`
+        : 'Ctrl/⌘+Z · Shift to redo';
+    }
   }
   // Emits the mech's COMPLETE muzzles block (existing manifest entries carried
   // through, edited ones replaced) so it can be pasted over the manifest whole
@@ -591,9 +672,31 @@ export async function runPoseTool(startId) {
   bindRow.appendChild(document.createTextNode(' Bind to nearest geometry on drop'));
   panel.appendChild(bindRow);
   const aResetRow = el('div', 'display:flex;gap:6px;margin-bottom:5px');
-  aResetRow.appendChild(btn('Reset anchor', () => { if (selAnchor) { resetAnchor(selAnchor); refreshAnchorUI(); } }));
-  aResetRow.appendChild(btn('Reset all anchors', () => { for (const n of Object.keys(anchorBase)) resetAnchor(n); refreshAnchorUI(); }));
+  aResetRow.appendChild(btn('Reset anchor', () => {
+    if (selAnchor) { resetAnchor(selAnchor); refreshAnchorUI(); pushAnchorHistory(); }
+  }));
+  aResetRow.appendChild(btn('Reset all anchors', () => {
+    for (const n of Object.keys(anchorBase)) resetAnchor(n);
+    refreshAnchorUI();
+    pushAnchorHistory();
+  }));
   panel.appendChild(aResetRow);
+  const aHistRow = el('div', 'display:flex;gap:6px;margin-bottom:4px');
+  const aUndoBtn = btn('↶ Undo', () => anchorUndo());
+  const aRedoBtn = btn('↷ Redo', () => anchorRedo());
+  aHistRow.append(aUndoBtn, aRedoBtn);
+  panel.appendChild(aHistRow);
+  const aHistStep = el('div', 'color:#69788c;font-size:10px;margin-bottom:5px');
+  panel.appendChild(aHistStep);
+  syncAnchorHistUI();
+  // Ctrl/⌘+Z · Shift to redo · Ctrl+Y — chorded, so they can't collide with
+  // the single-key action triggers the workbench feeds to the game input
+  window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z') { e.preventDefault(); (e.shiftKey ? anchorRedo : anchorUndo)(); }
+    else if (k === 'y') { e.preventDefault(); anchorRedo(); }
+  });
   const outBtn = btn('Output changes ▶', outputAnchors, true);
   panel.appendChild(outBtn);
   const anchorNote = el('div', 'margin-top:5px;color:#9fb2c8;font-size:10.5px;line-height:1.45');
@@ -640,7 +743,7 @@ export async function runPoseTool(startId) {
     // ---- what this anchor drives ----
     if (selAnchor) {
       const avail = new Set(Object.keys(mech?.anchors || {}));
-      const { role, uses, notes } = anchorUses(ROSTER_BY_ID[curId], selAnchor, avail);
+      const { role, uses, notes } = anchorUses(curId, selAnchor, avail);
       const obj = mech.anchors[selAnchor];
       const bs = anchorBase[selAnchor];
       const moved = bs && obj.parent !== bs.parent;

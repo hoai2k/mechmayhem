@@ -509,7 +509,7 @@ export class Fighter {
   // twins compile under the base name, so this catches either side.)
   inTwoFistSmash() {
     const n = this.animator.action?.clip?.name;
-    return n === 'heavy' || n === 'poundSlam' || n === 'colossusClap';
+    return n === 'heavy' || n === 'poundSlam';
   }
 
   doHeavy() {
@@ -780,8 +780,8 @@ export class Fighter {
   // so both guns get in on it. It swaps on a CLOCK (`channelSwap` seconds), not
   // per round — a gatling spits a round every 0.085s, and swapping per shot
   // would ask the arms to trade places twelve times a second, which the pose
-  // smoother just averages into one limp half-raised stance. A second a side
-  // gives each arm a real turn: brrrrrt-left, brrrrrt-right.
+  // smoother just averages into one limp half-raised stance. A couple of
+  // seconds a side gives each arm a real turn: brrrrrt-left, brrrrrt-right.
   //
   // Timed off animator.t (which advances on the same scaled dt as everything
   // else, so slow-mo slows the swap too) rather than counting rounds, so the

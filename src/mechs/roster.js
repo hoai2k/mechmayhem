@@ -59,7 +59,7 @@ export const ROSTER = [
     levelHands: true, // wrist counter-pitch keeps the hand hardware on the aim line (signatures.js)
     channelClip: 'gatlingLoop', // gun arm punched forward, torso twist eased — barrel on the aim line
     channelClipL: 'gatlingLoopL', // ...and its mirror, so BOTH gatlings take a turn leading
-    channelSwap: 1, // seconds per hand before he swaps guns (~12 rounds a side)
+    channelSwap: 2, // seconds per hand before he swaps guns (~24 rounds a side)
     moves: {
       light: { dmg: [30, 32, 44], knock: [4, 5, 11], range: 2.9 },
       heavy: { dmg: 78, knock: 18, range: 3.2, launch: 7 },
@@ -276,17 +276,18 @@ export const ROSTER = [
     ui: { power: 9, speed: 2, defense: 9 },
     // same doctrine as TITANUS: wind the fist all the way back, then send
     // whatever it lands on across the street — punches (hold X) and the
-    // charged heavy (hold Y) both charge while held.
-    // The heavy is a THUNDERCLAP rather than TITANUS' overhead pound: this
-    // shell is far too wide for a pound's follow-through past the hips (the
-    // forearms swept straight through the chest slab), so the arms stretch
-    // wide on the wind-up and slam shut in front instead. See colossusClap*.
+    // overhead pound (hold Y) both charge while held.
+    // On his GLB the pound is REPLACED by a thunderclap (glbanim's colossus
+    // clipOverrides): that shell is too wide for a pound's follow-through past
+    // the hips, which swept the forearms through the chest slab. Same clip
+    // names, same timings — so these two lines are the whole charge contract
+    // either way, and the procedural build still pounds.
     lightClips: ['bigPunch1', 'bigPunch2', 'light3'],
     punchHold: true,
-    heavyClip: 'colossusClapHold',
+    heavyClip: 'poundHold',
     heavyHold: true,
-    heavyReleaseClip: 'colossusClap',
-    chargeGlow: 'arms', // both outstretched clap arms flicker as power banks
+    heavyReleaseClip: 'poundSlam',
+    chargeGlow: 'arms', // both loaded heavy arms flicker as power banks
     // GLB: the cockpit head is welded into the chest slab (the retarget maps
     // `head` onto a spine bone that carries chest geometry), so it never
     // rotates on its own — the torso turns the whole shell

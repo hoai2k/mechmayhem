@@ -14,7 +14,7 @@
 // Names that aren't real clips (finisher files also play SOUNDS through the
 // same-looking call) drop out because the result is intersected with the
 // clip registry. Keep in sync when a new clip gets played somewhere.
-import { CLIPS } from '../mechs/animations.js';
+import { CLIPS } from '../../src/mechs/animations.js';
 
 // Played for every mech regardless of loadout. 'heavy' is here on purpose even
 // for mechs with their own heavyClip: an AIRBORNE heavy is the generic ground

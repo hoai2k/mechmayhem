@@ -14,21 +14,61 @@ audio). Progress history: `TASKS.md`.
 - Combat crash soak: `node tools/soak.mjs "http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1&diff=ace"`
 - Debug URLs: `?showcase` (12-mech lineup) · `?showcase=<id>&anim=<clip|walk|none>`
   (single mech, judging camera) · `?battle=<arena>&p1=<id>&p2=<id>[&p3..p4][&auto=1][&diff=ace][&forcesplit=1]`
-  · `?rigtest` (GLB retarget math check) · `?rigedit=<id>` (edit a mech's
-  hand-authored rig, `src/mechs/rigs/<id>.rig.js`) · `?showall=1` (force
-  SETTINGS → SHOW ALL ROBOTS on for the session)
+  · `?rigtest` (GLB retarget math check) · `?showall=1` (force SETTINGS → SHOW
+  ALL ROBOTS on for the session)
+- WORKBENCHES LIVE ON THEIR OWN PAGE: `/workbench/?edit=<tool>&mech=<id>` —
+  `animation` (procedural-vs-GLB action comparison + anchor editor),
+  `pose` (joints + clip keyframes), `skin` (bone-island repair), `rig`
+  (hand-placed skeletons), `hurtbox` (what combat hits). `&variant=alt`
+  (legacy `&alt=1`) opens a mech's alternate build. The OLD urls
+  (`?debug=models|pose|skin|collider`, `?rigedit=<id>`) still work — they
+  redirect, carrying their params, so every tools/*.mjs script and bookmark is
+  unaffected.
+- The workbench code is a separate tree (`workbench/`) that knows the game
+  ONLY through a config object: `workbench/config/contract.js` documents the
+  whole surface, `workbench/adapters/robotworld/` fills it in by DERIVING from
+  live game data (roster, clips, joint order, rig registry, manifest) — add a
+  mech or a clip and the workbenches pick it up with no edit there.
+  `node tools/wbconfig.mjs` proves nothing has been hand-copied. Tools under
+  `workbench/tools/` import no game code at all. See `workbench/README.md`.
 - Every workbench side panel (skin/models/pose/collider/rigedit + the level
   editor's two) is RESIZABLE: drag its outer edge, double-click the handle to
   reset, width remembered per tool (`src/dev/panelui.js`, which also styles
   their scrollbars). Widen it when a bone/op name ellipsizes.
 - Workbenches: `?debug=models[&mech=<id>]` — procedural-vs-GLB ACTION
   comparison (trigger any move on both at once, slow-mo, live anchor editor).
-  `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>]` — pose a single
-  mech by joint: load one of THAT mech's own clip poses as a starting point,
+  `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>][&key=<n>|&t=<s>]` —
+  pose a single mech by joint: load one of THAT mech's own clip poses as a
+  starting point,
   CLICK A JOINT IN THE VIEWPORT (the dots, or just the body part — nearest
   joint wins; R/T rotate/translate, G local/world, Esc deselect) and drag the
-  gizmo. "Copy pose" emits a clip-key pose block in degrees (paste
-  straight into `animations.js`), "Bind patch" emits the GLB manifest
+  gizmo. It EDITS THE CLIP, not just a pose: the loaded clip becomes its authored
+  key list again, a drag is written into whichever key you're parked on, and the
+  scrubber plays YOUR version back. Drag the scrubber and clip time runs smoothly
+  (the motion preview); let go and it SNAPS to the nearest key, since a key is the
+  only place an edit can be stored — between keys the readout says `between keys`
+  and nothing is editable. PLAY (beside the key steppers, or Space) runs the clip
+  at 1× on a loop through the real animator — pausing snaps back to the nearest
+  key. ◀ key / key ▶ step them, key times are listed under the
+  slider, `&key=<n>`/`&t=<s>` deep-link one, and it opens on the LAST key (the
+  held pose of a hold/loop clip, the RECOVERY of a one-shot strike). The KEY
+  TRACK under the scrubber edits the key LIST itself: DRAG a diamond to move
+  that key in time (clamped between its neighbours), RIGHT-CLICK bare track for
+  "New keyframe" (born EMPTY, so it changes nothing until you drag a joint on
+  it), RIGHT-CLICK a diamond or press DEL/BACKSPACE to delete it. Amber = the
+  selected key, green = differs from the shipped clip; all of it is undoable
+  and reported in the export (`movedFrom`, `addedKey`, `deletedKeys`). An edit is
+  stored as the DELTA you dragged applied to what the key AUTHORS — never the
+  on-screen numbers assigned outright, since signature motion and rest bias ride
+  on top of those — and keys stay SPARSE, so only the joints you touched are
+  added. "Revert clip edits" restores the shipped clip. "Copy pose" then exports
+  the WHOLE key list: `keys[]` with a per-joint `changed: {from, to}` on each
+  edited key, `editedKeys`, and `js` — the key list already formatted for
+  `animations.js`. UNDO/REDO (Ctrl/⌘+Z · Ctrl/⌘+Shift+Z or Ctrl+Y, plus buttons)
+  covers every edit, reset and clip swap; steps are deduped by content, so
+  scrubbing and key-stepping never flood the stack, and a mech/GLB/alt rebuild
+  clears it (different rig, so old transforms mean nothing).
+  "Bind patch" emits the GLB manifest
   `boneCorrections`/`bonePos`. "Apply constraints" (default on) is the
   animation framework's rule — rotation only, hips may also translate — so
   limbs can't be stretched into a pose no clip could reproduce.
@@ -76,6 +116,17 @@ audio). Progress history: `TASKS.md`.
   lasso cutting THROUGH the model — near side, far side and anything buried
   between, for geometry you'd otherwise have to orbit around; the outline
   draws amber instead of violet to say so).
+- A fighter grown at RUNTIME (colossus' COLOSSAL FORM ult scales him 4×) must
+  tell the animation layer: `animator.sizeMul = <factor>`. Everything in
+  animator.js is authored in the model's own local units, so without it the
+  legs keep their small-body TIMING over four times the distance — four
+  strides per stride's worth of ground, feet skating and jump-cutting. It
+  scales the walk cadence (full 1/sizeMul — a planted foot must sweep at
+  ground speed), the leg smoothing + a hard angular cap (1/√sizeMul — dynamic
+  similarity: big limbs swing slower), and the pelvis foot-follow, whose
+  world-measured clearance has to be divided back into local units or the
+  correction loop runs at gain × sizeMul and rings. Measure any of it with
+  `node tools/footprobe.mjs <mech> <scale>`.
 - Hitboxes: `src/combat/hurtbox.js`. Bone-bound capsules measured off each
   model's own geometry, so they follow the animation; melee resolves on the
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
@@ -113,6 +164,14 @@ that combat silently depends on. Never rebuild a design without it.
   (sculpting vocabulary + Assembler), factory.js (rig + materials),
   animations.js + animator.js (pose-blend engine), gltf.js + rigadapter.js
   (GLB loading + humanoid retargeting), roster `skin` blocks drive pbrtex
+- PER-ROUTE animation: when a move only works on ONE of a mech's two models,
+  author it as a `GLB_CLIP_VARIANTS` entry compiled under the SHARED clip's name
+  and point the mech's glbanim profile `clipOverrides` at it. The roster keeps the
+  shared name, so every check keyed on `def.heavyClip`/`isPlaying`/the mirror
+  alternation matches either build and the procedural one keeps the default.
+  Colossus is the worked example (clap on the GLB, pound procedurally) — and note
+  a clip in `SMASH_MIRRORS` needs its `*Mirror` name overridden too, or half the
+  swings fall through to the shared clip
 - `src/combat/` — fighter.js (state machine), specials.js (24 specials/ults
   by id), projectiles.js, effects.js (pooled VFX)
 - `src/arena/` — themes.js (12 arena configs), arena.js, destructible.js

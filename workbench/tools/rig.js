@@ -1,4 +1,4 @@
-// ?rigedit=<mech> — interactive rig editor for a GLB mech.
+// /workbench/?edit=rig&mech=<id> — interactive rig editor.
 //
 // Loads the raw GLB mesh, drops a clean hand-placed skeleton onto it (from
 // src/mechs/rigs/<id>.rig.js), and lets you DRAG each bone with an on-screen
@@ -7,22 +7,20 @@
 // articulation, and Export emits the bones array to paste back into the rig
 // file. Edits persist to localStorage so a reload keeps your work.
 //
-//   ?rigedit=cranky
+//   /workbench/?edit=rig&mech=cranky
+//
+// Everything game-shaped here arrives through `config` (the workbench
+// contract): the subject list, its raw asset, the canonical joint names, the
+// custom-rig registry and where a rig is saved. See workbench/config.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { Engine } from '../core/engine.js';
-import { loadRawGlbScene, fetchRawManifest } from '../mechs/gltf.js';
-import { rigFor, rigIds } from '../mechs/rigs/index.js';
-import { applyCustomRig, setWeights, rebindRest, buildRigPosts } from '../mechs/reskin.js';
-import { setupDevPanel } from './panelui.js';
-import { saveRigBones, wireExportChanges } from './savefile.js';
-import { JOINT_ORDER } from '../mechs/rigadapter.js';
-import { altChoice, altCheckbox, reloadWithAlt } from './altpick.js';
-import { mechSelect, gotoMech } from './mechpick.js';
+import { setupDevPanel } from '../ui/panel.js';
+import { wireExportChanges } from '../ui/save.js';
+import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js';
+import { subjectSelect, gotoSubject } from '../ui/subjectpick.js';
 
 const VIEW = 10;                 // display scale for the small raw model
-const JOINT_SET = new Set(JOINT_ORDER);
 // distinct colors per bone role (game joints get vivid hues; struts gray)
 function boneColor(name, i) {
   if (name.startsWith('shoulderL') || name.startsWith('elbowL') || name.startsWith('handL') || name === 'clawL') return [1.0, 0.15, 0.12];
@@ -41,7 +39,7 @@ function boneColor(name, i) {
 // and never leaves a blank canvas with an exception in the console.
 // The card carries the mech dropdown too — a blocked mech builds no panel, and
 // without a picker here the only way out would be to hand-edit the URL.
-function showBlocker({ title, detail, hint, id }) {
+function showBlocker({ title, detail, hint, id, config }) {
   const wrap = document.createElement('div');
   wrap.style.cssText = `position:fixed;inset:0;z-index:200;display:flex;align-items:center;
     justify-content:center;background:rgba(10,13,18,0.92);font:14px/1.55 system-ui,sans-serif;color:#dfe8f5`;
@@ -63,35 +61,37 @@ function showBlocker({ title, detail, hint, id }) {
   pick.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:16px;font-size:12px;color:#8fa2ba';
   const pl = document.createElement('span');
   pl.textContent = 'Open another mech:';
-  pick.append(pl, mechSelect({
+  pick.append(pl, subjectSelect({
+    config,
     value: id,
     css: `flex:1;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px;
       border-radius:4px;font:12px system-ui,sans-serif`,
-    note: rigNote,
-    onPick: (next) => gotoMech('rigedit', next),
+    note: (nid) => config.catalogue.note(nid),
+    onPick: (next) => gotoSubject(next),
   }));
   card.appendChild(pick);
   wrap.appendChild(card);
   document.body.appendChild(wrap);
 }
 
-// What the dropdown says about each mech, so a pick that will hit the blocker
-// says so before you make it: a hand-authored rig is what this editor edits.
-function rigNote(id, def) {
-  const editable = new Set(rigIds());
-  if (editable.has(id)) return '';
-  return def ? '  — no custom rig' : '';
-}
-
-export async function runRigEdit(startId) {
-  const id = startId && startId !== 'true' && startId !== '1' ? startId : 'cranky';
+export async function runRigWorkbench(config, params) {
+  const startId = params.get('mech') || params.get('rigedit') || params.get('id');
+  const JOINT_SET = new Set(config.rig.joints);
+  const rigFor = (x) => config.rig.custom.get(x);
+  const rigIds = () => config.rig.custom.ids();
+  const { apply: applyCustomRig, setWeights, rebindRest, buildPosts: buildRigPosts } = config.rig.custom;
+  const catalogue = config.catalogue.list();
+  const id = startId && startId !== 'true' && startId !== '1'
+    ? startId
+    : (catalogue.find((c) => c.hasRig)?.id || catalogue[0]?.id);
   // WHICH BUILD. A mech's custom rig may live on the manifest's `alt` entry
   // rather than the primary (rhino, inferno — a re-rig staged for judging
   // before promotion). That build is then the ONLY one with a rig to edit, so
   // open it instead of bailing out; altpick.altChoice decides, and the panel's
   // "Edit Alternate GLB" box shows the state (ticked + disabled when forced).
-  const manifest = await fetchRawManifest();
-  const alt = altChoice(manifest, id, new URLSearchParams(location.search).get('alt') === '1', 'rig');
+  const manifest = config.manifest();
+  const wantAlt = params.get('alt') === '1' || params.get('variant') === 'alt';
+  const alt = altChoice(manifest, id, wantAlt, 'rig');
   const useAlt = alt.useAlt;
   const LS_KEY = () => `rigedit:${id}`;
   function loadRig() {
@@ -107,7 +107,7 @@ export async function runRigEdit(startId) {
   // what's missing on screen — previously a mech with no rig file sailed
   // through to applyCustomRig and died on a null bone root.
   let raw = null, loadErr = null;
-  try { raw = await loadRawGlbScene(id, { alt: useAlt }); } catch (e) { loadErr = e; }
+  try { raw = await config.variants.raw(id, { variant: useAlt ? 'alt' : 'glb' }); } catch (e) { loadErr = e; }
   let probeMesh = null;
   raw?.scene.traverse((o) => { if (o.isSkinnedMesh && !probeMesh) probeMesh = o; });
   const startRig = loadRig();
@@ -115,7 +115,7 @@ export async function runRigEdit(startId) {
   const problem = loadErr
     ? { title: `${id}'s GLB failed to load`,
       detail: 'The model file is listed in the manifest but could not be parsed, so there is nothing to rig.',
-      hint: `?rigedit=${id}${useAlt ? ' (alt)' : ''}\n${loadErr.message || loadErr}` }
+      hint: `?edit=rig&mech=${id}${useAlt ? ' (alt)' : ''}\n${loadErr.message || loadErr}` }
     : !raw
       ? { title: `No GLB for "${id}"`,
         detail: `The rig editor edits a GLB mech. public/models/manifest.json has no ${useAlt ? '"alt" ' : ''}entry with a url for this mech${useAlt ? '' : ', so it runs on the procedural model and has no rig to edit'}.`,
@@ -123,7 +123,7 @@ export async function runRigEdit(startId) {
       : !probeMesh
         ? { title: `${id}'s GLB has no skinned mesh`,
           detail: 'The file loaded but contains no SkinnedMesh, so there is no skin to re-bind to a rig.',
-          hint: `?rigedit=${id}${useAlt ? '&alt=1' : ''}` }
+          hint: `?edit=rig&mech=${id}${useAlt ? '&alt=1' : ''}` }
         : !startRig.bones?.length
           ? { title: `${id} has no custom rig to edit`,
             detail: 'This mech runs on its GLB\'s own auto-rig (manifest boneOverrides + skinOps). '
@@ -133,7 +133,7 @@ export async function runRigEdit(startId) {
               + `     { bones: [{ name: 'hips', parent: null, pos: [x, y, z] }, ...] }\n`
               + `     (positions are MESH-LOCAL, i.e. raw GLB bind space)\n`
               + `  2. register it in src/mechs/rigs/index.js\n`
-              + `  3. reload ?rigedit=${id} and drag the bones into place` }
+              + `  3. reload ?edit=rig&mech=${id} and drag the bones into place` }
           : !startRig.bones.some((b) => !b.parent || !startRig.bones.some((p) => p.name === b.parent))
             ? { title: `${id}'s rig has no root bone`,
               detail: 'Every bone in the rig names a parent, so the skeleton has no root to hang off — usually a typo in a `parent` field, or a cycle.',
@@ -141,11 +141,11 @@ export async function runRigEdit(startId) {
             : null;
   if (problem) {
     console.warn(`rigedit: ${problem.title}`);
-    showBlocker({ ...problem, id });
+    showBlocker({ ...problem, id, config });
     return null;
   }
 
-  const engine = new Engine(document.getElementById('game-canvas'));
+  const engine = config.stage.engine();
   const { scene, camera, renderer } = engine;
   scene.background = new THREE.Color(0x1a1f29);
   scene.add(new THREE.HemisphereLight(0xdfe6f2, 0x565c66, 2.2));
@@ -562,7 +562,7 @@ export async function runRigEdit(startId) {
     const bones = rigBonesPayload();
     saveBtn.disabled = true;
     setNote(`Saving ${bones.length} bones to ${id}.rig.js…`);
-    const res = await saveRigBones(id, bones);
+    const res = await config.rig.save(id, bones);
     saveBtn.disabled = false;
     if (res.ok) {
       setNote(`SAVED — ${res.bones} bones written to ${res.file}`
@@ -605,15 +605,16 @@ export async function runRigEdit(startId) {
   });
   // Mech picker, like every other workbench. This editor builds its whole
   // world (raw GLB, skeleton, re-skin, undo stack) around one id at start-up,
-  // so a switch is a navigation, not a rebuild — gotoMech rewrites ?rigedit=
+  // so a switch is a navigation, not a rebuild — gotoSubject rewrites ?mech=
   // and drops the old mech's &alt.
   panel.appendChild(lbl('Mech'));
-  panel.appendChild(mechSelect({
+  panel.appendChild(subjectSelect({
+    config,
     value: id,
-    note: rigNote,
-    onPick: (next) => { if (next !== id) gotoMech('rigedit', next); },
+    note: (nid) => config.catalogue.note(nid),
+    onPick: (next) => { if (next !== id) gotoSubject(next); },
   }));
-  const altRow = altCheckbox(alt, reloadWithAlt);
+  const altRow = altCheckbox(alt, reloadWithVariant);
   if (altRow) { altRow.style.marginTop = '6px'; panel.appendChild(altRow); }
 
   const modeRow = el('div', 'display:flex;gap:6px;margin:6px 0');

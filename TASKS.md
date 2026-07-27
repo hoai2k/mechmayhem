@@ -3507,3 +3507,169 @@ Screenshots VIEWED mid-drag (amber outline, Slice outlined amber in the panel)
 and after (the whole soloed thigh block recoloured, both sides). Colossus alt
 opens clean with its new ops in the skin, pose and rig workbenches, no page
 errors, `vite build` green.
+
+## Colossus alt skin, second pass (user-supplied, 2026-07-26)
+
+`colossus.alt.skinOps` replaced with the owner's next pass: 30 ops, up from 14.
+The first 14 are unchanged; the new 16 are all vertex-list selections — the
+shoulder pads split out to `shoulderL`/`shoulderR` (2447 / 2708 verts), a
+20927-vert torso consolidation, eleven small torso patches (1–25 verts each,
+the leftovers a big selection misses) and forearm cleanups onto `elbowL` (772)
+and `elbowR` (296). 31001 verts named across the list. A skinOps export is a
+full replacement, not an append, so the list was swapped whole —
+`tools/manifestfmt.mjs` splice again, 16 lines changed and nothing else.
+
+Verified: 30 ops load in `?debug=skin&mech=colossus&alt=1`, torso reads as one
+green mass with the shoulders now their own colour; default wiggle run on
+shoulderR, elbowL and torso with textures ON — arms swing with their bones,
+shells stay coherent, nothing trails or tears; the alt also opens clean in the
+pose and animation workbenches. No page errors, `vite build` green.
+
+## Colossus: giant-mode footwork, and the custom rig promoted to primary (user request, 2026-07-26)
+
+### The giant walks like a giant now
+
+COLOSSAL FORM scales colossus' group to 4×, but nothing told the animation
+layer. Everything in animator.js is authored in the model's own LOCAL units, so
+a 4× body kept its small-body timing over four times the distance: four strides
+per stride's worth of ground, feet skating and jump-cutting between plants.
+`Animator.sizeMul` (set from the ult's own `apply()`, so it eases in with the
+growth and clears on the way out) fixes three separate expressions of that, and
+they deliberately use two different laws:
+
+  · WALK CADENCE — full 1/sizeMul. This is a CONTACT constraint: the stance
+    foot has to sweep backwards at exactly ground speed or it skates, and the
+    cadence formula already derives that from leg reach. Leg reach is now the
+    real (grown) one, and the 14 rad/s ceiling scales with it.
+  · LEG SMOOTHING + a hard angular cap (LEG_W_REF 6 rad/s) — 1/√sizeMul.
+    Dynamic similarity: a big limb swings slower (√L, the same reason a giant's
+    stride reads heavy). Attack clips keep their own timing — slowing the clip
+    would slow the attack — so only the LEG channels are held back, which is
+    what stops a stomp from throwing a foot across half a block. The lag alone
+    wasn't enough (a smooth fast sweep sails through a first-order filter), so
+    the hard cap is what actually holds; 6 rad/s sits above the 95th percentile
+    of a normal-size colossus' leg motion, so it only ever catches the snaps.
+  · PELVIS FOOT-FOLLOW — an outright bug the giant exposed. `soleClearance()`
+    measures in WORLD units, `_footBias` is spent in LOCAL ones, and the
+    comment promises a 1:1 correction. At 4× that loop was correcting four
+    times what it measured: gain 4 doesn't converge, it rings, and that was the
+    vertical buzz in the giant's feet. Divided back into local units, damped at
+    the same √ law.
+
+Also: the ult's "thundering footfalls" were a fixed 0.38s metronome — roughly a
+normal mech's cadence, so it drummed out steps he no longer takes. They ride
+the actual gait phase now, one per half cycle.
+
+Measured with the new `tools/footprobe.mjs` (colossus, walking, world units/s):
+
+    scale 1              cadence 0.888  foot med 8.78   p95 13.67  slip med 3.52
+    scale 4 (sizeMul on) cadence 0.222  foot med 9.67   p95 13.79  slip med 3.09
+    scale 4 (sizeMul 1)  cadence 0.888  foot med 23.35  p95 31.88  slip med 12.97
+
+Cadence falls exactly 4× while body speed is unchanged, the foot ends up at a
+normal-size foot's speed over a 4× longer stride, and the STANCE foot — the
+honest skating measure, min(|v| of the two ankles) — is planted as firmly as at
+normal size (3.09 vs 3.52) where before it was dragging at 12.97. On attack
+clips the leg cap pulls the worst foot frame from ~4× a normal mech's peak down
+to ~1.5×, and typical fast frames to ~3×: still fast for a giant, no longer a
+jump cut.
+
+### Rig swap
+
+`colossus.alt` (the hand-authored `src/mechs/rigs/colossus.rig.js` build, staged
+since session 7) is now the PRIMARY the game loads; the retired Tripo auto-rig
+entry — 15 boneOverrides, 64 tripo-named skinOps — moved into `alt`. Both are
+complete standalone entries, so they were swapped whole and each keeps its own
+url/modelScale/bindPose/yawOffset, muzzles and skinOps. No glbanim work: the
+colossus profile is `{}` on both skeletons (unlike vulcan, whose auto-rig
+corrections had to survive as `vulcan_tripo`). Promoted carrying the owner's
+third skin pass, 39 ops (+9: ankleR 2619v, ankleL 2280v, kneeL 492v, kneeR 416v,
+five small ankle patches).
+
+Verified: `cliptear` 98/98 clips clean, 0 far-seam edges, worst stretch +0.00
+(the Tripo primary's worst was +0.34) · `hurtboxfit` 15/15 parts, containment
+74% → 80% (upperArmL had no capsule at all before) though bloat 1.12 → 1.26, so
+he is a slightly bigger target than he was — flagged, not tuned · `anchorkeep
+colossus` PASS, every muzzle identical at rest (Δpos 0, Δaim 0°) · showcase walk
+screenshot VIEWED · crash-free ace soaks on neon (vs viper) and steel (vs
+titanus) · `?rigedit=colossus` now opens the primary directly instead of being
+forced onto the alt, the retired build still loads under `&alt=1` with its 64
+ops · `vite build` green.
+
+## Pose workbench: the timeline became editable (user request, 2026-07-27)
+
+The scrubber could only visit keys; the key LIST was read-only. Under it now
+sits a KEY TRACK — one diamond per key, amber for the selected one, green for
+any that differs from the shipped clip — and it is direct manipulation:
+
+- DRAG a diamond to move that key along the timeline. The drag is clamped
+  between its neighbours (MIN_GAP 0.01s), which is what keeps the list sorted
+  without ever re-sorting it — `curKeyIdx`, which the whole editing path hangs
+  off, stays valid mid-drag. The viewport follows the key, so what you watch
+  reshape is the interpolation on either side of it.
+- RIGHT-CLICK bare track → "New keyframe at t=…". The new key is EMPTY
+  (`pose: {}`) on purpose: compileLive drops empty keys, so adding one changes
+  nothing about how the clip plays until you drag a joint on it, and then only
+  that joint is written. A key that snapshotted the whole interpolated pose
+  would silently freeze every limb passing through — the exact thing the
+  sparse-key rule exists to prevent.
+- RIGHT-CLICK a diamond → "Delete keyframe (t=…)", or press DEL/BACKSPACE with
+  it selected. The last remaining key is refused (a clip needs one).
+
+THE DIFF HAD TO CHANGE FIRST. `editedKeyIdx`/`keyDiff` compared
+`editClip.keys[i]` with `origKeys[i]` BY INDEX, which is fine while the only
+edit is "change a pose in place" and nonsense the moment a key can be inserted:
+key 3 is no longer the shipped key 3, and every key after an insertion reads as
+edited. Keys now carry a stable `id` (assigned in buildEditClip, minted from
+`nextKeyId` for hand-added ones, cloned through undo snapshots), and the diff
+matches on it — so a dragged key is still recognised as itself, a new one
+reports `addedKey`, a moved one `movedFrom: <old t>`, and keys the clip had but
+the edit doesn't come out as `deletedKeys` in the export.
+
+One real bug found while wiring the context menu: dismiss-on-click-away as a
+capture-phase window listener sees the pointerdown on a menu ITEM before the
+item does, so the menu deleted itself out from under the click that chose it —
+"New keyframe" appeared and did nothing. The dismissal now ignores pointerdowns
+inside the menu.
+
+Verified headlessly on colossus/heavy (5 keys): right-click gap → key inserted
+at t=0.08 (6 keys, reported edited) · dragged it to 0.23, clamped short of the
+0.34 neighbour · DEL removed it and the diff went back to clean · right-click
+on the shipped t=0.52 key → deleted, `deletedKeys` 1 · undo restored it exactly,
+redo removed it, undo again restored · a dragged shipped key exported as
+`changed: {movedFrom: 0.52}` and an added one as `changed: {addedKey}` ·
+screenshots VIEWED (diamonds, selection colour, menu) · `tools/wbconfig.mjs`
+PASS · `vite build` green.
+
+## Pose workbench: one timeline, and a Play button (user request, 2026-07-27)
+
+Three small things about the same strip.
+
+THE SCRUBBER AND THE KEY TRACK ARE NOW ONE TIMELINE. They were two different
+widths, so a key's diamond and the scrubber head disagreed about where that time
+was. A range input's thumb travels from half a thumb in to half a thumb from the
+end, so the slider takes the panel's full width and the key track keeps its
+KEY_PAD (= half a thumb) inset: same span, same mapping, head on the diamond.
+Nothing may share the slider's row — the readout beside it was what shortened
+the travel in the first place.
+
+THE READOUT BESIDE THE SCRUBBER IS GONE, as asked; the key you're parked on is
+already the bracketed one in the times line below. The one thing that line did
+not carry is the head's time while it is BETWEEN keys (nothing is bracketed
+then), so in that state it now reads `t 0.87 · 0.00 0.34 0.52 …`.
+
+PLAY / PAUSE beside ◀ key / key ▶ (or Space). It runs the edited clip at 1×
+through the real animator — one update per frame at the frame's own dt, so the
+pose smoother and signature layer behave exactly as they do in a match — and
+LOOPS, because judging a half-second strike means watching it more than once.
+Playing is a look, never an edit: the gizmo is detached for the duration and
+commitEdit is refused, so a stray drag can't be written into a key while the
+pose underneath is moving. Pausing snaps to the nearest key — the editable
+state — and hands the gizmo back. Anything that takes the pose over (clip swap,
+undo, mech rebuild, scrubbing, key stepping) stops playback first.
+
+Verified on colossus/heavy: the slider's box measures exactly the key track's
+box ±8px on each side, and parked on key 3 the thumb sits on that key's diamond
+(screenshot VIEWED) · Play advances clip time and wraps at dur, Pause lands on
+key 4 (t=0.70, the nearest), Space toggles both ways · the times line shows
+`t 0.87 · …` unbracketed while playing · no page errors, `vite build` green.
