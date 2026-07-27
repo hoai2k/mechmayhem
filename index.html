@@ -9,8 +9,50 @@
   <meta name="theme-color" content="#05070c" />
   <title>ROBOTWORLD — Mech Battle Arena</title>
   <link rel="icon" type="image/png" href="./favicon.png" />
+  <!-- BOOT SPLASH — deliberately inline, and deliberately before everything.
+       The stylesheet and the game bundle are both module-loaded, so anything
+       that depends on them paints only AFTER the download the player is
+       waiting on. This block is the first paint: it costs no request, and it
+       is the difference between "loading" and "this page is broken".
+       src/game/boot.js removes it once the title screen is up. -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #05070c; overflow: hidden; }
+    #boot-splash {
+      position: fixed; inset: 0; z-index: 500;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #05070c; color: #cfe2f2;
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      transition: opacity 0.45s ease;
+    }
+    #boot-splash.done { opacity: 0; pointer-events: none; }
+    #boot-splash .bs-word {
+      font-size: clamp(30px, 8vw, 62px); font-weight: 900; font-style: italic;
+      letter-spacing: 0.06em; color: #eaf6ff;
+      text-shadow: 0 0 26px rgba(56, 232, 255, 0.45), 0 4px 14px rgba(0, 0, 0, 0.7);
+    }
+    #boot-splash .bs-tag {
+      margin-top: 10px; font-size: clamp(10px, 2.2vw, 13px); font-weight: 700;
+      letter-spacing: 0.42em; text-transform: uppercase; color: #5f93b3;
+    }
+    #boot-splash .bs-bar {
+      margin-top: 34px; width: min(240px, 52vw); height: 3px;
+      background: rgba(56, 232, 255, 0.14); border-radius: 3px; overflow: hidden;
+    }
+    #boot-splash .bs-bar i {
+      display: block; width: 40%; height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, transparent, #38e8ff, transparent);
+      animation: bs-sweep 1.15s ease-in-out infinite;
+    }
+    @keyframes bs-sweep { 0% { transform: translateX(-110%); } 100% { transform: translateX(360%); } }
+    @media (prefers-reduced-motion: reduce) { #boot-splash .bs-bar i { animation: none; width: 100%; } }
+  </style>
 </head>
 <body>
+  <div id="boot-splash">
+    <div class="bs-word">ROBOTWORLD</div>
+    <div class="bs-tag">Mech Battle Arena</div>
+    <div class="bs-bar"><i></i></div>
+  </div>
   <div id="app">
     <canvas id="game-canvas"></canvas>
     <div id="vignette"></div>

@@ -130,6 +130,21 @@ export class GameAudio {
     }
   }
 
+  /**
+   * Silence everything until the next resume() — used when the tab or embed
+   * loses visibility. Suspending the context (rather than zeroing the gains)
+   * also parks the scheduler, so nothing accumulates while we are away.
+   * Never _init()s: if audio was never unlocked there is nothing to suspend.
+   */
+  suspend() {
+    try {
+      const ctx = this.ctx;
+      if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
+    } catch (e) {
+      /* audio must never break the game */
+    }
+  }
+
   /** Fire-and-forget SFX. Unknown names silently no-op. opts: {vol, pitch}. */
   play(name, opts = {}) {
     try {
