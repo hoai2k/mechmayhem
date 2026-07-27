@@ -12,7 +12,22 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** LONG SIGHT LINES ACROSS THE SEAM — the view now runs almost a
+- **Latest:** GENERATED SKIES + TEXTURES WIRED UP — the owner's asset drop
+  (12 equirect sky panoramas 4096×2048, 12 alpha horizon strips 4096×512,
+  8 seamless prop textures) is now doing real work in every arena, and the
+  three clashes it exposed are fixed: the procedural skyline boxes are the
+  FALLBACK only (with a generated horizon they stood in front of it as flat
+  fog-coloured slabs), the horizon ring got a vertical alpha ramp + T-axis
+  clamp (repeat-wrapping bled its opaque haze row into its transparent rim,
+  drawing a dotted line across the sky), and the procedural aurora curtains
+  are skipped when a pano paints their own (frozen was hanging pastel
+  rectangles over its own aurora). Also wired the unused `prop_metal_painted`
+  plate into the heavy plant (crane, magnet crane, crusher, drill rig,
+  snowcat) and named every prop group `prop:<name>` so `tools/skyshot.mjs`
+  (new: aims a camera by pitch/yaw or frames a named prop) can inspect them.
+  All 12 arenas eyeballed at sky pitch; ace soaks clean on frozen (4P) and
+  ruins; `tools/wbconfig.mjs` still PASSes.
+- **Previous:** LONG SIGHT LINES ACROSS THE SEAM — the view now runs almost a
   full wrap period in every direction (corners included), so you see roughly
   an extra arena-width of the looped world instead of a wall of haze. The
   world was always ghost-tiled ±1 cell and fighters are never cloned, so

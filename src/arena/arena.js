@@ -178,33 +178,58 @@ export class Arena {
     // INSIDE the long view and read as a wall through the real city): the
     // silhouette belongs at the fog wall, scaled up so it keeps its
     // apparent size from the middle of the arena
-    const bdR0 = P * 0.88, bdR1 = P * 1.08;
-    const bdScale = bdR0 / 230;
-    const skyMatDark = new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fog.color).multiplyScalar(0.55) });
     const skyline = new THREE.Group();
-    for (let i = 0; i < 40; i++) {
-      const a = (i / 40) * Math.PI * 2 + rng.range(-0.05, 0.05);
-      const r = rng.range(bdR0, bdR1);
-      const w = rng.range(14, 34) * bdScale, h = rng.range(24, 100) * bdScale, d = rng.range(14, 34) * bdScale;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skyMatDark);
-      m.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r);
-      m.rotation.y = rng.range(0, Math.PI);
-      skyline.add(m);
+    const hasHorizonTex = CONFIG.useTextures && hasTex('sky', `horizon_${theme.id}`);
+    // The generated horizon strip (below) IS the distant scenery when it
+    // exists — the box silhouettes would only stand in front of it as flat
+    // fog-coloured slabs, so they are the FALLBACK, not an extra layer.
+    if (!hasHorizonTex) {
+      const bdR0 = P * 0.88, bdR1 = P * 1.08;
+      const bdScale = bdR0 / 230;
+      const skyMatDark = new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fog.color).multiplyScalar(0.55) });
+      for (let i = 0; i < 40; i++) {
+        const a = (i / 40) * Math.PI * 2 + rng.range(-0.05, 0.05);
+        const r = rng.range(bdR0, bdR1);
+        const w = rng.range(14, 34) * bdScale, h = rng.range(24, 100) * bdScale, d = rng.range(14, 34) * bdScale;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skyMatDark);
+        m.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r);
+        m.rotation.y = rng.range(0, Math.PI);
+        skyline.add(m);
+      }
     }
     // generated distant-horizon strip (src/textures/sky/horizon_<id>/):
     // mountains / skyline silhouette on a far ring, camera-locked with the
     // boxes so it never crosses the wrap seam. Unlit + fog-free — the strip
     // bakes its own haze.
-    if (CONFIG.useTextures && hasTex('sky', `horizon_${theme.id}`)) {
+    if (hasHorizonTex) {
       const tex = loadMap('sky', `horizon_${theme.id}`, 'albedo', { srgb: true });
       tex.repeat.set(3, 1);   // ~8:1 strip tiled 3× around the ring
+      // vertical CLAMP, no mips: repeat-wrapping T let the strip's opaque
+      // ground-haze bottom row bleed into its transparent top row, drawing a
+      // faint dotted line across the sky at the ring's rim
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.generateMipmaps = false;
+      tex.minFilter = THREE.LinearFilter;
+      tex.needsUpdate = true;
       const ringR = Math.max(620, P * 1.6);   // always outside the skyline boxes
       const ringH = ringR * 0.28;
+      // vertical alpha ramp (opaque at the scenery line, clear at the rim):
+      // a strip whose baked sky haze isn't perfectly transparent would
+      // otherwise show its top edge as a straight line across the sky
+      const ringGeo = new THREE.CylinderGeometry(ringR, ringR, ringH, 48, 8, true);
+      const pos = ringGeo.attributes.position;
+      const col = new Float32Array(pos.count * 4);
+      for (let i = 0; i < pos.count; i++) {
+        const t = (pos.getY(i) + ringH / 2) / ringH;          // 0 bottom → 1 top
+        col[i * 4] = col[i * 4 + 1] = col[i * 4 + 2] = 1;
+        col[i * 4 + 3] = 1 - clamp((t - 0.55) / 0.45, 0, 1);
+      }
+      ringGeo.setAttribute('color', new THREE.BufferAttribute(col, 4));
       const ring = new THREE.Mesh(
-        new THREE.CylinderGeometry(ringR, ringR, ringH, 48, 1, true),
+        ringGeo,
         new THREE.MeshBasicMaterial({
           map: tex, transparent: true, side: THREE.BackSide,
-          depthWrite: false, fog: false,
+          vertexColors: true, depthWrite: false, fog: false,
         })
       );
       ring.position.y = ringH / 2 - ringH * 0.08;
@@ -340,7 +365,12 @@ export class Arena {
         if (g) this._regProp(g, x, z, gy);
         return g;
       };
+      // a generated sky panorama paints its own aurora — the procedural
+      // curtains (flat additive quads hung round the arena) would only stack
+      // as bright rectangles over it. They stay for the no-texture fallback.
+      const skipSkyProps = CONFIG.useTextures && hasTex('sky', `sky_${theme.id}`);
       for (const spec of theme.props || []) {
+        if (skipSkyProps && spec.name === 'aurora') continue;
         // `on: 'water'` (or any patch kind): the prop lives INSIDE a patch —
         // boats on the harbor basins, buoys on the lake. Skipped when the
         // seeded layout produced no such patch.

@@ -60,6 +60,9 @@ function texMat(name, fallback, opts = {}) {
   if (!_texMatCache.has(key)) _texMatCache.set(key, pbrMaterial('prop', name, opts) || null);
   return _texMatCache.get(key) || fallback;
 }
+// riveted yellow machine plate, shared by the heavy plant (cranes, crusher,
+// drill rig, snowcat) — falls back to flat yellow paint
+const machinePaint = (repeat = 2) => texMat('prop_metal_painted', M.yellowPaint, { repeat });
 
 function box(mat, w, h, d, x = 0, y = 0, z = 0, ry = 0) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -109,9 +112,10 @@ export const PROPS = {
   crane(o = {}) {
     const g = new THREE.Group();
     const h = o.h || 22, arm = o.arm || 16;
-    g.add(box(M.yellowPaint, 1.4, h, 1.4, 0, h / 2, 0));
-    g.add(box(M.yellowPaint, 1.1, 1.1, arm, 0, h, arm / 2 - 2));
-    g.add(box(M.yellowPaint, 1.1, 1.1, 6, 0, h, -4.4));
+    const paint = machinePaint(3);
+    g.add(box(paint, 1.4, h, 1.4, 0, h / 2, 0));
+    g.add(box(paint, 1.1, 1.1, arm, 0, h, arm / 2 - 2));
+    g.add(box(paint, 1.1, 1.1, 6, 0, h, -4.4));
     g.add(box(M.darkSteel, 2.2, 2, 2.4, 0, h - 1.6, -3));
     const cable = cyl(M.darkSteel, 0.06, 0.06, 7, 0, h - 3.5, arm - 4);
     g.add(cable);
@@ -569,9 +573,9 @@ export const PROPS = {
     const g = new THREE.Group();
     for (const sx of [-1.5, 1.5]) g.add(box(M.rubber, 1.1, 1.1, 5.0, sx, 0.55, 0));
     g.add(box(M.darkSteel, 3.4, 0.5, 3.6, 0, 1.3, 0));
-    g.add(box(M.yellowPaint, 2.6, 2.0, 3.4, 0, 2.55, -0.4));
+    g.add(box(machinePaint(), 2.6, 2.0, 3.4, 0, 2.55, -0.4));
     g.add(box(M.darkSteel, 1.4, 1.2, 1.2, 1.0, 2.4, 1.6));
-    const boom = box(M.yellowPaint, 0.8, 0.9, 11, 0, 5.8, 3.4);
+    const boom = box(machinePaint(3), 0.8, 0.9, 11, 0, 5.8, 3.4);
     boom.rotation.x = -0.68;
     g.add(boom);
     g.add(cyl(M.darkSteel, 0.06, 0.06, 4.2, 0, 6.3, 6.9, 6));
@@ -619,7 +623,7 @@ export const PROPS = {
       g.add(leg);
     }
     g.add(box(M.steel, 3.0, 0.5, 3.0, 0, h + 0.4, 0));
-    g.add(box(M.yellowPaint, 1.6, 1.4, 1.8, 0, h + 1.3, 0));
+    g.add(box(machinePaint(), 1.6, 1.4, 1.8, 0, h + 1.3, 0));
     g.add(cyl(M.darkSteel, 0.32, 0.32, h, 0, h / 2 + 0.3, 0, 10));
     g.add(cyl(M.brass, 0.02, 0.62, 1.1, 0, 0.9, 0, 8));
     const lamp = box(M.glowViolet, 0.5, 0.3, 0.5, 0, h + 2.15, 0);
@@ -1469,8 +1473,9 @@ export const PROPS = {
     // Hydraulic press mid-crush, warning beacon sweeping.
     const g = new THREE.Group();
     g.add(box(M.darkSteel, 6.0, 1.0, 4.4, 0, 0.5, 0));
-    for (const sx of [-2.5, 2.5]) g.add(box(M.yellowPaint, 0.9, 6.4, 1.2, sx, 3.2, -0.8));
-    g.add(box(M.yellowPaint, 6.0, 1.1, 1.6, 0, 6.4, -0.8));
+    const press = machinePaint(2);
+    for (const sx of [-2.5, 2.5]) g.add(box(press, 0.9, 6.4, 1.2, sx, 3.2, -0.8));
+    g.add(box(press, 6.0, 1.1, 1.6, 0, 6.4, -0.8));
     g.add(box(M.darkSteel, 4.0, 1.6, 3.4, 0, 4.4, -0.5));                   // press slab
     for (const sx of [-1.2, 1.2]) g.add(cyl(M.steel, 0.3, 0.3, 1.6, sx, 5.9, -0.5, 8));
     const car = box(M.rust, 3.6, 0.8, 2.2, 0, 1.4, -0.4);                   // the patient
@@ -1807,8 +1812,9 @@ export const PROPS = {
       g.add(box(M.rubber, 0.9, 1.0, 4.6, sx, 0.55, 0));
       g.add(box(M.darkSteel, 0.7, 0.4, 4.2, sx, 1.1, 0));
     }
-    g.add(box(M.yellowPaint, 2.4, 1.1, 3.8, 0, 1.6, -0.2));
-    g.add(box(M.yellowPaint, 2.2, 1.4, 1.8, 0, 2.85, 0.7));
+    const cab = machinePaint();
+    g.add(box(cab, 2.4, 1.1, 3.8, 0, 1.6, -0.2));
+    g.add(box(cab, 2.2, 1.4, 1.8, 0, 2.85, 0.7));
     g.add(box(M.glass, 1.9, 0.9, 0.1, 0, 3.0, 1.64));
     g.add(box(M.frost, 2.25, 0.14, 1.85, 0, 3.6, 0.7));
     const blade = box(M.steel, 3.4, 1.1, 0.3, 0, 0.7, 2.7);
@@ -2434,6 +2440,7 @@ export function placeProp(scene, list, name, x, z, opts = {}) {
   const builder = PROPS[name];
   if (!builder) return null;
   const g = builder(opts);
+  g.name = `prop:${name}`;   // findable in the scene graph from dev tools
   propGlbSwap(name, g);   // generated model available? swap visuals, keep hooks
   g.position.x = x;
   g.position.z = z;
