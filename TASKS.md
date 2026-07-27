@@ -3708,3 +3708,23 @@ VERDANT · SOLAR · BLOSSOM · UMBER. Brown and pink need more than a hue swap, 
 and the same two multipliers ride the `recolor` spec into `recolorglb.js`, so
 GLB mechs repaint to match instead of drifting bright orange. The RANDOM "?"
 sprite carries one tint per scheme.
+
+### Follow-up: the callouts are buttons, and the leaders keep out of each other's way
+
+Three fixes to the HOW TO PLAY diagram.
+
+LEADER LANES. Every leader used to turn its corner on the same x per side, so
+five verticals sat on top of one another and LT's line ran down through LB's.
+Each row now carries its own `lane`, stepping INWARD as the column goes down —
+that ordering is what also keeps a lower row's horizontal run from crossing a
+higher row's vertical, since the vertical always stops above it. Checked in the
+browser off the rendered polylines: 0 overlapping verticals, 0 crossings.
+
+LB / RB / LT / RT are printed on the pad art now. They're the controls a player
+can't read off their own controller without turning it over.
+
+THE CALLOUTS LOOK LIKE BUTTONS: each is a rounded, bordered box that brightens
+on hover and lights cyan when selected, and selecting one rewrites the
+description under the pad (already the behaviour — it just wasn't obvious the
+boxes were pickable). Found while wiring it: the SVG is appended after the
+labels, so it was swallowing every hover — it's `pointer-events: none` now.
