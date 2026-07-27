@@ -25,7 +25,11 @@
 // THE SCRUBBER: drag it and clip time runs smoothly — that is the motion
 // preview, and it is your edited clip being sampled, not the shipped one. Let go
 // and it SNAPS to the nearest key, because a key is the only place an edit can
-// be stored. Between keys the readout says `between keys` and nothing is
+// be stored. PLAY (next to the key steppers, or Space) runs the whole thing at
+// 1× on a loop through the real animator, for judging the motion rather than a
+// frame of it; pausing snaps to the nearest key and hands the gizmo back. The
+// scrubber and the key track are laid out as ONE timeline — same span, same
+// mapping — so the head sits on the diamond of the key it is parked on. Between keys the readout says `between keys` and nothing is
 // editable (the pose there is interpolated and belongs to no key). ◀ key / key ▶
 // step them; the key times are listed under the slider with the current one in
 // brackets. `&key=<index>` deep-links one, `&t=<seconds>` snaps to the nearest.
@@ -238,6 +242,8 @@ export async function runPoseWorkbench(config, params) {
       gotoKey, previewAt, commit: commitEdit, revert: revertEdits,
       // timeline key editing, the same calls the strip's drag / menu / DEL make
       addKey: addKeyAt, deleteKey, moveKey: moveKeyTo,
+      play: startPlay, pause: () => stopPlay(), togglePlay,
+      get playing() { return playing; },
       // commit + pushHistory is what a gizmo release does, in that order
       undo, redo, pushHistory, get history() { return { at: histIdx, len: histStack.length }; },
       get key() {
@@ -315,6 +321,7 @@ export async function runPoseWorkbench(config, params) {
   // No clip is loaded: hide the scrubber and make sure the export stops claiming
   // a key. Called on reset and whenever a rebuild invalidates the old clip.
   function clearClipContext() {
+    stopPlay(false);
     editClip = null; origKeys = null; liveClip = null;
     curKeyIdx = -1; loadedPose = null; scrubT = 0;
     timeRow.style.display = 'none';
@@ -410,6 +417,59 @@ export async function runPoseWorkbench(config, params) {
     refreshJointButtons();
   }
 
+  // ================= playback =================
+  // The scrubber is hand-driven and the key stepper jumps; neither tells you
+  // whether the motion READS. Play runs the edited clip at 1× through the real
+  // animator — one update per frame at the frame's own dt, so the pose smoother
+  // and the signature layer behave exactly as they do in a match — and loops,
+  // because judging a half-second strike means watching it more than once.
+  //
+  // Playing is a LOOK, never an edit: the gizmo is detached for the duration and
+  // commitEdit is refused, so a stray drag can't be written into a key while the
+  // pose underneath is moving. Pausing snaps to the nearest key, which is the
+  // editable state, and hands the gizmo back.
+  let playing = false, playT = 0;
+  function startPlay() {
+    if (!editClip || playing) return;
+    playing = true;
+    playT = scrubT >= editClip.dur - 1e-3 ? 0 : scrubT;
+    animator.action = null;
+    gizmo.detach();
+    syncPlayUI();
+  }
+  // `snap` false when something else (a clip swap, a rebuild) is taking over and
+  // will set the pose itself.
+  function stopPlay(snap = true) {
+    if (!playing) return;
+    playing = false;
+    animator.action = null;
+    if (snap && editClip) gotoKey(nearestKeyIdx(scrubT));
+    syncPlayUI();
+  }
+  function togglePlay() {
+    if (!editClip) { note.textContent = 'Load a clip to play it'; return; }
+    if (playing) stopPlay(); else startPlay();
+  }
+  function tickPlay(dt) {
+    if (!playing || !editClip || !liveClip) return;
+    playT += dt;
+    if (playT > editClip.dur) playT -= editClip.dur;      // loop the preview
+    if (!animator.action) {
+      animator.action = { clip: liveClip, t: playT, speed: 1, weight: 1,
+        fadeIn: 1e-6, fadingOut: false, onEvent: null, lastT: -1 };
+    }
+    // update() advances t by dt itself, so hand it t-dt and it lands on playT
+    animator.action.t = playT - dt;
+    animator.update(dt, SAMPLE_CTX);
+    scrubT = playT; curKeyIdx = -1; loadedPose = null;
+    syncTimeUI();
+  }
+  function syncPlayUI() {
+    playBtn.textContent = playing ? '❚❚ Pause' : '▶ Play';
+    playBtn.style.background = playing ? '#1f7a4d' : '#1a2433';
+    playBtn.style.color = playing ? '#fff' : '#cfe0f5';
+  }
+
   // Land ON a key: this is the editable state — `loadedPose` becomes the
   // baseline every later drag is measured against.
   function gotoKey(i) {
@@ -435,17 +495,26 @@ export async function runPoseWorkbench(config, params) {
     editClip.keys.forEach((k, i) => { const d = Math.abs(k.t - t); if (d < best) { best = d; idx = i; } });
     return idx;
   }
+  // the stepper pair is only meaningful with somewhere to step to; Play always is
+  function showKeyRow() {
+    keyRow.style.display = editClip ? 'flex' : 'none';
+    const many = !!editClip && editClip.keys.length > 1;
+    for (const b of [prevBtn, nextBtn]) {
+      b.disabled = !many;
+      b.style.opacity = many ? '1' : '0.4';
+      b.style.cursor = many ? 'pointer' : 'not-allowed';
+    }
+  }
   function syncTimeUI() {
     if (!editClip) return;
     timeSlider.max = String(editClip.dur);
     timeSlider.step = String(Math.max(0.001, editClip.dur / 240));
     timeSlider.value = String(scrubT);
-    const n = editClip.keys.length;
-    timeVal.textContent = curKeyIdx >= 0
-      ? `key ${curKeyIdx + 1}/${n} · t ${scrubT.toFixed(2)}`
-      : `t ${scrubT.toFixed(2)} — between keys`;
-    keyMarks.textContent = editClip.keys
+    // the key you're parked on is the one in brackets; between keys (scrubbing
+    // or playing) there is no bracket, so the head time is spelled out instead
+    const times = editClip.keys
       .map((k, i) => (i === curKeyIdx ? `[${k.t.toFixed(2)}]` : k.t.toFixed(2))).join(' ');
+    keyMarks.textContent = curKeyIdx >= 0 ? times : `t ${scrubT.toFixed(2)} · ${times}`;
     revertBtn.style.display = (editedKeyIdx().length || deletedKeys().length) ? 'block' : 'none';
     drawKeyBar();
   }
@@ -488,7 +557,7 @@ export async function runPoseWorkbench(config, params) {
   }
   // Called whenever the gizmo (or a joint reset) has finished changing the pose.
   function commitEdit() {
-    if (!editClip || curKeyIdx < 0 || !loadedPose) return;
+    if (playing || !editClip || curKeyIdx < 0 || !loadedPose) return;
     const now = readPose();
     const key = editClip.keys[curKeyIdx];
     const eps = (j) => (j === 'hipsPos' ? 0.004 : 0.75);
@@ -585,7 +654,7 @@ export async function runPoseWorkbench(config, params) {
     const idx = at < 0 ? editClip.keys.length : at;
     editClip.keys.splice(idx, 0, key);
     compileLive();
-    keyRow.style.display = editClip.keys.length > 1 ? 'flex' : 'none';
+    showKeyRow();
     gotoKey(idx);
     pushHistory();
     note.textContent = `New key ${idx + 1}/${editClip.keys.length} at t=${nt.toFixed(2)} — empty, `
@@ -598,7 +667,7 @@ export async function runPoseWorkbench(config, params) {
     const t = editClip.keys[i].t;
     editClip.keys.splice(i, 1);
     compileLive();
-    keyRow.style.display = editClip.keys.length > 1 ? 'flex' : 'none';
+    showKeyRow();
     gotoKey(Math.min(i, editClip.keys.length - 1));
     pushHistory();
     note.textContent = `Deleted the key at t=${t.toFixed(2)}`;
@@ -673,6 +742,7 @@ export async function runPoseWorkbench(config, params) {
     syncHistUI();
   }
   function restoreHistory(s) {
+    stopPlay(false);
     restoring = true;
     try {
       if (s.clipName !== (editClip ? editClip.name : null)) {
@@ -688,7 +758,7 @@ export async function runPoseWorkbench(config, params) {
             origKeys = JSON.parse(JSON.stringify(built.keys));
             clipSel.value = s.clipName;
             timeRow.style.display = 'flex';
-            keyRow.style.display = built.keys.length > 1 ? 'flex' : 'none';
+            showKeyRow();
           }
         }
       }
@@ -734,6 +804,7 @@ export async function runPoseWorkbench(config, params) {
   // {t:<seconds>} snapped to the nearest key. Default is the last key — the pose
   // a hold/loop clip holds (but the RECOVERY of a one-shot strike).
   function applyClipPose(name, at) {
+    stopPlay(false);
     if (!name) { resetAll(); return; }
     const built = buildEditClip(name);
     if (!built) return;
@@ -741,7 +812,7 @@ export async function runPoseWorkbench(config, params) {
     origKeys = JSON.parse(JSON.stringify(built.keys));
     compileLive();
     timeRow.style.display = 'flex';
-    keyRow.style.display = editClip.keys.length > 1 ? 'flex' : 'none';
+    showKeyRow();
     let idx = editClip.keys.length - 1;
     if (at && at.key !== undefined) idx = at.key;
     else if (at && at.t !== undefined) idx = nearestKeyIdx(at.t);
@@ -988,6 +1059,7 @@ export async function runPoseWorkbench(config, params) {
       else if (k === 'y') { e.preventDefault(); redo(); }
       return;
     }
+    if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
     if (k === 'r') { gizmo.setMode('rotate'); markGiz(); }
     else if (k === 't') { if (!bMov.disabled) { gizmo.setMode('translate'); markGiz(); } }
     else if (k === 'g') bSpace.onclick();
@@ -1148,12 +1220,19 @@ export async function runPoseWorkbench(config, params) {
   // SNAPS to the nearest key when you let go, because a key is the only thing an
   // edit can be written into. Between keys the pose is interpolated and belongs
   // to no key, so nothing there is editable (`between keys` in the readout).
-  const timeRow = el('div', 'display:none;align-items:center;gap:6px;margin-top:5px');
-  const timeSlider = el('input', 'flex:1'); timeSlider.type = 'range'; timeSlider.min = '0';
-  timeSlider.oninput = () => { if (editClip) previewAt(+timeSlider.value); };
+  // The scrubber and the key track below it are ONE timeline and have to read
+  // as one: a range input's thumb travels from half a thumb in to half a thumb
+  // from the end, so the slider takes the panel's full width and the key track
+  // is inset by exactly that half-thumb (KEY_PAD). Same span, same mapping —
+  // the thumb sits on the diamond of the key it is parked on. Nothing may share
+  // the slider's row: a readout beside it would shorten the travel and put the
+  // two scales back out of step (which is what it used to do).
+  const timeRow = el('div', 'display:none;margin-top:5px');
+  const timeSlider = el('input', 'width:100%;display:block;margin:0');
+  timeSlider.type = 'range'; timeSlider.min = '0';
+  timeSlider.oninput = () => { if (editClip) { stopPlay(false); previewAt(+timeSlider.value); } };
   timeSlider.onchange = () => { if (editClip) gotoKey(nearestKeyIdx(+timeSlider.value)); };
-  const timeVal = el('span', 'color:#9fb2c8;font-size:10px;white-space:nowrap');
-  timeRow.append(timeSlider, timeVal);
+  timeRow.append(timeSlider);
   panel.appendChild(timeRow);
   // ---- the KEY TRACK: the keys as objects you can grab ----
   // The slider above scrubs TIME; this strip edits the KEY LIST. Drag a diamond
@@ -1280,8 +1359,16 @@ export async function runPoseWorkbench(config, params) {
   const keyMarks = el('div', 'color:#7e93ab;font-size:10px;margin-top:2px;line-height:1.5;word-break:break-all');
   panel.appendChild(keyMarks);
   const keyRow = el('div', 'display:none;gap:6px;margin-top:4px');
-  const stepKey = (d) => { if (editClip) gotoKey((curKeyIdx < 0 ? nearestKeyIdx(scrubT) : curKeyIdx) + d); };
-  keyRow.append(btn('◀ key', () => stepKey(-1)), btn('key ▶', () => stepKey(1)));
+  const stepKey = (d) => {
+    if (!editClip) return;
+    stopPlay(false);
+    gotoKey((curKeyIdx < 0 ? nearestKeyIdx(scrubT) : curKeyIdx) + d);
+  };
+  const prevBtn = btn('◀ key', () => stepKey(-1));
+  const nextBtn = btn('key ▶', () => stepKey(1));
+  const playBtn = btn('▶ Play', () => togglePlay());
+  playBtn.title = 'Play the clip at full speed, looping (Space). Pausing snaps to the nearest key.';
+  keyRow.append(prevBtn, nextBtn, playBtn);
   panel.appendChild(keyRow);
   const revertBtn = btn('Revert clip edits', revertEdits);
   revertBtn.style.display = 'none';
@@ -1377,8 +1464,9 @@ export async function runPoseWorkbench(config, params) {
 
   // ---- loop: the pose is whatever the joints say; a GLB just needs the
   // retarget re-run so the real bones follow what the gizmo did ----
-  engine.onUpdate = () => {
+  engine.onUpdate = (dt) => {
     if (!mech) return;
+    tickPlay(dt);                       // no-op unless Play is running
     if (mech.isGLB) mech.postAnimate?.();
   };
   engine.onRender = () => {

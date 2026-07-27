@@ -3640,3 +3640,36 @@ redo removed it, undo again restored · a dragged shipped key exported as
 `changed: {movedFrom: 0.52}` and an added one as `changed: {addedKey}` ·
 screenshots VIEWED (diamonds, selection colour, menu) · `tools/wbconfig.mjs`
 PASS · `vite build` green.
+
+## Pose workbench: one timeline, and a Play button (user request, 2026-07-27)
+
+Three small things about the same strip.
+
+THE SCRUBBER AND THE KEY TRACK ARE NOW ONE TIMELINE. They were two different
+widths, so a key's diamond and the scrubber head disagreed about where that time
+was. A range input's thumb travels from half a thumb in to half a thumb from the
+end, so the slider takes the panel's full width and the key track keeps its
+KEY_PAD (= half a thumb) inset: same span, same mapping, head on the diamond.
+Nothing may share the slider's row — the readout beside it was what shortened
+the travel in the first place.
+
+THE READOUT BESIDE THE SCRUBBER IS GONE, as asked; the key you're parked on is
+already the bracketed one in the times line below. The one thing that line did
+not carry is the head's time while it is BETWEEN keys (nothing is bracketed
+then), so in that state it now reads `t 0.87 · 0.00 0.34 0.52 …`.
+
+PLAY / PAUSE beside ◀ key / key ▶ (or Space). It runs the edited clip at 1×
+through the real animator — one update per frame at the frame's own dt, so the
+pose smoother and signature layer behave exactly as they do in a match — and
+LOOPS, because judging a half-second strike means watching it more than once.
+Playing is a look, never an edit: the gizmo is detached for the duration and
+commitEdit is refused, so a stray drag can't be written into a key while the
+pose underneath is moving. Pausing snaps to the nearest key — the editable
+state — and hands the gizmo back. Anything that takes the pose over (clip swap,
+undo, mech rebuild, scrubbing, key stepping) stops playback first.
+
+Verified on colossus/heavy: the slider's box measures exactly the key track's
+box ±8px on each side, and parked on key 3 the thumb sits on that key's diamond
+(screenshot VIEWED) · Play advances clip time and wraps at dur, Pause lands on
+key 4 (t=0.70, the nearest), Space toggles both ways · the times line shows
+`t 0.87 · …` unbracketed while playing · no page errors, `vite build` green.
