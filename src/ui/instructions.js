@@ -188,8 +188,18 @@ export class InstructionsScreen {
     });
     stage.appendChild(svg);
 
+    // EVERY detail sentence lives in the DOM at once, stacked in a single grid
+    // cell with only the selected one visible. The box is therefore always as
+    // tall as the LONGEST sentence, so moving between callouts can't resize it
+    // and shove the diagram up and down under the cursor.
     this.detail = document.createElement('div');
     this.detail.className = 'ctrl-detail';
+    this.details = CONTROLS.map((c) => {
+      const d = document.createElement('div');
+      d.innerHTML = `<b>${t(`controls.${c.id}.name`)}</b> ${t(`controls.${c.id}.detail`)}`;
+      this.detail.appendChild(d);
+      return d;
+    });
     wrap.appendChild(this.detail);
     wrap.appendChild(Object.assign(document.createElement('div'),
       { className: 'ctrl-foot', innerHTML: t('controls.foot.html') }));
@@ -217,8 +227,7 @@ export class InstructionsScreen {
       l.setAttribute('stroke', i === this.sel ? 'var(--hud-cyan)' : 'rgba(120,190,235,0.5)');
       l.setAttribute('stroke-width', i === this.sel ? 3 : 2);
     });
-    const c = CONTROLS[this.sel];
-    this.detail.innerHTML = `<b>${t(`controls.${c.id}.name`)}</b> ${t(`controls.${c.id}.detail`)}`;
+    this.details.forEach((d, i) => d.classList.toggle('on', i === this.sel));
   }
 
   // ↑↓ (and ←→) walk the callouts so a pad can read the whole diagram

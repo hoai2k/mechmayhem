@@ -3834,3 +3834,14 @@ fills its stage instead of floating in a band of empty space.
 
 Verified at 985×649, 1440×810 and 1920×1080: 0 leader overlaps, 0 crossings,
 0 label overlaps, 0 leaders short of their box, 0 callouts wrapping to two lines.
+
+### Follow-up: the detail box stops resizing
+
+All thirteen detail sentences now live in the DOM at once, stacked in a single
+CSS grid cell with only the selected one visible. The box is therefore always as
+tall as the LONGEST sentence, so moving the cursor across the callouts can't
+change its height and shove the diagram up and down underneath.
+
+Measured by hovering all thirteen callouts and reading the stage's top edge and
+the detail box's height each time: one value for each, at 1440×810 (top 156,
+height 41) and 985×649 (98, 33) — it used to move by a line's worth.
