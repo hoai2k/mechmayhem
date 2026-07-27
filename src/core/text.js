@@ -38,7 +38,7 @@ export const MESSAGES = {
   'select.ready.html': '<div class="rb-chip">GAME READY. PRESS <b>A</b> TO PLAY.</div>',
   // controller vocabulary only — the ⓘ button carries the full diagram, and
   // keyboard players have the same buttons under the same names
-  'select.hint.html': '<b>A</b> join · lock in&nbsp;&nbsp;<b>D-PAD</b> pick&nbsp;&nbsp;<b>◀ ▶</b> color&nbsp;&nbsp;<b>B</b> leave&nbsp;&nbsp;<b>LB / RB</b> visit a slot&nbsp;&nbsp;<b>RIGHT STICK</b> turn&nbsp;&nbsp;·&nbsp;&nbsp;<b>ⓘ</b> full controls',
+  'select.hint.html': '<b>A</b> join · select&nbsp;&nbsp;<b>D-PAD</b> pick&nbsp;&nbsp;<b>◀ ▶</b> color&nbsp;&nbsp;<b>B</b> cancel&nbsp;&nbsp;<b>LB / RB</b> visit a slot&nbsp;&nbsp;<b>RIGHT STICK</b> turn&nbsp;&nbsp;·&nbsp;&nbsp;<span class="xb-btn" aria-hidden="true"><i></i><i></i><i></i></span> use pointer',
   'select.colorHint': 'change color',
   'select.player': 'PLAYER {n}',
   'select.playerDevice': 'PLAYER {n} · {device}',

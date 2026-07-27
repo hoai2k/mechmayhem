@@ -641,6 +641,16 @@ body.touch-mode .arena-card .arena-name { font-size: 15px; padding: 8px 12px; }
 body.touch-mode .touch-navbar { position: fixed; left: 0; right: 0; bottom: 2vh; z-index: 25; }
 body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
 
+/* An Xbox MENU/START button, drawn rather than spelled: a pale rounded pill
+   with three bars. Used in hint bars where naming the button ("SELECT") reads
+   as a word rather than as the thing you press. */
+.xb-btn {
+  display: inline-flex; flex-direction: column; justify-content: center; align-items: center;
+  gap: 2px; width: 19px; height: 19px; border-radius: 50%;
+  background: #cdeeff; vertical-align: -4px; margin: 0 4px;
+}
+.xb-btn i { display: block; width: 10px; height: 1.5px; border-radius: 1px; background: #0b131f; }
+
 /* ---------- corner hot buttons: tooltip bubbles ---------- */
 /* ⓘ / ⚙ / 🔊 live in the bottom-right corner, so the bubble hangs ABOVE
    and to the left — anywhere else and it would run off the viewport. */
