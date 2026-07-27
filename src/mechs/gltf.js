@@ -22,6 +22,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { dequantizeScene } from './dequantize.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { buildMech, buildRig, computeDims, addAnchor } from './factory.js';
 import { Animator } from './animator.js';
@@ -129,6 +130,14 @@ function loadGLTF(url) {
   if (!gltfCache.has(url)) {
     gltfCache.set(url, new Promise((resolve, reject) => {
       loader.load(assetUrl(url), resolve, undefined, reject);
+    }).then((gltf) => {
+      // Fold KHR_mesh_quantization back into the vertices before ANYTHING
+      // else sees the scene — rig rebuilds, skinOps, hurtbox measurement and
+      // anchor placement all read geometry directly and would otherwise be
+      // wrong by the quantization matrix. Runs once per URL (this cache is
+      // the single load point) and is a no-op on unquantized models.
+      dequantizeScene(gltf.scene);
+      return gltf;
     }));
   }
   return gltfCache.get(url);

@@ -24,7 +24,14 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
-await page.goto(`${base}/?debug=collider&dummy=0`, { waitUntil: 'networkidle' });
+// The GAME page, deliberately. This used to open ?debug=collider, which the
+// workbench split turned into a redirect to /workbench/?edit=hurtbox — and on
+// that page `models/manifest.json` resolves one directory deep, where Vite's
+// SPA fallback answers with index.html. fetchRawManifest() parses that as
+// "no models", so every GLB row was silently skipped and the audit reported
+// only the procedural route. Nothing here needs a dev page: the evaluate below
+// imports the modules it needs by absolute path.
+await page.goto(`${base}/`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(6000);
 
 const rows = await page.evaluate(async () => {

@@ -10,7 +10,7 @@ the project's own license, and whether AEGIS/NOVA ship or stay hidden.
 ## Building the thing you upload
 
 ```bash
-npm run dist:web        # → dist-web/, ~110 MB
+npm run dist:web        # → dist-web/, ~97 MB
 ```
 
 `npm run build` still produces the ordinary two-page dev build (game +
@@ -23,14 +23,15 @@ a *distribution* off the tree without modifying a byte of it:
   unlisted
 - drops models the shipped game cannot reach: the `hidden: true` mechs and the
   workbench-only `alt` sub-entries, rewriting `manifest.json` in the output only
-- meshopt-compresses every surviving GLB and verifies each rig is untouched
+- quantizes (16-bit) and meshopt-compresses every surviving GLB, verifying each
+  rig is untouched
 - transcodes the PNG texture pack to WebP and rewrites the hashed references in
   the emitted JS
 
 | | before | after |
 |---|---|---|
-| total | 298 MB | **110 MB** |
-| models | 104 MB (19 files) | 70 MB (15 files) |
+| total | 302 MB | **97 MB** |
+| models | 104 MB (19 files) | 53 MB (15 files) |
 | textures | 163 MB (114 PNGs) | 28 MB (WebP) |
 | JS chunks | 48 | 2 (1.5 MB) |
 
@@ -38,18 +39,37 @@ Source masters in `public/models/` and `src/textures/` are never touched, so
 every workbench, `anchorkeep`, `hurtboxfit` and `cliptear` keep working against
 uncompressed geometry.
 
-**Models are compressed but NOT quantized, deliberately.** The full
-gltf-transform `meshopt()` pipeline reaches ~3× instead of ~1.5× — it would take
-models to ~35 MB — but `tools/hurtboxfit.mjs` run against a quantized roster
-shows the combat capsules move: colossus containment 80% → 57%, jerry losing
-both thigh capsules, wraith 62% → 43%. The models still *render* correctly, so
-this is not a visible defect; it is a silent change to what the game hits, which
-is worse. Quantizing at the maximum 16 bits does not fix it, and neither does
-dropping the reorder pass, so it is quantization itself that
-`src/combat/hurtbox.js` does not survive. Plain `EXT_meshopt_compression` is
-byte-identical through that audit. **There is a further ~35 MB available here
-if hurtbox.js is ever made quantization-safe** — that is the single biggest
-remaining size win.
+### On quantization, and what is still left off
+
+Models are quantized to 16 bits and meshopt-compressed. That is only safe
+because of `src/mechs/dequantize.js`, which folds the quantization back into
+the vertices at load — read that file's header before changing anything here.
+The short version: quantization does not just shrink the stored numbers, it
+rescales them and compensates by folding a matrix into the skin's **inverse
+bind matrices**. Rendering goes through exactly that product and looks perfect;
+everything that reads geometry directly — hurtbox measurement, the custom-rig
+rebind, skinOps, anchors — does not, and is silently wrong. Before the fold
+existed, a quantized roster built at exactly 2× size with colossus' containment
+at 57% and both thigh capsules gone.
+
+**meshopt's `reorder` pass is still deliberately off**, and it is the last
+~23 MB on the table. `src/combat/hurtbox.js` samples every Nth vertex *in file
+order*, so shuffling the order re-rolls which vertices the capsule fits see.
+Vertex counts are unchanged — it is purely sampling — but the fits move
+(colossus bloat 1.26× → 2.13×). Enabling it means making the sampling
+order-independent, which re-measures hitboxes across the whole roster: a
+balance change, and its own task.
+
+Bit depth is 16 rather than the gltf-transform defaults. At default depths
+cranky, frogger, inferno and tempest drift by about a point of containment and
+~0.03 bloat; at 16 bits every shipped mech is byte-identical through
+`hurtboxfit` except tempest (+1% containment, +0.01 bloat). The extra ~6 MB
+buys a much stronger claim.
+
+One caveat worth stating plainly: because the fold converts attributes back to
+float32 at load, quantization saves **download**, not **VRAM**. Runtime memory
+is what it always was. KTX2 for the textures remains the change that would
+actually reduce GPU memory.
 
 ---
 
@@ -58,10 +78,11 @@ remaining size win.
 All five are resolved. Kept here with what was actually done, because the
 reasoning matters more than the checkmarks.
 
-### 1.1 The payload ✅ 298 MB → 110 MB
+### 1.1 The payload ✅ 302 MB → 97 MB
 
 Solved by `npm run dist:web` — see *Building the thing you upload* above for
-the breakdown and for the quantization finding that caps models at ~1.5×.
+the breakdown, the quantization fold that made models safe to shrink, and the
+~23 MB still left on the table behind vertex reorder.
 
 Still open if you want to go further: **KTX2/Basis instead of WebP.** WebP
 shrinks the download but decodes to full-size RGBA in VRAM; KTX2 stays
@@ -207,6 +228,11 @@ But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
       quantization silently moving the hitboxes, and it is not something the
       build can verify for you — `tools/glbdiff.mjs` only proves the rig is
       intact, which is necessary but not sufficient.
+      (Note: this audit was itself silently broken by the workbench split — it
+      opened `?debug=collider`, which now redirects to a page where the manifest
+      resolves one directory too deep, so it reported the procedural route only
+      and no GLB rows at all. Fixed; if it ever prints no `glb` rows again,
+      suspect the asset base before believing the models are fine.)
 - [ ] **Soak a matrix, not a pair.** `tools/soak.mjs` is currently run on one
       matchup. Before launch, sweep every mech against a couple of others
       across several arenas, at `diff=ace`, with ults enabled. A crash in a
