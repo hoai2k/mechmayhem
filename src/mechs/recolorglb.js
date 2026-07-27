@@ -7,12 +7,14 @@
 // repaints a GLB's baked materials to match a scheme, the same way the
 // procedural path repaints only the PRIMARY armor:
 //
-//   • Albedo: pixels that read as painted primary armor (saturated, not near
-//     black/white, and hued near the stock primary) are pushed to the scheme
-//     hue while keeping their luminance — so weathering/panel detail survives.
-//     Bare metal (low saturation), deep shadow gaps, decals and differently
-//     hued accents are left alone, exactly like the procedural repaint leaves
-//     metal/accent/glow untouched. MIDNIGHT darkens the paint instead.
+//   • Albedo: pixels that read as painted primary armor are pushed to the
+//     scheme's hue, saturation and VALUE (colorscheme.js owns those targets, so
+//     both routes paint the same color) while keeping their own relative
+//     shading — so weathering/panel detail survives. Deep shadow gaps, blown
+//     highlights and the pixels the mech's own palette says are not its armor
+//     are left alone, exactly like the procedural repaint leaves metal/accent/
+//     glow untouched. Which pixels those are depends on the mech: see
+//     paintWeight, and `neutralMix` in colorscheme.js.
 //   • Emissive: for hue schemes the glowing vents are re-hued to the scheme
 //     glow so the team color reads at range; MIDNIGHT just dims them.
 //
@@ -20,13 +22,9 @@
 // scene across clones); recolored textures are cached by source-uuid+variant so
 // a second fighter on the same mech+scheme reuses the pixel work.
 import * as THREE from 'three';
+import { schemeSat, schemeLum, smoothstep } from './colorscheme.js';
 
 const D2 = (h) => ((h % 1) + 1) % 1;
-function smoothstep(e0, e1, x) {
-  if (e0 === e1) return x < e0 ? 0 : 1;
-  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
-  return t * t * (3 - 2 * t);
-}
 // circular hue distance in [0, 0.5]
 function hueDist(a, b) {
   const d = Math.abs(D2(a) - D2(b));
@@ -58,16 +56,27 @@ function hslToRgb(h, s, l) {
 
 // How strongly a painted pixel belongs to the primary armor (0 = leave it: bare
 // metal / shadow / highlight / off-hue accent; 1 = full repaint).
+//
+// `neutralMix` (colorscheme.js) crossfades between two opposite readings of
+// "which pixels are the paint":
+//   VIVID mech  — the paint is SATURATED and near the stock hue; anything grey
+//                 is bare metal and anything off-hue is a decal. Leave those.
+//   NEUTRAL mech — a silver wolf or a black sniper has no hue to match and its
+//                 armor IS the grey; the only saturated pixels on it are the
+//                 accents worth keeping. So the test flips: repaint the neutral
+//                 pixels, protect the vivid ones.
 function paintWeight(h, s, l, spec) {
-  const satW = smoothstep(0.10, 0.28, s);
+  const k = spec.neutralMix;
+  // low-chroma cutoff: a vivid mech needs real saturation before a pixel counts
+  // as paint; a neutral mech must accept its own near-grey armor
+  const satW = smoothstep(0.10 * (1 - k) + 0.004 * k, 0.28 * (1 - k) + 0.02 * k, s);
   if (satW <= 0) return 0;
-  const lightW = smoothstep(0.04, 0.11, l) * (1 - smoothstep(0.90, 0.99, l));
+  const [lo0, lo1, hi0, hi1] = spec.lumGate;
+  const lightW = smoothstep(lo0, lo1, l) * (1 - smoothstep(hi0, hi1, l));
   if (lightW <= 0) return 0;
-  // vivid primaries: only the stock-primary hue family repaints (keeps two-tone
-  // accents/decals). grey/tan primaries: repaint any saturated paint (their hue
-  // is noise and there's no vivid primary to tell apart from accents).
-  const hueW = spec.anyHue ? 1 : 1 - smoothstep(0.09, 0.20, hueDist(h, spec.stockHue));
-  return satW * lightW * hueW;
+  const hueW = 1 - smoothstep(0.09, 0.20, hueDist(h, spec.stockHue));   // vivid rule
+  const neutW = 1 - smoothstep(spec.satCeil, spec.satCeil + 0.20, s);   // neutral rule
+  return satW * lightW * (hueW * (1 - k) + neutW * k);
 }
 
 // Recolor one albedo pixel [r,g,b] (sRGB 0-255) → [r,g,b].
@@ -75,18 +84,11 @@ function recolorAlbedo(r, g, b, spec) {
   const [h, s, l] = rgbToHsl(r, g, b);
   const w = paintWeight(h, s, l, spec);
   if (w <= 0) return [r, g, b];
-  let tr, tg, tb;
-  if (spec.dark) {
-    // MIDNIGHT blackout: keep hue, kill saturation + drop value
-    [tr, tg, tb] = hslToRgb(h, s * 0.45, Math.max(0.05, l * 0.4));
-  } else {
-    // satMul/lumMul are what let a scheme be earthier or paler than a pure hue
-    // swap (UMBER is a desaturated, darkened orange; BLOSSOM a pale pink) —
-    // same math the procedural path's forceHue() runs.
-    [tr, tg, tb] = hslToRgb(spec.hue,
-      Math.min(1, Math.max(s, spec.minS) * (spec.satMul ?? 1)),
-      Math.min(0.96, l * (spec.lumMul ?? 1)));
-  }
+  // exactly the target the procedural path paints (colorscheme.js), pixel by
+  // pixel: the scheme's hue, its saturation floor or ceiling, and its value
+  // shift — which is what actually moves a silver or a blacked-out mech into a
+  // color you can see, instead of tinting it where it already sits.
+  const [tr, tg, tb] = hslToRgb(spec.hue ?? h, schemeSat(s, spec), schemeLum(l, spec));
   // lerp original -> target by paint weight (blends smoothly at metal borders)
   return [r + (tr - r) * w, g + (tg - g) * w, b + (tb - b) * w];
 }
@@ -149,6 +151,12 @@ export function recolorMaterial(mat, spec) {
   if (mat.color) {
     const [r, g, b] = recolorAlbedo(mat.color.r * 255, mat.color.g * 255, mat.color.b * 255, spec);
     mat.color.setRGB(r / 255, g / 255, b / 255);
+  }
+  // SILVER is bare metal, not paint — the albedo alone reads as grey plastic
+  // unless the surface reflects like the thing it is meant to be.
+  if (spec.metal) {
+    if (mat.metalness != null) mat.metalness = Math.max(mat.metalness, 0.82);
+    if (mat.roughness != null) mat.roughness = Math.min(mat.roughness, 0.32);
   }
   if (spec.dark) {
     // stealth: dim the glow rather than re-hue it

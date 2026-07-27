@@ -12,7 +12,25 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** per-mech HITBOXES (`src/combat/hurtbox.js`). Every mech was one
+- **Latest:** COLOR SCHEMES now work on the WHITE/BLACK/SILVER mechs, and two
+  new achromatic paint jobs. A scheme used to be a hue swap that kept each
+  pixel's own lightness, which only works on a mech with chroma to swap and a
+  midtone value to keep: FENRIR (silver), WRAITH (near-black), RHINO + SAURION
+  (gunmetal) and GLACIER (pale ice) came out of every scheme looking like
+  themselves. Two fixes, both in `src/mechs/colorscheme.js` so the procedural
+  and baked-GLB routes stay in lockstep: a scheme now also names the LIGHTNESS
+  its paint wants and each mech is dragged 80% of the way there (so a black
+  mech's EMBER is genuinely red, just the darkest red on the field), and
+  `recolorglb.js` picks which texture pixels are "the paint" per mech —
+  a vivid mech's armor is its saturated stock-hue family, a near-grey mech's
+  armor is the NEUTRAL pixels with the saturated ones (RHINO's red horn,
+  SAURION's red eyes) protected instead. Plus IVORY (warm matte bone-white)
+  and SILVER (polished metal — raises GLB metalness / procedural metalPaint),
+  taking the cycle to 11. Also: dev pages never cleared the index.html boot
+  splash, so every `tools/shot.mjs` screenshot of a workbench was a picture of
+  the title curtain (`src/dev/index.js`), and `tools/schemesheet.mjs` shoots one
+  mech across schemes into a single strip.
+- **Also:** per-mech HITBOXES (`src/combat/hurtbox.js`). Every mech was one
   1.7×scale sphere; it is now a set of bone-bound capsules measured off the
   model's own geometry (GLB: skinned verts bucketed by dominant bone; proc:
   meshes under each rig joint), so the shape matches the silhouette AND
