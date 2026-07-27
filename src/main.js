@@ -26,7 +26,13 @@ window.addEventListener('unhandledrejection', (e) => reportFatal(e.reason));
 
 // Debug-only modes live in src/dev/*; the router handles their dispatch so this
 // entry stays minimal. Anything that isn't a dev mode boots the real game.
+//
+// __RW_DIST__ is a compile-time constant (vite.config.js). In a distribution
+// build it is true, the branch below folds to a plain boot, and the whole dev
+// router — with ?showcase, ?battle=, the fx tests and the level editor behind
+// it — is dead code that never reaches the bundle. In every other build it is
+// false and nothing changes.
 const params = new URLSearchParams(location.search);
-if (!runDevMode(params)) {
+if (__RW_DIST__ || !runDevMode(params)) {
   import('./game/boot.js').then(({ bootGame }) => bootGame()).catch(reportFatal);
 }

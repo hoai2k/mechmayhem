@@ -121,16 +121,26 @@ function devWriter() {
   };
 }
 
+// RW_DIST=1 marks a DISTRIBUTION build (tools/dist.mjs): the public artifact,
+// with no authoring surface in it. Two effects — the /workbench/ page leaves
+// the build inputs, and __RW_DIST__ compiles the dev routes out of the game
+// entry so ?debug=..., ?showcase and the level editor are not merely unlisted
+// but absent. A normal `npm run build` is unchanged and still ships both pages.
+const IS_DIST = process.env.RW_DIST === '1';
+
 export default defineConfig({
   base: './',
   plugins: [devWriter()],
+  define: {
+    __RW_DIST__: JSON.stringify(IS_DIST),
+  },
   build: {
     target: 'es2020',
     chunkSizeWarningLimit: 1500,
     // two pages: the game, and the workbenches at /workbench/. They share the
     // engine chunks — the workbench is the same code with different UI on top.
     rollupOptions: {
-      input: {
+      input: IS_DIST ? { main: path.resolve('index.html') } : {
         main: path.resolve('index.html'),
         workbench: path.resolve('workbench/index.html'),
       },
