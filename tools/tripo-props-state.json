@@ -1,0 +1,10 @@
+{
+  "toriiGate": {
+    "modelTask": "f2ff4b86-48ac-41e3-ad64-498ca858a85a",
+    "modelFailed": false,
+    "modelCredits": 50,
+    "glb": "public/models/props/toriiGate.glb",
+    "bytes": 1910188,
+    "done": true
+  }
+}
