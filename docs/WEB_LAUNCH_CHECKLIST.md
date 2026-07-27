@@ -1,140 +1,132 @@
 # ROBOTWORLD — web launch checklist (itch.io / any static host)
 
-Written against the tree at `f9c041f`. Everything below was measured or read
-out of this repo, not assumed. Items are grouped by *what stops a launch*
-rather than by subsystem; the ordering inside each group is roughly the order
-to do them in.
+Everything below was measured or read out of this repo, not assumed. Items are
+grouped by *what stops a launch* rather than by subsystem.
 
-Current state of a production build (`npx vite build`, green as of writing):
+**Status: the section 1 blockers are done.** What remains is section 2 polish,
+the section 3 QA gate, and the store page. Two decisions are still the owner's:
+the project's own license, and whether AEGIS/NOVA ship or stay hidden.
 
-| | size |
-|---|---|
-| `dist/` total | **286 MB** |
-| `dist/models` (19 GLBs) | 120 MB |
-| `dist/assets` PNG textures (116 files) | ~156 MB |
-| `dist/assets` JS, all chunks | ~1.5 MB (≈400 kB gzip) |
-| entry chunk | 6.8 kB |
+## Building the thing you upload
 
-The JavaScript is not the problem. The art payload is.
+```bash
+npm run dist:web        # → dist-web/, ~110 MB
+```
+
+`npm run build` still produces the ordinary two-page dev build (game +
+`/workbench/`) and is unchanged. `npm run dist:web` (`tools/dist.mjs`) branches
+a *distribution* off the tree without modifying a byte of it:
+
+- builds with `RW_DIST=1`, which drops the `/workbench/` page from the build
+  inputs and compiles out the `?debug=` / `?showcase` / level-editor routes —
+  48 JS chunks become 2, and the authoring surface is absent rather than merely
+  unlisted
+- drops models the shipped game cannot reach: the `hidden: true` mechs and the
+  workbench-only `alt` sub-entries, rewriting `manifest.json` in the output only
+- meshopt-compresses every surviving GLB and verifies each rig is untouched
+- transcodes the PNG texture pack to WebP and rewrites the hashed references in
+  the emitted JS
+
+| | before | after |
+|---|---|---|
+| total | 298 MB | **110 MB** |
+| models | 104 MB (19 files) | 70 MB (15 files) |
+| textures | 163 MB (114 PNGs) | 28 MB (WebP) |
+| JS chunks | 48 | 2 (1.5 MB) |
+
+Source masters in `public/models/` and `src/textures/` are never touched, so
+every workbench, `anchorkeep`, `hurtboxfit` and `cliptear` keep working against
+uncompressed geometry.
+
+**Models are compressed but NOT quantized, deliberately.** The full
+gltf-transform `meshopt()` pipeline reaches ~3× instead of ~1.5× — it would take
+models to ~35 MB — but `tools/hurtboxfit.mjs` run against a quantized roster
+shows the combat capsules move: colossus containment 80% → 57%, jerry losing
+both thigh capsules, wraith 62% → 43%. The models still *render* correctly, so
+this is not a visible defect; it is a silent change to what the game hits, which
+is worse. Quantizing at the maximum 16 bits does not fix it, and neither does
+dropping the reorder pass, so it is quantization itself that
+`src/combat/hurtbox.js` does not survive. Plain `EXT_meshopt_compression` is
+byte-identical through that audit. **There is a further ~35 MB available here
+if hurtbox.js is ever made quantization-safe** — that is the single biggest
+remaining size win.
 
 ---
 
-## 1. BLOCKERS — the game is not shippable to the public web without these
+## 1. BLOCKERS — DONE
 
-### 1.1 Cut the 286 MB payload
+All five are resolved. Kept here with what was actually done, because the
+reasoning matters more than the checkmarks.
 
-This is the single biggest launch risk. itch.io accepts uploads up to 1 GB, so
-286 MB *uploads* fine — but a player on a normal connection stares at a canvas
-for a long time before anything happens, and mobile Safari will run out of
-memory before it finishes.
+### 1.1 The payload ✅ 298 MB → 110 MB
 
-Where it goes:
+Solved by `npm run dist:web` — see *Building the thing you upload* above for
+the breakdown and for the quantization finding that caps models at ~1.5×.
 
-- **Textures — ~156 MB, 116 PNGs in `src/textures/`.** The ground sets are
-  2048² and cost 4.0–4.6 MB *each* for albedo and normal (`ground_scrapyard_dirt_albedo`
-  is 4.6 MB alone); building sets are 1024² at 1.1–1.4 MB. They are loaded
-  lazily per arena (`src/core/texload.js` globs with `query:'?url'`, so only
-  URLs are eager) — but an arena still pulls tens of MB on entry.
-  - Convert to **KTX2/Basis** and load with three's `KTX2Loader`. Typically
-    6–10× smaller on disk *and* it stays compressed in VRAM, which is the
-    bigger win on integrated GPUs and phones.
-  - Cheaper interim: WebP or JPEG for albedo / rough / emissive (emissive maps
-    are already only ~0.1 MB, leave them), keep normals at higher fidelity.
-    Expect ~5× on the albedos with no code change beyond the file extension in
-    `texload.js`'s glob.
-  - Also worth checking whether any 2048² ground map actually reads as 2048 at
-    game camera distance. Several probably do not.
-- **GLBs — 120 MB, 19 files, 3–11 MB each** (`mech_saurion.glb` is 11 MB).
-  These are uncompressed Tripo output.
-  - Run **`gltf-transform` with Draco or meshopt** over `public/models/`.
-    Geometry usually drops 5–10×. Verify per mech afterwards: the skinning is
-    load-bearing here, so re-run `node tools/cliptear.mjs`, `node tools/hurtboxfit.mjs`
-    and `node tools/anchorkeep.mjs <id>` on every compressed model before
-    accepting it — quantization can move vertices, and hurtboxes are measured
-    off geometry.
-  - Register the decoder in `src/mechs/gltf.js` (`GLTFLoader.setDRACOLoader` /
-    `setMeshoptDecoder`) and ship the decoder wasm from `public/`.
-- **Drop what the shipped game never loads.** `mech_aegis.glb` (7.2 MB) and
-  `mech_nova.glb` (3.3 MB) back the two `hidden: true` WIP mechs
-  (`src/mechs/roster.js:72,147`), and `mech_aegis_alt.glb` + `mech_jerry_alt.glb`
-  (6.4 MB) are workbench-only alternates. That is ~17 MB of dead weight in a
-  public build — worth a build-time exclusion if AEGIS and NOVA stay hidden.
+Still open if you want to go further: **KTX2/Basis instead of WebP.** WebP
+shrinks the download but decodes to full-size RGBA in VRAM; KTX2 stays
+compressed on the GPU, which is the constraint that actually bites on
+integrated graphics and phones. Worth doing if mobile support is a goal, and it
+would also reduce context-loss risk. And several 2048² ground maps probably do
+not read as 2048 at game camera distance — halving those is free.
 
-Target: get the whole thing under ~60 MB, with a first-arena working set under
-~15 MB.
+### 1.2 WebGL failure ✅
 
-### 1.2 Handle WebGL failing
+`src/core/fatal.js` renders a readable panel for three cases that all used to
+be a black rectangle: no WebGL 2 at all (Engine throws a tagged
+`WebGLUnavailableError`), a lost GPU context, and anything escaping to
+`window.onerror` / `unhandledrejection`.
 
-`src/core/engine.js:15` constructs `new THREE.WebGLRenderer(...)` with no
-`try`/`catch` and no `webglcontextlost` listener. Today, a machine without
-WebGL 2, a blocklisted driver, or a GPU process crash gives the player a black
-rectangle and nothing else — which on itch reads as "the game is broken."
+One subtlety worth remembering: when the GPU drops the context, three's next
+draw throws *synchronously* and reaches `window.onerror` **before**
+`webglcontextlost` is dispatched. Classification therefore asks the canvas
+(`contextIsLost()`) rather than trusting which handler fired first — otherwise
+a routine, explainable context loss reads as a generic crash.
 
-- Wrap renderer creation; on failure replace the canvas with a readable
-  "ROBOTWORLD needs WebGL 2 — try Chrome/Edge, or enable hardware acceleration"
-  panel.
-- Add `canvas.addEventListener('webglcontextlost', ...)` (preventDefault + a
-  "graphics context lost, reload" overlay) and ideally `webglcontextrestored`.
-  Context loss is routine on mobile and on tab-switching with a big VRAM
-  footprint — which this game has.
-- Add a top-level `window.onerror` / `unhandledrejection` handler that shows a
-  message instead of silently freezing.
+Verified by denying every `webgl` context, and by firing `WEBGL_lose_context`
+at a running game.
 
-### 1.3 First-paint loading state
+### 1.3 First-paint loading state ✅
 
-The *per-battle* warm-up is genuinely good — `src/game/warmup.js` has a real
-progress bar driven by the texture loader's live item count, plus a stall
-watchdog. The gap is earlier: between page load and the title screen there is
-nothing. `index.html` ships an empty `#ui-root`, `src/main.js` dynamically
-imports `boot.js`, and `bootGame()` then `await`s the manifest before any
-screen builds.
+A logo + progress bar block, inline in `index.html`. Inline on purpose: the
+stylesheet and the bundle are both module-loaded, so anything depending on them
+paints only *after* the download the player is waiting on. `boot.js` hands off
+after two frames — rendered, not merely constructed — and fades it out.
 
-- Put a static logo + "LOADING" block directly in `index.html`'s `#ui-root`,
-  removed by `bootGame()`. Zero JS, paints instantly, costs nothing.
+### 1.4 Visibility pause ✅
 
-### 1.4 Pause when the tab or embed is not visible
+`document.hidden` now pauses the fight and suspends the AudioContext. Returning
+does **not** auto-resume: the pause screen stays up and the player unpauses when
+they are actually looking, which is the only fair option in local multiplayer.
+The warm-up is exempt — it is time-gated and owns its cameras.
 
-Only `src/game/input.js:59` reacts to `blur` (it clears held keys). There is no
-`visibilitychange` handler, so a backgrounded tab keeps running the loop and
-the audio. In an itch embed the player *will* scroll away mid-match.
+### 1.5 Licensing ✅ / one decision left
 
-- On `document.hidden`: pause the match (or at least stop rendering) and
-  suspend the AudioContext; resume on return. `audio.resume()` already exists
-  in `src/core/audio.js:124`.
+`public/THIRD_PARTY_NOTICES.txt` ships with the build and reproduces the
+three.js MIT license in full, as that license requires. The Tripo models are
+covered by the owner's paid plan — commercial use is settled, and the notices
+file says so.
 
-### 1.5 Decide licensing, and check the model provenance
-
-There is **no `LICENSE` file** in the repo.
-
-- Pick a license for your own code.
-- **three.js is MIT** — its copyright notice must accompany the distribution.
-  Add a third-party notices file or a credits screen line.
-- The GLBs were generated through Tripo (`tools/tripogen.mjs`,
-  `tools/tripo-state.json`). **Read that service's terms before publishing,
-  and especially before charging for the game or accepting donations** —
-  generated-asset commercial rights vary by plan and change over time. This is
-  the one item on this list that can force a takedown, so settle it first.
-- Same check for anything non-procedural in `public/sprites/` (the fire, smoke,
-  slime and ice atlases) and any font used in the UI.
+**Still yours to decide: the license for your own code.** There is no `LICENSE`
+file in the repo. It does not block an itch upload, but it decides what anyone
+else may do with the source.
 
 ---
 
 ## 2. SHOULD FIX — these cost you ratings, not the launch
 
-### 2.1 Separate the dev surface from the shipped game
+### 2.1 The dev surface ✅ (resolved by the distribution build)
 
-`src/main.js` statically imports `src/dev/index.js`, so every workbench route
-ships in the public build as a lazy chunk: `?debug=skin`, `?debug=pose`,
-`?debug=models`, `?debug=collider`, `?rigedit`, `?edit=level`, `?bake`,
-`?showcase`, `?battle=...`. The entry itself is only 6.8 kB and the chunks are
-never fetched unless someone types the URL, so this is a *choice*, not a bug.
+The workbenches now live on their own page (`/workbench/`), and `RW_DIST=1`
+drops that page from the build inputs while `__RW_DIST__` compiles the
+remaining dev routes out of the game entry. In `dist-web/` there is no
+`workbench/` directory and no `showcase` / `battletest` / `leveleditor` string
+anywhere in the bundle — 48 chunks become 2. The authoring surface is absent,
+not merely unlisted.
 
-- Gate the router on `import.meta.env.DEV` to keep authoring tools private and
-  drop ~250 kB of chunks, **or** deliberately leave them in as an easter egg.
-  Either is defensible; drifting into it by accident is not.
-- The dev *save* endpoints are already safe: `vite.config.js`'s `devWriter()`
-  is `apply: 'serve'`, so `/__rw/manifest`, `/__rw/rig` and `/__rw/changes`
-  do not exist in a static build. Nothing to do, worth knowing.
+The dev *save* endpoints were already safe: `vite.config.js`'s `devWriter()` is
+`apply: 'serve'`, so `/__rw/manifest`, `/__rw/rig` and `/__rw/changes` never
+exist in a static build.
 
 ### 2.2 Clean up the shipped SETTINGS menu
 
@@ -205,7 +197,14 @@ But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
 
 ## 3. QA GATE — run all of this before you upload
 
-- [ ] `npx vite build` green *(verified green at `f9c041f`)*.
+- [ ] `npm run build` **and** `npm run dist:web` both green.
+- [ ] **Re-run `hurtboxfit` against the compressed roster** whenever the
+      compression settings change. The procedure: `cp dist-web/models/*.glb
+      public/models/`, run `node tools/hurtboxfit.mjs`, diff against a baseline
+      run, then `git checkout -- public/models`. This is the check that caught
+      quantization silently moving the hitboxes, and it is not something the
+      build can verify for you — `tools/glbdiff.mjs` only proves the rig is
+      intact, which is necessary but not sufficient.
 - [ ] **Soak a matrix, not a pair.** `tools/soak.mjs` is currently run on one
       matchup. Before launch, sweep every mech against a couple of others
       across several arenas, at `diff=ace`, with ults enabled. A crash in a
@@ -227,8 +226,9 @@ But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
 
 ## 4. STORE PAGE — the itch.io upload itself
 
-- [ ] Zip **the contents of `dist/`** with `index.html` at the zip root; tick
-      "This file will be played in the browser."
+- [ ] Zip **the contents of `dist-web/`** (from `npm run dist:web`, NOT `dist/`
+      — that one still carries the workbenches) with `index.html` at the zip
+      root; tick "This file will be played in the browser."
 - [ ] Embed size 1280×720, Fullscreen button on, "automatically start" off.
 - [ ] Description, controls section, tags (mech, fighting, local multiplayer,
       3D, controller).
@@ -237,8 +237,8 @@ But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
 - [ ] A short GIF or 30s video. On itch this matters more than the text.
 - [ ] A visible **version string on the title screen** so bug reports are
       actionable.
-- [ ] Decide free / donation / paid — and note that this decision depends on
-      §1.5 being settled first.
+- [ ] Decide free / donation / paid. Commercial use of the models is settled
+      (paid Tripo plan); what is left is your own code license — §1.5.
 - [ ] `.github/workflows/deploy.yml` still lists a stale feature branch
       (`claude/3d-mech-battle-game-uxps6q`) as a deploy trigger. Clean it up so
       the Pages build and the itch build come from the same place.
@@ -249,12 +249,16 @@ But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
 
 If you want the minimum that is defensible rather than the whole list:
 
-1. Compress textures (KTX2 or WebP) and Draco/meshopt the GLBs — §1.1.
-2. WebGL failure + context-loss handling — §1.2.
-3. Static loading block in `index.html` — §1.3.
-4. Pause on `visibilitychange` — §1.4.
-5. Settle the Tripo model license and add a LICENSE + three.js notice — §1.5.
-6. HOW TO PLAY on the title menu — §2.3.
-7. The soak matrix and the browser pass — §3.
+~~1–5~~ done — payload, failure screens, boot splash, visibility pause and the
+three.js notice all shipped. What is left:
+
+1. HOW TO PLAY on the title menu — §2.3. Cheapest real win on the list; the
+   controls sheet already exists, it is just trapped in the pause menu.
+2. The soak matrix and the browser pass — §3. Safari is the one that will
+   surprise you.
+3. A graphics quality option — §2.2. The difference between "runs badly on my
+   laptop, 2 stars" and "runs fine".
+4. Decide AEGIS/NOVA: finish them, or hide the SHOW ALL ROBOTS toggle so
+   players cannot reach two unfinished mechs — §2.2.
 
 Everything else is polish that can land in a post-launch update.
