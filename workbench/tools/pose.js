@@ -29,6 +29,18 @@
 // editable (the pose there is interpolated and belongs to no key). ◀ key / key ▶
 // step them; the key times are listed under the slider with the current one in
 // brackets. `&key=<index>` deep-links one, `&t=<seconds>` snaps to the nearest.
+//
+// THE KEY TRACK, under the scrubber, is the key LIST as objects you can grab —
+// one diamond per key (amber = selected, green = differs from the shipped clip):
+//   · DRAG a diamond to move that key along the timeline. It is clamped between
+//     its neighbours, so the list can never re-sort under the edit you're making.
+//   · RIGHT-CLICK bare track for "New keyframe" at that time. A new key is EMPTY
+//     (`pose: {}`) and so changes nothing about how the clip plays until you drag
+//     a joint on it — a key that snapshotted the whole interpolated pose would
+//     silently freeze every limb passing through it.
+//   · RIGHT-CLICK a diamond, or press DEL / BACKSPACE with it selected, to
+//     delete it. The last remaining key can't be removed.
+// All three are undoable, and all three are reported in the export.
 //   It opens on the LAST key: the pose a hold/loop clip holds, but the RECOVERY
 //   of a one-shot strike — so poundSlam or heavy opens on the rest stance,
 //   which is genuinely that clip's last key, not a bug.
@@ -145,6 +157,7 @@ export async function runPoseWorkbench(config, params) {
   let origKeys = null;          // those keys as shipped, for the diff and revert
   let liveClip = null;          // editClip recompiled — what the animator plays
   let curKeyIdx = -1;           // key on screen, or -1 while scrubbing between keys
+  let nextKeyId = 0;            // id source for hand-added keys (see buildEditClip)
   let scrubT = 0;               // where the scrubber is
   let loadedPose = null;        // the key's pose BEFORE any drag — the edit baseline
   const boneGroup = new THREE.Group(); scene.add(boneGroup);
@@ -223,6 +236,8 @@ export async function runPoseWorkbench(config, params) {
       // gotoKey/previewAt/commit are the scrubber's own steps, for headless checks:
       // previewAt(t) is a mid-drag scrub, gotoKey(i) is the release that snaps
       gotoKey, previewAt, commit: commitEdit, revert: revertEdits,
+      // timeline key editing, the same calls the strip's drag / menu / DEL make
+      addKey: addKeyAt, deleteKey, moveKey: moveKeyTo,
       // commit + pushHistory is what a gizmo release does, in that order
       undo, redo, pushHistory, get history() { return { at: histIdx, len: histStack.length }; },
       get key() {
@@ -230,9 +245,11 @@ export async function runPoseWorkbench(config, params) {
         return {
           index: curKeyIdx, of: editClip.keys.length, t: scrubT,
           times: editClip.keys.map((k) => k.t), edited: editedKeyIdx(),
+          deleted: deletedKeys().length,
         };
       },
       get keys() { return editClip ? editClip.keys : null; },
+      get clipDur() { return editClip ? editClip.dur : 0; },
       patch: bindPatch, reset: resetAll, export: outputPose,
       setConstrain: (v) => { constrain = !!v; conCheck.checked = constrain; applyConstraint(); },
     };
@@ -302,6 +319,7 @@ export async function runPoseWorkbench(config, params) {
     curKeyIdx = -1; loadedPose = null; scrubT = 0;
     timeRow.style.display = 'none';
     keyRow.style.display = 'none';
+    keyBar.style.display = 'none';
     keyMarks.textContent = '';
     revertBtn.style.display = 'none';
   }
@@ -326,6 +344,11 @@ export async function runPoseWorkbench(config, params) {
   // from wherever the body already is" — which writes no track and so is
   // invisible in the compiled form. It IS a key, just empty, and giving it a pose
   // is a real authoring act.
+  // Every key carries an `id` that survives moving, so the diff against the
+  // shipped clip is by IDENTITY, not by position in the list. Index-alignment
+  // was fine while the only edit was "change a pose in place"; the moment a key
+  // can be inserted or deleted, key 3 is no longer the shipped key 3 and an
+  // index diff reports the whole tail as edited.
   function buildEditClip(name) {
     const clip = clipUnderName(name);
     if (!clip) return null;
@@ -340,7 +363,8 @@ export async function runPoseWorkbench(config, params) {
       }
     }
     const keys = [...byT.values()].sort((a, b) => a.t - b.t);
-    for (const k of keys) k.ease = k.ease || 'inOutQuad';
+    keys.forEach((k, i) => { k.ease = k.ease || 'inOutQuad'; k.id = i; });
+    nextKeyId = keys.length;
     return { name, dur: clip.dur, loop: !!clip.loop, upper: !!clip.upper, keys };
   }
   // The edited key list, compiled back into something the animator can play —
@@ -422,7 +446,8 @@ export async function runPoseWorkbench(config, params) {
       : `t ${scrubT.toFixed(2)} — between keys`;
     keyMarks.textContent = editClip.keys
       .map((k, i) => (i === curKeyIdx ? `[${k.t.toFixed(2)}]` : k.t.toFixed(2))).join(' ');
-    revertBtn.style.display = editedKeyIdx().length ? 'block' : 'none';
+    revertBtn.style.display = (editedKeyIdx().length || deletedKeys().length) ? 'block' : 'none';
+    drawKeyBar();
   }
 
   // ================= writing an edit back into a key =================
@@ -485,15 +510,100 @@ export async function runPoseWorkbench(config, params) {
     syncTimeUI();
     note.textContent = `Key ${curKeyIdx + 1}/${editClip.keys.length} updated (${n} joint(s))`;
   }
-  // Which keys differ from the clip as shipped.
+  // Which keys differ from the clip as shipped — matched by id, so a key that
+  // was dragged along the timeline is still recognised as the same key, and an
+  // inserted one is reported as new rather than shifting every index after it.
+  const origById = () => new Map((origKeys || []).map((k) => [k.id, k]));
   function editedKeyIdx() {
     if (!editClip || !origKeys) return [];
+    const was = origById();
     const out = [];
     editClip.keys.forEach((k, i) => {
-      if (JSON.stringify(k.pose) !== JSON.stringify(origKeys[i].pose)) out.push(i);
+      const o = was.get(k.id);
+      if (!o || Math.abs(o.t - k.t) > 1e-4 || JSON.stringify(k.pose) !== JSON.stringify(o.pose)) out.push(i);
     });
     return out;
   }
+  // Keys the shipped clip has that this edit no longer does.
+  function deletedKeys() {
+    if (!editClip || !origKeys) return [];
+    const live = new Set(editClip.keys.map((k) => k.id));
+    return origKeys.filter((k) => !live.has(k.id)).map((k) => ({ t: k.t, pose: k.pose }));
+  }
+  // ================= adding / moving / deleting keys =================
+  // The timeline strip under the scrubber is the direct-manipulation view of
+  // `editClip.keys`: drag a diamond to move that key in time, right-click empty
+  // track to add one, DEL/BACKSPACE to remove the selected one.
+  //
+  // MIN_GAP is what keeps the list sorted without ever re-sorting it: a drag is
+  // clamped between its neighbours, so indices — and therefore `curKeyIdx`,
+  // which the whole editing path hangs off — stay valid mid-drag.
+  const MIN_GAP = 0.01;
+  function keyDragRange(i) {
+    const k = editClip.keys;
+    return [i > 0 ? k[i - 1].t + MIN_GAP : 0,
+      i < k.length - 1 ? k[i + 1].t - MIN_GAP : editClip.dur];
+  }
+  // Move key `i` to time `t` (clamped). `live` during a drag: no history entry,
+  // no re-sort, just the new time on screen.
+  function moveKeyTo(i, t, live = false) {
+    if (!editClip || i < 0 || i >= editClip.keys.length) return;
+    const [lo, hi] = keyDragRange(i);
+    const nt = Math.round(Math.max(lo, Math.min(hi, t)) * 1e4) / 1e4;
+    if (nt === editClip.keys[i].t) { if (live) drawKeyBar(); return; }
+    editClip.keys[i].t = nt;
+    compileLive();
+    if (live) {
+      // follow the key with the viewport: the pose at a key IS the key's pose,
+      // so what you watch move is the surrounding interpolation reshaping
+      scrubT = nt; curKeyIdx = i;
+      sampleAt(nt);
+      loadedPose = readPose();   // the key stays editable mid-drag
+      syncTimeUI();
+    } else {
+      gotoKey(i);
+      pushHistory();
+      note.textContent = `Key ${i + 1} moved to t=${nt.toFixed(2)}`;
+    }
+  }
+  // A NEW key is EMPTY (`pose: {}`) on purpose. compileLive drops empty keys, so
+  // adding one changes nothing about how the clip plays until you actually drag
+  // a joint on it — and then only that joint is written. A key that snapshotted
+  // the whole interpolated pose would silently freeze every limb passing
+  // through, which is the one thing the sparse-key rule exists to prevent.
+  function addKeyAt(t) {
+    if (!editClip) return -1;
+    const nt = Math.round(Math.max(0, Math.min(editClip.dur, t)) * 1e4) / 1e4;
+    const clash = editClip.keys.findIndex((k) => Math.abs(k.t - nt) < MIN_GAP);
+    if (clash >= 0) {
+      gotoKey(clash);
+      note.textContent = `There is already a key at t=${editClip.keys[clash].t.toFixed(2)}`;
+      return clash;
+    }
+    const key = { t: nt, ease: 'inOutQuad', pose: {}, id: nextKeyId++ };
+    const at = editClip.keys.findIndex((k) => k.t > nt);
+    const idx = at < 0 ? editClip.keys.length : at;
+    editClip.keys.splice(idx, 0, key);
+    compileLive();
+    keyRow.style.display = editClip.keys.length > 1 ? 'flex' : 'none';
+    gotoKey(idx);
+    pushHistory();
+    note.textContent = `New key ${idx + 1}/${editClip.keys.length} at t=${nt.toFixed(2)} — empty, `
+      + 'drag a joint to author it';
+    return idx;
+  }
+  function deleteKey(i) {
+    if (!editClip || i < 0 || i >= editClip.keys.length) return;
+    if (editClip.keys.length <= 1) { note.textContent = 'A clip needs at least one key'; return; }
+    const t = editClip.keys[i].t;
+    editClip.keys.splice(i, 1);
+    compileLive();
+    keyRow.style.display = editClip.keys.length > 1 ? 'flex' : 'none';
+    gotoKey(Math.min(i, editClip.keys.length - 1));
+    pushHistory();
+    note.textContent = `Deleted the key at t=${t.toFixed(2)}`;
+  }
+
   function revertEdits() {
     if (!editClip || !origKeys) return;
     editClip.keys = JSON.parse(JSON.stringify(origKeys));
@@ -667,16 +777,22 @@ export async function runPoseWorkbench(config, params) {
   // Per-key diff against the clip as shipped, joint by joint. 0.75deg / 0.004 on
   // hipsPos, so nothing but a real drag registers.
   function keyDiff(i) {
-    const now = editClip.keys[i].pose, was = origKeys[i].pose;
+    const k = editClip.keys[i];
+    const o = origById().get(k.id);
+    if (!o) return { addedKey: true };            // inserted by hand
+    const out = {};
+    if (Math.abs(o.t - k.t) > 1e-4) out.movedFrom = o.t;
+    const now = k.pose, was = o.pose;
     const changed = {};
     const eps = (j) => (j === 'hipsPos' ? 0.004 : 0.75);
     for (const j of new Set([...Object.keys(now), ...Object.keys(was)])) {
       const to = now[j], from = was[j];
       if (!from) { changed[j] = { added: to }; continue; }
       if (!to) { changed[j] = { removed: from }; continue; }
-      if (to.some((v, k) => Math.abs(v - from[k]) > eps(j))) changed[j] = { from, to };
+      if (to.some((v, c) => Math.abs(v - from[c]) > eps(j))) changed[j] = { from, to };
     }
-    return Object.keys(changed).length ? changed : null;
+    if (Object.keys(changed).length) out.pose = changed;
+    return Object.keys(out).length ? out : null;
   }
   // The `keys: [...]` block for animations.js, formatted the way the file is:
   // one key per line, `pose: {}` inline, joints in the rig's own order.
@@ -715,6 +831,8 @@ export async function runPoseWorkbench(config, params) {
     payload.dur = editClip.dur;
     if (editClip.loop) payload.loop = true;
     payload.editedKeys = edited;
+    const gone = deletedKeys();
+    if (gone.length) payload.deletedKeys = gone;
     payload.keys = editClip.keys.map((k, i) => {
       const out = { t: k.t, ease: k.ease, pose: k.pose };
       if (i === curKeyIdx) out.onScreen = true;
@@ -723,9 +841,10 @@ export async function runPoseWorkbench(config, params) {
       return out;
     });
     payload.js = keysAsJs();
+    const goneNote = gone.length ? `, ${gone.length} deleted` : '';
     show(JSON.stringify(payload, null, 2), `clip-${editClip.name}.json`,
-      edited.length
-        ? `${edited.length} of ${editClip.keys.length} key(s) edited: ${edited.map((i) => i + 1).join(', ')}`
+      edited.length || gone.length
+        ? `${edited.length} of ${editClip.keys.length} key(s) edited: ${edited.map((i) => i + 1).join(', ')}${goneNote}`
         : `no edits — ${editClip.keys.length} key(s) as shipped`);
   }
 
@@ -872,7 +991,12 @@ export async function runPoseWorkbench(config, params) {
     if (k === 'r') { gizmo.setMode('rotate'); markGiz(); }
     else if (k === 't') { if (!bMov.disabled) { gizmo.setMode('translate'); markGiz(); } }
     else if (k === 'g') bSpace.onclick();
-    else if (e.key === 'Escape') deselect();
+    else if (e.key === 'Delete' || e.key === 'Backspace') {
+      // the selected KEY, not the selected joint: this is the timeline's key.
+      // Between keys there is nothing selected to delete (curKeyIdx -1).
+      if (editClip && curKeyIdx >= 0) { e.preventDefault(); deleteKey(curKeyIdx); }
+      else if (editClip) note.textContent = 'Between keys — nothing selected to delete';
+    } else if (e.key === 'Escape') { closeKeyMenu(); deselect(); }
   });
   // THE CONSTRAINT: clips rotate joints, they never move them — the hips are
   // the one exception. With it on, a limb joint is given no translate handle,
@@ -1031,6 +1155,127 @@ export async function runPoseWorkbench(config, params) {
   const timeVal = el('span', 'color:#9fb2c8;font-size:10px;white-space:nowrap');
   timeRow.append(timeSlider, timeVal);
   panel.appendChild(timeRow);
+  // ---- the KEY TRACK: the keys as objects you can grab ----
+  // The slider above scrubs TIME; this strip edits the KEY LIST. Drag a diamond
+  // to slide that key along the timeline, right-click bare track for a new one,
+  // right-click a diamond (or press DEL) to remove it. It is inset by half a
+  // slider thumb so a diamond sits under the thumb position for the same t.
+  const KEY_PAD = 8;
+  const keyBar = el('div', `position:relative;height:20px;margin:3px ${KEY_PAD}px 0;
+    border-top:1px solid #2a3546;cursor:crosshair`);
+  keyBar.title = 'drag a key to move it · right-click for new/delete · DEL removes the selected key';
+  panel.appendChild(keyBar);
+  const keyDots = [];
+  function keyX(t) { return editClip && editClip.dur ? (t / editClip.dur) * keyBar.clientWidth : 0; }
+  function keyTAt(clientX) {
+    const r = keyBar.getBoundingClientRect();
+    if (!r.width || !editClip) return 0;
+    return ((clientX - r.left) / r.width) * editClip.dur;
+  }
+  function hitKey(clientX) {
+    if (!editClip) return -1;
+    const r = keyBar.getBoundingClientRect();
+    let best = -1, bd = 9;               // px
+    editClip.keys.forEach((k, i) => {
+      const d = Math.abs((r.left + keyX(k.t)) - clientX);
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+  function drawKeyBar() {
+    if (!editClip) { keyBar.style.display = 'none'; return; }
+    keyBar.style.display = 'block';
+    const edited = new Set(editedKeyIdx());
+    while (keyDots.length > editClip.keys.length) keyBar.removeChild(keyDots.pop());
+    while (keyDots.length < editClip.keys.length) {
+      const d = el('div', `position:absolute;top:4px;width:9px;height:9px;margin-left:-5px;
+        transform:rotate(45deg);border-radius:2px;cursor:ew-resize`);
+      keyBar.appendChild(d); keyDots.push(d);
+    }
+    editClip.keys.forEach((k, i) => {
+      const d = keyDots[i];
+      d.style.left = `${keyX(k.t)}px`;
+      const sel = i === curKeyIdx;
+      d.style.background = sel ? '#ffc447' : (edited.has(i) ? '#4fdc8b' : '#62e0ff');
+      d.style.border = sel ? '1px solid #fff3d0' : '1px solid #16202c';
+      d.style.boxShadow = sel ? '0 0 6px rgba(255,196,71,0.8)' : 'none';
+      d.title = `key ${i + 1}/${editClip.keys.length} · t=${k.t.toFixed(2)}`
+        + (edited.has(i) ? ' · edited' : '');
+    });
+  }
+  // ---- drag a key along the timeline ----
+  let dragKey = -1;
+  keyBar.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0 || !editClip) return;
+    const i = hitKey(ev.clientX);
+    if (i < 0) return;                    // bare track: left-click does nothing
+    dragKey = i;
+    keyBar.setPointerCapture(ev.pointerId);
+    gotoKey(i);                           // grabbing a key selects it
+    ev.preventDefault();
+  });
+  keyBar.addEventListener('pointermove', (ev) => {
+    if (dragKey < 0) return;
+    moveKeyTo(dragKey, keyTAt(ev.clientX), true);
+    ev.preventDefault();
+  });
+  const endKeyDrag = (ev) => {
+    if (dragKey < 0) return;
+    const i = dragKey; dragKey = -1;
+    keyBar.releasePointerCapture?.(ev.pointerId);
+    moveKeyTo(i, editClip.keys[i].t);     // settle: history entry + readout
+  };
+  keyBar.addEventListener('pointerup', endKeyDrag);
+  keyBar.addEventListener('pointercancel', endKeyDrag);
+  // ---- right-click menu ----
+  keyBar.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault();
+    if (!editClip) return;
+    const i = hitKey(ev.clientX);
+    const t = keyTAt(ev.clientX);
+    showKeyMenu(ev.clientX, ev.clientY, i >= 0
+      ? [[`Delete keyframe (t=${editClip.keys[i].t.toFixed(2)})`, () => deleteKey(i),
+        editClip.keys.length <= 1]]
+      : [[`New keyframe at t=${Math.max(0, Math.min(editClip.dur, t)).toFixed(2)}`, () => addKeyAt(t)]]);
+  });
+  let keyMenu = null;
+  // dismissal has to IGNORE the menu itself: a capture-phase window listener
+  // sees the pointerdown on a menu item before the item does, so closing
+  // blindly would delete the menu out from under the click that chose it
+  const menuAway = (ev) => { if (!keyMenu || !keyMenu.contains(ev.target)) closeKeyMenu(); };
+  function closeKeyMenu() {
+    window.removeEventListener('pointerdown', menuAway, true);
+    keyMenu?.remove();
+    keyMenu = null;
+  }
+  function showKeyMenu(x, y, items) {
+    closeKeyMenu();
+    keyMenu = el('div', `position:fixed;left:${x}px;top:${y}px;z-index:80;min-width:150px;
+      background:#141b26;border:1px solid #33475e;border-radius:6px;padding:3px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.55);font:12px system-ui,sans-serif`);
+    for (const [text, fn, disabled] of items) {
+      const it = el('div', `padding:6px 9px;border-radius:4px;white-space:nowrap;
+        color:${disabled ? '#5c6b7d' : '#dfe8f5'};cursor:${disabled ? 'not-allowed' : 'pointer'}`);
+      it.textContent = text;
+      if (!disabled) {
+        it.onmouseenter = () => { it.style.background = '#22405e'; };
+        it.onmouseleave = () => { it.style.background = 'transparent'; };
+        it.onclick = () => { closeKeyMenu(); fn(); };
+      }
+      keyMenu.appendChild(it);
+    }
+    document.body.appendChild(keyMenu);
+    // keep it on screen when the click was near the bottom/right edge
+    const r = keyMenu.getBoundingClientRect();
+    if (r.bottom > window.innerHeight) keyMenu.style.top = `${Math.max(4, y - r.height)}px`;
+    if (r.right > window.innerWidth) keyMenu.style.left = `${Math.max(4, x - r.width)}px`;
+    window.addEventListener('pointerdown', menuAway, true);
+  }
+
+  // the strip is laid out in pixels, so it has to be redrawn when the panel is
+  // dragged wider (panelui's resize handle) or the window changes
+  new ResizeObserver(() => { if (editClip) drawKeyBar(); }).observe(keyBar);
+
   // the clip's key times, the one you're parked on in brackets
   const keyMarks = el('div', 'color:#7e93ab;font-size:10px;margin-top:2px;line-height:1.5;word-break:break-all');
   panel.appendChild(keyMarks);

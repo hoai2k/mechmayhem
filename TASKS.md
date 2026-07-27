@@ -3595,3 +3595,48 @@ screenshot VIEWED · crash-free ace soaks on neon (vs viper) and steel (vs
 titanus) · `?rigedit=colossus` now opens the primary directly instead of being
 forced onto the alt, the retired build still loads under `&alt=1` with its 64
 ops · `vite build` green.
+
+## Pose workbench: the timeline became editable (user request, 2026-07-27)
+
+The scrubber could only visit keys; the key LIST was read-only. Under it now
+sits a KEY TRACK — one diamond per key, amber for the selected one, green for
+any that differs from the shipped clip — and it is direct manipulation:
+
+- DRAG a diamond to move that key along the timeline. The drag is clamped
+  between its neighbours (MIN_GAP 0.01s), which is what keeps the list sorted
+  without ever re-sorting it — `curKeyIdx`, which the whole editing path hangs
+  off, stays valid mid-drag. The viewport follows the key, so what you watch
+  reshape is the interpolation on either side of it.
+- RIGHT-CLICK bare track → "New keyframe at t=…". The new key is EMPTY
+  (`pose: {}`) on purpose: compileLive drops empty keys, so adding one changes
+  nothing about how the clip plays until you drag a joint on it, and then only
+  that joint is written. A key that snapshotted the whole interpolated pose
+  would silently freeze every limb passing through — the exact thing the
+  sparse-key rule exists to prevent.
+- RIGHT-CLICK a diamond → "Delete keyframe (t=…)", or press DEL/BACKSPACE with
+  it selected. The last remaining key is refused (a clip needs one).
+
+THE DIFF HAD TO CHANGE FIRST. `editedKeyIdx`/`keyDiff` compared
+`editClip.keys[i]` with `origKeys[i]` BY INDEX, which is fine while the only
+edit is "change a pose in place" and nonsense the moment a key can be inserted:
+key 3 is no longer the shipped key 3, and every key after an insertion reads as
+edited. Keys now carry a stable `id` (assigned in buildEditClip, minted from
+`nextKeyId` for hand-added ones, cloned through undo snapshots), and the diff
+matches on it — so a dragged key is still recognised as itself, a new one
+reports `addedKey`, a moved one `movedFrom: <old t>`, and keys the clip had but
+the edit doesn't come out as `deletedKeys` in the export.
+
+One real bug found while wiring the context menu: dismiss-on-click-away as a
+capture-phase window listener sees the pointerdown on a menu ITEM before the
+item does, so the menu deleted itself out from under the click that chose it —
+"New keyframe" appeared and did nothing. The dismissal now ignores pointerdowns
+inside the menu.
+
+Verified headlessly on colossus/heavy (5 keys): right-click gap → key inserted
+at t=0.08 (6 keys, reported edited) · dragged it to 0.23, clamped short of the
+0.34 neighbour · DEL removed it and the diff went back to clean · right-click
+on the shipped t=0.52 key → deleted, `deletedKeys` 1 · undo restored it exactly,
+redo removed it, undo again restored · a dragged shipped key exported as
+`changed: {movedFrom: 0.52}` and an added one as `changed: {addedKey}` ·
+screenshots VIEWED (diamonds, selection colour, menu) · `tools/wbconfig.mjs`
+PASS · `vite build` green.
