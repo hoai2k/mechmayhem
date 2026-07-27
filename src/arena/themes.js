@@ -5,6 +5,12 @@
 //   props [{name, ring:[rMin,rMax], count, opts}], ambient (particle style),
 //   bounds (half-size of square play area), pylonMat (boundary glow color)
 //
+// Prop spec extras (arena.js):
+//   clump {n:[min,max], spread} — each placement seeds a NEST of the same
+//        prop (groves, container yards): dense pockets instead of sprinkle
+//   on: 'water'|'ice'|... — place INSIDE a terrain patch of that kind
+//        (trawlers on the harbor basins); skipped if the seed made none
+//
 // layout {} drives the terrain layer (src/arena/terrain.js):
 //   clearing — radius of the building/hazard-free spawn plaza (spawns at 34)
 //   plaza    — paint spawn-ring markings at the center
@@ -13,10 +19,24 @@
 //              water/canal (bogs down), oil (bogs harder), ice, crystal,
 //              sand, stripe. Lanes tile: centerlines are periodic in the
 //              wrap cell, so a lane exiting one edge re-enters opposite.
+//   patches  — circular ground features: {kind, count, r:[min,max], ring?,
+//              glow?, color?}. kinds: water/lake, lava, acid, oil, mud, ice,
+//              sand, ash, grass. Painted at all 9 wrap offsets (tiling-safe);
+//              hazard kinds are live like hazard lanes. Lakes! Lawns! Slag!
+//   viaduct  — ONE endless raised highway/monorail loop following its own
+//              periodic centerline around the whole cell: {h?, w?, edge?,
+//              color?, amp?}. Walk under it, ride it via two ground-level
+//              ramp dips, blow out deck segments, topple its piers.
 //   bridges  — {count, color, edge?, h?} destructible causeways over streams
 //   hills    — {count, color, hMax?, style?:'deck', edge?} walkable mounds
 //   clusters — {count, size:[min,max]} building groups (city blocks,
 //              factory compounds...) with streets between
+//
+// Layout philosophy (2026-07 redesign): every arena keeps a SPARSE center
+// plaza (the spawn stage — all fighters meet with clean sight lines), a
+// mid ring of scattered cover, and a DENSE outer band with one hero
+// landmark for orientation. Prop rings are in pre-scale units (×1.85 in
+// world); clearing/spawns are unscaled world units.
 //
 // Art direction: each theme keeps one or two saturated accent hues ("anime
 // pops") against a readable mid-tone stage. Fighters live at y=0..10 within
@@ -33,17 +53,22 @@ export const THEMES = [
     rim: { color: 0xff4dd8, intensity: 1.4, pos: [-60, 30, 60] },
     exposure: 1.06,
     ground: { color: 0x1e2126, road: true, accent: 0xff3dd4 },
-    buildings: { count: 13, tints: [0x6a74a0, 0x5a6488, 0x8a6a9c, 0x7a88b0, 0x94789a], styles: [2, 0], hRange: [4, 8], glow: true },
+    buildings: { count: 15, tints: [0x6a74a0, 0x5a6488, 0x8a6a9c, 0x7a88b0, 0x94789a], styles: [2, 0], hRange: [4, 8], glow: true },
+    // canal quarter under an endless monorail loop: torii gates mark the
+    // plaza edge, kiosk alleys mid-ring, ad-tower forest in the outer band
     props: [
-      { name: 'billboard', ring: [46, 55], count: 5, opts: [{ color: 0x53e8ff }, { color: 0xff4dd8 }, { color: 0xffb43c }, { color: 0x62ff9a }, { color: 0xff5040 }] },
-      { name: 'holoPillar', ring: [30, 44], count: 4, opts: [{ color: 0x53e8ff }, { color: 0xff4dd8 }, { color: 0x62ff9a }, { color: 0xffb43c }] },
-      { name: 'noodleKiosk', ring: [28, 38], count: 2, opts: [{ color: 0xffb43c }, { color: 0xff5040 }] },
-      { name: 'railSegment', ring: [42, 52], count: 2, opts: { color: 0x53e8ff } },
-      { name: 'streetlight', ring: [30, 46], count: 6, opts: { cold: true } },
-      { name: 'antennaTower', ring: [50, 58], count: 2 },
+      { name: 'toriiGate', ring: [21, 27], count: 2, opts: [{ color: 0xff4dd8 }, { color: 0x53e8ff }] },
+      { name: 'holoGlobe', ring: [23, 31], count: 1 },
+      { name: 'noodleKiosk', ring: [24, 36], count: 3, opts: [{ color: 0xffb43c }, { color: 0xff5040 }, { color: 0x62ff9a }] },
+      { name: 'vendCluster', ring: [26, 40], count: 3 },
+      { name: 'holoPillar', ring: [28, 44], count: 4, opts: [{ color: 0x53e8ff }, { color: 0xff4dd8 }, { color: 0x62ff9a }, { color: 0xffb43c }] },
+      { name: 'substation', ring: [34, 48], count: 2 },
+      { name: 'billboard', ring: [42, 56], count: 6, opts: [{ color: 0x53e8ff }, { color: 0xff4dd8 }, { color: 0xffb43c }, { color: 0x62ff9a }, { color: 0xff5040 }] },
+      { name: 'streetlight', ring: [24, 46], count: 8, opts: { cold: true } },
+      { name: 'antennaTower', ring: [48, 58], count: 3 },
     ],
     ambient: 'motes',
-    bounds: 52,
+    bounds: 56,
     music: 'battleNight',
     layout: {
       clearing: 38, plaza: true,
@@ -51,8 +76,9 @@ export const THEMES = [
         { kind: 'road', style: 'asphalt', count: 3, width: 7, dash: 0xff3dd4 },
         { kind: 'canal', count: 1, width: 5.5, glow: 0x53e8ff },
       ],
+      viaduct: { h: 7, w: 7.5, color: 0x2c3036, edge: 0xff3dd4 },
       bridges: { count: 1, color: 0x2c3036, edge: 0x53e8ff },
-      clusters: { count: 5, size: [2, 4] },
+      clusters: { count: 6, size: [2, 4] },
     },
   },
   {
@@ -65,19 +91,23 @@ export const THEMES = [
     exposure: 1.08,
     ground: { color: 0x322c26, road: false, accent: 0xff5a10 },
     buildings: { count: 10, tints: [0x7a6450, 0x6a5442, 0x82684e, 0x5e5248], styles: [1, 3], hRange: [4, 7], glow: true },
+    // the blast furnace anchors the works; molten slag pools + lava runs
+    // carve the floor, conveyors and hoists make the mid-field a machine hall
     props: [
-      { name: 'moltenChannel', ring: [28, 40], count: 3 },
-      { name: 'pistonRig', ring: [32, 44], count: 2 },
-      { name: 'chainHoist', ring: [34, 46], count: 2 },
-      { name: 'smokestack', ring: [42, 55], count: 5 },
-      { name: 'gear', ring: [34, 48], count: 4 },
-      { name: 'pipes', ring: [30, 42], count: 3 },
-      { name: 'fuelTank', ring: [16, 34], count: 4 },
-      { name: 'crane', ring: [48, 56], count: 1 },
+      { name: 'blastFurnace', ring: [38, 48], count: 1 },
+      { name: 'moltenChannel', ring: [26, 38], count: 3 },
+      { name: 'conveyor', ring: [30, 46], count: 2 },
+      { name: 'pistonRig', ring: [30, 44], count: 2 },
+      { name: 'chainHoist', ring: [32, 44], count: 2 },
+      { name: 'coolantVat', ring: [22, 36], count: 3 },
+      { name: 'smokestack', ring: [44, 56], count: 4 },
+      { name: 'gear', ring: [34, 48], count: 3 },
+      { name: 'pipes', ring: [28, 42], count: 2 },
+      { name: 'fuelTank', ring: [18, 32], count: 3 },
     ],
     ambient: 'embers',
     steamVents: 6,
-    bounds: 50,
+    bounds: 52,
     music: 'battleIndustrial',
     layout: {
       clearing: 38,
@@ -85,8 +115,9 @@ export const THEMES = [
         { kind: 'road', style: 'plate', count: 1, width: 6 },
         { kind: 'lava', count: 2, width: 5 },
       ],
+      patches: [{ kind: 'lava', count: 2, r: [7, 10] }],
       bridges: { count: 2, color: 0x3a3026, edge: 0xff5a10 },
-      hills: { count: 1, color: 0x453a30 },
+      hills: { count: 2, color: 0x453a30, hMax: 5 },   // slag heaps
       clusters: { count: 4, size: [2, 3] },
     },
   },
@@ -100,23 +131,33 @@ export const THEMES = [
     exposure: 1.02,
     ground: { color: 0x2a2d33, road: true, accent: 0xff6a3c },
     buildings: { count: 12, tints: [0x9ab0c4, 0xa8b8c8, 0x8aa4c0, 0xb8bcc0, 0x94b4a8], styles: [2, 0], hRange: [4, 8], glow: false },
+    // a real city park ringed by glass towers: pond, lawns, groves and a
+    // bandshell inside; food trucks and transit stops along the streets;
+    // an elevated light-rail loop threads the whole block
     props: [
-      { name: 'fountain', ring: [28, 36], count: 1 },
-      { name: 'artSculpture', ring: [28, 40], count: 2 },
-      { name: 'railSegment', ring: [42, 54], count: 2, opts: { color: 0xff6a3c } },
-      { name: 'tree', ring: [28, 44], count: 7 },
-      { name: 'streetlight', ring: [30, 46], count: 8 },
-      { name: 'container', ring: [46, 52], count: 2 },
+      { name: 'bandshell', ring: [24, 32], count: 1 },
+      { name: 'fountain', ring: [20, 27], count: 1 },
+      { name: 'foodTruck', ring: [22, 36], count: 3, opts: [{ color: 0x5abc9a }, { color: 0xd88c4a }, { color: 0x7a9ad8 }] },
+      { name: 'planterBench', ring: [21, 38], count: 4 },
+      { name: 'busStop', ring: [26, 42], count: 3 },
+      { name: 'tree', ring: [22, 46], count: 7, clump: { n: [2, 4], spread: 7 } },
+      { name: 'artSculpture', ring: [26, 38], count: 2 },
+      { name: 'streetlight', ring: [26, 48], count: 8 },
     ],
     ambient: null,
-    bounds: 52,
+    bounds: 58,
     music: 'battleDay',
     layout: {
       clearing: 38, plaza: true,
       lanes: [{ kind: 'road', style: 'asphalt', count: 3, width: 7.5, dash: 0xffd23c }],
+      patches: [
+        { kind: 'water', count: 1, r: [9, 13] },     // the park pond
+        { kind: 'grass', count: 3, r: [8, 12] },     // lawns
+      ],
+      viaduct: { h: 6.8, w: 7, color: 0x8a95a5, edge: 0xff6a3c },
       bridges: { count: 1, color: 0x9aa8b8, edge: 0x53e8ff },   // pedestrian skywalk
       hills: { count: 1, color: 0x5e7a44 },                     // park knoll
-      clusters: { count: 5, size: [2, 4] },
+      clusters: { count: 6, size: [2, 4] },
     },
   },
   {
@@ -129,25 +170,31 @@ export const THEMES = [
     exposure: 1.04,
     ground: { color: 0x363b40, road: false, accent: 0xffb43c },
     buildings: { count: 8, tints: [0x687480, 0x7a6450, 0x566470, 0x806e58], styles: [3, 1], hRange: [4, 6], glow: true },
+    // working port: two open harbor basins with trawlers riding at anchor,
+    // container canyons stacked between the plate roads, gantry cranes
+    // towering over the outer band (walk between their legs)
     props: [
-      { name: 'lighthouse', ring: [34, 42], count: 1 },
-      { name: 'boatHull', ring: [30, 44], count: 2 },
-      { name: 'buoy', ring: [28, 50], count: 4 },
-      { name: 'crane', ring: [42, 54], count: 3 },
-      { name: 'container', ring: [26, 48], count: 8 },
-      { name: 'streetlight', ring: [32, 44], count: 4 },
-      { name: 'fuelTank', ring: [18, 34], count: 4 },
+      { name: 'gantryCrane', ring: [38, 52], count: 2 },
+      { name: 'containerStack', ring: [26, 50], count: 7, clump: { n: [2, 3], spread: 8 } },
+      { name: 'trawler', on: 'water', count: 2 },
+      { name: 'buoy', on: 'water', count: 5 },
+      { name: 'boatHull', ring: [30, 44], count: 1 },
+      { name: 'lighthouse', ring: [44, 54], count: 1 },
+      { name: 'crane', ring: [40, 52], count: 2 },
+      { name: 'netPile', ring: [22, 40], count: 4 },
+      { name: 'streetlight', ring: [26, 44], count: 4 },
+      { name: 'fuelTank', ring: [18, 34], count: 3 },
     ],
     ambient: null,
     steamVents: 2,
-    bounds: 52,
+    bounds: 60,
     music: 'battleNight',
     layout: {
       clearing: 38,
       lanes: [
         { kind: 'road', style: 'plate', count: 2, width: 6.5 },
-        { kind: 'water', count: 1, width: 9 },
       ],
+      patches: [{ kind: 'water', count: 2, r: [12, 17] }],   // harbor basins
       bridges: { count: 1, color: 0x565e66, edge: 0xffb43c },
       clusters: { count: 4, size: [2, 3] },
     },
@@ -162,13 +209,19 @@ export const THEMES = [
     exposure: 1.04,
     ground: { color: 0x585f66, road: false, accent: 0x53e8ff },
     buildings: { count: 6, tints: [0x9aa8b8, 0xaebecc, 0x8ea0b8], styles: [2], hRange: [3, 5], glow: false },
+    // a working high-rise roof: helipad plaza, HVAC farms, solar banks,
+    // water tanks, and a window-washer rig swaying over the edge — terraced
+    // deck platforms + glass skybridges give three fighting storeys
     props: [
-      { name: 'helipad', ring: [28, 36], count: 1 },
-      { name: 'glassRail', ring: [34, 48], count: 4 },
-      { name: 'hvacUnit', ring: [30, 46], count: 4 },
+      { name: 'helipad', ring: [24, 32], count: 1 },
+      { name: 'gondolaRig', ring: [26, 40], count: 2 },
+      { name: 'solarArray', ring: [28, 44], count: 3 },
+      { name: 'waterTank', ring: [30, 44], count: 2 },
+      { name: 'hvacUnit', ring: [26, 44], count: 4, clump: { n: [2, 3], spread: 6 } },
+      { name: 'glassRail', ring: [32, 48], count: 5 },
       { name: 'antennaTower', ring: [42, 52], count: 3 },
       { name: 'billboard', ring: [44, 52], count: 2, opts: { color: 0x53e8ff } },
-      { name: 'pipes', ring: [34, 44], count: 2 },
+      { name: 'pipes', ring: [32, 44], count: 2 },
     ],
     ambient: 'clouds',
     bounds: 46,
@@ -176,8 +229,8 @@ export const THEMES = [
     layout: {
       clearing: 36, plaza: true,
       lanes: [{ kind: 'stripe', count: 2, width: 4, glow: 0x53e8ff }],
-      bridges: { count: 1, color: 0x8ea0b0, edge: 0x53e8ff },   // glass skybridge
-      hills: { count: 2, color: 0x6a7480, style: 'deck', edge: 0x53e8ff, hMax: 3 },
+      bridges: { count: 2, color: 0x8ea0b0, edge: 0x53e8ff },   // glass skybridges
+      hills: { count: 4, color: 0x6a7480, style: 'deck', edge: 0x53e8ff, hMax: 3.6 },
       clusters: { count: 3, size: [2, 3] },
     },
   },
@@ -191,16 +244,23 @@ export const THEMES = [
     exposure: 1.02,
     ground: { color: 0x554636, road: false, accent: 0xffb43c },
     buildings: { count: 7, tints: [0x7a563a, 0x6e5844, 0x82603e, 0x60564a], styles: [1, 3], hRange: [3, 6], glow: false },
+    // the mech graveyard: a colossal buried hand marks the boneyard, the
+    // crusher still runs, crushed-car towers make scrap canyons, and the
+    // ground itself leaks oil and mud
     props: [
-      { name: 'mechWreck', ring: [28, 40], count: 2 },
-      { name: 'junkPile', ring: [26, 46], count: 5 },
+      { name: 'buriedMechHand', ring: [30, 42], count: 1, opts: { s: 1.35 } },
+      { name: 'carCrusher', ring: [32, 44], count: 1 },
+      { name: 'mechWreck', ring: [26, 40], count: 2 },
+      { name: 'crushedStack', ring: [24, 46], count: 5, clump: { n: [2, 3], spread: 7 } },
+      { name: 'junkPile', ring: [24, 46], count: 4 },
+      { name: 'tireMound', ring: [26, 44], count: 2 },
       { name: 'magnetCrane', ring: [42, 52], count: 2 },
-      { name: 'container', ring: [26, 48], count: 6 },
-      { name: 'rock', ring: [32, 48], count: 4, opts: { color: 0x6e5a44 } },
-      { name: 'pipes', ring: [36, 46], count: 2 },
+      { name: 'container', ring: [30, 48], count: 3 },
+      { name: 'rock', ring: [32, 48], count: 3, opts: { color: 0x6e5a44 } },
+      { name: 'pipes', ring: [34, 46], count: 2 },
     ],
     ambient: 'sand',
-    bounds: 50,
+    bounds: 54,
     music: 'battleIndustrial',
     layout: {
       clearing: 38,
@@ -208,8 +268,12 @@ export const THEMES = [
         { kind: 'road', style: 'dirt', count: 2, width: 6 },
         { kind: 'oil', count: 1, width: 4.5 },
       ],
+      patches: [
+        { kind: 'mud', count: 1, r: [8, 12] },
+        { kind: 'oil', count: 1, r: [6, 9] },
+      ],
       bridges: { count: 1, color: 0x6e4a30, edge: 0xffb43c },
-      hills: { count: 2, color: 0x5e4c38 },
+      hills: { count: 3, color: 0x5e4c38, hMax: 5 },
       clusters: { count: 3, size: [2, 3] },
     },
   },
@@ -223,15 +287,22 @@ export const THEMES = [
     exposure: 1.08,
     ground: { color: 0x3d3452, road: false, accent: 0xb46bff },
     buildings: { count: 7, tints: [0x665f7c, 0x565068, 0x7a6f8e], styles: [3, 1], hRange: [3, 6], glow: true },
+    // the pit at night: crystal thickets in glowing nests, the hoist
+    // headframe on the rim, blasting charges staged mid-bench, a tailings
+    // pond glowing faint violet
     props: [
-      { name: 'crystal', ring: [28, 52], count: 10 },
-      { name: 'drillRig', ring: [34, 46], count: 2 },
-      { name: 'mineCart', ring: [28, 44], count: 3 },
+      { name: 'headframe', ring: [38, 48], count: 1 },
+      { name: 'crystalMonolith', ring: [24, 34], count: 1 },
+      { name: 'crystal', ring: [26, 52], count: 7, clump: { n: [2, 3], spread: 6 } },
+      { name: 'drillRig', ring: [32, 46], count: 2 },
+      { name: 'mineCart', ring: [26, 44], count: 3 },
+      { name: 'chargeCrate', ring: [24, 40], count: 3 },
+      { name: 'floodlightRig', ring: [26, 46], count: 3 },
+      { name: 'conveyor', ring: [34, 48], count: 1 },
       { name: 'rock', ring: [32, 50], count: 4, opts: { color: 0x6a5f80 } },
-      { name: 'crane', ring: [48, 55], count: 1 },
     ],
     ambient: 'motes',
-    bounds: 50,
+    bounds: 54,
     music: 'battleNight',
     layout: {
       clearing: 38,
@@ -239,8 +310,9 @@ export const THEMES = [
         { kind: 'road', style: 'dirt', count: 1, width: 5.5, color: 0x2e2740 },
         { kind: 'crystal', count: 2, width: 3.2, glow: 0xb46bff },
       ],
+      patches: [{ kind: 'water', count: 1, r: [9, 13], glow: 0xb46bff }],  // tailings pond
       bridges: { count: 1, color: 0x4c4460, edge: 0xb46bff },
-      hills: { count: 3, color: 0x4a4060, hMax: 5 },            // mining terraces
+      hills: { count: 4, color: 0x4a4060, hMax: 6 },            // mining terraces
       clusters: { count: 3, size: [2, 3] },
     },
   },
@@ -254,16 +326,21 @@ export const THEMES = [
     exposure: 1.1,
     ground: { color: 0x2b1d18, road: false, accent: 0xff5a10 },
     buildings: { count: 7, tints: [0x5c443a, 0x5a463c, 0x66504a], styles: [1, 3], hRange: [3, 6], glow: true },
+    // a live caldera floor: lava lakes and ash fields between basalt column
+    // outcrops, fumaroles hissing, natural rock arches to duck through,
+    // and a doomed monitoring post still logging tremors
     props: [
-      { name: 'lavaPool', ring: [28, 38], count: 3 },
-      { name: 'obsidianSpikes', ring: [30, 48], count: 5 },
-      { name: 'rock', ring: [34, 52], count: 5, opts: { color: 0x453229 } },
-      { name: 'smokestack', ring: [44, 55], count: 3 },
-      { name: 'pipes', ring: [36, 46], count: 2 },
+      { name: 'basaltColumns', ring: [26, 48], count: 5, clump: { n: [2, 3], spread: 7 } },
+      { name: 'rockArch', ring: [30, 44], count: 2, opts: { color: 0x322028 } },
+      { name: 'lavaPool', ring: [26, 38], count: 2 },
+      { name: 'obsidianSpikes', ring: [28, 46], count: 4 },
+      { name: 'geyserVent', ring: [22, 42], count: 4 },
+      { name: 'monitorStation', ring: [30, 42], count: 2 },
+      { name: 'rock', ring: [34, 52], count: 4, opts: { color: 0x453229 } },
     ],
     ambient: 'embers',
     steamVents: 5,
-    bounds: 48,
+    bounds: 52,
     music: 'battleIndustrial',
     layout: {
       clearing: 36,
@@ -271,8 +348,12 @@ export const THEMES = [
         { kind: 'road', style: 'stone', count: 1, width: 5, color: 0x241a14 },
         { kind: 'lava', count: 2, width: 6.5 },
       ],
-      bridges: { count: 2, color: 0x241c18, edge: 0xff5a10 },   // basalt causeways
-      hills: { count: 2, color: 0x352520, hMax: 5 },
+      patches: [
+        { kind: 'lava', count: 2, r: [10, 14] },   // lava lakes
+        { kind: 'ash', count: 2, r: [8, 12] },
+      ],
+      bridges: { count: 3, color: 0x241c18, edge: 0xff5a10 },   // basalt causeways
+      hills: { count: 3, color: 0x352520, hMax: 6 },
       clusters: { count: 2, size: [2, 3] },
     },
   },
@@ -286,17 +367,25 @@ export const THEMES = [
     exposure: 1.04,
     ground: { color: 0x93aec4, road: false, accent: 0x53c8ff },
     buildings: { count: 8, tints: [0x98a4b0, 0x8894a0, 0xa4b0bc], styles: [3, 2], hRange: [3, 6], glow: true },
+    // station K-9 after the evacuation: an icebreaker locked in the floe,
+    // quonset row half-buried, the heated pipeline still steaming, frozen
+    // lakes glinting under the aurora
     props: [
-      { name: 'campfire', ring: [12, 30], count: 3 },
-      { name: 'aurora', ring: [0, 6], count: 1 },
+      { name: 'icebreakerShip', ring: [34, 46], count: 1 },
+      { name: 'quonsetHut', ring: [24, 40], count: 4, clump: { n: [2, 3], spread: 8 } },
       { name: 'radarDome', ring: [30, 42], count: 2 },
-      { name: 'crystal', ring: [30, 50], count: 7, opts: { mat: 'ice', maxH: 5 } },
-      { name: 'rock', ring: [34, 50], count: 4, opts: { color: 0xd4e2ec } },
-      { name: 'antennaTower', ring: [44, 54], count: 3 },
-      { name: 'fuelTank', ring: [16, 34], count: 4 },
+      { name: 'pipelineRun', ring: [28, 44], count: 2 },
+      { name: 'snowcat', ring: [24, 40], count: 2 },
+      { name: 'rockArch', ring: [30, 46], count: 1, opts: { mat: 'ice' } },
+      { name: 'crystal', ring: [30, 50], count: 6, opts: { mat: 'ice', maxH: 5 } },
+      { name: 'rock', ring: [34, 50], count: 3, opts: { color: 0xd4e2ec } },
+      { name: 'antennaTower', ring: [44, 54], count: 2 },
+      { name: 'fuelTank', ring: [18, 32], count: 3 },
+      { name: 'campfire', ring: [14, 30], count: 3 },
+      { name: 'aurora', ring: [0, 6], count: 1 },
     ],
     ambient: 'snow',
-    bounds: 50,
+    bounds: 56,
     music: 'battleDay',
     layout: {
       clearing: 38,
@@ -304,8 +393,9 @@ export const THEMES = [
         { kind: 'road', style: 'dirt', count: 1, width: 6, color: 0x5a6c7c },  // plowed track
         { kind: 'ice', count: 1, width: 8, glow: 0x9be8ff },                   // frozen river
       ],
+      patches: [{ kind: 'ice', count: 2, r: [11, 16], glow: 0x9be8ff }],       // frozen lakes
       bridges: { count: 1, color: 0x788a9a, edge: 0x53c8ff },
-      hills: { count: 2, color: 0xc2d4e0, hMax: 4 },            // snow drifts
+      hills: { count: 3, color: 0xc2d4e0, hMax: 4 },            // snow drifts
       clusters: { count: 3, size: [2, 3] },
     },
   },
@@ -319,17 +409,24 @@ export const THEMES = [
     exposure: 1.02,
     ground: { color: 0xb08f62, road: false, accent: 0x2ee6c8 },
     buildings: { count: 7, tints: [0xbf9d6c, 0xb08c5c, 0xc8a878, 0xa89268], styles: [1], hRange: [3, 6], glow: false },
+    // the dig site whole: a monumental pylon gate over the processional way,
+    // sphinx guardians and colonnades half-swallowed by dunes, palms around
+    // a real oasis, the archaeologists' camp abandoned mid-season
     props: [
-      { name: 'campfire', ring: [12, 30], count: 3 },
-      { name: 'brokenStatue', ring: [28, 40], count: 2 },
-      { name: 'obelisk', ring: [30, 46], count: 3 },
-      { name: 'sarcophagus', ring: [28, 42], count: 3 },
-      { name: 'ruinColumn', ring: [26, 48], count: 7 },
-      { name: 'rock', ring: [32, 52], count: 5, opts: { color: 0xb59a70 } },
-      { name: 'crane', ring: [48, 55], count: 1 },
+      { name: 'greatGate', ring: [30, 40], count: 1 },
+      { name: 'sphinxStatue', ring: [26, 38], count: 2 },
+      { name: 'colonnade', ring: [24, 42], count: 3 },
+      { name: 'palmTree', ring: [22, 40], count: 5, clump: { n: [2, 4], spread: 6 } },
+      { name: 'brokenStatue', ring: [28, 40], count: 1 },
+      { name: 'obelisk', ring: [28, 46], count: 3 },
+      { name: 'sarcophagus', ring: [26, 42], count: 2 },
+      { name: 'ruinColumn', ring: [24, 48], count: 5 },
+      { name: 'digCamp', ring: [26, 40], count: 2 },
+      { name: 'campfire', ring: [14, 30], count: 2 },
+      { name: 'rock', ring: [32, 52], count: 4, opts: { color: 0xb59a70 } },
     ],
     ambient: 'sand',
-    bounds: 50,
+    bounds: 56,
     music: 'battleDay',
     layout: {
       clearing: 38, plaza: true,
@@ -337,8 +434,12 @@ export const THEMES = [
         { kind: 'road', style: 'stone', count: 1, width: 6, color: 0xc0a070 },  // processional way
         { kind: 'sand', count: 1, width: 8 },                                   // dry riverbed
       ],
+      patches: [
+        { kind: 'water', count: 1, r: [10, 14] },   // the oasis
+        { kind: 'sand', count: 2, r: [8, 12] },     // excavation pits
+      ],
       bridges: { count: 1, color: 0xa88c5c, edge: 0x2ee6c8 },
-      hills: { count: 2, color: 0xb59a70, hMax: 4 },            // dunes
+      hills: { count: 3, color: 0xb59a70, hMax: 4 },            // dunes
       clusters: { count: 3, size: [2, 3] },
     },
   },
@@ -352,16 +453,22 @@ export const THEMES = [
     exposure: 1.0,
     ground: { color: 0x53643a, road: false, accent: 0x62ff9a },
     buildings: { count: 6, tints: [0x93987c, 0x83886c, 0x8c9670], styles: [1], hRange: [3, 5], glow: false },
+    // deep canopy: serpent gates guard the flagstone way, liana curtains and
+    // fern thickets close the sight lines, swamp pools bog the unwary, and
+    // real FOREST walls grow in clumped groves
     props: [
-      { name: 'campfire', ring: [12, 30], count: 3 },
-      { name: 'canopyTree', ring: [30, 52], count: 6 },
-      { name: 'stoneIdol', ring: [28, 40], count: 2 },
-      { name: 'vineColumn', ring: [26, 44], count: 5 },
-      { name: 'tree', ring: [28, 50], count: 7 },
-      { name: 'rock', ring: [34, 50], count: 3, opts: { color: 0x7d8668 } },
+      { name: 'templeGate', ring: [26, 40], count: 2 },
+      { name: 'stoneIdol', ring: [26, 40], count: 2 },
+      { name: 'hangingVines', ring: [26, 44], count: 3 },
+      { name: 'canopyTree', ring: [26, 52], count: 6, clump: { n: [2, 3], spread: 8 } },
+      { name: 'tree', ring: [26, 48], count: 5, clump: { n: [2, 4], spread: 7 } },
+      { name: 'giantFern', ring: [22, 44], count: 5 },
+      { name: 'vineColumn', ring: [24, 44], count: 4 },
+      { name: 'campfire', ring: [14, 28], count: 2 },
+      { name: 'rock', ring: [32, 50], count: 3, opts: { color: 0x7d8668 } },
     ],
     ambient: 'leaves',
-    bounds: 48,
+    bounds: 54,
     music: 'battleDay',
     layout: {
       clearing: 36,
@@ -369,8 +476,12 @@ export const THEMES = [
         { kind: 'road', style: 'stone', count: 1, width: 4.5, color: 0x6e7458 },  // overgrown flagstones
         { kind: 'water', count: 1, width: 7 },                                    // jungle river
       ],
+      patches: [
+        { kind: 'mud', count: 2, r: [9, 13], color: 0x2e3a1a },  // swamp pools
+        { kind: 'water', count: 1, r: [8, 11] },
+      ],
       bridges: { count: 1, color: 0x686e50, edge: 0x62ff9a },   // mossy causeway
-      hills: { count: 2, color: 0x4c6038, hMax: 5 },
+      hills: { count: 3, color: 0x4c6038, hMax: 6 },
       clusters: { count: 2, size: [2, 3] },
     },
   },
@@ -384,21 +495,28 @@ export const THEMES = [
     exposure: 1.08,
     ground: { color: 0x30343c, road: false, accent: 0x53e8ff },
     buildings: { count: 8, tints: [0x66738a, 0x76839a, 0x5a6880, 0x8892a4], styles: [2, 3], hRange: [3, 7], glow: true },
+    // VALKYRIE's live flight deck: a shuttle on its pad, sun-tracking solar
+    // wings, manipulator arms mid-task, cryo tanks venting — all threaded
+    // by an elevated mag-track loop with glowing rails
     props: [
-      { name: 'landingPad', ring: [28, 38], count: 2 },
-      { name: 'conduit', ring: [26, 42], count: 4 },
+      { name: 'shuttle', ring: [28, 38], count: 1 },
+      { name: 'landingPad', ring: [24, 36], count: 2 },
+      { name: 'solarWing', ring: [28, 44], count: 3 },
+      { name: 'roboticArm', ring: [24, 40], count: 2 },
+      { name: 'cryoTank', ring: [22, 36], count: 3 },
+      { name: 'cargoPods', ring: [28, 46], count: 3, clump: { n: [2, 3], spread: 6 } },
+      { name: 'conduit', ring: [24, 42], count: 4 },
       { name: 'dishArray', ring: [40, 52], count: 2 },
-      { name: 'cargoPods', ring: [30, 46], count: 3 },
-      { name: 'antennaTower', ring: [42, 52], count: 3 },
-      { name: 'fuelTank', ring: [16, 34], count: 4 },
+      { name: 'antennaTower', ring: [44, 54], count: 2 },
       { name: 'billboard', ring: [46, 54], count: 2, opts: { color: 0x62ff9a } },
     ],
     ambient: 'motes',
-    bounds: 48,
+    bounds: 52,
     music: 'battleNight',
     layout: {
       clearing: 38, plaza: true,
       lanes: [{ kind: 'stripe', count: 2, width: 5, glow: 0x53e8ff }],  // deck traffic lanes
+      viaduct: { h: 7, w: 7, color: 0x3c4450, edge: 0x62ff9a },         // mag-track loop
       bridges: { count: 1, color: 0x3c4450, edge: 0x62ff9a },           // elevated walkway
       hills: { count: 2, color: 0x444c58, style: 'deck', edge: 0x53e8ff, hMax: 3.2 },
       clusters: { count: 3, size: [2, 4] },

@@ -1,17 +1,26 @@
 // Terrain: the arena's ground-feature layer, built per theme from
-// theme.layout. Three kinds of feature, all tiling-safe on the toroidal cell:
+// theme.layout. Five kinds of feature, all tiling-safe on the toroidal cell:
 //
 // - LANES: roads / streams (lava, water, oil, crystal veins, ice...) painted
 //   into a cell-periodic ground overlay. A lane's centerline is
 //   at + amp*sin(TAU*along/P + phase) — periodic in the cell period P by
 //   construction, so any lane leaving one edge re-enters exactly opposite
 //   (the tiling contract). Hazard lanes are live: lava burns, water/oil bogs.
+// - PATCHES: circular ground features (lakes, lava pools, swamp,
+//   ice sheets, sand pits, park lawns) painted into the same overlay at all
+//   9 wrap offsets, so a lake straddling a cell edge re-enters opposite.
+//   Hazard patches are live exactly like hazard lanes.
 // - HILLS: walkable truncated-cone mounds. The collision surface IS the
 //   visual cone, so mechs walk up/down them smoothly and props placed on
 //   them sit exactly on the slope (arena adds terrain height to prop Y).
 // - BRIDGES: causeway spans across streams/roads — a row of full-height
 //   destructible blocks with ramped ends. Mechs walk over seamlessly; blow
 //   a segment out and there's a gap to fall through.
+// - VIADUCT: a raised highway/monorail deck that follows its own periodic
+//   centerline around the WHOLE cell — an endless elevated loop. Walk UNDER
+//   it anywhere; get ON it at the two ground-level ramp dips; blow out any
+//   deck segment and there's a hole in the sky road. Its support pylons are
+//   placed by the arena as solid destructible props (terrain.pylonSpots).
 //
 // Solid features are ghost-cloned into the 8 neighbor cells (like props);
 // the overlay tiles for free because its texture repeats at the cell period.
@@ -36,6 +45,12 @@ const KINDS = {
   mud:     { hazard: 'mud',   minR: 0 },   // bog — drags harder than oil
 };
 
+// patch kinds → live hazard (same behaviors as lanes)
+const PATCH_HAZ = {
+  water: 'water', lake: 'water', lava: 'lava', acid: 'acid',
+  oil: 'oil', mud: 'mud', ice: null, sand: null, grass: null, ash: null,
+};
+
 const hex = (c) => '#' + new THREE.Color(c).getHexString();
 
 export class Terrain {
@@ -48,12 +63,17 @@ export class Terrain {
     const L = this.L = theme.layout || {};
     this.clearing = L.clearing ?? 38; // spawn plaza: building/hazard-free
     this.lanes = [];
+    this.patches = [];
     this.hills = [];
     this.bridges = [];
+    this.viaduct = null;
+    this.pylonSpots = [];   // arena places solid destructible piers here
     this.overlayMat = null;
     this.t = 0;
 
     this.buildLanes(rng);
+    this.buildPatches(rng);
+    this.buildViaduct(rng);
     this.buildHills(rng);
     this.buildBridges(rng);
     this.buildOverlay();
@@ -88,6 +108,49 @@ export class Terrain {
       if (Math.abs(perp) < br.w / 2 + margin && Math.abs(along) < br.len / 2 + margin) return br;
     }
     return null;
+  }
+
+  // patch containing (x,z), widened by margin. Returns the patch or null.
+  onPatch(x, z, margin = 0) {
+    for (const p of this.patches) {
+      const d = Math.hypot(this.wrapD(x - p.x), this.wrapD(z - p.z));
+      if (d < p.r + margin) return p;
+    }
+    return null;
+  }
+
+  // viaduct-local coords: along the deck's axis (folded to one cell) and
+  // signed distance from its curving centerline
+  vLocal(x, z) {
+    const v = this.viaduct;
+    const raw = v.lane.axis === 'z' ? z : x;
+    const perpRaw = v.lane.axis === 'z' ? x : z;
+    const along = this.wrapD(raw);
+    return { along, perp: this.wrapD(perpRaw - this.laneCenter(v.lane, along)) };
+  }
+
+  // deck height profile ignoring destruction: full height except the two
+  // ramp dips, where it descends to ground level (the on/off ramps)
+  vProfile(along) {
+    const v = this.viaduct;
+    let h = v.H;
+    for (const rc of v.ramps) {
+      const d = Math.abs(this.wrapD(along - rc));
+      if (d < v.rampL) h = Math.min(h, v.H * (d / v.rampL));
+    }
+    return h;
+  }
+
+  vSegIdx(along) {
+    const v = this.viaduct;
+    const i = Math.floor((along + this.P / 2) / v.segLen);
+    return clamp(i, 0, v.nSeg - 1);
+  }
+
+  // live deck surface height (0 where a segment has been destroyed)
+  vSurface(along) {
+    const v = this.viaduct;
+    return v.segs[this.vSegIdx(along)].alive ? this.vProfile(along) : 0;
   }
 
   // ---- generation ----
@@ -131,6 +194,70 @@ export class Terrain {
     }
   }
 
+  // circular ground features. Spec: {kind, count, r:[min,max], ring?, glow?,
+  // color?, list?:[{x,z,r}]}. Hazard patches keep clear of the spawn plaza.
+  buildPatches(rng) {
+    for (const spec of this.L.patches || []) {
+      const hazard = PATCH_HAZ[spec.kind] ?? null;
+      const mk = (x, z, r) => this.patches.push({
+        kind: spec.kind, x, z, r, hazard,
+        glow: spec.glow || null, color: spec.color || null,
+      });
+      if (spec.list) {                       // authored: exact placement
+        for (const p of spec.list) mk(p.x, p.z, p.r ?? 9);
+        continue;
+      }
+      for (let i = 0; i < (spec.count || 1); i++) {
+        for (let tries = 0; tries < 40; tries++) {
+          const r = rng.range(spec.r?.[0] ?? 7, spec.r?.[1] ?? 12);
+          const rMin = spec.ring?.[0] ?? (this.clearing + (hazard ? r + 3 : r * 0.6));
+          const rMax = spec.ring?.[1] ?? this.B * 1.05;
+          const a = rng.range(0, TAU), rr = rng.range(rMin, rMax);
+          const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+          if (hazard && Math.hypot(x, z) < this.clearing + r + 2) continue;
+          if (this.onLane(x, z, r * 0.55)) continue;
+          if (this.patches.some((p) =>
+            Math.hypot(this.wrapD(p.x - x), this.wrapD(p.z - z)) < p.r + r + 7)) continue;
+          mk(x, z, r);
+          break;
+        }
+      }
+    }
+  }
+
+  // one endless elevated loop per arena at most. Spec: {h?, w?, amp?, axis?,
+  // at?, phase?, rampL?, color?, edge?, pylonEvery?}
+  buildViaduct(rng) {
+    const V = this.L.viaduct;
+    if (!V) return;
+    const axis = V.axis || (rng.chance(0.5) ? 'x' : 'z');
+    const amp = V.amp ?? rng.range(6, 12);
+    const w = V.w ?? 7.5, half = w / 2;
+    const minAt = this.clearing + amp + half + 5;
+    const at = V.at ?? (rng.chance(0.5) ? 1 : -1) * rng.range(minAt, Math.max(minAt + 6, this.B * 0.8));
+    const H = V.h ?? 6.8, rampL = V.rampL ?? 14;
+    const nSeg = Math.max(24, Math.round(this.P / 6));
+    const r0 = rng.range(-this.P / 2, this.P / 2);
+    this.viaduct = {
+      lane: { at, amp, phase: V.phase ?? rng.range(0, TAU), axis, half },
+      H, rampL, w, nSeg, segLen: this.P / nSeg,
+      ramps: [r0, this.wrapD(r0 + this.P / 2)],
+      color: V.color ?? 0x3a3f46, edge: V.edge ?? null,
+      segs: Array.from({ length: nSeg }, () => ({ alive: true, hp: 90, meshes: [] })),
+    };
+    // pier spots under the full-height deck run (arena turns these into
+    // solid destructible props so the loop is held up by real columns)
+    const every = V.pylonEvery ?? 3;
+    for (let i = 0; i < nSeg; i += every) {
+      const along = -this.P / 2 + (i + 0.5) * this.viaduct.segLen;
+      if (this.vProfile(along) < H * 0.85) continue;
+      const c = this.laneCenter(this.viaduct.lane, along);
+      this.pylonSpots.push({
+        x: axis === 'z' ? c : along, z: axis === 'z' ? along : c, h: H, axis,
+      });
+    }
+  }
+
   buildHills(rng) {
     const H = this.L.hills;
     if (!H) return;
@@ -156,6 +283,8 @@ export class Terrain {
         const r = rng.range(this.clearing + R + 3, this.B * 0.95);
         const x = Math.cos(a) * r, z = Math.sin(a) * r;
         if (this.onLane(x, z, R * 0.7)) continue;
+        if (this.onPatch(x, z, R * 0.8)) continue;
+        if (this.viaduct && Math.abs(this.vLocal(x, z).perp) < this.viaduct.w / 2 + R * 0.7) continue;
         if (this.hills.some((o) => Math.hypot(o.x - x, o.z - z) < o.R + R + 8)) continue;
         this.hills.push({ x, z, R, Rtop, H: h });
         break;
@@ -235,6 +364,8 @@ export class Terrain {
         if (Math.abs(aC) + halfSpan > this.P / 2 - 4 || Math.abs(pC) + w > this.P / 2 - 4) continue;
         if (this.bridges.some((o) => Math.hypot(o.x - x, o.z - z) < 30)) continue;
         if (this.hills.some((o) => Math.hypot(o.x - x, o.z - z) < o.R + len / 2)) continue;
+        if (this.onPatch(x, z, len / 2)) continue;
+        if (this.viaduct && Math.abs(this.vLocal(x, z).perp) < this.viaduct.w / 2 + len / 2) continue;
         this.addBridge(x, z, axis, flatNeed);
         break;
       }
@@ -273,9 +404,11 @@ export class Terrain {
     return h;
   }
 
-  // solid-volume test (projectiles): inside a hill cone or causeway block
+  // solid-volume test (projectiles): inside a hill cone, causeway block, or
+  // the viaduct's deck slab (shots pass freely UNDER the raised deck)
   pointHits(p) {
-    if (p.y > 8 || p.y < -0.5) return null;
+    const maxY = this.viaduct ? Math.max(8, this.viaduct.H + 1.6) : 8;
+    if (p.y > maxY || p.y < -0.5) return null;
     for (const hl of this.hills) {
       const d = Math.hypot(this.wrapD(p.x - hl.x), this.wrapD(p.z - hl.z));
       if (d < hl.R && p.y <= this.hillSurface(hl, d)) return { terrain: 'hill' };
@@ -284,6 +417,17 @@ export class Terrain {
       const { along, perp } = this.brLocal(br, p.x, p.z);
       if (Math.abs(perp) < br.w / 2 && Math.abs(along) < br.len / 2 &&
           p.y <= this.brSurface(br, along)) return { terrain: 'bridge' };
+    }
+    if (this.viaduct) {
+      const v = this.viaduct;
+      const { along, perp } = this.vLocal(p.x, p.z);
+      if (Math.abs(perp) < v.w / 2) {
+        const h = this.vSurface(along);
+        // slab is ~1.1 thick under its surface; ramp wedges are solid fill
+        if (h > 0.05 && ((p.y <= h && p.y >= h - 1.1) || (h < v.H * 0.92 && p.y <= h))) {
+          return { terrain: 'viaduct' };
+        }
+      }
     }
     return null;
   }
@@ -329,6 +473,27 @@ export class Terrain {
         }
       }
     }
+    // viaduct: stand on the live deck, run the ramp dips on and off it,
+    // walk freely UNDERNEATH the full-height spans
+    if (this.viaduct) {
+      const v = this.viaduct;
+      const { along, perp } = this.vLocal(f.pos.x, f.pos.z);
+      if (Math.abs(perp) < v.w / 2 + f.radius) {
+        const h = this.vSurface(along);
+        if (h > 0.05) {
+          if (f.pos.y >= h - 1.4 && f.vel.y <= 0.01 && f.pos.y <= h + 0.9 &&
+              Math.abs(perp) < v.w / 2 + f.radius * 0.4) {
+            support = Math.max(support, h);
+          } else if (h < v.H * 0.92 && f.pos.y < h - 0.25) {
+            // ramp wedge is solid fill — shoulder a grounded mech aside
+            const pen = v.w / 2 + f.radius - Math.abs(perp);
+            const pz = v.lane.axis === 'z' ? 'x' : 'z';
+            f.pos[pz] += Math.sign(perp || 1) * pen;
+            f.vel[pz] *= 0.4;
+          }
+        }
+      }
+    }
     if (support > -Infinity && f.pos.y <= support + 0.9) {
       const fallSpeed = -f.vel.y;
       f.pos.y = support;
@@ -343,9 +508,28 @@ export class Terrain {
     }
   }
 
-  // explosions / melee vs bridge segments
+  // explosions / melee vs bridge + viaduct segments
   damageSphere(pos, radius, dmg) {
     let destroyed = 0;
+    if (this.viaduct) {
+      const v = this.viaduct;
+      const { along, perp } = this.vLocal(pos.x, pos.z);
+      if (Math.abs(perp) < v.w / 2 + radius) {
+        const span = radius + v.segLen;
+        for (let off = -span; off <= span; off += v.segLen * 0.5) {
+          const a = this.wrapD(along + off);
+          const seg = v.segs[this.vSegIdx(a)];
+          if (!seg.alive) continue;
+          const segMid = -this.P / 2 + (this.vSegIdx(a) + 0.5) * v.segLen;
+          const h = this.vProfile(segMid);
+          const d = Math.sqrt(this.wrapD(along - segMid) ** 2 + (pos.y - h * 0.85) ** 2 + perp * perp * 0.25);
+          if (d < radius + v.segLen * 0.6) {
+            seg.hp -= dmg * Math.max(0.3, 1 - d / (radius + v.segLen));
+            if (seg.hp <= 0) { this.killVSeg(seg, this.vSegIdx(a)); destroyed++; }
+          }
+        }
+      }
+    }
     for (const br of this.bridges) {
       const { along, perp } = this.brLocal(br, pos.x, pos.z);
       if (Math.abs(perp) > br.w / 2 + radius || Math.abs(along) > br.flat / 2 + radius ||
@@ -399,6 +583,33 @@ export class Terrain {
     }
   }
 
+  // a destroyed viaduct segment drops as rubble; no cascade — the loop is a
+  // ring, each span carries itself between piers
+  killVSeg(seg, idx, quiet = false) {
+    if (!seg.alive) return;
+    seg.alive = false;
+    for (const m of seg.meshes) m.visible = false;
+    const v = this.viaduct;
+    const segMid = -this.P / 2 + (idx + 0.5) * v.segLen;
+    const c = this.laneCenter(v.lane, segMid);
+    const wx = v.lane.axis === 'z' ? c : segMid;
+    const wz = v.lane.axis === 'z' ? segMid : c;
+    const h = this.vProfile(segMid);
+    _c.set(v.color);
+    for (let k = 0; k < 3; k++) {
+      this.arena.destructo.spawnRubble(
+        wx + rand(-1.5, 1.5), h * rand(0.5, 0.95), wz + rand(-1.5, 1.5),
+        v.w * rand(0.22, 0.36), rand(0.5, 0.9), v.segLen * rand(0.35, 0.55),
+        rand(-3, 3), rand(-1, 1), rand(-3, 3), _c.clone()
+      );
+    }
+    const w = this.arena.world;
+    if (w && !quiet) {
+      w.effects.dustPuff(_v.set(wx, h * 0.6, wz), 9, 0x8a8478);
+      w.audio?.play('crumble');
+    }
+  }
+
   // ---- ground hazards: lava burns, water/oil bogs down ----
   updateHazards(dt) {
     const w = this.arena.world;
@@ -406,9 +617,14 @@ export class Terrain {
     for (const f of w.fighters) {
       if (!f.alive || !f.grounded || f.pos.y > 0.5) continue;
       const lane = this.onLane(f.pos.x, f.pos.z, -0.4);
-      if (!lane || !lane.hazard) continue;
-      if (lane.hazard === 'lava' || lane.hazard === 'acid') {
-        const acid = lane.hazard === 'acid';
+      let hazard = lane?.hazard;
+      if (!hazard) {
+        const patch = this.onPatch(f.pos.x, f.pos.z, -0.4);
+        hazard = patch?.hazard;
+      }
+      if (!hazard) continue;
+      if (hazard === 'lava' || hazard === 'acid') {
+        const acid = hazard === 'acid';
         f._lavaT = (f._lavaT ?? 0) - dt;
         if (f._lavaT <= 0) {
           f._lavaT = 0.5;
@@ -424,13 +640,13 @@ export class Terrain {
           }
         }
       } else { // water / oil / mud: heavy going
-        const drag = lane.hazard === 'mud' ? 3.2 : lane.hazard === 'oil' ? 2.6 : 1.9;
+        const drag = hazard === 'mud' ? 3.2 : hazard === 'oil' ? 2.6 : 1.9;
         const k = Math.max(0, 1 - drag * dt);
         f.vel.x *= k; f.vel.z *= k;
         f._splashT = (f._splashT ?? 0) - dt;
         if (f._splashT <= 0 && Math.hypot(f.vel.x, f.vel.z) > 5) {
           f._splashT = 0.22;
-          if (lane.hazard === 'water') w.effects.splash?.(_v.set(f.pos.x, 0.4, f.pos.z), 5, 4);
+          if (hazard === 'water') w.effects.splash?.(_v.set(f.pos.x, 0.4, f.pos.z), 5, 4);
           else w.effects.dustPuff(f.pos, 2, 0x14161a);
         }
       }
@@ -454,6 +670,22 @@ export class Terrain {
           w.effects.glows.emit(x, rand(0.1, 0.5), z, rand(-0.6, 0.6), rand(1.5, 4), rand(-0.6, 0.6),
             { life: rand(1, 2), size: rand(0.3, 0.7), color: Math.random() < 0.3 ? 0xffd23c : 0xff6a20, alpha: 0.85, drag: 0.4 });
         }
+        // lava lakes simmer too; water patches throw the odd glint
+        for (const p of this.patches) {
+          if (Math.random() > 0.45) continue;
+          const a = rand(TAU), rr = rand(0, p.r * 0.8);
+          const x = p.x + Math.cos(a) * rr, z = p.z + Math.sin(a) * rr;
+          if (p.hazard === 'lava' || p.hazard === 'acid') {
+            const acid = p.hazard === 'acid';
+            w.effects.glows.emit(x, rand(0.1, 0.5), z, rand(-0.6, 0.6), rand(1.5, 4), rand(-0.6, 0.6),
+              { life: rand(1, 2), size: rand(0.3, 0.7),
+                color: acid ? (Math.random() < 0.4 ? 0xd6ff8c : 0x7bff2a) : (Math.random() < 0.3 ? 0xffd23c : 0xff6a20),
+                alpha: 0.85, drag: 0.4 });
+          } else if (p.hazard === 'water' && Math.random() < 0.25) {
+            w.effects.glows.emit(x, 0.15, z, 0, rand(0.2, 0.6), 0,
+              { life: rand(0.6, 1.2), size: rand(0.2, 0.4), color: 0x9fd8e8, alpha: 0.5 });
+          }
+        }
       }
     }
     // painted glow (canals, veins, deck stripes) breathes gently
@@ -469,6 +701,8 @@ export class Terrain {
       if (Math.hypot(x, z) < this.clearing + 6) return false;
       if (Math.abs(x) > this.P / 2 - 12 || Math.abs(z) > this.P / 2 - 12) return false;
       if (this.onLane(x, z, 6.5)) return false;
+      if (this.onPatch(x, z, 6)) return false;
+      if (this.viaduct && Math.abs(this.vLocal(x, z).perp) < this.viaduct.w / 2 + 6) return false;
       if (this.heightAt(x, z) > 0.1) return false;
       if (this.nearBridge(x, z, 7)) return false;
       return sites.every((s) => Math.hypot(s.x - x, s.z - z) > minD);
@@ -596,6 +830,56 @@ export class Terrain {
       group.add(bGrp);
     });
 
+    // viaduct: a curve-following run of deck slabs with railings, dipping to
+    // ground at the two ramps. Piers are placed separately by the arena as
+    // solid destructible props (pylonSpots).
+    if (this.viaduct) {
+      const v = this.viaduct;
+      const mat = new THREE.MeshStandardMaterial({ color: v.color, roughness: 0.72, metalness: 0.3 });
+      const railMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(v.color).multiplyScalar(0.55), roughness: 0.55, metalness: 0.55,
+      });
+      const edgeMat = v.edge ? new THREE.MeshStandardMaterial({
+        color: v.edge, emissive: v.edge, emissiveIntensity: 1.6,
+      }) : null;
+      const laneWorld = (along) => {
+        const c = this.laneCenter(v.lane, along);
+        return v.lane.axis === 'z' ? { x: c, z: along } : { x: along, z: c };
+      };
+      for (let i = 0; i < v.nSeg; i++) {
+        const a0 = -this.P / 2 + i * v.segLen, a1 = a0 + v.segLen;
+        const h0 = this.vProfile(a0), h1 = this.vProfile(a1);
+        const p0 = laneWorld(a0), p1 = laneWorld(a1);
+        const dx = p1.x - p0.x, dz = p1.z - p0.z;
+        const run = Math.hypot(dx, dz);
+        const len = Math.hypot(run, h1 - h0) * 1.03;
+        const sGrp = new THREE.Group();
+        sGrp.userData.vSegKey = i;
+        const slab = new THREE.Mesh(new THREE.BoxGeometry(v.w, 1.0, len), mat);
+        slab.castShadow = true;
+        slab.receiveShadow = true;
+        slab.rotation.x = -Math.atan2(h1 - h0, run);
+        slab.position.y = -0.5;
+        sGrp.add(slab);
+        for (const sx of [-1, 1]) {
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.8, len * 0.96), railMat);
+          rail.position.set(sx * (v.w / 2 - 0.2), 0.4, 0);
+          rail.rotation.x = slab.rotation.x;
+          sGrp.add(rail);
+          if (edgeMat) {
+            const strip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, len * 0.96), edgeMat);
+            strip.position.set(sx * (v.w / 2 - 0.2), 0.86, 0);
+            strip.rotation.x = slab.rotation.x;
+            sGrp.add(strip);
+          }
+        }
+        sGrp.position.set((p0.x + p1.x) / 2, (h0 + h1) / 2, (p0.z + p1.z) / 2);
+        sGrp.rotation.y = Math.atan2(dx, dz);
+        v.segs[i].meshes.push(sGrp);
+        group.add(sGrp);
+      }
+    }
+
     if (!group.children.length) { this.group = null; return; }
     this.group = group;
     const { scene, objects } = this.arena;
@@ -615,6 +899,9 @@ export class Terrain {
             const [bi, si] = n.userData.segKey.split(':').map(Number);
             this.bridges[bi]?.segs[si]?.meshes.push(n);
           }
+          if (n.userData?.vSegKey !== undefined) {
+            this.viaduct?.segs[n.userData.vSegKey]?.meshes.push(n);
+          }
         });
       }
     }
@@ -622,12 +909,13 @@ export class Terrain {
 
   // ---- painted ground overlay (cell-periodic, so it tiles by definition) ----
   buildOverlay() {
-    if (!this.lanes.length && !this.L.plaza) return;
+    if (!this.lanes.length && !this.patches.length && !this.viaduct && !this.L.plaza) return;
     const S = 2048, P = this.P, m2px = S / P;
     const cv = document.createElement('canvas');
     cv.width = cv.height = S;
     const ctx = cv.getContext('2d');
-    const needGlow = this.lanes.some((l) => l.glow || l.hazard === 'lava' || l.hazard === 'acid' || l.kind === 'crystal');
+    const needGlow = this.lanes.some((l) => l.glow || l.hazard === 'lava' || l.hazard === 'acid' || l.kind === 'crystal')
+      || this.patches.some((p) => p.glow || p.hazard === 'lava' || p.hazard === 'acid');
     let ecv = null, ectx = null;
     if (needGlow) {
       ecv = document.createElement('canvas');
@@ -755,6 +1043,95 @@ export class Terrain {
         default:
           strokeLane(ctx, l, W, base || '#202226', 0.7);
       }
+    }
+
+    // ---- patches: organic blobs stamped at all 9 wrap offsets ----
+    // each blob is 3 jittered circles so shorelines don't read as compasses
+    const rng = this.rng;
+    const fillPatch = (c, p, radiusM, color, alpha, lobes) => {
+      if (!c) return;
+      c.save();
+      c.fillStyle = color;
+      c.globalAlpha = alpha;
+      for (const ox of [-S, 0, S]) {
+        for (const oy of [-S, 0, S]) {
+          for (const lb of lobes) {
+            c.beginPath();
+            c.arc((p.x / P + 0.5) * S + ox + lb.dx * m2px,
+              (p.z / P + 0.5) * S + oy + lb.dz * m2px,
+              Math.max(2, radiusM * lb.s * m2px), 0, TAU);
+            c.fill();
+          }
+        }
+      }
+      c.restore();
+    };
+    for (const p of this.patches) {
+      const lobes = [
+        { dx: 0, dz: 0, s: 1 },
+        { dx: rng.range(-0.3, 0.3) * p.r, dz: rng.range(-0.3, 0.3) * p.r, s: rng.range(0.55, 0.75) },
+        { dx: rng.range(-0.35, 0.35) * p.r, dz: rng.range(-0.35, 0.35) * p.r, s: rng.range(0.5, 0.7) },
+      ];
+      const inner = [{ dx: lobes[1].dx * 0.5, dz: lobes[1].dz * 0.5, s: 1 }];
+      const base = p.color ? hex(p.color) : null;
+      switch (p.kind) {
+        case 'water': case 'lake':
+          fillPatch(ctx, p, p.r * 1.1, '#c2c9c2', 0.26, lobes);   // pale banks
+          fillPatch(ctx, p, p.r, base || '#173341', 0.9, lobes);
+          fillPatch(ctx, p, p.r * 0.68, '#2e86b0', 0.7, inner);
+          fillPatch(ctx, p, p.r * 0.3, '#7fd4e8', 0.28, inner);
+          if (p.glow) fillPatch(ectx, p, p.r * 0.4, hex(p.glow), 0.5, inner);
+          break;
+        case 'lava':
+          fillPatch(ctx, p, p.r * 1.15, '#100804', 0.92, lobes);
+          fillPatch(ctx, p, p.r * 0.92, '#2a0f04', 0.95, lobes);
+          fillPatch(ectx, p, p.r * 0.85, '#7a2606', 1, lobes);
+          fillPatch(ectx, p, p.r * 0.5, '#ff5a10', 1, inner);
+          fillPatch(ectx, p, p.r * 0.2, '#ffc23c', 1, inner);
+          break;
+        case 'acid':
+          fillPatch(ctx, p, p.r * 1.12, '#0a1206', 0.9, lobes);
+          fillPatch(ctx, p, p.r * 0.9, '#123008', 0.95, lobes);
+          fillPatch(ectx, p, p.r * 0.82, '#2c7a10', 1, lobes);
+          fillPatch(ectx, p, p.r * 0.45, '#7bff2a', 1, inner);
+          break;
+        case 'oil':
+          fillPatch(ctx, p, p.r, base || '#0b0c10', 0.92, lobes);
+          fillPatch(ctx, p, p.r * 0.55, '#1c1f26', 0.8, inner);
+          fillPatch(ctx, p, p.r * 0.24, '#2c3a44', 0.35, inner);
+          break;
+        case 'mud':
+          fillPatch(ctx, p, p.r * 1.1, '#241a10', 0.5, lobes);
+          fillPatch(ctx, p, p.r, base || '#332413', 0.9, lobes);
+          fillPatch(ctx, p, p.r * 0.55, '#241809', 0.75, inner);
+          break;
+        case 'ice':
+          fillPatch(ctx, p, p.r, base || '#bfe2f2', 0.62, lobes);
+          fillPatch(ctx, p, p.r * 0.6, '#e6f6ff', 0.5, inner);
+          if (p.glow) fillPatch(ectx, p, p.r * 0.5, hex(p.glow), 0.35, inner);
+          break;
+        case 'sand':
+          fillPatch(ctx, p, p.r * 1.12, '#00000030', 1, lobes);
+          fillPatch(ctx, p, p.r, base || '#8a704c', 0.55, lobes);
+          break;
+        case 'ash':
+          fillPatch(ctx, p, p.r * 1.1, '#00000040', 1, lobes);
+          fillPatch(ctx, p, p.r, base || '#4a443e', 0.6, lobes);
+          fillPatch(ctx, p, p.r * 0.5, '#5a544c', 0.4, inner);
+          break;
+        case 'grass':
+          fillPatch(ctx, p, p.r, base || '#3d5c2c', 0.55, lobes);
+          fillPatch(ctx, p, p.r * 0.6, '#476b30', 0.45, inner);
+          break;
+        default:
+          fillPatch(ctx, p, p.r, base || '#202226', 0.6, lobes);
+      }
+    }
+
+    // viaduct: a soft ground shadow under the loop so the raised deck reads
+    // from the split-screen top-down-ish camera
+    if (this.viaduct) {
+      strokeLane(ctx, this.viaduct.lane, this.viaduct.w * 1.15, '#000000', 0.2);
     }
 
     // spawn plaza: painted rings so the clearing reads as designed space —
