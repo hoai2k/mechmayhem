@@ -28,6 +28,22 @@ function makeSpinner(color = 0x8fd8ff) {
   g.position.y = 4.2; // float at torso height
   return g;
 }
+// Soft radial bloom used behind a mech the instant its player locks in. A
+// fresh texture per burst — clearMechs() disposes the sprites it owns, and a
+// shared map would be disposed out from under the next one.
+function glowTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,0.95)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.35)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(cv);
+}
+
 function disposeSpinner(g) {
   g.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
 }
@@ -66,12 +82,13 @@ export class MenuStage {
   // spawn one display unit at pos with base yaw rotY. In ?debug=3d with a GLB
   // available, shows a spinner and swaps the GLB in when it loads (never the
   // procedural stand-in); otherwise builds the procedural mech immediately.
-  spawnUnit(def, pos, rotY = 0) {
+  spawnUnit(def, pos, rotY = 0, meta = null) {
     const gen = this._gen;
+    const tag = (u) => (meta ? Object.assign(u, meta) : u);
     if (is3dMode() && manifestHasGlb(def.id)) {
       const spin = makeSpinner(def.colors?.glow ?? 0x8fd8ff);
       spin.position.set(pos.x, pos.y + 4.2, pos.z);
-      const unit = { group: spin, isSpinner: true };
+      const unit = tag({ group: spin, isSpinner: true });
       this.group.add(spin);
       this.mechs.push(unit);
       createMech(def).then((glb) => {
@@ -84,11 +101,15 @@ export class MenuStage {
         this.group.remove(spin);
         disposeSpinner(spin);
         this.group.add(glb.group);
-        this.mechs[idx] = glb;
+        // the placeholder may have been spun / locked while the GLB loaded —
+        // carry that state over, or the flourish vanishes on swap
+        this.mechs[idx] = Object.assign(tag(glb), {
+          yawOffset: unit.yawOffset || 0, fx: unit.fx || null,
+        });
       });
       return unit;
     }
-    const mech = buildMech(def);
+    const mech = tag(buildMech(def));
     mech.animator = new Animator(mech);
     mech.group.position.copy(pos);
     mech.group.rotation.y = rotY;
@@ -137,7 +158,9 @@ export class MenuStage {
     ctx.fillStyle = '#eaf6ff';
     ctx.fillText('?', 64, 70);
     const tex = new THREE.CanvasTexture(cv);
-    const RANDOM_TINTS = [0x9fd8ef, 0xff7a28, 0x3fc8ff, 0x6a7280]; // stock/ember/tide/midnight
+    // one tint per SCHEME_NAMES entry, in the same order
+    const RANDOM_TINTS = [0x9fd8ef, 0xff7a28, 0x3fc8ff, 0x6a7280,
+      0xc07aff, 0x5fe08a, 0xffa62b, 0xff8fd0, 0xc98b4a];
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({
       map: tex, transparent: true, depthWrite: false,
       color: RANDOM_TINTS[variant % RANDOM_TINTS.length],
@@ -170,7 +193,8 @@ export class MenuStage {
         // spawnUnit shows the procedural body, or (in ?debug=3d) a spinner
         // that swaps to the GLB when it loads — the exact body the battle uses
         const def = applyColorScheme(ROSTER_BY_ID[e.id], e.variant || 0);
-        this.spawnUnit(def, new THREE.Vector3(x, 0, 0), 0);
+        this.spawnUnit(def, new THREE.Vector3(x, 0, 0), 0,
+          { slotIdx: e.slotIdx, stageX: x, yawOffset: 0, fx: null });
       }
       if (n > 1) {
         const ring = new THREE.Mesh(
@@ -194,6 +218,32 @@ export class MenuStage {
     const tx = cx - halfW * 0.12;
     cam.position.set(n === 1 ? tx - 1 : tx, n > 2 ? 8 : 6.5, dist);
     cam.lookAt(tx, 5, 0);
+  }
+
+  unitFor(slotIdx) { return this.mechs.find((m) => m.slotIdx === slotIdx) || null; }
+
+  // LOCK-IN FLOURISH: the mech whips around twice while a glow blooms behind
+  // it, so a lock reads instantly across a four-player table.
+  lockFx(slotIdx) {
+    const m = this.unitFor(slotIdx);
+    if (!m) return;
+    m.fx = { t: 0, dur: 0.72 };
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture(), transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, color: PLAYER_COLORS[slotIdx % 4], opacity: 0,
+    }));
+    spr.position.set(m.stageX ?? m.group.position.x, 4.6, -1.6);
+    spr.scale.setScalar(6);
+    this.group.add(spr);
+    this.extras = this.extras || [];
+    this.extras.push(spr);
+    m.fx.glow = spr;
+  }
+
+  // right stick held on a locked pick: drive that mech's yaw directly
+  setYaw(slotIdx, delta) {
+    const m = this.unitFor(slotIdx);
+    if (m) m.yawOffset = (m.yawOffset || 0) + delta;
   }
 
   clearMechs() {
@@ -228,7 +278,30 @@ export class MenuStage {
         s.core.scale.setScalar(0.85 + Math.sin(s.t * 4) * 0.15);
         continue;
       }
-      if (this.previewId) m.group.rotation.y = Math.sin(this.t * 0.4) * 0.55 + 0.15;
+      if (m.fx) {
+        // two fast turns, easing out; the glow blooms and fades with them
+        m.fx.t += dt;
+        const p = Math.min(1, m.fx.t / m.fx.dur);
+        const e = 1 - (1 - p) * (1 - p) * (1 - p);
+        m.group.rotation.y = (m.yawOffset || 0) + e * Math.PI * 4;
+        if (m.fx.glow) {
+          m.fx.glow.material.opacity = Math.sin(p * Math.PI) * 0.85;
+          m.fx.glow.scale.setScalar(6 + e * 5);
+        }
+        if (p >= 1) {
+          if (m.fx.glow) {
+            this.group.remove(m.fx.glow);
+            m.fx.glow.material.map?.dispose();
+            m.fx.glow.material.dispose();
+            this.extras = (this.extras || []).filter((s) => s !== m.fx.glow);
+          }
+          m.fx = null;
+        }
+      } else if (m.yawOffset) {
+        m.group.rotation.y = m.yawOffset; // player is steering this one
+      } else if (this.previewId) {
+        m.group.rotation.y = Math.sin(this.t * 0.4) * 0.55 + 0.15;
+      }
       // lineup & select previews always show the combat-ready carriage
       m.animator.update(dt, { speed: 0, grounded: true, alwaysReady: true });
     }

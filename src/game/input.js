@@ -315,6 +315,18 @@ export class Input {
     return ev;
   }
 
+  // Right stick as a MENU look axis (mech select uses it to spin your locked
+  // robot). Analog, not an edge — it reads as "how hard are you pushing",
+  // which is what a hold-to-rotate needs. Pads only: a keyboard has no
+  // spare analog axis, and the mech spins itself when nobody is driving.
+  menuLookFor(device) {
+    if (!device?.startsWith('pad')) return { x: 0, y: 0 };
+    const i = +device[3];
+    if (this.pointerPads.has(i)) return { x: 0, y: 0 }; // sticks are the pointer
+    const c = this.padsCur[i];
+    return { x: c.rx || 0, y: c.ry || 0 };
+  }
+
   rumble(padIndex, strength = 0.5, ms = 150) {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = pads[padIndex];

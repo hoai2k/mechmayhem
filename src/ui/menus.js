@@ -137,7 +137,9 @@ export class TitleScreen {
       { t: t('title.menu.battle'), fn: onPlay },
       { t: t('title.menu.fullscreen'), fn: onFullscreen },
     ]));
-    this.el.appendChild(el('div', 'hint-bar', t('title.hint.html')));
+    // no hint bar here: the title screen is two menu items, and the controls
+    // live behind the ⓘ button (the catalogue keeps title.hint.html for
+    // anyone who wants it back)
     root.appendChild(this.el);
   }
   update(ev) {
@@ -156,13 +158,15 @@ export class TitleScreen {
 // touch). Every joined human picks a mech + color simultaneously; CPU slots
 // randomize a mech once all humans lock in.
 export class MechSelectScreen {
-  constructor(root, { input, audio, onDone, onBack, onPreview, prev, hotButtons }) {
+  constructor(root, { input, audio, onDone, onBack, onPreview, onLockFx, onYaw, prev, hotButtons }) {
     this.input = input;
     this.audio = audio;
     this.hotButtons = hotButtons || []; // corner settings/sound, LB/RB-reachable
     this.onDone = onDone;
     this.onBack = onBack;
     this.onPreview = onPreview;
+    this.onLockFx = onLockFx;   // stage flourish when a pick locks in
+    this.onYaw = onYaw;         // right-stick rotation of a locked mech
     this.touch = isTouchDevice();
     this.el = el('div', 'screen fade-in');
     this.el.appendChild(el('div', 'screen-heading', t('select.heading')));
@@ -517,7 +521,10 @@ export class MechSelectScreen {
       row += `<span class="pc-swatch${pk.variant === v ? ' on' : ''}" data-variant="${v}"
         title="${SCHEME_NAMES[v]}" style="background:${col};"></span>`;
     }
-    return `<div class="pc-sub pc-colors">${t('select.colorLabel')}${row}<span style="opacity:0.8;">${SCHEME_NAMES[pk.variant]}</span></div>`;
+    // the ◀ ▶ hints under the strip: the swatches are cycled with left/right,
+    // which is not otherwise discoverable once you're locked in
+    return `<div class="pc-sub pc-colors">${t('select.colorLabel')}${row}<span style="opacity:0.8;">${SCHEME_NAMES[pk.variant]}</span></div>
+      <div class="pc-color-arrows"><span>◀</span>${t('select.colorHint')}<span>▶</span></div>`;
   }
 
   renderCard() {
@@ -587,6 +594,9 @@ export class MechSelectScreen {
     this.audio?.play('uiSelect');
     if (pk.device.startsWith('pad')) this.input.rumble(+pk.device[3], 0.45, 130);
     this.refresh();
+    // refresh() first: an auto-bumped variant rebuilds the preview, and the
+    // flourish has to land on the mech that's actually standing there
+    this.onLockFx?.(pk.slotIdx);
     // everyone locked AND at least two fighters in the match → ARM the
     // gate; the screen only advances on an explicit extra confirm, so the
     // last player to lock can still adjust their color scheme
@@ -637,6 +647,10 @@ export class MechSelectScreen {
 
   update(evAll) {
     if (this.finished) return;
+    // frame time, for the analog right-stick rotation below
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - (this._lastT || now)) / 1000);
+    this._lastT = now;
 
     // a freshly connected controller auto-joins the next free slot
     const padCount = this.input.connectedPadCount();
@@ -705,12 +719,18 @@ export class MechSelectScreen {
         // mutates this.pickers, so bail out of the loop after
         if (back) { this.removeSlot(pk.slotIdx); return; }
       } else {
+        // colors cycle BOTH ways: right/X steps forward, left steps back
         if (alt || left || right) {
-          pk.variant = (pk.variant + 1) % SCHEME_COUNT;
+          const dir = left && !right ? -1 : 1;
+          pk.variant = (pk.variant + dir + SCHEME_COUNT) % SCHEME_COUNT;
           this.variants[pk.slotIdx] = pk.variant;
           this.audio?.play('uiMove');
           this.refresh();
         }
+        // right stick spins your locked robot, overriding the idle turntable
+        // while held (releasing leaves it where you parked it)
+        const look = this.input.menuLookFor(pk.device);
+        if (look.x) this.onYaw?.(pk.slotIdx, -look.x * 2.6 * dt);
         // the everyone-locked gate: a fresh confirm (well after the lock-in
         // press itself) is what actually advances to arena select
         if (confirm && this.ready && performance.now() - this._readyAt > 350) {
