@@ -656,9 +656,9 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
    keeps the viewBox's exact aspect. Capping the HEIGHT would break that — the
    box would go wider than 620:500 and the SVG would letterbox inside it,
    sliding every leader inward from its callout. So the short side is capped as
-   a WIDTH (64vh × 760/540 ≈ 90vh) and the aspect always holds. */
+   a WIDTH (62vh × 760/400 ≈ 118vh) and the aspect always holds. */
 .ctrl-stage {
-  position: relative; width: min(100%, 90vh); aspect-ratio: 760 / 540; margin: 0 auto;
+  position: relative; width: min(100%, 118vh); aspect-ratio: 760 / 400; margin: 0 auto;
   /* callout type is sized in cqw (1% of the stage's width), so the boxes wrap
      the same way at every window size — a fixed px scale made them wrap to
      three lines and collide once the stage went height-limited */
@@ -668,11 +668,14 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
 .ctrl-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .ctrl-label {
   position: absolute; width: 21%; cursor: pointer;
-  font-size: clamp(6px, 1.45cqw, 12.5px); line-height: 1.3;
+  /* ONE line — name then action. Two-line callouts needed 45 viewBox units of
+     row spacing, and the face cluster only has 22 between buttons; at one line
+     each control's callout can sit at its own button's height. */
+  font-size: clamp(6px, 1.3cqw, 11.5px); line-height: 1.25; white-space: nowrap;
   color: #9fc4dc; transform: translateY(-50%);
   /* each callout is a button: it can be picked, and picking it rewrites the
      description underneath the pad */
-  padding: 0.6cqw 1cqw; border-radius: 1.1cqw;
+  padding: 0.34cqw 0.8cqw; border-radius: 0.9cqw;
   border: 1.5px solid rgba(96, 200, 255, 0.3);
   background: rgba(12, 22, 36, 0.85);
   transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
@@ -684,8 +687,8 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
   box-shadow: 0 0 14px rgba(56, 232, 255, 0.35);
 }
 .ctrl-label b {
-  display: block; color: var(--hud-cyan); letter-spacing: 0.12em;
-  font-size: clamp(7px, 1.7cqw, 13.5px);
+  color: var(--hud-cyan); letter-spacing: 0.1em; margin-right: 0.45em;
+  font-size: clamp(7px, 1.45cqw, 12.5px);
 }
 .ctrl-label.on b { color: #fff; text-shadow: 0 0 10px var(--hud-cyan); }
 .ctrl-label.on { color: #dff0fb; }

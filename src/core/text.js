@@ -132,7 +132,7 @@ export const MESSAGES = {
   'controls.foot.html': 'pick a control — hover, or <b>↑ ↓</b> — for what it does&nbsp;&nbsp;·&nbsp;&nbsp;<b>B / ESC</b> close'
     + '<br>keyboard P1: <b>WASD</b> move · <b>SPACE</b> jump · <b>F</b> light · <b>G</b> heavy · <b>H</b> block · <b>R</b> ranged · <b>T</b> special · <b>Y</b> ultimate · <b>SHIFT</b> dash · <b>Q</b> strafe-lock · <b>C</b> duck · <b>B</b> taunt',
   'controls.lstick.name': 'LEFT STICK',
-  'controls.lstick.action': 'move · click to duck',
+  'controls.lstick.action': 'move',
   'controls.lstick.detail': 'walks your mech around the arena. The arena wraps, so walking off one edge brings you back around the other — and clicking the stick in ducks, under a swing or a beam.',
   'controls.dpad.name': 'D-PAD',
   'controls.dpad.action': '▲ ultimate',
@@ -155,7 +155,7 @@ export const MESSAGES = {
   // The four face buttons get a callout each — the buttons a player reaches for
   // most, so each says exactly what it does in a fight.
   'controls.a.name': 'A',
-  'controls.a.action': 'jump · hover jets',
+  'controls.a.action': 'jump',
   'controls.a.detail': 'jumps. Press it again in mid-air and HOLD to fly on your hover jets — lighter mechs climb higher. It is also the way up off the floor: press it while knocked down to spring clear.',
   'controls.b.name': 'B',
   'controls.b.action': 'dash & sprint',

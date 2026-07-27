@@ -3809,3 +3809,28 @@ click ducks, D-PAD ▲ is the ultimate.
 
 Verified at 985×649, 1280×1024, 1440×810 and 1920×1080: 0 leader overlaps,
 0 crossings, 0 label-box overlaps, 0 leaders short of their box.
+
+### Follow-up: X above Y, one-line callouts, and a ▲ on the d-pad
+
+X'S CALLOUT SITS DIRECTLY ABOVE Y'S. That took making the callouts ONE line
+(name then action) instead of two: two-line boxes needed 45 viewBox units of row
+spacing and the face cluster only has 22 between buttons, which is what had been
+pushing X to the top of the column. At one line, nearly every control's callout
+sits at its own button's height. X's own run threads the 15-unit band between
+the RB bumper (ends 155) and Y's button (starts 170) — which is also how it
+clears RB's leader, since that one rises from 148 and never reaches 158.
+
+Segments are now 2·1·1·1·2·2 left and 2·2·2·1·1·1·1 right: nine of the thirteen
+are a single straight line, four are one turn, and NOTHING needs a jog any more
+(the 'lane' route is still there, now unused). Actions were shortened to fit one
+line — the detail sentence under the pad carries the rest.
+
+THE D-PAD'S UP ARM wears a ▲, and its callout points at that arm rather than at
+the pad generally — UP is the direction that does something (the ultimate), and
+the old leader read as though it meant LEFT.
+
+The viewBox was also trimmed to the content (760×400, was ×540), so the diagram
+fills its stage instead of floating in a band of empty space.
+
+Verified at 985×649, 1440×810 and 1920×1080: 0 leader overlaps, 0 crossings,
+0 label overlaps, 0 leaders short of their box, 0 callouts wrapping to two lines.

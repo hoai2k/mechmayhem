@@ -14,7 +14,7 @@ import { t } from '../core/text.js';
 // The pad art is drawn in a 620-wide space (its body spans x 150..470). The
 // viewBox is WIDER than the art on purpose: the margin either side is where the
 // leaders do their turning, so a jog never lands on the controller.
-const VB_X = -70, VB_W = 760, PAD_TOP = -80, PAD_H = 540;
+const VB_X = -70, VB_W = 760, PAD_TOP = 30, PAD_H = 400;
 const LABEL_FRAC = 0.21;                                    // .ctrl-label width
 const END_L = Math.round(VB_X + LABEL_FRAC * VB_W);         // leader touches the box
 const END_R = Math.round(VB_X + VB_W - LABEL_FRAC * VB_W);
@@ -31,10 +31,10 @@ const END_R = Math.round(VB_X + VB_W - LABEL_FRAC * VB_W);
 //   'elbow'  one vertical off the button, then over. Used where the callout
 //            can't sit at the button's height (two controls at the same height,
 //            or a centre button whose sideways run would cross a stick).
-//   'lane'   out, one jog on the control's own `lane`, then in. Last resort —
-//            only A and RIGHT STICK need it, because the face cluster packs
-//            four buttons into 44 units of height and the callouts need 45
-//            apart, so the last two can't leave at their own height.
+//   'lane'   out, one jog on the control's own `lane`, then in. Last resort,
+//            and nothing needs it now — the callouts are single-line, which
+//            packs them tightly enough that every control reaches its own at
+//            its own height or with one turn.
 //
 // Lanes live outside the pad silhouette (x < 150 or x > 470) so a jog is never
 // drawn on the controller. Verticals are placed to clear every other button.
@@ -43,20 +43,23 @@ const CONTROLS = [
   { id: 'lt', from: [216, 112], side: 'left', route: 'elbow', y: 70 },
   { id: 'lb', from: [204, 148], side: 'left', route: 'flat' },
   { id: 'lstick', from: [221, 205], side: 'left', route: 'flat' },
-  { id: 'dpad', from: [234, 268], side: 'left', route: 'flat' },
+  // aimed at the d-pad's UP arm, since UP is the control that does something
+  { id: 'dpad', from: [250, 246], side: 'left', route: 'flat' },
   // SELECT and START sit dead centre: leaving sideways would cross a stick, so
   // they drop down the waist, clear of the grips, and run out from there
   { id: 'select', from: [292, 196], side: 'left', route: 'elbow', y: 346 },
   { id: 'start', from: [328, 196], side: 'left', route: 'elbow', y: 400 },
-  // RIGHT column. X climbs out over the top of the pad so it can sit above Y;
-  // B leaves flat; A and RIGHT STICK take the one jog each that's left.
-  { id: 'x', from: [350, 205], side: 'right', route: 'elbow', y: 5 },
-  { id: 'rt', from: [404, 112], side: 'right', route: 'elbow', y: 55 },
-  { id: 'rb', from: [416, 148], side: 'right', route: 'elbow', y: 105 },
-  { id: 'y', from: [372, 183], side: 'right', route: 'elbow', y: 160 },
+  // RIGHT column. X climbs out of the cluster to sit directly above Y — its
+  // run threads the 15-unit band between the RB bumper (ends 155) and Y's
+  // button (starts 170), which is also why it clears RB's leader: that one
+  // rises from 148, so nothing of it reaches 158.
+  { id: 'rt', from: [404, 112], side: 'right', route: 'elbow', y: 70 },
+  { id: 'rb', from: [416, 148], side: 'right', route: 'elbow', y: 120 },
+  { id: 'x', from: [350, 205], side: 'right', route: 'elbow', y: 158 },
+  { id: 'y', from: [385, 183], side: 'right', route: 'flat' },
   { id: 'b', from: [407, 205], side: 'right', route: 'flat' },
-  { id: 'a', from: [385, 227], side: 'right', route: 'lane', y: 250, lane: 500 },
-  { id: 'rstick', from: [392, 278], side: 'right', route: 'lane', y: 320, lane: 492 },
+  { id: 'a', from: [385, 227], side: 'right', route: 'flat' },
+  { id: 'rstick', from: [392, 278], side: 'right', route: 'flat' },
 ];
 
 const svgNS = 'http://www.w3.org/2000/svg';
@@ -101,10 +104,14 @@ function drawPad(svg) {
     svg.appendChild(mk('circle', { cx, cy, r: 27, fill: 'rgba(12,20,32,0.9)', stroke: '#4d86ad', 'stroke-width': 2 }));
     svg.appendChild(mk('circle', { cx, cy, r: 17, fill: 'rgba(70,110,150,0.85)' }));
   }
-  // d-pad, below the left stick
+  // d-pad, below the left stick. Its UP arm is the one that does something in
+  // battle (the ultimate), so that arm wears the ▲ its callout points at.
   svg.appendChild(mk('path', {
     d: 'M247 260 h16 v-16 h16 v16 h16 v16 h-16 v16 h-16 v-16 h-16 Z',
     transform: 'translate(-13 -6)', fill: 'rgba(70,110,150,0.85)', stroke: '#4d86ad', 'stroke-width': 2,
+  }));
+  svg.appendChild(mk('path', {
+    d: 'M258 240 l6 10 h-12 Z', fill: '#0d1626',
   }));
   // face buttons — Y top, A bottom, X left, B right (Xbox layout + colors)
   const face = [[372, 183, 'Y', '#ffd24a'], [372, 227, 'A', '#6fe08a'],
