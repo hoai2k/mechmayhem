@@ -3777,3 +3777,35 @@ Leaders also run to 118 (or its mirror) rather than 122, so they TOUCH the
 callout box instead of stopping a few units short — checked in the page by
 comparing each polyline's last point against its box's own rect: 0px short on
 all thirteen, with 0 overlaps and 0 crossings still.
+
+### Follow-up: cheapest-route leaders, and a diagram about the FIGHT
+
+Leaders now pick the simplest route the pad allows, cheapest first:
+
+  'flat'   one horizontal, button straight out to its callout, which sits at
+           the button's own height — LB, LEFT STICK, D-PAD, B.
+  'elbow'  one vertical off the button, then over — LT, RT, RB, Y, X, and the
+           two centre buttons (SELECT / START drop down the waist and run out
+           below the grips, because leaving sideways would cross a stick).
+  'lane'   out, one jog, then in — only A and RIGHT STICK. The face cluster
+           packs four buttons into 44 units of height while callouts need 45
+           apart, so the last two can't leave at their own height.
+
+Segment counts, left to right: 2·1·1·1·2·2 and 2·2·2·2·1·3·3 — it was 3s and
+4s across the board. Leaders also START at each button's outward edge, so no
+line begins inside the art it points at.
+
+The viewBox is wider than the pad art (760 vs the 620 the pad is drawn in) so
+the lanes have margin to turn in OUTSIDE the silhouette. And the stage's short
+side is capped as a WIDTH, not a height: capping the height let the box go wider
+than the viewBox's aspect, the SVG letterboxed inside it, and every leader
+landed short of its callout — which is what the "lines don't reach the boxes"
+report was.
+
+X's callout sits above Y's (its leader climbs out over the top of the pad),
+and the copy is now about the FIGHT only — no menu navigation anywhere on the
+diagram. Corrected against input.js while rewriting: SELECT taunts, LEFT STICK
+click ducks, D-PAD ▲ is the ultimate.
+
+Verified at 985×649, 1280×1024, 1440×810 and 1920×1080: 0 leader overlaps,
+0 crossings, 0 label-box overlaps, 0 leaders short of their box.

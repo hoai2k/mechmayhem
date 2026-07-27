@@ -3,7 +3,7 @@
 // one you're pointing at.
 //
 // The diagram is an inline SVG (no asset to ship, scales to any screen) laid
-// out in one coordinate space: PAD_W×PAD_H below is that space, every control
+// out in one coordinate space: the viewBox below is that space, every control
 // carries the point its leader line starts from, and the labels are absolutely
 // positioned in the same space. Move a control and its line follows.
 //
@@ -11,48 +11,52 @@
 // with the rest of the game.
 import { t } from '../core/text.js';
 
-const PAD_W = 620, PAD_TOP = -80, PAD_H = 500;
+// The pad art is drawn in a 620-wide space (its body spans x 150..470). The
+// viewBox is WIDER than the art on purpose: the margin either side is where the
+// leaders do their turning, so a jog never lands on the controller.
+const VB_X = -70, VB_W = 760, PAD_TOP = -80, PAD_H = 540;
+const LABEL_FRAC = 0.21;                                    // .ctrl-label width
+const END_L = Math.round(VB_X + LABEL_FRAC * VB_W);         // leader touches the box
+const END_R = Math.round(VB_X + VB_W - LABEL_FRAC * VB_W);
 
-// One row per control. `from` is the point on the pad art the leader starts at,
-// `side` which column the callout hangs in, `y` the callout's own row.
+// One row per control. `from` is the point on the pad art the leader leaves
+// from — the button's OUTWARD EDGE, so the line never starts inside it — and
+// `y` is the height its callout sits at.
 //
-// ROUTING, and why the numbers look fussy. A leader leaves the pad at some
-// height (its `exit` — `from[1]`, or `drop` when it first walks down the waist
-// so it doesn't cross the sticks), runs sideways to its own `lane`, then turns
-// once more to meet its callout. Two rules keep the lines apart:
+// ROUTING, cheapest first. A leader should be as close to a straight line as
+// the pad allows, so each control picks the simplest `route` that works:
 //
-//   1. Every row owns a distinct lane, so no two verticals sit on top of
-//      each other.
-//   2. Rows are ordered by EXIT height and lanes step inward as the column
-//      goes down — so a lower row's sideways run passes only lanes whose
-//      verticals have already stopped above it.
+//   'flat'   one horizontal, button straight out to the callout. The callout
+//            sits at the button's own height. Best, and most controls get it.
+//   'elbow'  one vertical off the button, then over. Used where the callout
+//            can't sit at the button's height (two controls at the same height,
+//            or a centre button whose sideways run would cross a stick).
+//   'lane'   out, one jog on the control's own `lane`, then in. Last resort —
+//            only A and RIGHT STICK need it, because the face cluster packs
+//            four buttons into 44 units of height and the callouts need 45
+//            apart, so the last two can't leave at their own height.
 //
-// `elbow: 'up'` opts a row out of all that: the leader rises straight off its
-// button to the callout's row and runs over to it, one corner, no lane. LT / RT
-// use it to sit above everything else, and Y uses it to keep off the RB bumper
-// a lane route would otherwise cross.
-// `tools/ctrllines.mjs`-style checking lives in the page itself — see the
-// crossing assertions in the task notes; 0 overlaps, 0 crossings.
+// Lanes live outside the pad silhouette (x < 150 or x > 470) so a jog is never
+// drawn on the controller. Verticals are placed to clear every other button.
 const CONTROLS = [
-  // LEFT column, top to bottom (rows ordered by the height each leader leaves
-  // the pad at; lanes step inward as the column descends)
-  { id: 'lt', from: [216, 112], side: 'left', y: -62, elbow: 'up' },
-  { id: 'lb', from: [204, 148], side: 'left', y: 100, lane: 180 },
-  { id: 'lstick', from: [248, 205], side: 'left', y: 165, lane: 168 },
-  { id: 'dpad', from: [255, 278], side: 'left', y: 230, lane: 156 },
-  // SELECT and START sit dead centre on the pad; their leaders walk down the
-  // waist, out below the grips, and up into the two bottom-left callouts
-  { id: 'select', from: [292, 196], side: 'left', y: 295, lane: 144, drop: 352 },
-  { id: 'start', from: [328, 196], side: 'left', y: 360, lane: 132, drop: 366 },
-  // RIGHT column — the four face buttons get a callout each, fanned out of the
-  // cluster at four different heights so no two leaders share a lane or a run
-  { id: 'rt', from: [404, 112], side: 'right', y: -62, elbow: 'up' },
-  { id: 'rb', from: [416, 148], side: 'right', y: 100, lane: 430 },
-  { id: 'y', from: [372, 183], side: 'right', y: 150, elbow: 'up' },
-  { id: 'b', from: [394, 205], side: 'right', y: 200, lane: 450 },
-  { id: 'a', from: [372, 227], side: 'right', y: 250, lane: 460, drop: 260 },
-  { id: 'rstick', from: [365, 278], side: 'right', y: 300, lane: 470 },
-  { id: 'x', from: [350, 205], side: 'right', y: 350, lane: 480, drop: 340 },
+  // LEFT column
+  { id: 'lt', from: [216, 112], side: 'left', route: 'elbow', y: 70 },
+  { id: 'lb', from: [204, 148], side: 'left', route: 'flat' },
+  { id: 'lstick', from: [221, 205], side: 'left', route: 'flat' },
+  { id: 'dpad', from: [234, 268], side: 'left', route: 'flat' },
+  // SELECT and START sit dead centre: leaving sideways would cross a stick, so
+  // they drop down the waist, clear of the grips, and run out from there
+  { id: 'select', from: [292, 196], side: 'left', route: 'elbow', y: 346 },
+  { id: 'start', from: [328, 196], side: 'left', route: 'elbow', y: 400 },
+  // RIGHT column. X climbs out over the top of the pad so it can sit above Y;
+  // B leaves flat; A and RIGHT STICK take the one jog each that's left.
+  { id: 'x', from: [350, 205], side: 'right', route: 'elbow', y: 5 },
+  { id: 'rt', from: [404, 112], side: 'right', route: 'elbow', y: 55 },
+  { id: 'rb', from: [416, 148], side: 'right', route: 'elbow', y: 105 },
+  { id: 'y', from: [372, 183], side: 'right', route: 'elbow', y: 160 },
+  { id: 'b', from: [407, 205], side: 'right', route: 'flat' },
+  { id: 'a', from: [385, 227], side: 'right', route: 'lane', y: 250, lane: 500 },
+  { id: 'rstick', from: [392, 278], side: 'right', route: 'lane', y: 320, lane: 492 },
 ];
 
 const svgNS = 'http://www.w3.org/2000/svg';
@@ -139,7 +143,7 @@ export class InstructionsScreen {
     stage.className = 'ctrl-stage';
     wrap.appendChild(stage);
 
-    const svg = mk('svg', { viewBox: `0 ${PAD_TOP} ${PAD_W} ${PAD_H}`, class: 'ctrl-svg' });
+    const svg = mk('svg', { viewBox: `${VB_X} ${PAD_TOP} ${VB_W} ${PAD_H}`, class: 'ctrl-svg' });
     drawPad(svg);
     this.lines = [];
     this.labels = [];
@@ -147,17 +151,18 @@ export class InstructionsScreen {
     const pct = (y) => `${((y - PAD_TOP) / PAD_H) * 100}%`;
     CONTROLS.forEach((c, i) => {
       const left = c.side === 'left';
-      const ly = c.y + 14;
-      // `drop` walks the leader down (or up) the pad first, so it leaves the
-      // art at a height no other leader is using
-      const exit = c.drop ?? c.from[1];
-      const stem = c.drop != null ? `${c.from[0]},${c.from[1]} ${c.from[0]},${c.drop}` : `${c.from[0]},${c.from[1]}`;
-      // callout boxes end at 19% of the stage, so the leader runs to 118 (or
-      // its mirror) and touches the box rather than stopping short of it
-      const endX = left ? 118 : PAD_W - 118;
-      const points = c.elbow === 'up'
-        ? `${c.from[0]},${c.from[1]} ${c.from[0]},${ly} ${endX},${ly}`
-        : `${stem} ${c.lane},${exit} ${c.lane},${ly} ${endX},${ly}`;
+      // A leader runs to the callout box's own edge (END_L / END_R are that
+      // 21% column, in viewBox units) so it TOUCHES its box. The stage keeps
+      // the viewBox's exact aspect (see .ctrl-stage) — without that the SVG
+      // letterboxes inside it and every leader lands short of its callout.
+      const endX = left ? END_L : END_R;
+      const [fx, fy] = c.from;
+      const ly = c.route === 'flat' ? fy : c.y;
+      const points = {
+        flat: () => `${fx},${fy} ${endX},${ly}`,
+        elbow: () => `${fx},${fy} ${fx},${ly} ${endX},${ly}`,
+        lane: () => `${fx},${fy} ${c.lane},${fy} ${c.lane},${ly} ${endX},${ly}`,
+      }[c.route]();
       const line = mk('polyline', {
         points, fill: 'none', stroke: 'rgba(120,190,235,0.5)', 'stroke-width': 2,
       });

@@ -122,53 +122,56 @@ export const MESSAGES = {
   'settings.btn.instructions': 'how to play',
 
   // ------------------------------------------------------- controls (ⓘ modal)
-  // One control per row: .name is what's printed on the pad, .action the short
-  // label on the diagram, .detail the sentence shown when it's highlighted.
+  // The IN-GAME controls, and only those: what each button does with a mech on
+  // the ground. Menu navigation is spelled out on the menus themselves, so it
+  // stays off this diagram. Per control: .name is what's printed on the pad,
+  // .action the short label beside it, .detail the sentence shown when it's
+  // selected. Keep these true to input.js.
   'controls.title': 'HOW TO PLAY',
   'controls.close': 'CLOSE',
-  'controls.foot.html': 'hover a callout — or <b>↑ ↓</b> — for detail&nbsp;&nbsp;·&nbsp;&nbsp;<b>B / ESC</b> close'
-    + '&nbsp;&nbsp;·&nbsp;&nbsp;keyboard P1: <b>WASD</b> move · <b>F</b> light · <b>G</b> heavy · <b>H</b> block · <b>R</b> ranged · <b>T</b> special · <b>Y</b> ultimate · <b>SPACE</b> jump · <b>SHIFT</b> dash',
+  'controls.foot.html': 'pick a control — hover, or <b>↑ ↓</b> — for what it does&nbsp;&nbsp;·&nbsp;&nbsp;<b>B / ESC</b> close'
+    + '<br>keyboard P1: <b>WASD</b> move · <b>SPACE</b> jump · <b>F</b> light · <b>G</b> heavy · <b>H</b> block · <b>R</b> ranged · <b>T</b> special · <b>Y</b> ultimate · <b>SHIFT</b> dash · <b>Q</b> strafe-lock · <b>C</b> duck · <b>B</b> taunt',
   'controls.lstick.name': 'LEFT STICK',
-  'controls.lstick.action': 'move · menu cursor',
-  'controls.lstick.detail': 'walks your mech around the arena, and moves the cursor on menu screens. The arena wraps, so walking off one edge brings you back around the other.',
+  'controls.lstick.action': 'move · click to duck',
+  'controls.lstick.detail': 'walks your mech around the arena. The arena wraps, so walking off one edge brings you back around the other — and clicking the stick in ducks, under a swing or a beam.',
   'controls.dpad.name': 'D-PAD',
-  'controls.dpad.action': 'menu cursor · ▲ ultimate',
-  'controls.dpad.detail': 'steps the selection one cell at a time — the precise way to pick a robot, and (once selected) ◀ ▶ step your paint scheme back and forward. In battle, ▲ fires your ultimate once the meter is full.',
+  'controls.dpad.action': '▲ ultimate',
+  'controls.dpad.detail': 'UP fires your ultimate once the meter is full — the big one, named on your mech\'s card. The other three directions walk you around as a backup for the left stick.',
   'controls.lb.name': 'LB',
-  'controls.lb.action': 'target lock · visit a slot',
-  'controls.lb.detail': 'HOLD in battle to lock onto the nearest enemy: you turn to face them, the camera keeps them framed, sideways movement becomes a strafe and ranged shots fly at them. On mech select it walks your focus onto another player slot or a corner button.',
+  'controls.lb.action': 'target lock',
+  'controls.lb.detail': 'HOLD to lock onto the nearest enemy: you turn to face them, the camera keeps them framed, sideways movement becomes a strafe, and a crosshair drifts onto them so ranged shots fly their way.',
   'controls.lt.name': 'LT',
   'controls.lt.action': 'block',
   'controls.lt.detail': 'holds your guard up: blocking bleeds incoming damage down and stops chip knockback. A heavy swing will break it, so it buys you a beat rather than safety.',
   'controls.select.name': 'SELECT',
-  'controls.select.action': 'mouse pointer',
-  'controls.select.detail': 'turns your controller into an on-screen mouse pointer, so you can click any menu, button or swatch directly. Press it again to hand the sticks back to the game.',
+  'controls.select.action': 'taunt',
+  'controls.select.detail': 'strikes your mech\'s pose and calls its line. Free, and worth nothing — except that standing still to do it in front of someone with a full ultimate meter is its own kind of statement.',
   'controls.start.name': 'START',
   'controls.start.action': 'pause',
-  'controls.start.detail': 'pauses the match and opens the pause menu — settings, sound and quitting to the main menu all live there.',
+  'controls.start.detail': 'pauses the match: resume, controls, settings, sound and quitting to the main menu all live in there.',
   'controls.rstick.name': 'RIGHT STICK',
-  'controls.rstick.action': 'camera · turn your robot',
-  'controls.rstick.detail': 'orbits the battle camera. On mech select, once you have selected your robot, it spins it on the spot so you can look it over from any angle.',
-  // The four face buttons get a callout each — they are the buttons a player
-  // reaches for most, so each says what it does on menus AND in battle.
+  'controls.rstick.action': 'camera',
+  'controls.rstick.detail': 'orbits the battle camera around your mech. In a split screen it steers your own viewport only, so both players can look where they like.',
+  // The four face buttons get a callout each — the buttons a player reaches for
+  // most, so each says exactly what it does in a fight.
   'controls.a.name': 'A',
-  'controls.a.action': 'confirm · jump',
-  'controls.a.detail': 'on menus, confirms: it joins the match, selects your robot, and starts the fight once everyone is ready. In battle it jumps — press it again in mid-air and HOLD to fly on your hover jets.',
+  'controls.a.action': 'jump · hover jets',
+  'controls.a.detail': 'jumps. Press it again in mid-air and HOLD to fly on your hover jets — lighter mechs climb higher. It is also the way up off the floor: press it while knocked down to spring clear.',
   'controls.b.name': 'B',
-  'controls.b.action': 'cancel · dash & sprint',
-  'controls.b.detail': 'on menus, backs out: cancels your selection, leaves a slot, closes a panel. In battle, HOLD it standing still to wind up a dash coil — it fires the moment you push a direction, and a longer wind-up dashes further. Already moving, hold it to dash into a sprint.',
+  'controls.b.action': 'dash & sprint',
+  'controls.b.detail': 'standing still, HOLD to wind up a dash coil — it fires the moment you push a direction, and the longer the wind-up the further you go. Already moving, hold it to dash into a sprint that drains your stamina bar.',
   'controls.x.name': 'X',
-  'controls.x.action': 'color · light attack',
-  'controls.x.detail': 'on mech select, cycles your paint scheme so two players on the same robot can still tell each other apart. In battle it is your light attack: fast, cheap to throw, and it chains.',
+  'controls.x.action': 'light attack',
+  'controls.x.detail': 'fast, cheap to throw, and it chains — the button you poke with. TITANUS and COLOSSUS can HOLD it to keep the punch wound up and release with banked power.',
   'controls.y.name': 'Y',
   'controls.y.action': 'heavy attack',
-  'controls.y.detail': 'a slow, committed swing that hits hard and breaks a guard. It leaves you open on a whiff, so it wants a dash or a block to set it up — TITANUS and COLOSSUS can HOLD it to keep the pound raised and release with banked power.',
+  'controls.y.detail': 'a slow, committed swing that hits hard and breaks a guard. It leaves you open on a whiff, so it wants a dash or a block to set it up.',
   'controls.rb.name': 'RB',
   'controls.rb.action': 'ranged weapon',
   'controls.rb.detail': 'fires your mech\'s ranged weapon. Every one of them runs on AMMO — grab the yellow crates — and while LB target lock is held the shots fly at whoever you are locked onto.',
   'controls.rt.name': 'RT',
   'controls.rt.action': 'special move',
-  'controls.rt.detail': 'throws your mech\'s signature special — the move named on its card in mech select. Each one has its own cooldown, so it is a tool to open with, not a button to lean on.',
+  'controls.rt.detail': 'throws your mech\'s signature special — the move named on its card. Each one has its own cooldown, so it is something to open with, not a button to lean on.',
 
   // ------------------------------------------------------------------ results
   'results.champion': 'CHAMPION',
