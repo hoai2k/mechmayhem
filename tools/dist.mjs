@@ -20,8 +20,10 @@
 //   2. removes the models of mechs the shipped game cannot reach (roster
 //      `hidden: true`) and the workbench-only `alt` sub-entries, rewriting
 //      public/models/manifest.json in the OUTPUT only
-//   3. meshopt-compresses every surviving GLB — compression only, no
-//      quantization; see the long note at the compression step for why
+//   3. quantizes (16-bit) + meshopt-compresses every surviving GLB. Safe
+//      because src/mechs/dequantize.js folds quantization back into the
+//      vertices at load; see the note at the compression step for what is
+//      still deliberately left off, and why
 //   4. transcodes the PNG texture pack to WebP and rewrites the hashed
 //      references in the emitted JS
 //   5. verifies every compressed model still has the same rig (tools/glbdiff)
@@ -33,6 +35,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { NodeIO } from '@gltf-transform/core';
 import { EXTMeshoptCompression, KHRMeshQuantization } from '@gltf-transform/extensions';
+import { quantize } from '@gltf-transform/functions';
 import { MeshoptEncoder, MeshoptDecoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { compareDocs, makeIO } from './glbdiff.mjs';
@@ -124,19 +127,28 @@ if (DO_MODELS) {
     const p = path.join(modelsDir, f);
     const before = fs.statSync(p).size;
     const doc = await io.read(p);
-    // COMPRESSION ONLY — no quantization, no weld, no reorder. Deliberate, and
-    // measured rather than assumed. The full gltf-transform meshopt() pipeline
-    // gets ~3x instead of ~1.5x, but running tools/hurtboxfit.mjs against the
-    // compressed roster shows the combat capsules MOVE: colossus containment
-    // 80% -> 57%, jerry losing both thigh capsules, wraith 62% -> 43%. The
-    // models still render correctly, so this is not a visible defect — it is a
-    // silent change to what the game HITS, which is worse. Quantizing at the
-    // maximum 16 bits does not fix it, and neither does dropping reorder, so
-    // it is the quantization itself that src/combat/hurtbox.js does not survive.
-    // Plain EXT_meshopt_compression is byte-exact through that audit.
+    // QUANTIZE AT 16 BITS, THEN COMPRESS — and deliberately NOT the stock
+    // gltf-transform meshopt() pipeline. Both halves of that are measured.
     //
-    // Worth ~1.3x more if it is ever revisited from the hurtbox.js side; until
-    // then, correct beats small.
+    // Quantization is safe now because src/mechs/dequantize.js folds it back
+    // into the vertices at load, so nothing downstream sees normalized
+    // integers (that file explains the failure it exists to prevent). What is
+    // NOT safe is meshopt()'s REORDER pass: src/combat/hurtbox.js samples
+    // every Nth vertex in file order, so shuffling the order re-rolls which
+    // vertices the capsule fits see. Vertex counts are unchanged — it is
+    // purely the sampling — but the fits move, and colossus' bloat went
+    // 1.26x -> 2.13x on a reordered roster. Turning that on means re-measuring
+    // hitboxes across the whole roster, i.e. a balance change; it is worth
+    // roughly another 23 MB and belongs in its own task.
+    //
+    // 16 bits rather than the default depths: at defaults, cranky/frogger/
+    // inferno/tempest drift by a point of containment and ~0.03 bloat. At 16
+    // bits every shipped mech is identical except tempest (+1% containment,
+    // +0.01 bloat). The extra ~6 MB buys a much stronger claim.
+    await doc.transform(quantize({
+      quantizePosition: 16, quantizeNormal: 16, quantizeTexcoord: 16,
+      quantizeWeight: 16, quantizeGeneric: 16,
+    }));
     doc.createExtension(EXTMeshoptCompression).setRequired(true)
       .setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.FILTER });
     const buf = await io.writeBinary(doc);
