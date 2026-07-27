@@ -34,13 +34,42 @@ export function subjectSelect({ config, ids, value, label, note, css = SEL_CSS, 
   const entries = config?.catalogue.list() || [];
   const list = ids || entries.map((r) => r.id);
   const byId = Object.fromEntries(entries.map((r) => [r.id, r]));
-  for (const id of list) {
+
+  // ORDER: alphabetical, with the work-in-progress subjects below a rule at
+  // the end. The catalogue hands these over in the game's own roster order,
+  // which is a design order — fine for a line-up, useless for finding "jerry"
+  // in a list of seventeen. Hidden mechs stay reachable (a workbench exists to
+  // work on the unfinished ones) but stop sitting between two shipped mechs.
+  const rows = list.map((id) => {
     const def = byId[id] || null;
+    return {
+      id,
+      def,
+      hidden: !!def?.hidden,
+      text: (label ? label(id, def) : (def?.name || id)) + (note ? note(id, def) : ''),
+    };
+  });
+  const byText = (a, b) => a.text.localeCompare(b.text, undefined, { sensitivity: 'base' });
+  const shown = rows.filter((r) => !r.hidden).sort(byText);
+  const wip = rows.filter((r) => r.hidden).sort(byText);
+
+  const addOption = (r) => {
     const o = document.createElement('option');
-    o.value = id;
-    o.textContent = (label ? label(id, def) : (def?.name || id)) + (note ? note(id, def) : '');
+    o.value = r.id;
+    o.textContent = r.text;
     sel.appendChild(o);
+  };
+  shown.forEach(addOption);
+  if (wip.length) {
+    // A disabled option, not <hr>: native <hr> inside <select> is Chromium-only
+    // and this has to read the same everywhere.
+    const rule = document.createElement('option');
+    rule.disabled = true;
+    rule.textContent = '──────────';
+    sel.appendChild(rule);
+    wip.forEach(addOption);
   }
+
   if (value) sel.value = value;
   sel.onchange = () => onPick?.(sel.value);
   return sel;

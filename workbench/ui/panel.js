@@ -6,7 +6,7 @@
 //  · A TITLE, IN THE TOOL'S OWN COLOUR — five workbenches share one dark
 //    panel in one corner, and at a glance (or in a screenshot) they look
 //    identical. Each now names itself at the top in a colour that is its
-//    own: pose green, skin orange, animation purple, rig blue, hurtbox
+//    own: pose green, skin orange, animation purple, rig blue, collider
 //    cyan. The subtitle line carries the live "what am I looking at"
 //    (mech id · ALT), so the header answers both questions at once.
 //
@@ -35,13 +35,42 @@ const MAX_W = 900;   // also clamped to the viewport at drag time
 // Who's who. One entry per workbench; `key` in setupDevPanel is the width
 // store, `workbench` here is the identity. Colours are deliberately far apart
 // in hue so peripheral vision alone tells you which tool has focus.
+//
+// `tool` is the ?edit= id, which is NOT always the identity key — these keys
+// predate the workbench page and two of them still carry their old names
+// (models = animation, rigedit = rig). Keeping the url id here rather than in
+// a second table is what lets the title-bar switcher below navigate without
+// anyone having to remember which name a tool answers to.
 export const WORKBENCHES = {
-  pose: { title: 'Pose Workbench', color: '#4fdc8b' },
-  skin: { title: 'Skin Workbench', color: '#f5a33c' },
-  models: { title: 'Animation Workbench', color: '#b98cff' },
-  rigedit: { title: 'Rig Editor', color: '#4aa8ff' },
-  collider: { title: 'Hurtbox Workbench', color: '#7fd8ff' },
+  pose: { tool: 'pose', title: 'Pose Workbench', color: '#4fdc8b' },
+  skin: { tool: 'skin', title: 'Skin Workbench', color: '#f5a33c' },
+  models: { tool: 'animation', title: 'Animation Workbench', color: '#b98cff' },
+  rigedit: { tool: 'rig', title: 'Rig Editor', color: '#4aa8ff' },
+  collider: { tool: 'collider', title: 'Hurtbox Workbench', color: '#7fd8ff' },
 };
+
+// Order the switcher offers them in: the order you actually move through a
+// model — shape it, rig it, weight it, pose it, then check what it hits.
+const SWITCH_ORDER = ['models', 'rig', 'skin', 'pose', 'collider']
+  .map((k) => (WORKBENCHES[k] ? k : 'rigedit'));
+
+/**
+ * Open another workbench on the SAME subject. Only the params that describe
+ * the subject travel: the mech and which of its builds is staged. Everything
+ * else on a workbench url is tool-private (`clip`, `key`, `at`, `dummy`, …)
+ * and would either be ignored or mean something different next door.
+ */
+function gotoWorkbench(tool) {
+  const cur = new URLSearchParams(location.search);
+  const next = new URLSearchParams();
+  next.set('edit', tool);
+  for (const k of ['mech', 'variant', 'alt']) if (cur.has(k)) next.set(k, cur.get(k));
+  // the tools all live on the workbench page; keep whatever directory that is
+  const dir = location.pathname.includes('/workbench/')
+    ? location.pathname
+    : location.pathname.replace(/[^/]*$/, '') + 'workbench/';
+  location.href = `${dir}?${next.toString()}`;
+}
 
 // One stylesheet for every workbench panel on the page.
 function installStyle() {
@@ -81,6 +110,33 @@ function installStyle() {
     .dev-panel-head span {
       font: 11px/1.2 ui-monospace, monospace; color: #8ba0b8; word-break: break-all;
     }
+    .dev-panel-swap { display: inline-flex; margin-left: -3px; }
+    .dev-panel-chev {
+      background: none; border: 0; padding: 0 3px; cursor: pointer; line-height: 1;
+      color: #7f95ad; font-size: 11px; border-radius: 3px;
+    }
+    .dev-panel-chev:hover { color: #dfe8f5; background: rgba(255,255,255,0.07); }
+    /* FIXED, not absolute: the panel scrolls (overflow:auto), which clips any
+       positioned descendant — an absolutely-positioned menu loses its right
+       edge to the panel border. Fixed escapes every ancestor's overflow, at
+       the cost of being placed from the chevron's rect on open. */
+    .dev-panel-menu {
+      display: none; position: fixed; z-index: 60;
+      padding: 4px; min-width: 172px;
+      background: #121924; border: 1px solid #2c3648; border-radius: 6px;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.55);
+    }
+    .dev-panel-menu.open { display: block; }
+    .dev-panel-menu-item {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      background: none; border: 0; border-radius: 4px; cursor: pointer;
+      padding: 5px 7px; text-align: left;
+      font: 12px/1.2 system-ui, sans-serif; color: #dfe8f5;
+    }
+    .dev-panel-menu-item i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .dev-panel-menu-item:hover { background: rgba(255,255,255,0.08); }
+    .dev-panel-menu-item.is-current { color: #7f95ad; cursor: default; }
+    .dev-panel-menu-item.is-current:hover { background: none; }
   `;
   document.head.appendChild(s);
 }
@@ -115,9 +171,70 @@ export function setupDevPanel(panel, {
     const name = document.createElement('b');
     name.style.color = wb.color;
     name.textContent = wb.title;
+
+    // ---- workbench switcher ----
+    // The five tools are one page with one subject on it, and moving between
+    // them used to mean hand-editing ?edit= in the url. The title already says
+    // which tool this is, so the chevron hangs off the title: same place you
+    // look to answer "where am I", now also "take me somewhere else", carrying
+    // the mech with it.
+    const swap = document.createElement('span');
+    swap.className = 'dev-panel-swap';
+    const chev = document.createElement('button');
+    chev.type = 'button';
+    chev.className = 'dev-panel-chev';
+    chev.textContent = '▾';
+    chev.title = 'switch workbench (same mech)';
+    chev.setAttribute('aria-haspopup', 'true');
+    chev.setAttribute('aria-expanded', 'false');
+
+    const menu = document.createElement('div');
+    menu.className = 'dev-panel-menu';
+    for (const k of SWITCH_ORDER) {
+      const w = WORKBENCHES[k];
+      if (!w) continue;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'dev-panel-menu-item' + (k === workbench ? ' is-current' : '');
+      const dot = document.createElement('i');
+      dot.style.background = w.color;
+      const txt = document.createElement('span');
+      txt.textContent = w.title;
+      item.append(dot, txt);
+      // the current tool stays listed (so the menu reads as a map of where you
+      // are, not just where you aren't) but does nothing
+      if (k !== workbench) item.onclick = () => gotoWorkbench(w.tool);
+      menu.appendChild(item);
+    }
+
+    const closeMenu = () => {
+      menu.classList.remove('open');
+      chev.setAttribute('aria-expanded', 'false');
+    };
+    chev.onclick = (e) => {
+      e.stopPropagation();
+      const open = menu.classList.toggle('open');
+      if (open) {
+        // place it under the chevron, then pull it back inside the viewport —
+        // panels can be pinned to either edge (`edge: 'left'`), so the menu
+        // cannot assume it has room to its right.
+        const r = chev.getBoundingClientRect();
+        menu.style.top = `${Math.round(r.bottom + 4)}px`;
+        menu.style.left = '0px';
+        const w = menu.getBoundingClientRect().width;
+        menu.style.left = `${Math.round(Math.max(6, Math.min(r.left - 4, window.innerWidth - w - 6)))}px`;
+      }
+      chev.setAttribute('aria-expanded', String(open));
+    };
+    // click-away and Esc, so it never strands itself over the panel controls
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+    menu.addEventListener('click', (e) => e.stopPropagation());
+
+    swap.append(chev, menu);
     subEl = document.createElement('span');
     subEl.textContent = subtitle;
-    head.append(name, subEl);
+    head.append(name, swap, subEl);
     panel.insertBefore(head, panel.firstChild);
   }
   const setSubtitle = (t) => { if (subEl) subEl.textContent = t || ''; };

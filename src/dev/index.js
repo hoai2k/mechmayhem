@@ -14,7 +14,7 @@ const WORKBENCH_REDIRECTS = {
   'debug=models': 'animation',
   'debug=pose': 'pose',
   'debug=skin': 'skin',
-  'debug=collider': 'hurtbox',
+  'debug=collider': 'collider',
   'rigedit': 'rig',
 };
 

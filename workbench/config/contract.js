@@ -1,6 +1,6 @@
 // THE WORKBENCH CONTRACT — everything the tools are allowed to know about a game.
 //
-// The workbenches (animation, pose, skin, rig, hurtbox) are model-authoring
+// The workbenches (animation, pose, skin, rig, collider) are model-authoring
 // tools. Nothing in workbench/tools/ imports from src/: they read this config
 // object instead, and ONE adapter per game fills it in
 // (workbench/adapters/robotworld/). Porting the tools to another game is

@@ -8,7 +8,10 @@ config object.
 /workbench/?edit=pose&mech=colossus        pose joints, edit clip keyframes
 /workbench/?edit=skin&mech=colossus        bone-island skin repair
 /workbench/?edit=rig&mech=colossus         hand-place a skeleton
-/workbench/?edit=hurtbox&mech=colossus     what combat actually hits
+/workbench/?edit=collider&mech=colossus    what combat actually hits
+
+The chevron beside the panel title switches between them, carrying the current
+mech across. `?edit=hurtbox` is the collider tool's old name and still resolves.
 ```
 
 `&variant=alt` (or the legacy `&alt=1`) opens a mech's alternate build;

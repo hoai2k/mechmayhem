@@ -30,6 +30,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js';
+import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { wireExportChanges } from '../ui/save.js';
 
@@ -956,13 +957,17 @@ export async function runSkinWorkbench(config, params) {
   document.body.appendChild(panel);
   const panelUI = setupDevPanel(panel, { key: 'skin', workbench: 'skin' });
 
-  const mechSel = document.createElement('select');
-  mechSel.style.cssText = 'width:100%;margin-bottom:6px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px';
-  for (const id of glbIds) {
-    const o = document.createElement('option'); o.value = id; o.textContent = id; mechSel.appendChild(o);
-  }
-  mechSel.value = curId;
-  mechSel.onchange = () => load(mechSel.value);
+  // through subjectSelect so the ordering rule (alphabetical, work-in-progress
+  // mechs under a rule at the end) lives in one place; `label` keeps this
+  // tool's bare-id text rather than the display name.
+  const mechSel = subjectSelect({
+    config,
+    ids: glbIds,
+    value: curId,
+    label: (id) => id,
+    css: 'width:100%;margin-bottom:6px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px',
+    onPick: (id) => load(id),
+  });
   panel.appendChild(label('Mech'));
   panel.appendChild(mechSel);
   // rebuilt on every mech switch — the control only exists for mechs that

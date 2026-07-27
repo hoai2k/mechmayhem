@@ -23,6 +23,7 @@
 // reach change.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { altChoice, altCheckbox } from '../ui/variantpick.js';
 
@@ -61,7 +62,7 @@ function fitCapsule(mesh, a, b, r) {
   }
 }
 
-export async function runHurtboxWorkbench(config, params) {
+export async function runColliderWorkbench(config, params) {
   const startId = params.get('mech') || params.get('id');
   const { build: buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } = config.hurtbox;
   const engine = config.stage.engine();
@@ -290,11 +291,15 @@ export async function runHurtboxWorkbench(config, params) {
     '<span style="color:#ffd23c">yellow</span> = strike volume at the hit frame</div>');
 
   const mechRow = row('<span style="width:44px;color:#8ba0b8">mech</span>');
-  const mechSel = document.createElement('select');
-  mechSel.style.cssText = 'flex:1;background:#0f151d;color:#dbe6f5;border:1px solid #2f3c4e;border-radius:5px;padding:3px';
-  mechSel.innerHTML = config.catalogue.list().map((r) => `<option value="${r.id}">${r.id}</option>`).join('');
+  // subjectSelect owns the ordering rule (alphabetical, work-in-progress mechs
+  // under a rule at the end); `label` keeps this tool's bare-id text.
+  const mechSel = subjectSelect({
+    config,
+    label: (id) => id,
+    css: 'flex:1;background:#0f151d;color:#dbe6f5;border:1px solid #2f3c4e;border-radius:5px;padding:3px',
+    onPick: (id) => load(id),
+  });
   mechRow.appendChild(mechSel);
-  mechSel.onchange = () => load(mechSel.value);
   // rebuilt per mech — only mechs with an alternate entry get the control
   const altSlot = document.createElement('div');
   panel.appendChild(altSlot);
