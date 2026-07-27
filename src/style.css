@@ -716,10 +716,15 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
 }
 .ctrl-label.on b { color: #fff; text-shadow: 0 0 10px var(--hud-cyan); }
 .ctrl-label.on { color: #dff0fb; }
+/* All thirteen sentences are stacked in ONE grid cell — the box is as tall as
+   the longest of them and never changes height, so hovering across the callouts
+   can't shift the diagram above it. Only the selected sentence is visible. */
 .ctrl-detail {
-  min-height: 3.2em; width: min(88%, 760px); margin-top: 0.5vh;
+  display: grid; width: min(88%, 760px); margin-top: 0.5vh;
   text-align: center; font-size: clamp(11px, 1.15vw, 14px); line-height: 1.45; color: #bcd6e8;
 }
+.ctrl-detail > div { grid-area: 1 / 1; visibility: hidden; }
+.ctrl-detail > div.on { visibility: visible; }
 .ctrl-detail b { color: var(--hud-cyan); letter-spacing: 0.12em; }
 .ctrl-foot { width: min(96vw, 1120px); margin-top: 1vh; padding: 0 clamp(60px, 8vw, 130px); font-size: 10.5px; letter-spacing: 0.1em; color: #7ba0ba; text-align: center; }
 .ctrl-foot b, .ctrl-detail b { font-weight: 800; }
