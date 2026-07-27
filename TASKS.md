@@ -3728,3 +3728,12 @@ on hover and lights cyan when selected, and selecting one rewrites the
 description under the pad (already the behaviour — it just wasn't obvious the
 boxes were pickable). Found while wiring it: the SVG is appended after the
 labels, so it was swallowing every hover — it's `pointer-events: none` now.
+
+### Follow-up: hint-bar wording, and a drawn START button
+
+The mech-select hint bar says **select** where it said "lock in" and **cancel**
+where it said "leave" — what the buttons do to your PICK, not to the menu. The
+trailing item is now **use pointer** rather than "full controls", and its icon is
+the Xbox MENU/START button drawn (`.xb-btn`: a pale round pill with three bars)
+instead of spelled — naming it "SELECT" reads as a word rather than as the thing
+you press.
