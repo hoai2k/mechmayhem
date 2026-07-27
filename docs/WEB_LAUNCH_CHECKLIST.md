@@ -144,14 +144,16 @@ exist in a static build.
   ratio, shadows off, bloom off) is the difference between "runs badly on my
   laptop, 2 stars" and "runs fine."
 
-### 2.3 Teach the controls before the match, not during it
+### 2.3 Teach the controls ✅ (landed separately)
 
-The controls sheet exists only in the pause menu (`pause.controls.html` in
-`src/core/text.js:91`). The title menu is two items — BATTLE and FULLSCREEN
-(`src/ui/menus.js:137`) — plus a one-line hint bar.
+`src/ui/instructions.js` now provides a controller diagram, reachable from an
+ⓘ corner button that is also a controller-selectable stop in `hotButtons`, so
+it is available before the first match rather than only from the pause menu.
 
-- Add HOW TO PLAY to the title menu, reusing the same HTML.
-- Add a CREDITS entry while you are there (nothing exists today).
+Still worth doing:
+
+- A CREDITS entry (nothing exists today) — and it is the natural place to link
+  `THIRD_PARTY_NOTICES.txt`.
 - Put the controls in the itch page description too; a lot of players never
   click into a menu.
 
@@ -250,15 +252,14 @@ But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
 If you want the minimum that is defensible rather than the whole list:
 
 ~~1–5~~ done — payload, failure screens, boot splash, visibility pause and the
-three.js notice all shipped. What is left:
+three.js notice all shipped, and HOW TO PLAY landed separately. What is left:
 
-1. HOW TO PLAY on the title menu — §2.3. Cheapest real win on the list; the
-   controls sheet already exists, it is just trapped in the pause menu.
-2. The soak matrix and the browser pass — §3. Safari is the one that will
+1. The soak matrix and the browser pass — §3. Safari is the one that will
    surprise you.
-3. A graphics quality option — §2.2. The difference between "runs badly on my
+2. A graphics quality option — §2.2. The difference between "runs badly on my
    laptop, 2 stars" and "runs fine".
-4. Decide AEGIS/NOVA: finish them, or hide the SHOW ALL ROBOTS toggle so
+3. Decide AEGIS/NOVA: finish them, or hide the SHOW ALL ROBOTS toggle so
    players cannot reach two unfinished mechs — §2.2.
+4. Pick a license for your own code — §1.5.
 
 Everything else is polish that can land in a post-launch update.
