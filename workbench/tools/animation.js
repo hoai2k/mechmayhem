@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { describeAction, ACTIONS } from '../adapters/actionchars.js';
 
@@ -549,9 +550,16 @@ export async function runAnimationWorkbench(config, params) {
   const panelUI = setupDevPanel(panel, { key: 'models', workbench: 'models' });
 
   panel.appendChild(label('Mech'));
-  const mechSel = el('select', 'width:100%;margin-bottom:8px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px');
-  for (const id of glbIds) { const o = document.createElement('option'); o.value = id; o.textContent = id; mechSel.appendChild(o); }
-  mechSel.value = curId; mechSel.onchange = () => load(mechSel.value);
+  // subjectSelect owns the ordering rule (alphabetical, work-in-progress mechs
+  // under a rule at the end); `label` keeps this tool's bare-id text.
+  const mechSel = subjectSelect({
+    config,
+    ids: glbIds,
+    value: curId,
+    label: (id) => id,
+    css: 'width:100%;margin-bottom:8px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px',
+    onPick: (id) => load(id),
+  });
   panel.appendChild(mechSel);
 
   // COMPARE TO — what stands beside the mech under study.

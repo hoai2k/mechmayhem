@@ -8,7 +8,7 @@
 //   /workbench/?edit=pose&mech=colossus          pose + keyframe a clip
 //   /workbench/?edit=skin&mech=colossus          bone-island skin repair
 //   /workbench/?edit=rig&mech=colossus           hand-place a skeleton
-//   /workbench/?edit=hurtbox&mech=colossus       what combat actually hits
+//   /workbench/?edit=collider&mech=colossus      what combat actually hits
 //
 // `&variant=alt|proc` picks which build a tool opens; the legacy `&alt=1` is
 // still accepted (see workbench/ui/variantpick.js).
@@ -19,11 +19,17 @@ const TOOLS = {
   pose: () => import('./tools/pose.js').then((m) => m.runPoseWorkbench),
   skin: () => import('./tools/skin.js').then((m) => m.runSkinWorkbench),
   rig: () => import('./tools/rig.js').then((m) => m.runRigWorkbench),
-  hurtbox: () => import('./tools/hurtbox.js').then((m) => m.runHurtboxWorkbench),
+  collider: () => import('./tools/collider.js').then((m) => m.runColliderWorkbench),
 };
 
+// Superseded tool ids, kept working the same way the ?debug= urls are: a
+// bookmark or script written against the old name must not simply fail.
+// Not listed in the TOOLS menu above — resolved, then forgotten.
+const ALIASES = { hurtbox: 'collider' };
+
 const params = new URLSearchParams(location.search);
-const which = (params.get('edit') || 'animation').toLowerCase();
+const asked = (params.get('edit') || 'animation').toLowerCase();
+const which = ALIASES[asked] || asked;
 
 if (!TOOLS[which]) {
   document.body.innerHTML = `<div style="font:14px/1.6 system-ui;color:#dfe8f5;background:#0b0f16;

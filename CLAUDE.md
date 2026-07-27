@@ -19,7 +19,7 @@ audio). Progress history: `TASKS.md`.
 - WORKBENCHES LIVE ON THEIR OWN PAGE: `/workbench/?edit=<tool>&mech=<id>` —
   `animation` (procedural-vs-GLB action comparison + anchor editor),
   `pose` (joints + clip keyframes), `skin` (bone-island repair), `rig`
-  (hand-placed skeletons), `hurtbox` (what combat hits). `&variant=alt`
+  (hand-placed skeletons), `collider` (what combat hits). `&variant=alt`
   (legacy `&alt=1`) opens a mech's alternate build. The OLD urls
   (`?debug=models|pose|skin|collider`, `?rigedit=<id>`) still work — they
   redirect, carrying their params, so every tools/*.mjs script and bookmark is
@@ -89,11 +89,20 @@ audio). Progress history: `TASKS.md`.
   custom rig lives ONLY on its `alt` (inferno, rhino), `?rigedit=<id>` opens
   that build instead of refusing, with the box ticked and disabled. Shared
   logic: `src/dev/altpick.js`.
+- Every mech dropdown goes through `subjectSelect` (`workbench/ui/subjectpick.js`),
+  which orders them ALPHABETICALLY and puts the `hidden` work-in-progress mechs
+  under a rule at the end — the catalogue's own order is the roster's design
+  order, which is right for a line-up and useless for finding one mech in
+  seventeen. Tools that want bare ids instead of display names pass
+  `label: (id) => id`; the ordering rule stays in one place either way.
 - Workbench chrome is shared: `src/dev/panelui.js` owns the resizable panel,
   its scrollbars AND the coloured title bar every workbench wears (pose
-  green · skin orange · animation purple · rig blue · hurtbox cyan, with a
+  green · skin orange · animation purple · rig blue · collider cyan, with a
   live `mech · ALT · GLB` subtitle) — add a tool to `WORKBENCHES` and pass
-  `workbench:'<id>'` to `setupDevPanel`. `src/dev/mechpick.js` owns the mech
+  `workbench:'<id>'` to `setupDevPanel`. The chevron beside the title SWITCHES
+  WORKBENCH, carrying the current mech (and its staged variant) over; each
+  `WORKBENCHES` entry names its `?edit=` id in `tool`, which is why two keys
+  can keep their old names (`models` = animation, `rigedit` = rig). `src/dev/mechpick.js` owns the mech
   dropdown: `mechSelect()` for tools that rebuild in place, `gotoMech()` for
   `?rigedit`, which builds its world around one id and so switches by
   navigating.
