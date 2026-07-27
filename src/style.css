@@ -675,16 +675,28 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
 }
 /* the stage is the SVG's coordinate space: labels are positioned in % of it,
    so a leader line and its label never drift apart as the page resizes */
-.ctrl-stage { position: relative; width: 100%; aspect-ratio: 620 / 500; max-height: 68vh; }
+/* The stage IS the SVG's coordinate space: labels are positioned in % of it and
+   the leaders are drawn in viewBox units, so the two only line up while the box
+   keeps the viewBox's exact aspect. Capping the HEIGHT would break that — the
+   box would go wider than 620:500 and the SVG would letterbox inside it,
+   sliding every leader inward from its callout. So the short side is capped as
+   a WIDTH (64vh × 760/540 ≈ 90vh) and the aspect always holds. */
+.ctrl-stage {
+  position: relative; width: min(100%, 90vh); aspect-ratio: 760 / 540; margin: 0 auto;
+  /* callout type is sized in cqw (1% of the stage's width), so the boxes wrap
+     the same way at every window size — a fixed px scale made them wrap to
+     three lines and collide once the stage went height-limited */
+  container-type: inline-size;
+}
 /* the diagram sits over the labels in DOM order — it must not eat their hover */
 .ctrl-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .ctrl-label {
-  position: absolute; width: 19%; cursor: pointer;
-  font-size: clamp(9px, 1vw, 12px); line-height: 1.25;
+  position: absolute; width: 21%; cursor: pointer;
+  font-size: clamp(6px, 1.45cqw, 12.5px); line-height: 1.3;
   color: #9fc4dc; transform: translateY(-50%);
   /* each callout is a button: it can be picked, and picking it rewrites the
      description underneath the pad */
-  padding: 5px 9px; border-radius: 8px;
+  padding: 0.6cqw 1cqw; border-radius: 1.1cqw;
   border: 1.5px solid rgba(96, 200, 255, 0.3);
   background: rgba(12, 22, 36, 0.85);
   transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
@@ -696,8 +708,8 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
   box-shadow: 0 0 14px rgba(56, 232, 255, 0.35);
 }
 .ctrl-label b {
-  display: block; color: var(--hud-cyan); letter-spacing: 0.14em;
-  font-size: clamp(10px, 1.05vw, 13px);
+  display: block; color: var(--hud-cyan); letter-spacing: 0.12em;
+  font-size: clamp(7px, 1.7cqw, 13.5px);
 }
 .ctrl-label.on b { color: #fff; text-shadow: 0 0 10px var(--hud-cyan); }
 .ctrl-label.on { color: #dff0fb; }
@@ -706,7 +718,7 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
   text-align: center; font-size: clamp(11px, 1.15vw, 14px); line-height: 1.45; color: #bcd6e8;
 }
 .ctrl-detail b { color: var(--hud-cyan); letter-spacing: 0.12em; }
-.ctrl-foot { margin-top: 1vh; font-size: 10.5px; letter-spacing: 0.1em; color: #7ba0ba; text-align: center; }
+.ctrl-foot { width: min(96vw, 1120px); margin-top: 1vh; padding: 0 clamp(60px, 8vw, 130px); font-size: 10.5px; letter-spacing: 0.1em; color: #7ba0ba; text-align: center; }
 .ctrl-foot b, .ctrl-detail b { font-weight: 800; }
 .ctrl-close {
   margin-top: 1.4vh; padding: 7px 22px; border-radius: 7px; cursor: pointer;
