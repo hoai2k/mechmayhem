@@ -188,7 +188,24 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 /* sits ABOVE the hint bar's reserved strip instead of overlapping it */
 .players-bar {
   position: absolute; bottom: calc(2vh + 38px); left: 0; right: 0;
-  display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 0 12px;
+  display: flex; justify-content: center; padding: 0 12px;
+}
+/* the card row itself — the bumper badges anchor to ITS corners */
+.players-row {
+  position: relative; display: flex; justify-content: center;
+  gap: 14px; flex-wrap: wrap; padding-top: 17px;
+}
+.pb-bumper {
+  position: absolute; top: -2px; white-space: nowrap; pointer-events: none;
+  font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #8fb4cc; display: flex; align-items: center; gap: 5px;
+}
+.pb-bumper.left { left: 2px; }
+.pb-bumper.right { right: 2px; }
+.pb-bumper b {
+  color: #cfe4f4; font-weight: 900; font-size: 10px; letter-spacing: 0.06em;
+  padding: 2px 7px; border-radius: 7px;
+  background: rgba(20,34,52,0.9); border: 1.5px solid rgba(120,170,220,0.5);
 }
 
 /* everyone-locked gate: pulsing "confirm to continue" chip */
@@ -216,6 +233,12 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
 .player-card .pc-dev { font-size: clamp(14px, 1.4vw, 18px); font-weight: 900; font-style: italic; }
 .player-card .pc-add { font-size: clamp(14px, 1.4vw, 18px); font-weight: 900; font-style: italic; color: #cfe4f4; }
 .player-card .pc-sub { font-size: 10.5px; color: #8fb4cc; line-height: 1.25; }
+/* clickable difficulty steppers on a CPU card (pads/keyboards use ↑↓) */
+.player-card .pc-diff {
+  display: inline-block; padding: 0 7px; cursor: pointer; color: #cfe4f4;
+  font-size: 12px; line-height: 1;
+}
+.player-card .pc-diff:hover { color: #fff; text-shadow: 0 0 8px rgba(56,232,255,0.7); }
 /* color scheme control, shown in the card once the pick is locked */
 .player-card .pc-colors { letter-spacing: 0.1em; }
 .player-card .pc-swatch {
@@ -600,7 +623,8 @@ body.touch-mode .mech-info-card .mi-blurb { display: none; }
 body.touch-mode .mech-info-card .mi-name { font-size: 24px; }
 body.touch-mode .mech-info-card .mi-stats { margin-top: 10px; }
 body.touch-mode .picker-status { position: static; margin: 0 auto; flex-wrap: wrap; gap: 8px; }
-body.touch-mode .players-bar { position: static; margin: 8px auto 0; flex-wrap: wrap; gap: 8px; }
+body.touch-mode .players-bar { position: static; margin: 8px auto 0; }
+body.touch-mode .players-row { width: 100%; max-width: 560px; gap: 8px; }
 body.touch-mode .player-card { width: calc(50% - 8px); min-width: 0; min-height: 0; }
 
 /* setup → 2×2 grid of larger cards */
