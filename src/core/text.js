@@ -42,7 +42,13 @@ export const MESSAGES = {
   'select.addPlayer': '＋ ADD PLAYER',
   'select.addHint': 'press A / ENTER to join · LB/RB from your seat, or click, to add CPU / KB',
   'select.cpu': '🤖 CPU · {diff}',
-  'select.cpuHint': '◀ difficulty ▶ &nbsp;·&nbsp; tap center to remove',
+  // sits between the card's two clickable difficulty arrows
+  'select.cpuHint': 'difficulty',
+  // bumper badges pinned to the corners of the player-card row: LB/RB walk
+  // your focus from slot to slot
+  'select.bumperL': 'LB',
+  'select.bumperR': 'RB',
+  'select.bumperHint': 'slots',
   'select.picking': 'picking…',
   'select.editing': '▶ P{n} EDITING · ↑↓ change · B done',
   'select.locked': '· LOCKED ✓',

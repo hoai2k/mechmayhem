@@ -207,15 +207,23 @@ export class MechSelectScreen {
     this.card = el('div', 'panel mech-info-card');
     this.el.appendChild(this.card);
 
-    // players bar: join / device / CPU controls, one card per slot
+    // players bar: join / device / CPU controls, one card per slot.
+    // LB/RB badges ride the top corners of the card ROW (not of any one
+    // card) — the bumpers walk your focus across the slots.
     this.playersBar = el('div', 'players-bar');
+    const cardRow = el('div', 'players-row');
+    cardRow.appendChild(el('div', 'pb-bumper left',
+      `<b>${t('select.bumperL')}</b> ${t('select.bumperHint')} ◀`));
+    cardRow.appendChild(el('div', 'pb-bumper right',
+      `▶ ${t('select.bumperHint')} <b>${t('select.bumperR')}</b>`));
     this.playerCards = [];
     for (let i = 0; i < 4; i++) {
       const pc = el('div', 'player-card');
       pc.addEventListener('click', (e) => this.onCardClick(i, e));
-      this.playersBar.appendChild(pc);
+      cardRow.appendChild(pc);
       this.playerCards.push(pc);
     }
+    this.playersBar.appendChild(cardRow);
     this.el.appendChild(this.playersBar);
 
     // everyone-locked gate: the match does NOT advance until someone
@@ -258,22 +266,7 @@ export class MechSelectScreen {
     if (pads.length >= 2) return [{ kind: 'human', device: pads[0] }, { kind: 'human', device: pads[1] }, off(), off()];
     const solo = pads.length === 1 ? { kind: 'human', device: pads[0] }
       : this.touch ? { kind: 'human', device: 'touch' } : { kind: 'human', device: 'kb1' };
-    return [solo, { kind: 'ai', diff: 'veteran' }, off(), off()];
-  }
-
-  // options the ADD PLAYER / cycle affordance walks through
-  options() {
-    const opts = [];
-    if (this.input.touchAvailable) opts.push({ kind: 'human', device: 'touch' });
-    opts.push({ kind: 'human', device: 'kb1' }, { kind: 'human', device: 'kb2' });
-    for (let i = 0; i < 4; i++) if (this.input.padConnected(i)) opts.push({ kind: 'human', device: 'pad' + i });
-    opts.push({ kind: 'ai', diff: 'rookie' }, { kind: 'ai', diff: 'veteran' }, { kind: 'ai', diff: 'ace' }, { kind: 'off' });
-    return opts;
-  }
-
-  optIndex(slot) {
-    return this.options().findIndex((o) => o.kind === slot.kind &&
-      (o.kind !== 'human' || o.device === slot.device) && (o.kind !== 'ai' || o.diff === slot.diff));
+    return [solo, { kind: 'ai', diff: 'rookie' }, off(), off()];
   }
 
   deviceTaken(device, exceptSlot) {
@@ -282,23 +275,6 @@ export class MechSelectScreen {
 
   firstOff() { return this.slots.findIndex((s) => s.kind === 'off'); }
   activeCount() { return this.slots.filter((s) => s.kind !== 'off').length; }
-
-  // cycle a slot to the next valid option (skips already-taken devices)
-  cycleSlot(i, dir = 1) {
-    const opts = this.options();
-    let idx = this.optIndex(this.slots[i]);
-    if (idx < 0) idx = opts.length - 1;
-    for (let n = 0; n < opts.length; n++) {
-      idx = (idx + dir + opts.length) % opts.length;
-      const o = opts[idx];
-      if (o.kind === 'human' && this.deviceTaken(o.device, i)) continue;
-      this.slots[i] = { ...o };
-      break;
-    }
-    this.audio?.play('uiMove');
-    this.syncPickers();
-    this.refresh();
-  }
 
   // add a human bound to `device` in the first free slot (join-by-press)
   joinDevice(device) {
@@ -330,18 +306,37 @@ export class MechSelectScreen {
       }
       return;
     }
-    if (s.kind === 'off') { this.cycleSlot(i, 1); return; }      // ADD PLAYER
-    if (s.kind === 'ai') {
-      // left third = prev difficulty, right third = next, else remove
-      const r = this.playerCards[i].getBoundingClientRect();
-      const f = (e.clientX - r.left) / r.width;
-      if (f < 0.33) this.cycleAiDiff(i, -1);
-      else if (f > 0.66) this.cycleAiDiff(i, 1);
-      else this.removeSlot(i);
-      return;
-    }
-    // human card click = leave (mouse users); pickers otherwise use B
-    this.removeSlot(i);
+    // the ◀ ▶ on a CPU card set its temper directly — the one thing the
+    // mouse does that the slot ring doesn't
+    const arrow = e.target.closest?.('.pc-diff');
+    if (arrow && s.kind === 'ai') { this.cycleAiDiff(i, +arrow.dataset.dir); return; }
+    // your own card = leave (mouse users; pickers otherwise use B)
+    if (i === this.mousePicker?.slotIdx) { this.removeSlot(i); return; }
+    // somebody else's pad/touch seat is theirs alone — same slots the
+    // controller selector refuses to sit on
+    if (s.kind === 'human' && s.device !== 'kb1' && s.device !== 'kb2') return;
+    // every other card walks the same ring a controller walks with ↑↓
+    this.cycleMouse(i, 1);
+  }
+
+  // the ring a CLICK walks: the controller's stops minus the CPU difficulty
+  // tiers (those live on the card's ◀ ▶), so CPU is one entry
+  mouseOptions(i) {
+    return this.remoteOptions(i).filter((o) => o.kind !== 'ai' || o.diff === 'rookie');
+  }
+
+  cycleMouse(i, dir = 1) {
+    const opts = this.mouseOptions(i);
+    const s = this.slots[i];
+    // an 'ai' stop matches whatever temper the slot is already on
+    let cur = opts.findIndex((o) => o.kind === s.kind &&
+      (o.kind !== 'human' || o.device === s.device));
+    if (cur < 0) cur = 0;
+    this.slots[i] = { ...opts[(cur + dir + opts.length) % opts.length] };
+    this.audio?.play(this.slots[i].kind === 'off' ? 'uiBack' : 'uiSelect');
+    this.syncPickers();
+    this.refresh();
+    if (this.activeCount() === 0) this.onBack();
   }
 
   cycleAiDiff(i, dir) {
@@ -495,7 +490,8 @@ export class MechSelectScreen {
       if (s.kind === 'ai') {
         pc.innerHTML = `<div class="pc-role" style="color:${col}">${t('select.player', { n: i + 1 })}</div>
           <div class="pc-dev">${t('select.cpu', { diff: t('diff.' + s.diff) })}</div>
-          <div class="pc-sub">${t('select.cpuHint')}</div>${edTag}`;
+          <div class="pc-sub"><span class="pc-diff" data-dir="-1">◀</span>${t('select.cpuHint')}<span
+            class="pc-diff" data-dir="1">▶</span></div>${edTag}`;
         return;
       }
       const pk = this.pickers.find((p) => p.slotIdx === i);
