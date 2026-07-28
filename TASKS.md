@@ -17,6 +17,20 @@ controllers via Gamepad API), AI opponents.
   without spinning), LT pressed airborne buys the same tuck on stamina,
   and every fall now lands through a stretch → crouch → recover landing
   animation. See the section at the end of this file.
+- **Previous:** POST FX IN LOCAL MULTIPLAYER — split-screen used to skip
+  post-processing entirely (a plain scissored `renderer.render` per view), so
+  a 2–4 player game had no bloom, no FXAA and, as of the previous change, no
+  distance haze blur. Each viewport now runs its OWN post chain
+  (`engine._viewChain`), sized to that viewport: the scene render happens at
+  the view's aspect and the final pass writes into the view's rect, because
+  `setRenderTarget(null)` restores the viewport/scissor set for that view.
+  One shared full-canvas chain could NOT work — the scene would render at the
+  full aspect and be squeezed into a half rect, and bloom would bleed across
+  the split line (a bloom pass treats its whole buffer as one image). Total
+  pixel work is roughly one full-screen chain (each view is a fraction of the
+  screen) but per-pass overhead multiplies, so `?postfx=single`
+  (CONFIG.splitPostFx) restores the old plain path on hardware that
+  struggles. Verified on 2P side-by-side, 2P stacked and 4P quadrants.
 - **Previous:** DISTANCE BLUR + CITY DENSITY — two fixes to "the fog looks
   wrong". (1) three's fog only lerps colour, so a far tower went grey with a
   razor silhouette. `src/core/hazeblur.js` adds a HazeRenderPass (it IS the

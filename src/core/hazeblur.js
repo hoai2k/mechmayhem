@@ -11,9 +11,8 @@
 // the fog wall and must stay crisp (they are painted backdrops — blurring
 // them just smears the clouds).
 //
-// Only the composer path (single view) runs this; split-screen renders
-// scissored views directly and skips post entirely, as it already does for
-// bloom and FXAA.
+// Every view runs it: single-screen through the main composer, and each
+// split-screen viewport through its own (engine.js keeps a small pool).
 import * as THREE from 'three';
 import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 
@@ -105,15 +104,24 @@ export class HazeRenderPass extends Pass {
     this.fsQuad = new FullScreenQuad(this.material);
   }
 
-  setSize() { /* the target is (re)allocated in render, from the real buffer size */ }
+  // the composer reports its target size in DEVICE pixels; a split view's
+  // composer is sized to that viewport, not the whole canvas
+  setSize(w, h) {
+    this._w = w;
+    this._h = h;
+  }
 
-  // Allocate against the ACTUAL drawing buffer. Resizing a render target that
-  // owns a depth texture leaves the depth attachment stale (it samples as 1.0
-  // — i.e. "everything is at the far plane", so nothing ever blurs); building
-  // a fresh target + depth texture on a size change avoids the whole question.
+  // Resizing a render target that owns a depth texture leaves the depth
+  // attachment stale (it samples as 1.0 — "everything is at the far plane",
+  // so nothing ever blurs); building a fresh target + depth texture on a
+  // size change avoids the whole question.
   _ensureTarget(renderer) {
-    const size = renderer.getDrawingBufferSize(_size);
-    const w = Math.max(1, size.x | 0), h = Math.max(1, size.y | 0);
+    let w = this._w, h = this._h;
+    if (!w || !h) {
+      const size = renderer.getDrawingBufferSize(_size);
+      w = size.x; h = size.y;
+    }
+    w = Math.max(1, w | 0); h = Math.max(1, h | 0);
     if (this.target && this.target.width === w && this.target.height === h) return;
     this.target?.dispose();
     this.target?.depthTexture?.dispose();

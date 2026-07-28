@@ -47,6 +47,14 @@ export const CONFIG = {
   // inversion. Persisted from the settings menu.
   reverseCameraY: readPref('rw.reverseCamY'),
 
+  // SPLIT-SCREEN POST FX: local multiplayer runs the same post chain as the
+  // single view (distance haze blur, bloom, FXAA) — one composer per
+  // viewport, each sized to its own rect. Total pixel work is about the same
+  // as one full-screen chain (each view is a fraction of the screen), but the
+  // per-pass overhead multiplies, so ?postfx=single falls back to the old
+  // plain scissored renders on hardware that struggles.
+  splitPostFx: params.get('postfx') !== 'single',
+
   // ---- ULT FOUNTAINS (combat/fountains.js) ----
   // Ultimates are no longer charged by dealing/taking damage: golden powerup
   // fountains spawn around the arena and standing in one grants a charge.

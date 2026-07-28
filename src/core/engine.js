@@ -8,6 +8,7 @@ import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { HazeRenderPass } from './hazeblur.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { clamp } from './utils.js';
+import { CONFIG } from './config.js';
 
 const _bufSize = new THREE.Vector2();
 import { showContextLost, WebGLUnavailableError } from './fatal.js';
@@ -84,15 +85,18 @@ export class Engine {
     // The scene render and the DISTANCE HAZE BLUR are one pass
     // (core/hazeblur.js): fog that softens silhouettes instead of only
     // greying them. It runs before bloom, so bloom sees the hazed image.
-    this.composer = new EffectComposer(this.renderer);
-    this.haze = new HazeRenderPass(this.scene, this.camera);
-    this.renderPass = this.haze;   // it IS the scene render
-    this.composer.addPass(this.haze);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.5, 0.92);
-    this.composer.addPass(this.bloom);
-    this.composer.addPass(new OutputPass());
-    this.fxaa = new ShaderPass(FXAAShader);
-    this.composer.addPass(this.fxaa);
+    const main = this._makePostChain(this.camera);
+    this.composer = main.composer;
+    this.haze = main.haze;
+    this.bloom = main.bloom;
+    this.fxaa = main.fxaa;
+    this.renderPass = main.haze;   // the haze pass IS the scene render
+    // SPLIT-SCREEN: one chain per viewport, built on demand and sized to
+    // THAT viewport. A single shared full-canvas chain can't work — the
+    // scene would be rendered at the full aspect and squeezed into a half
+    // rect, and bloom would bleed across the split line, since a bloom pass
+    // treats its whole buffer as one image.
+    this._viewChains = [];
 
     // ---- loop state ----
     this.views = null;         // split-screen: [{camera, x, y, w, h}] (0..1)
@@ -112,6 +116,51 @@ export class Engine {
     this.resize();
   }
 
+  // one post chain: haze/scene render → bloom → output → FXAA
+  _makePostChain(camera) {
+    const composer = new EffectComposer(this.renderer);
+    const haze = new HazeRenderPass(this.scene, camera);
+    composer.addPass(haze);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.5, 0.92);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+    const fxaa = new ShaderPass(FXAAShader);
+    composer.addPass(fxaa);
+    return { composer, haze, bloom, fxaa };
+  }
+
+  // per-view chain, (re)sized to the viewport it draws — CSS pixels in, the
+  // composer applies the pixel ratio itself
+  _viewChain(i, camera, cssW, cssH) {
+    let c = this._viewChains[i];
+    if (!c) {
+      c = this._makePostChain(camera);
+      c.w = c.h = 0;
+      this._viewChains[i] = c;
+    }
+    c.haze.camera = camera;
+    if (c.w !== cssW || c.h !== cssH) {
+      c.w = cssW; c.h = cssH;
+      c.composer.setSize(cssW, cssH);
+      const pr = this.renderer.getPixelRatio();
+      c.fxaa.material.uniforms.resolution.value.set(1 / (cssW * pr), 1 / (cssH * pr));
+    }
+    return c;
+  }
+
+  // fog band + resolution-scaled blur radius for one chain's haze pass
+  _syncHaze(chain, camera) {
+    const u = chain.haze.uniforms;
+    u.uCamNear.value = camera.near;
+    u.uCamFar.value = camera.far;
+    const fog = this.scene.fog;
+    u.uFogNear.value = fog ? fog.near : 1e9;
+    u.uFogFar.value = fog ? fog.far : 1e9;
+    const px = chain.h ? chain.h * this.renderer.getPixelRatio()
+      : this.renderer.getDrawingBufferSize(_bufSize).y;
+    u.uRadius.value = fog ? clamp(px * 0.009, 2.5, 12) * this.hazeStrength : 0;
+  }
+
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h);
@@ -121,6 +170,9 @@ export class Engine {
     const pr = this.renderer.getPixelRatio();
     this.fxaa.material.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
     this.haze.uniforms.uTexel.value.set(1 / (w * pr), 1 / (h * pr));
+    // split chains re-size themselves on the next frame (their rects change
+    // with the window), so just forget the cached sizes
+    for (const c of this._viewChains) { if (c) c.w = c.h = 0; }
   }
 
   start() {
@@ -160,35 +212,35 @@ export class Engine {
   _render() {
     {
       if (this.views && this.views.length > 1) {
-        // split-screen: direct scissored renders (post FX skipped here)
+        // SPLIT-SCREEN: every viewport gets the same post chain the single
+        // view does (haze blur, bloom, FXAA), each through its own composer
+        // sized to that rect. The final pass writes to the canvas, and
+        // setRenderTarget(null) restores the viewport/scissor set here — so
+        // each chain lands in its own corner of the screen.
         const W = window.innerWidth, H = window.innerHeight;
-        const pr = this.renderer.getPixelRatio();
         this.renderer.setScissorTest(true);
-        for (const v of this.views) {
+        this.views.forEach((v, i) => {
           if (this.backdrop) this.backdrop.position.set(v.camera.position.x, 0, v.camera.position.z);
           this.onBeforeView?.(v.camera);
           const x = v.x * W, y = v.y * H, w = v.w * W, h = v.h * H;
           this.renderer.setViewport(x, y, w, h);
           this.renderer.setScissor(x, y, w, h);
-          this.renderer.render(this.scene, v.camera);
+          if (CONFIG.splitPostFx) {
+            const chain = this._viewChain(i, v.camera, w, h);
+            this._syncHaze(chain, v.camera);
+            chain.composer.render();
+          } else {
+            this.renderer.render(this.scene, v.camera);   // ?postfx=single
+          }
           this.onAfterView?.();
-        }
+        });
         this.renderer.setScissorTest(false);
         this.renderer.setViewport(0, 0, W, H);
       } else {
         if (this.backdrop) this.backdrop.position.set(this.camera.position.x, 0, this.camera.position.z);
         this.onBeforeView?.(this.camera);
         // the haze band tracks whatever fog the current arena installed
-        const u = this.haze.uniforms;
-        u.uCamNear.value = this.camera.near;
-        u.uCamFar.value = this.camera.far;
-        const fog = this.scene.fog;
-        u.uFogNear.value = fog ? fog.near : 1e9;
-        u.uFogFar.value = fog ? fog.far : 1e9;
-        // blur radius scales with resolution so the softening reads the same
-        // at 720p and 4K (hazeStrength is a debug/tuning multiplier)
-        const px = this.renderer.getDrawingBufferSize(_bufSize).y;
-        u.uRadius.value = fog ? clamp(px * 0.009, 2.5, 12) * this.hazeStrength : 0;
+        this._syncHaze({ haze: this.haze, h: 0 }, this.camera);
         this.composer.render();
         this.onAfterView?.();
       }
