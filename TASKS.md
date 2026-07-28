@@ -4433,7 +4433,7 @@ the screen asked the audio engine for: 10 buzzes in 9.2s, at 0.59 / 0.72 / 0.88 
 including both stutter pairs — and the engine built 20 oscillators + 10 noise
 bursts, which is the 2+1 the sound is made of, times ten.
 
-FONT / COLOR PASS (shown for a keep-or-drop call, NOT merged to main). Two type
+FONT / COLOR PASS (kept). Two type
 stacks now: `--font-display`, a condensed grotesque (Bahnschrift / DIN Alternate
 / Oswald / Arial Narrow, falling all the way back to the old stack) for headings,
 menu items, card names and hint keys; `--font-ui` stays the system sans for

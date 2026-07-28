@@ -141,12 +141,16 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
   letter-spacing: 0.2em; text-transform: uppercase; padding: 8px 46px;
   color: #7f9cb4; cursor: pointer; position: relative; transition: color 0.12s, transform 0.12s;
 }
+/* SELECTION IS BLUE. Magenta stays the accent for state you cannot move —
+   the ready chip, the hot end of a stat bar, the glow under a heading — while
+   the thing your cursor is on lights the cyan tube. One widget, one look:
+   this rule serves the title, pause, settings and results lists alike. */
 .menu-item.selected {
   color: #ffffff; transform: scale(1.08);
-  text-shadow: 0 0 14px rgba(255,77,216,0.9), 0 0 38px rgba(255,77,216,0.45);
+  text-shadow: 0 0 14px rgba(56,232,255,0.9), 0 0 38px rgba(56,232,255,0.45);
 }
-.menu-item.selected::before { content: '▶'; position: absolute; left: 8px; color: var(--hud-magenta); font-style: normal; }
-.menu-item.selected::after  { content: '◀'; position: absolute; right: 8px; color: var(--hud-magenta); font-style: normal; }
+.menu-item.selected::before { content: '▶'; position: absolute; left: 8px; color: var(--hud-cyan); font-style: normal; }
+.menu-item.selected::after  { content: '◀'; position: absolute; right: 8px; color: var(--hud-cyan); font-style: normal; }
 
 .hint-bar {
   position: absolute; bottom: 0; left: 0; right: 0; text-align: center;
