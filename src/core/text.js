@@ -100,7 +100,7 @@ export const MESSAGES = {
   'pause.controls.html': `
       <b style="color:#fff">KEYBOARD P1</b> — WASD move · SPACE jump · F light · G heavy · H block · R ranged · T special · Y ultimate · SHIFT dash · Q strafe-lock · C duck · B taunt<br>
       <b style="color:#fff">KEYBOARD P2</b> — Arrows move · Num0 jump · Num1 light · Num2 heavy · Num3 block · Num4 ranged · Num5 special · Num6 ult · NumEnter dash · Num7 strafe-lock · Num8 duck<br>
-      <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera · A jump · X light · Y heavy · RB ranged · RT special · LT block · L-stick click duck · D-pad ↑ ultimate · VIEW taunt<br>
+      <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera (free look, nothing auto-swings it) · A jump · X light · Y heavy · RB ranged · RT special · LT block · L-stick CLICK camera adjust (R-stick ↑↓ zooms in/out) · D-pad ↑ ultimate · VIEW taunt<br>
       <b style="color:#fff">B / SHIFT — DASH &amp; SPRINT</b> — standing still, HOLD to wind up a dash coil (3s cap, crouches); the moment you push a direction it FIRES a dash that way — longer wind-up, farther dash. Already moving, press-and-HOLD for a short dash into a SPRINT that drains the yellow stamina bar (refills when you let go)<br>
       <b style="color:#fff">PAD LB — TARGET LOCK</b> — HOLD to lock onto the nearest enemy: you face them, the camera keeps them framed, and sideways movement becomes a strafe<br>
       <b style="color:#fff">AIM</b> — while LB target lock is held, a light crosshair drifts onto the target and ranged shots fly at it (height included); unlocked shots fire along your facing<br>
@@ -144,8 +144,8 @@ export const MESSAGES = {
   'controls.foot.html': 'pick a control — hover, or <b>↑ ↓</b> — for what it does&nbsp;&nbsp;·&nbsp;&nbsp;<b>B / ESC</b> close'
     + '<br>keyboard P1: <b>WASD</b> move · <b>SPACE</b> jump · <b>F</b> light · <b>G</b> heavy · <b>H</b> block · <b>R</b> ranged · <b>T</b> special · <b>Y</b> ultimate · <b>SHIFT</b> dash · <b>Q</b> strafe-lock · <b>C</b> duck · <b>B</b> taunt',
   'controls.lstick.name': 'LEFT STICK',
-  'controls.lstick.action': 'move',
-  'controls.lstick.detail': 'walks your mech around the arena. The arena wraps, so walking off one edge brings you back around the other — and clicking the stick in ducks, under a swing or a beam.',
+  'controls.lstick.action': 'move · click to zoom',
+  'controls.lstick.detail': 'walks your mech around the arena. The arena wraps, so walking off one edge brings you back around the other. CLICK it in for camera adjust: while it is held the right stick zooms the view in and out (push forward to come in) instead of tilting it, and where you leave it is remembered.',
   'controls.dpad.name': 'D-PAD',
   'controls.dpad.action': '▲ ultimate',
   'controls.dpad.detail': 'UP fires your ultimate once the meter is full — the big one, named on your mech\'s card. The other three directions walk you around as a backup for the left stick.',
@@ -163,7 +163,7 @@ export const MESSAGES = {
   'controls.start.detail': 'pauses the match: resume, controls, settings, sound and quitting to the main menu all live in there.',
   'controls.rstick.name': 'RIGHT STICK',
   'controls.rstick.action': 'camera',
-  'controls.rstick.detail': 'orbits the battle camera around your mech. In a split screen it steers your own viewport only, so both players can look where they like.',
+  'controls.rstick.detail': 'orbits the battle camera around your mech, and it is yours: nothing swings it back on its own, so where you point it is where it stays. Only a held target lock (LB) takes it over. Push down far enough and it drops to your mech\'s own head height.',
   // The four face buttons get a callout each — the buttons a player reaches for
   // most, so each says exactly what it does in a fight.
   'controls.a.name': 'A',

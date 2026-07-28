@@ -179,8 +179,11 @@ export class Input {
       intent.strafe = false;
       // BACK/View button — RS click would misfire while steering the camera
       intent.taunt = this.padPressed(i, 'BACK');
-      // crouch on left-stick click, the shooter-native duck
-      intent.duck = this.padHeld(i, 'LS');
+      // LEFT-STICK CLICK is CAMERA ADJUST, not crouch: hold it and the right
+      // stick zooms the view instead of pitching it (boot.js feeds the camera).
+      // Crouch lives on the B coil now — holding it crouches while it winds.
+      intent.duck = false;
+      intent.camAdjust = this.padHeld(i, 'LS');
     } else if (device === 'touch') {
       const t = this.touch;
       mx = t.moveX;
