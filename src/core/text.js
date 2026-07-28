@@ -148,8 +148,8 @@ export const MESSAGES = {
   'controls.foot.html': 'pick a control — hover, or <b>↑ ↓</b> — for what it does&nbsp;&nbsp;·&nbsp;&nbsp;<b>B / ESC</b> close'
     + '<br>keyboard P1: <b>WASD</b> move · <b>SPACE</b> jump · <b>F</b> light · <b>G</b> heavy · <b>H</b> block · <b>R</b> ranged · <b>T</b> special · <b>Y</b> ultimate · <b>SHIFT</b> dash · <b>Q</b> strafe-lock · <b>C</b> duck · <b>B</b> taunt',
   'controls.lstick.name': 'LEFT STICK',
-  'controls.lstick.action': 'move · click to zoom',
-  'controls.lstick.detail': 'walks your mech around the arena. The arena wraps, so walking off one edge brings you back around the other. CLICK it in for camera adjust: while it is held the right stick zooms the view in and out (push forward to come in) instead of tilting it, and where you leave it is remembered.',
+  'controls.lstick.action': 'move',
+  'controls.lstick.detail': 'walks your mech around the arena. Press in for camera adjust mode: while held, the right stick will zoom the view in and out, and where you leave it is remembered.',
   'controls.dpad.name': 'D-PAD',
   'controls.dpad.action': '▲ ultimate',
   'controls.dpad.detail': 'UP fires your ultimate once you\'ve collected a charge from a golden fountain — the big one, named on your mech\'s card. You can pocket two. The other three directions walk you around as a backup for the left stick.',
@@ -164,10 +164,10 @@ export const MESSAGES = {
   'controls.select.detail': 'strikes your mech\'s pose and calls its line. Free, and worth nothing — except that standing still to do it in front of someone holding an ultimate charge is its own kind of statement.',
   'controls.start.name': 'START',
   'controls.start.action': 'pause',
-  'controls.start.detail': 'pauses the match: resume, controls, settings, sound and quitting to the main menu all live in there.',
+  'controls.start.detail': 'pauses the match: also access settings, sound and exiting to main menu.',
   'controls.rstick.name': 'RIGHT STICK',
   'controls.rstick.action': 'camera',
-  'controls.rstick.detail': 'orbits the battle camera around your mech, and it is yours: nothing swings it back on its own, so where you point it is where it stays. Only a held target lock (LB) takes it over. Push down far enough and it drops to your mech\'s own head height.',
+  'controls.rstick.detail': 'orbits the battle camera around your mech. When target lock (LB) is on, camera moves back to lock when right stick is released.',
   // The four face buttons get a callout each — the buttons a player reaches for
   // most, so each says exactly what it does in a fight.
   'controls.a.name': 'A',
