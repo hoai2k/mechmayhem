@@ -3936,3 +3936,37 @@ RT reads "special attack" now, in the callout and in its detail sentence.
 
 Verified at 985×649, 1440×810 and 1920×1080: 0 line overlaps, 0 crossings,
 0 label overlaps, 0 leaders short of their box, no callout text overflowing.
+
+## Battle soundtrack: the songs in src/music/ (user request, 2026-07-27)
+
+The eight mp3s dropped in `src/music/` now play during fights, at a volume that
+leaves the synthesized combat SFX on top.
+
+`src/core/music.js` is the whole player, and it names NOTHING: the track list is
+`import.meta.glob('../music/*.{mp3,ogg,m4a,wav,webm}')`, so dropping a file in
+that folder adds it to the rotation with no code change, and the FILENAME minus
+its extension is the title shown on screen. It's an `<audio>` element rather than
+another voice inside `core/audio.js` — that file is a WebAudio note scheduler for
+the procedural tracks, and these are streamed files. The menus keep the
+sequencer; a battle stops it and starts a song.
+
+A random song starts with the fight (never the one that just played), and when it
+ends another random one follows. Volume is a flat 0.22 against the 0.8 SFX bus,
+so a clang always cuts through the music.
+
+Wired through `boot.js` so the soundtrack follows the fight exactly: the pause
+menu pauses it and resuming resumes it, backgrounding the tab pauses it (and
+coming back only resumes it if the match was left running — the fight itself
+still doesn't auto-resume), and tearing the battle down stops it and hands the
+menus back to the sequencer. SOUND: OFF silences it with everything else.
+
+`src/ui/nowplaying.js` is the readout in the bottom-right corner: a small
+`🔊 NOW PLAYING · <song>` chip, click it (or SETTINGS → MUSIC) to turn the music
+off and on without touching the SFX. Persisted in `rw.musicOn`. It hides on the
+menus and during the warm-up screen, whose hint bar owns that edge.
+
+Verified by driving the real menu flow into a live fight in a headless browser:
+all eight files found, a random one playing at 0.22, the element actually paused
+by the pause menu and playing again on resume, and the chip's click toggling
+volume 0.22 ↔ 0 and the label ↔ MUSIC OFF. `npx vite build` green, with all eight
+mp3s emitted as build assets.

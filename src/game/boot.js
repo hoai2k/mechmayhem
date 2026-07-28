@@ -15,6 +15,8 @@ import { InstructionsScreen } from '../ui/instructions.js';
 import { CONFIG, setInfiniteUltimates, setShowAllRobots } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
+import { MusicPlayer } from '../core/music.js';
+import { NowPlaying } from '../ui/nowplaying.js';
 import { createMech, preloadMechModels, loadManifest, is3dMode } from '../mechs/gltf.js';
 import { preloadPropModels } from '../arena/propglb.js';
 import { TouchControls, installTouchZoomGuards } from './touch.js';
@@ -59,6 +61,14 @@ export async function bootGame() {
   window.addEventListener('pointerdown', resumeAudio);
   window.addEventListener('keydown', resumeAudio);
 
+  // ---- battle soundtrack: the songs in src/music/ (see core/music.js). The
+  // menus keep the procedural sequencer; a fight plays a random song, named in
+  // the bottom-right readout, whose icon turns the music off without touching
+  // the combat SFX. Falls back to the sequencer's theme track if src/music/ is
+  // empty or <audio> is unavailable.
+  const music = new MusicPlayer();
+  const nowPlaying = new NowPlaying(uiRoot, music);
+
   // ---- sound on/off: corner button on menus, mirrored in the pause menu ----
   let muted = false;
   try { muted = localStorage.getItem('rw.muted') === '1'; } catch (e) { /* ok */ }
@@ -74,6 +84,7 @@ export async function bootGame() {
     try { localStorage.setItem('rw.muted', m ? '1' : '0'); } catch (e) { /* ok */ }
     audio.setSfxVolume(muted ? 0 : 0.8);
     audio.setMusicVolume(muted ? 0 : 0.35);
+    music.setMuted(muted);
     muteBtn.textContent = muted ? '🔇' : '🔊';
   }
   muteBtn.addEventListener('click', () => setMuted(!muted));
@@ -91,6 +102,12 @@ export async function bootGame() {
   uiRoot.appendChild(gearBtn);
   const settingsItems = () => [
     { label: () => t(muted ? 'settings.sound.off' : 'settings.sound.on'), fn: () => setMuted(!muted) },
+    ...(music.available
+      ? [{
+        label: () => t(music.enabled ? 'settings.music.on' : 'settings.music.off'),
+        fn: () => music.setEnabled(!music.enabled),
+      }]
+      : []),
     {
       label: () => t(CONFIG.debugUltimates ? 'settings.infiniteUlts.on' : 'settings.infiniteUlts.off'),
       fn: () => setInfiniteUltimates(!CONFIG.debugUltimates),
@@ -158,6 +175,11 @@ export async function bootGame() {
 
   let muteVisible = true;
   function updateMuteBtn() {
+    // the readout belongs to the fight (and the results panel behind which it
+    // keeps playing), not to the menus — and not to the warm-up screen, whose
+    // own hint bar owns the bottom edge
+    nowPlaying.setVisible((S.mode === 'battle' || S.mode === 'results')
+      && !!S.battle && !S.battle.loading);
     const show = !(S.mode === 'battle' && S.battle && !S.battle.paused);
     if (show !== muteVisible) {
       muteVisible = show;
@@ -465,7 +487,8 @@ export async function bootGame() {
     const usesTouch = humans.some((h) => h.device === 'touch');
     S.battle = { world, arena, fighters, humans, ais, cameraSys, hud, match, paused: false, usesTouch, loading: null, arenaObjs };
     if (touchControls) touchControls.setVisible(false); // hidden until the bell
-    audio.music(theme.music);
+    if (music.available) { audio.stopMusic(); music.start(); }
+    else audio.music(theme.music);
     // pre-fight warm-up screen: the match is gated behind it while the
     // texture pack streams in and the first frames compile every shader
     warmup.start(S.battle, theme);
@@ -479,6 +502,8 @@ export async function bootGame() {
 
   function teardownBattle() {
     if (!S.battle) return;
+    music.stop();
+    nowPlaying.setVisible(false);
     touchControls?.setVisible(false);
     if (S.battle.loading) { // quit mid-warm-up: drop the overlay + cameras
       S.battle.loading.ov.remove();
@@ -499,9 +524,10 @@ export async function bootGame() {
     S.battle.paused = true;
     touchControls?.setVisible(false);
     audio.play('pause');
+    music.pause();
     setScreen(new PauseScreen(uiRoot, {
       audio, hotButtons,
-      onResume: () => { S.battle.paused = false; setScreen(null); if (S.battle.usesTouch) touchControls?.setVisible(true); },
+      onResume: () => { S.battle.paused = false; setScreen(null); music.resume(); if (S.battle.usesTouch) touchControls?.setVisible(true); },
       onQuit: () => goTitle(),
       onFullscreen: toggleFullscreen,
       onSettings: () => openSettings(),
@@ -603,8 +629,12 @@ export async function bootGame() {
       // cameras); it is time-gated and harmless to leave running.
       if (S.mode === 'battle' && S.battle && !S.battle.paused && !S.battle.loading) pauseBattle();
       audio.suspend();
+      music.pause();
     } else if (!muted) {
       audio.resume();
+      // the fight itself does NOT auto-resume; the soundtrack only comes back
+      // if the match was left running (results screen, mid-warm-up)
+      if (S.battle && !S.battle.paused) music.resume();
     }
   });
 
@@ -621,5 +651,5 @@ export async function bootGame() {
     setTimeout(() => splash.remove(), 600);
   }));
 
-  window.__game = { S, engine, audio, tick: (dt) => engine.onUpdate(dt) }; // debug hook
+  window.__game = { S, engine, audio, music, tick: (dt) => engine.onUpdate(dt) }; // debug hook
 }

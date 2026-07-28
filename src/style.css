@@ -379,6 +379,24 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
   filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.75));
 }
 
+/* battle soundtrack readout — bottom-right, under everything else that lives
+   in that corner (HUD plates sit at 3vh, this hugs the very edge). Click the
+   whole chip to toggle the music. */
+#now-playing {
+  position: absolute; right: 1.4vw; bottom: 0.7vh; z-index: 12;
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 9px; border-radius: 5px;
+  background: rgba(6,12,22,0.45); border: 1px solid rgba(120,190,240,0.16);
+  font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(190,224,246,0.72); text-shadow: 0 1px 3px #000;
+  cursor: pointer; pointer-events: auto; user-select: none;
+  opacity: 0.75; transition: opacity 0.18s, color 0.18s;
+  max-width: 34vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#now-playing:hover { opacity: 1; color: #dff0ff; }
+#now-playing.np-off { color: rgba(170,190,205,0.5); }
+#now-playing .np-icon { font-size: 13px; filter: saturate(0.4); }
+
 /* controller connect toast */
 #toast-layer { position: absolute; bottom: 3vh; right: 2vw; display: flex; flex-direction: column; gap: 8px; }
 .toast {
