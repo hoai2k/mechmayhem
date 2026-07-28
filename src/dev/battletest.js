@@ -12,6 +12,8 @@ import { createBattle } from '../game/battle.js';
 import { pick } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { createMech } from '../mechs/gltf.js';
+import { preloadPropModels } from '../arena/propglb.js';
+import { preloadBuildingModels } from '../arena/buildglb.js';
 import { loadLevel, themeFromLevel } from '../arena/level.js';
 
 export async function runBattleTest() {
@@ -27,6 +29,12 @@ export async function runBattleTest() {
     const lvl = await loadLevel(levelName);
     if (lvl) theme = themeFromLevel(lvl);
   }
+
+  // the real match preloads prop GLBs + building donors before the arena
+  // builds (boot.js) — the harness must too, or every ?battle screenshot
+  // and soak silently exercises the procedural fallbacks instead of what
+  // actually ships (same reason mechs go through createMech below)
+  await Promise.all([preloadPropModels(), preloadBuildingModels()]);
 
   const engine = new Engine(document.getElementById('game-canvas'));
   const input = new Input();

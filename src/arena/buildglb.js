@@ -165,8 +165,14 @@ function voxelize(scene, floors) {
   return kept.length >= 4 ? { cells: kept, nx, ny, nz } : null;
 }
 
-export function preloadBuildingModels() {
-  if (loadPromise) return loadPromise;
+// Preload donors. Preference order per manifest entry:
+//   1. <name>.vox.json — the OFFLINE BAKE (tools/voxbake.mjs): a few KB,
+//      no GLB download, no parse, no rasterization at runtime
+//   2. the GLB, voxelized live — so a freshly dropped donor still works
+//      before anyone re-runs the bake
+// opts.forceGlb makes the bake tool itself skip stale .vox.json files.
+export function preloadBuildingModels(opts = {}) {
+  if (loadPromise && !opts.forceGlb) return loadPromise;
   loadPromise = (async () => {
     let man = null;
     try {
@@ -176,14 +182,40 @@ export function preloadBuildingModels() {
     if (!man) return;
     await Promise.all(Object.entries(man).map(async ([name, entry]) => {
       if (!entry || !entry.file) return;
+      if (!opts.forceGlb) {
+        try {
+          const res = await fetch(`models/buildings/${name}.vox.json`);
+          if (res.ok) {
+            const baked = await res.json();
+            if (baked?.cells?.length) {
+              donors.set(name, { ...baked, themes: entry.themes || baked.themes || null });
+              return;
+            }
+          }
+        } catch { /* fall through to live voxelization */ }
+      }
       try {
+        const t0 = performance.now();
         const gltf = await loader.loadAsync(`models/buildings/${entry.file}`);
         const vox = voxelize(gltf.scene, entry.floors);
-        if (vox) donors.set(name, { ...vox, themes: entry.themes || null });
+        if (vox) {
+          donors.set(name, { ...vox, themes: entry.themes || null });
+          console.info(`voxelized ${name} live in ${Math.round(performance.now() - t0)}ms — ` +
+            'run `node tools/voxbake.mjs` to bake it offline');
+        }
       } catch { /* missing/broken donor — skipped */ }
     }));
   })();
   return loadPromise;
+}
+
+// plain-JSON view of every voxelized donor (the bake tool writes these out)
+export function serializeDonors() {
+  const out = {};
+  for (const [name, d] of donors) {
+    out[name] = { cells: d.cells, nx: d.nx, ny: d.ny, nz: d.nz, themes: d.themes };
+  }
+  return out;
 }
 
 // donors available to a theme (empty array until the preload lands)

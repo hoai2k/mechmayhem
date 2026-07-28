@@ -12,7 +12,27 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** TRIPO PROPS LIVE + MASSED BUILDINGS — (1) the 20 Tripo prop
+- **Latest:** BUILDING DONORS BAKED + DEV-HARNESS PARITY FIX — the 8 Tripo
+  massing donors voxelize into exactly the intended silhouettes (stepped
+  temple pyramid with shrine, works hall + boiler tower, offset hab stacks,
+  terraced mill, crowned towers — `node tools/voxbake.mjs` prints per-floor
+  ASCII occupancy maps to prove it). Voxelization is now OFFLINE: voxbake
+  runs the game's own voxelizer headless and writes
+  `public/models/buildings/<name>.vox.json` (2.6–6 KB each, per-cell tints
+  included); runtime prefers the bake — no GLB download (~3.3 MB skipped),
+  no parse, no rasterization — and falls back to live voxelization only for
+  a donor dropped in without re-baking. Also fixed a real parity hole: the
+  `?battle=` dev harness (battletest.js) built its arena WITHOUT the prop /
+  building preloads, so every dev screenshot and soak silently exercised
+  procedural fallbacks while the menu-flow game showed GLBs — several
+  props are close enough to their procedural stand-ins that screenshot
+  verification didn't catch it. battletest now awaits both preloads
+  (mirroring boot.js), verified by probing the scene graph: prop groups
+  carry a single GLB child, donor buildings claim sites (chunk counts
+  1028→1430 uptown, 795→1248 ruins; capacity 2200 holds). Crater test on a
+  donor pyramid: 15 chunks out, tiers intact, no false collapse; ace soaks
+  clean on ruins + uptown 4P.
+- **Previous:** TRIPO PROPS LIVE + MASSED BUILDINGS — (1) the 20 Tripo prop
   GLBs are integrated: optimized with gltf-transform (37→13 MB, 1024
   textures, meshopt — a first pass wrote glTF-JSON sidecars whose texture
   names collided across all 20 models; redone as true binary GLBs),
