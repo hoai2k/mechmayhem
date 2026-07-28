@@ -34,6 +34,8 @@ const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _e = new THREE.Euler();
 const _c = new THREE.Color();
+// scratch AABB for the per-chunk occlusion test (setOccluders' narrow phase)
+const _box = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
 
 export class DestructibleSystem {
   constructor(scene, material, capacity = 3600) {
@@ -189,6 +191,19 @@ export class DestructibleSystem {
     if (touched) this.fadeAttr.needsUpdate = true;
   }
 
+  // does any LIVING chunk of this building stand between the two points?
+  // (per-chunk, so holes, overhangs and blown-out faces are holes)
+  _chunksBlock(from, to, b, ox, oz) {
+    for (const c of b.grid.values()) {
+      if (!c.alive) continue;
+      _box.minX = c.x - c.w / 2; _box.maxX = c.x + c.w / 2;
+      _box.minY = c.y - c.h / 2; _box.maxY = c.y + c.h / 2;
+      _box.minZ = c.z - c.d / 2; _box.maxZ = c.z + c.d / 2;
+      if (segmentHitsAabb(from, to, _box, 0.15, ox, oz)) return true;
+    }
+    return false;
+  }
+
   hideChunk(chunk) {
     _m.compose(_p.set(0, -500, 0), _q.identity(), _s.set(0.0001, 0.0001, 0.0001));
     this.mesh.setMatrixAt(chunk.i * 9, _m);
@@ -222,9 +237,29 @@ export class DestructibleSystem {
             const ox = g === 0 ? 0 : this.ghostOffsets[g - 1][0];
             const oz = g === 0 ? 0 : this.ghostOffsets[g - 1][1];
             const pts = s.targets || [s.to];
-            hit = true;
+            const need = Math.ceil(pts.length * 0.9);   // ~90% hidden to fade
+            const mayMiss = pts.length - need;
+            // BROAD PHASE. A chunk can only block a segment that also hits
+            // the building's box, so box-blocked is an upper bound on
+            // chunk-blocked: once too many samples miss the BOX, the answer
+            // is already no, and the (much costlier) chunk walk is skipped.
+            let boxHit = 0, missed = 0;
             for (const pt of pts) {
-              if (!segmentHitsAabb(s.from, pt, a, 0.3, ox, oz)) { hit = false; break; }
+              if (segmentHitsAabb(s.from, pt, a, 0.3, ox, oz)) boxHit++;
+              else if (++missed > mayMiss) break;
+            }
+            if (boxHit >= need) {
+              // NARROW PHASE on the chunks that are actually standing. The
+              // bounding box alone used to decide this, which is why walking
+              // past an L-shaped tower, under an overhang, or beside a
+              // blown-open face made a building vanish while the mech was in
+              // plain sight: the box is full of air the building doesn't own.
+              let blocked = 0, gaps = 0;
+              for (const pt of pts) {
+                if (this._chunksBlock(s.from, pt, b, ox, oz)) blocked++;
+                else if (++gaps > mayMiss) break;      // can't reach 90% now
+              }
+              hit = blocked >= need;
             }
           }
           b.fadeTargetV[v * 9 + g] = hit ? 0.15 : 1;

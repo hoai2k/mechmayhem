@@ -111,9 +111,10 @@ export class CameraSystem {
     for (let i = 0; i < 8; i++) {
       this._segs.push({
         from: new THREE.Vector3(),
-        // whole-body samples: center, both flanks, head, feet — a building
-        // must block ALL of them before it fades
-        targets: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
+        // whole-body samples: a 3-wide × 4-tall grid over the silhouette
+        // (see fillSegTargets) — a building fades only when ~90% of them
+        // are blocked by ACTUAL standing chunks
+        targets: Array.from({ length: 12 }, () => new THREE.Vector3()),
       });
     }
   }
@@ -216,7 +217,13 @@ export class CameraSystem {
     return damp(cur, want, gf > 1.03 ? 1.5 : normalRate, dt);
   }
 
-  // spread a segment's occlusion samples across the fighter's whole body
+  // Spread a segment's occlusion samples across the fighter's whole
+  // silhouette — a 3×4 grid of the body as the camera sees it (two flanks
+  // and the centre line, at foot / hip / chest / head height). The
+  // destructible layer fades a building only when nearly ALL of these are
+  // blocked (see setOccluders), so the count and spread ARE the "how hidden
+  // is he really" measurement: too few points and a corner clipping one
+  // shoulder reads the same as being swallowed whole.
   fillSegTargets(seg, camPos, f) {
     const p = f.focusPos(_fpSeg);
     let dx = p.x - camPos.x, dz = p.z - camPos.z;
@@ -224,12 +231,16 @@ export class CameraSystem {
     dx /= L; dz /= L;
     const rx = -dz, rz = dx;                 // view-perpendicular (XZ)
     const r = f.hitRadius * 0.85;
-    const midY = p.y + f.height * 0.55;
-    seg.targets[0].set(p.x, midY, p.z);
-    seg.targets[1].set(p.x + rx * r, midY, p.z + rz * r);
-    seg.targets[2].set(p.x - rx * r, midY, p.z - rz * r);
-    seg.targets[3].set(p.x, p.y + f.height, p.z);
-    seg.targets[4].set(p.x, p.y + 0.5, p.z);
+    const H = f.height;
+    let i = 0;
+    for (const yf of [0.08, 0.38, 0.68, 0.95]) {          // feet → head
+      const y = p.y + H * yf;
+      for (const side of [0, 1, -1]) {                    // centre, both flanks
+        const t = seg.targets[i++];
+        if (!t) return;
+        t.set(p.x + rx * r * side, y, p.z + rz * r * side);
+      }
+    }
   }
 
   // fighters framed by the camera; humans get viewports when split

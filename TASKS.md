@@ -30,6 +30,23 @@ controllers via Gamepad API), AI opponents.
   steers a punch, kick or bite in HEIGHT as well as laterally, onto the
   target's chest-to-crown band instead of their waist or over their head.
   See the section at the end of this file.
+- **Previous:** BUILDINGS ONLY GHOST WHEN THEY REALLY HIDE YOU — the
+  see-through fade tested the camera→body segments against each building's
+  BOUNDING BOX, which is full of air the building doesn't own: an overhang,
+  an L-shape notch, a setback, or a blown-open face all counted as solid, so
+  a building went transparent while the mech stood in plain sight beside it.
+  Worse, `b.aabb` is fixed at construction, so a half-demolished tower kept
+  the full-height box forever. Now the box is only a BROAD PHASE and the
+  decision is made against the chunks actually standing (`_chunksBlock`),
+  with the sample grid widened from 5 points to 12 (3 wide × 4 tall over the
+  silhouette) and the rule changed from "all samples blocked" to
+  "≥90% blocked". Measured with new `tools/fadeprobe.mjs`: standing under an
+  overhang blocks 3/12 of the body and no longer fades (the box test scored
+  12/12); a gutted building no longer fades at all; genuinely standing
+  behind a building still fades (12/12). Cost is held at 0.12ms/frame
+  (from 0.06 baseline, 0.39 before the early-out) because box-blocked is a
+  strict upper bound on chunk-blocked, so the chunk walk is skipped the
+  moment too many samples miss the box.
 - **Previous:** PERF PASS + ADAPTIVE SPLIT FX — split-screen post FX is now a
   TRI-STATE (SETTINGS → SPLIT-SCREEN FX): DEFAULT runs them and drops them
   for the session if real frame time stays above ~22ms for ~3s (after a 2s
