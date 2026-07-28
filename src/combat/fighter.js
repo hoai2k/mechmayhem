@@ -401,6 +401,13 @@ export class Fighter {
     const w = this.world;
     for (const f of w.fighters) {
       if (f === this || !f.alive || this.isAllyOf(f)) continue;
+      // NOT the one in your hands. A carried victim is pinned directly over
+      // the carrier, so their horizontal offset is ~0 and every heading
+      // derived from it (AI steering, aim snaps) is atan2 of noise. That is
+      // what spun colossus around the instant his throw ended: his AI had
+      // spent the whole lift steering at a target on top of his own head,
+      // and the garbage heading was applied the moment he could move again.
+      if (f._carry && f._carry.by === this) continue;
       const dx = w.wrapDelta(f.pos.x - this.pos.x);
       const dz = w.wrapDelta(f.pos.z - this.pos.z);
       const d = dx * dx + dz * dz;

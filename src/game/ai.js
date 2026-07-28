@@ -59,8 +59,11 @@ export class AIController {
     I.specialHeld = false;
     if (!f.alive || f.controlsLocked) { I.moveX = I.moveZ = 0; return; }
 
-    // retarget occasionally
-    if (!this.target || !this.target.alive || Math.random() < dt * 0.4) {
+    // retarget occasionally — and IMMEDIATELY drop a target we've picked up
+    // (colossus' grab): a carried victim rides directly over the carrier, so
+    // steering at them is steering at your own head
+    if (!this.target || !this.target.alive || this.target._carry?.by === f ||
+        Math.random() < dt * 0.4) {
       this.target = f.nearestEnemy();
     }
     const t = this.target;

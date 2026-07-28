@@ -34,11 +34,27 @@ export function fenrir(F) {
   F.at(2.28, () => { F.beat('hitHeavy', 0.7, 0.08); F.vicDown(); w.effects.dustPuff(vic.pos, 6); });
   // jaws lock and he TEARS OFF, dragging the wreck in a wide circle
   // (circle phased so grab-point ~= where the bodies already are)
+  // The circle starts on the bearing the body ALREADY lies on, instead of a
+  // fixed phase behind the axis: the fixed phase assumed the wreck fell on
+  // the mark, and every swipe that had rocked them off it turned the first
+  // frame of the drag into a snap (measured ~4.5 units) as the jaws yanked
+  // them onto the circle. Same sweep, same length — it just begins where
+  // they are.
+  let ang0, gx, gz, grip = 0;
   F.hold(2.35, 3.9, (k, dt) => {
     const e = smooth(k);
-    const ang = F.axis + Math.PI + e * 3.6;
-    vic.pos.x = F.center.x + Math.sin(ang) * 2.2;
-    vic.pos.z = F.center.z + Math.cos(ang) * 2.2;
+    if (ang0 === undefined) {
+      const bx = vic.pos.x - F.center.x, bz = vic.pos.z - F.center.z;
+      ang0 = (bx * bx + bz * bz) > 0.04 ? Math.atan2(bx, bz) : F.axis + Math.PI;
+      gx = vic.pos.x; gz = vic.pos.z;   // where the wreck actually lies
+    }
+    // ...and it is PULLED onto the circle over the first beat rather than
+    // appearing on it: the jaws close, then the body follows.
+    grip = Math.min(1, grip + dt / 0.16);
+    const g = smooth(grip);
+    const ang = ang0 + e * 3.6;
+    vic.pos.x = gx + (F.center.x + Math.sin(ang) * 2.2 - gx) * g;
+    vic.pos.z = gz + (F.center.z + Math.cos(ang) * 2.2 - gz) * g;
     vic.pos.y = 0.25;
     vic.group.rotation.x = -1.35; // scraped along on their back
     vic.yaw = vic.targetYaw = ang + Math.PI / 2;

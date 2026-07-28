@@ -1,6 +1,7 @@
 // Dev battle test: full combat loop without menus.
 //   ?battle=foundry&p1=titanus&p2=viper&p3=vulcan&auto=1
 // auto=1 makes P1 an AI too (spectator soak test).
+import * as THREE from 'three';
 import { Engine } from '../core/engine.js';
 import { THEMES_BY_ID, THEMES, themePropNames } from '../arena/themes.js';
 import { ROSTER_BY_ID, ROSTER } from '../mechs/roster.js';
@@ -176,5 +177,6 @@ export async function runBattleTest() {
   window.__ais = ais;
   window.__cam = cameraSys;
   window.__fighters = fighters;
+  window.__THREE = THREE;   // audit tools build frustums against the live camera
   return engine;
 }
