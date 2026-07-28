@@ -69,7 +69,9 @@ export const TUNING = {
     // NOT spin — a five-storey chassis cartwheeling reads silly, a braced
     // cannonball drop reads right. The same 0.8 line applyPhysics uses for
     // the ground-cracking landing (titanus, colossus, rhino, glacier,
-    // cranky tuck without tumbling).
+    // cranky tuck without tumbling). A roster def may also opt in directly
+    // with `tuckOnly: true` — for a frame that is physically big without
+    // fighting heavy (JERRY).
     tuckOnlyWeight: 0.8,
   },
 

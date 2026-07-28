@@ -3148,8 +3148,8 @@ export class Fighter {
   // and, if it's small enough, the whole body spins about the BALL'S OWN
   // CENTRE (rollPivot, post-pose, so it rides on both model routes — it used
   // to spin the hips joint, which pivoted half the roster around its ankles).
-  // LARGE bots — weight over
-  // TUNING.airRoll.tuckOnlyWeight — only TUCK: same ball, same bubble, no
+  // LARGE bots — weight over TUNING.airRoll.tuckOnlyWeight, or a roster
+  // def flagged `tuckOnly` — only TUCK: same ball, same bubble, no
   // cartwheeling.
   // A subtle sphere shield bubbles around them and every hit is taken as a
   // block — from any direction, since a tumbling ball has no facing.
@@ -3357,13 +3357,17 @@ export class Fighter {
       this.endAirRoll();
       return;
     }
-    // ~6 turns/s — for the SMALL bots. A large bot (weight past
-    // airRoll.tuckOnlyWeight) holds the tuck without spinning: rate 0 means
-    // the release math below lands at endAt 0 and the tuck simply opens.
+    // ~6 turns/s — for the SMALL bots. A large bot holds the tuck without
+    // spinning: rate 0 means the release math below lands at endAt 0 and
+    // the tuck simply opens. "Large" is stats.weight past
+    // airRoll.tuckOnlyWeight, OR the roster flag `tuckOnly` for a frame
+    // that is physically big without fighting heavy (JERRY: a whole shrimp
+    // colony's worth of chassis on a middleweight stat line).
     // The faster the tumble, the SHORTER the tail between letting go and
     // arriving upright — a release still has to finish its current turn,
     // so a quick spin is also the one that lands cleanly.
-    const SPIN = this.def.stats.weight > TUNING.airRoll.tuckOnlyWeight
+    const SPIN = this.def.tuckOnly ||
+      this.def.stats.weight > TUNING.airRoll.tuckOnlyWeight
       ? 0 : TUNING.airRoll.spinRate;
     r.t += dt;
     const rate = SPIN * Math.min(1, r.t / TUNING.airRoll.rampSeconds);
