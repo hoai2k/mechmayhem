@@ -2557,6 +2557,20 @@ export class Fighter {
       this.sprintEnergy = Math.max(0, this.sprintEnergy - BLOCK_DRAIN * dt);
       if (this.sprintEnergy <= 0) this.blocking = false;
     }
+    // AN AIR GUARD IS A TUCK: press LT while AIRBORNE and the mech curls into
+    // the somersault ball (spinning if it's small enough — see startAirRoll)
+    // behind the all-around bubble, paid for by the same stamina drain any
+    // held guard costs; the tank running dry opens the tuck like a release.
+    // The PRESS has to happen in the air — a guard held from the ground into
+    // a jump keeps the plain standing block, so a turtle who jumps doesn't
+    // eat the tuck's prone-landing risk without asking for it. (The A-press
+    // descent tuck further down is the free-of-stamina one, available only
+    // once the hover tank is spent.)
+    if (this.blocking && !this.grounded && !this.hovering && !this._airRoll &&
+        this.state === 'normal' && I.block && !this._blockPrev) {
+      this.startAirRoll('block');
+    }
+    this._blockPrev = !!I.block;
 
     // ---- B button, two personalities by whether you're moving ----
     // STANDING STILL + hold: crouch and wind up a dash coil (up to
@@ -2684,16 +2698,19 @@ export class Fighter {
         this._hangCoyote = 0;
         this.vel.y = st.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1);
         this.world.audio?.play('jump');
-      } else if (I.jump && !this.grounded && !this.hovering && this.hoverFuel > 0.2) {
-        // second jump press in the air ignites the hover jets
+      } else if (I.jump && !this.grounded && !this.hovering && !this._airRoll &&
+                 this.hoverFuel > 0.2) {
+        // second jump press in the air ignites the hover jets (never out of
+        // the tuck — release the ball first, then the jets answer)
         this.hovering = true;
         this.world.audio?.play('jump');
       } else if (I.jump && !this.grounded && !this.hovering && this.vel.y < 0 &&
                  !this._airRoll) {
-        // TANK EMPTY and falling: A again TUCKS into an air somersault
-        // instead — spin for as long as A is held behind an all-around
-        // bubble, at the price of falling PRONE if still tucked at
-        // touchdown (updateAirRoll owns the mechanics)
+        // TANK EMPTY and falling: A again TUCKS into the ball — the one
+        // somersault that costs NO stamina, since the flight is already
+        // spent and this is the way down. Held behind the all-around
+        // bubble for as long as A is held, at the price of falling PRONE
+        // if still tucked at touchdown (updateAirRoll owns the mechanics)
         this.startAirRoll();
       }
     } else if (this.state === 'attack' && this.queuedLight && this.stateT < 0.14) {
@@ -2744,10 +2761,30 @@ export class Fighter {
       this.hoverFuel = Math.min(this.hoverFuelMax, this.hoverFuel + dt * 0.9);
     }
 
-    // block anim (the air roll borrows the block clip for its tuck — don't
-    // strip it off a somersaulting body just because no guard input is down)
-    if (this.blocking && !this.animator.isPlaying('block')) this.animator.play('block');
+    // block anim — but never over the air roll's ball tuck: an LT-held
+    // somersault keeps `blocking` true (that's what drains the tank and
+    // full-sphere-guards the takeHit), and the tuck owns the body.
+    if (this.blocking && !this._airRoll && !this.animator.isPlaying('block')) this.animator.play('block');
     else if (!this.blocking && !this._airRoll && this.animator.isPlaying('block')) this.animator.stop(0.1);
+
+    // ---- landing (see the landReach/land clips): when a real fall is about
+    // to end — under half a second from the pavement, nothing else claiming
+    // the body — stretch the legs long to REACH for it; applyPhysics plays
+    // 'land' at the touchdown itself, whose t=0 is this exact held pose, so
+    // the stretch compresses into the crouch with no seam. The recovery
+    // yields immediately to anything the player would rather do: steering,
+    // jumping or leaving the ground fades it out mid-crouch.
+    const reaching = !this.grounded && !this.hovering && !this._airRoll &&
+      !this.plunging && this.state === 'normal' && this.vel.y < -3;
+    if (reaching && this.pos.y < -this.vel.y * 0.4 && !this.animator.action) {
+      this.animator.play('landReach');
+    } else if (!reaching && this.animator.isPlaying('landReach')) {
+      this.animator.stop(0.12);
+    }
+    if (this.animator.isPlaying('land') &&
+        (!this.grounded || Math.hypot(I.moveX, I.moveZ) > 0.3)) {
+      this.animator.stop(0.09);
+    }
 
     // ---- movement ----
     let ax = 0, az = 0;
@@ -2959,24 +2996,32 @@ export class Fighter {
   }
 
   // ================= air somersault =================
-  // Falling with the hover tank empty, A tucks the mech into a tight
-  // forward somersault: the whole body spins about the HIPS (post-pose, so
-  // it rides on both model routes), a subtle sphere shield bubbles around
-  // them, and every hit is taken as a block — from any direction, since a
-  // tumbling ball has no facing. Release A and the roll finishes its
-  // current turn at speed, lands the pose back exactly where the clip left
-  // it, and the guard drops for that wind-down (the risk half of the
-  // trade). Still tucked at touchdown? He hits the dirt PRONE.
-  startAirRoll() {
-    this._airRoll = { t: 0, spin: 0, ending: false, endAt: 0 };
-    this.animator.play('block'); // the tuck: arms in, guard read
+  // The mech curls into the TIGHT BALL (the 'ball' clip — knees to chest,
+  // spine curled, arms hugging the shins; per-body-type via def.ballPose)
+  // and, if it's small enough, the whole body spins about the HIPS
+  // (post-pose, so it rides on both model routes). LARGE bots — weight over
+  // TUNING.airRoll.tuckOnlyWeight — only TUCK: same ball, same bubble, no
+  // cartwheeling.
+  // A subtle sphere shield bubbles around them and every hit is taken as a
+  // block — from any direction, since a tumbling ball has no facing.
+  // Two ways in (`hold` is which input keeps it up):
+  //   'jump'  — A pressed falling with the hover tank EMPTY: the free one.
+  //   'block' — LT pressed airborne: stamina drains like any held guard
+  //             (see the intents block), and an empty tank opens the tuck.
+  // Release the held input and the roll finishes its current turn at speed,
+  // lands the pose back exactly where the clip left it, and the guard drops
+  // for that wind-down (the risk half of the trade). Still tucked at
+  // touchdown? He hits the dirt PRONE.
+  startAirRoll(hold = 'jump') {
+    this._airRoll = { t: 0, spin: 0, ending: false, endAt: 0, hold };
+    this.animator.play('ball'); // the tuck: curled tight around the hips
     this.world.audio?.play('whoosh');
   }
 
   endAirRoll() {
     if (!this._airRoll) return;
     this._airRoll = null;
-    if (this.animator.isPlaying('block')) this.animator.stop(0.15);
+    if (this.animator.isPlaying('ball')) this.animator.stop(0.15);
   }
 
   // ================= guard bubble =================
@@ -3087,13 +3132,23 @@ export class Fighter {
       this.endAirRoll();
       return;
     }
-    // ~6 turns/s. The faster the tumble, the SHORTER the tail between
-    // letting go and arriving upright — a release still has to finish its
-    // current turn, so a quick spin is also the one that lands cleanly.
-    const SPIN = TUNING.airRoll.spinRate;
+    // ~6 turns/s — for the SMALL bots. A large bot (weight past
+    // airRoll.tuckOnlyWeight) holds the tuck without spinning: rate 0 means
+    // the release math below lands at endAt 0 and the tuck simply opens.
+    // The faster the tumble, the SHORTER the tail between letting go and
+    // arriving upright — a release still has to finish its current turn,
+    // so a quick spin is also the one that lands cleanly.
+    const SPIN = this.def.stats.weight > TUNING.airRoll.tuckOnlyWeight
+      ? 0 : TUNING.airRoll.spinRate;
     r.t += dt;
     const rate = SPIN * Math.min(1, r.t / TUNING.airRoll.rampSeconds);
-    if (!r.ending && !this.intent.jumpHeld) {
+    // which input is keeping the ball closed (see startAirRoll): the free
+    // descent tuck rides A; the paid air guard rides LT AND the stamina
+    // that funds it — `blocking` going false (tank dry, stagger) lets go.
+    const held = r.hold === 'block'
+      ? this.intent.block && this.blocking
+      : this.intent.jumpHeld;
+    if (!r.ending && !held) {
       // released: finish the CURRENT turn at speed — the body arrives back
       // upright at exactly 2π, which IS the blend back to normal — and the
       // bubble drops now (updateGuardShield reads `ending`), not at the end
@@ -3107,12 +3162,15 @@ export class Fighter {
       return;
     }
     const j = this.mech.joints.hips;
-    if (j) j.rotation.x += r.ending ? Math.min(r.spin, r.endAt) : r.spin;
-    // spin trail: the tumble reads at speed even in a far camera
-    this._rollFxT = (this._rollFxT ?? 0) - dt;
-    if (this._rollFxT <= 0) {
-      this._rollFxT = 0.14;
-      this.world.effects.dashTrail(this.pos, 0x7fd8ff, this.scale * 0.8);
+    if (j && SPIN > 0) j.rotation.x += r.ending ? Math.min(r.spin, r.endAt) : r.spin;
+    // spin trail: the tumble reads at speed even in a far camera (a tuck-only
+    // heavy isn't tumbling, so it leaves no streak)
+    if (SPIN > 0) {
+      this._rollFxT = (this._rollFxT ?? 0) - dt;
+      if (this._rollFxT <= 0) {
+        this._rollFxT = 0.14;
+        this.world.effects.dashTrail(this.pos, 0x7fd8ff, this.scale * 0.8);
+      }
     }
   }
 
@@ -3307,6 +3365,16 @@ export class Fighter {
             this.world.effects.rings.spawn(this.pos, { from: 1, to: 6, dur: 0.4, color: 0xcbb590 });
             this.world.effects.addShake(0.35);
           }
+        }
+        // LANDING ANIMATION: the stretch (landReach, playing since the fall's
+        // last half-second) compresses into a deep crouch and stands back up.
+        // Only when the mech is its own master at the moment of contact — a
+        // plunge has its own slam, the tucked-ball crash just went prone
+        // above, a raised guard keeps its guard, and an attack/hitstun body
+        // is already spoken for.
+        if (this.alive && this.state === 'normal' && !this.plunging && !this.blocking &&
+            (fallSpeed > 8 || this.animator.isPlaying('landReach'))) {
+          this.animator.play('land');
         }
       }
     } else if (this.pos.y > 0.05) {

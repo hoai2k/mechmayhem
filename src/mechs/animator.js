@@ -1,7 +1,7 @@
 // Pose-blend animation engine: procedural locomotion + keyframe action clips
 // + additive impulses (recoil/flinch) + per-mech signature joint motion.
 import * as THREE from 'three';
-import { CLIPS, UPPER_JOINTS } from './animations.js';
+import { CLIPS, UPPER_JOINTS, defClipVariants } from './animations.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
@@ -208,8 +208,11 @@ export class Animator {
   // ---------- action clips ----------
   play(name, opts = {}) {
     // a profile may swap in a bespoke clip for an action it must redo rather
-    // than remap (kept under the SAME name so fighter state/isPlaying match)
-    const clip = this.profile?.clipOverrides?.[name] || CLIPS[name];
+    // than remap (kept under the SAME name so fighter state/isPlaying match);
+    // below that, a roster def may reshape a shared clip for its body type
+    // (defClipVariants — currently the `ball` tuck via def.ballPose)
+    const clip = this.profile?.clipOverrides?.[name] ||
+      defClipVariants(this.mech.def)?.[name] || CLIPS[name];
     if (!clip) { console.warn('no clip', name); return 0; }
     this.action = {
       clip, t: 0, speed: opts.speed || 1, weight: 0,

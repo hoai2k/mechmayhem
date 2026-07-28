@@ -20,8 +20,9 @@ import { CLIPS } from '../../src/mechs/animations.js';
 // for mechs with their own heavyClip: an AIRBORNE heavy is the generic ground
 // smash (fighter.doHeavy plays 'heavy' at 1.5x when plunging), and 'groundPound'
 // is the landing of that plunge. 'hangGrab' is the ledge catch.
-const UNIVERSAL = ['intro', 'victory', 'taunt', 'block', 'hitFlinch',
-  'launched', 'knockdown', 'getup', 'dead', 'heavy', 'groundPound', 'hangGrab'];
+const UNIVERSAL = ['intro', 'victory', 'taunt', 'block', 'ball', 'hitFlinch',
+  'launched', 'knockdown', 'getup', 'dead', 'heavy', 'groundPound', 'hangGrab',
+  'landReach', 'land'];
 // channel weapons hold one looping clip instead of a per-shot one
 const CHANNEL_TYPES = new Set(['gatling', 'flame', 'hose']);
 
@@ -84,6 +85,9 @@ export function mechClipList(def, profile) {
   };
   add(['intro', 'victory', 'taunt'], 'Emote');
   add(['block', 'hitFlinch', 'launched', 'knockdown', 'getup', 'dead'], 'Reaction');
+  // the air somersault's tuck (every mech can roll — or, heavy, brace)
+  add(['ball'], 'Air tuck');
+  add(['landReach', 'land'], 'Landing');
   // an AIRBORNE heavy is the generic smash whatever the mech's own heavy is,
   // and groundPound is that plunge landing
   add(['heavy'], 'Heavy (airborne smash)');

@@ -17,7 +17,7 @@ import * as THREE from 'three';
 import { defineWorkbenchConfig } from '../../config/contract.js';
 import { ROSTER, ROSTER_BY_ID, playableRoster } from '../../../src/mechs/roster.js';
 import { JOINT_ORDER } from '../../../src/mechs/rigadapter.js';
-import { CLIPS, compileClip } from '../../../src/mechs/animations.js';
+import { CLIPS, compileClip, defClipVariants } from '../../../src/mechs/animations.js';
 import { Animator } from '../../../src/mechs/animator.js';
 import { buildMech } from '../../../src/mechs/factory.js';
 import { profileFor } from '../../../src/mechs/glbanim.js';
@@ -135,7 +135,10 @@ const CONFIG = defineWorkbenchConfig({
     // the clips THIS mech can actually play, read off the real play sites —
     // vulcan's list carries his ult's hurricaneSpin and nobody else's
     clipsFor: (id, model) => mechClipList(ROSTER_BY_ID[id], model?.animProfile || profileFor(id)),
-    clip: (name, model) => model?.animProfile?.clipOverrides?.[name] || CLIPS[name],
+    // same resolution order as Animator.play: profile override, then the
+    // roster def's body-type variant (ballPose), then the shared clip
+    clip: (name, model) => model?.animProfile?.clipOverrides?.[name] ||
+      (model?.def && defClipVariants(model.def)?.[name]) || CLIPS[name],
     compile: compileClip,
     animator: (model, id) => model.premadeAnimator || new Animator(model, ROSTER_BY_ID[id]),
     profile: (id) => profileFor(id),
