@@ -9,6 +9,7 @@ import { buildBoneShell } from '../mechs/glbshell.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import { CONFIG } from '../core/config.js';
+import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
 
 const _v = new THREE.Vector3();
@@ -33,9 +34,11 @@ const RUN_AND_GUN_CLIPS = new Set(['shoot', 'shootL', 'saurionQuillFan']);
 const GRAVITY = 34;
 // (ultimates are fountain-fed now — see combat/fountains.js. The old
 // damage-drip meter constants ULT_RATE / BLOCK_ULT_DIV are gone with it.)
-const WALK_MULT = 1.2;   // global ground-speed boost over roster stats
-const JUMP_MULT = 1.18;  // global jump boost
-const CHARGE_DASH_MAX = 3; // seconds of crouch that fully winds a charged dash
+// ---- GAMEPLAY DIALS: all of these live in core/tuning.js, which is the file
+// to edit. They are aliased here so the rest of this module reads unchanged.
+const WALK_MULT = TUNING.movement.walkMult;
+const JUMP_MULT = TUNING.movement.jumpMult;
+const CHARGE_DASH_MAX = TUNING.dash.chargeMax;
 // A thrown weapon (viper's daggers, aegis' lance) re-forges on its empty mount:
 // the mount stays EMPTY for a delay, then grows back over REGROW_TIME. The
 // delay is PER THROW (regrowWeapon's second argument) because how long a gap
@@ -49,33 +52,24 @@ const REGROW_TIME = 0.5;
 // is the gap a duel actually settles at — matches the artillery lob's own
 // default so a blind mortar shell still lands where it always did.
 const DEFAULT_ENGAGE_DIST = 25;
-const SPRINT_MULT = 1.6;   // ground-speed multiplier while sprinting (hold B on the move)
-const SPRINT_MAX = 3.2;    // size of the stamina tank
-const SPRINT_REGEN = 0.6;  // tank refill rate (per second) while not sprinting
-// Running costs 40% of what it used to: the tank drained 1.0/s (so its size
-// WAS its duration, 3.2s of sprint), now 0.4/s — the same full tank is worth
-// 8s of running. Blocking and dashing price themselves off the same bar.
-const SPRINT_DRAIN = 0.4;
-// ---- stamina tank costs (the same bar the sprint drains — HUD 'sprintFill').
-// Sprint spends it at 1.0/s by construction; these are the other draws.
-const BLOCK_DRAIN = 0.55;    // per second of held guard
-const BLOCK_DASH_MULT = 2.2; // dash cost multiplier while the guard is up
-const DASH_COST = 0.3;       // per dash — was free, but a dash used to commit
-                             // you to the sprint tank, and DASH_COOLDOWN is
-                             // cut alongside this so dashing nets out CHEAPER
-const BLOCK_MOVE_MULT = 0.5; // you may walk while guarding, at half pace
+const SPRINT_MULT = TUNING.movement.sprintMult;
+// ---- THE STAMINA BAR. One normalised tank (1.0 = full) pays for sprinting,
+// blocking and dashing; tuning.js states each cost as a DURATION and derives
+// these per-second rates, so "12 seconds of sprint" is the thing you edit.
+const SPRINT_MAX = STAMINA_TANK;
+const SPRINT_REGEN = STAMINA_REGEN;
+const BLOCK_DASH_MULT = TUNING.stamina.dashCostBlockMult;
+const DASH_COST = TUNING.stamina.dashCost;
+const BLOCK_MOVE_MULT = TUNING.movement.blockMoveMult;
 // The half-arc a raised guard covers, as a COSINE. takeHit tests the same
-// arc in radians (|angleDiff| < 1.5); the bubble shader fades out past it,
-// so what you see covered is exactly what is covered.
-const BLOCK_ARC_COS = Math.cos(1.5);
-// Global pace: the shipped feel is TWICE the old default, expressed here
-// rather than in the slider so ROBOT SPEED still reads a clean 100% at the
-// default. The old default was WALK_MULT x 1.2, so doubling it is
-// WALK_MULT x 2.4 — which puts the previous pace at exactly 50% on the
-// slider and the old pre-slider baseline at ~42%.
-const SPEED_BASE = 2.4;
-const PUNCH_HOLD_CAP = 1.8; // seconds to fully bank a held haymaker
-const HEAVY_HOLD_CAP = 2.4; // seconds to fully bank a held heavy
+// arc in radians; the bubble shader fades out past it, so what you see
+// covered is exactly what is covered.
+const BLOCK_ARC_COS = Math.cos(TUNING.guard.arc);
+const GUARD_ARC = TUNING.guard.arc;
+// What ROBOT SPEED's 100% means, over WALK_MULT and the roster's own speeds.
+const SPEED_BASE = TUNING.movement.speedBase;
+const PUNCH_HOLD_CAP = TUNING.melee.punchHoldCap;
+const HEAVY_HOLD_CAP = TUNING.melee.heavyHoldCap;
 // Minimum wind-up on a charge attack. Every other melee clip in the game opens
 // with a chamber/pull-back beat (0.10-0.34s) before its hit frame, but a
 // charge attack's RELEASE clip starts already cocked — correct after a real
@@ -85,17 +79,17 @@ const HEAVY_HOLD_CAP = 2.4; // seconds to fully bank a held heavy
 // gives every tap the same telegraph the hand-authored clips have. The forced
 // time is discounted from the banked charge, so a tap still throws the
 // weakest version and the charge curve above it is unchanged.
-const CHARGE_MIN_WINDUP = 0.15;
+const CHARGE_MIN_WINDUP = TUNING.melee.chargeMinWindup;
 
 // ---- hit-reaction tuning (see takeHit) ----
-const BLOCK_LEAK_DEFAULT = 0.12; // damage fraction leaking through a guard when roster sets no blockMult
-const WEIGHT_KNOCK_RESIST = 0.45; // how much of stats.weight resists knockback/launch
-const HITSTUN_HEAVY = 0.42;      // seconds of stun from a heavy hit
-const HITSTUN_LIGHT = 0.24;
-const SOFT_FLINCH_CHANCE = 0.35; // rapid-tick chip: odds per tick of a torso rock (never stun-locks)
-const DASH_SPEED_MULT = 4.2;     // dash burst = stats.speed x this (a full coil nearly doubles it again)
-const DASH_CHARGE_BOOST = 0.95;
-const DASH_COOLDOWN = 0.6;   // was 0.9 — dashing draws down less than it did
+const BLOCK_LEAK_DEFAULT = TUNING.guard.leakDefault;
+const WEIGHT_KNOCK_RESIST = TUNING.melee.weightKnockResist;
+const HITSTUN_HEAVY = TUNING.melee.hitstunHeavy;
+const HITSTUN_LIGHT = TUNING.melee.hitstunLight;
+const SOFT_FLINCH_CHANCE = TUNING.melee.softFlinchChance;
+const DASH_SPEED_MULT = TUNING.dash.speedMult;
+const DASH_CHARGE_BOOST = TUNING.dash.chargeBoost;
+const DASH_COOLDOWN = TUNING.dash.cooldown;
 const ESCAPE_JUMP_MULT = 2.6;    // knockdown escape spring: ground speed x this
 const ESCAPE_JUMP_VY = 13;
 // ---- ROLLOVER (roster `rollover` — CRANKY) ----
@@ -1817,7 +1811,7 @@ export class Fighter {
 
     if (this.blocking && !unblockable && this.state !== 'hitstun') {
       const toSrc = Math.atan2(-dirX, -dirZ);
-      if (Math.abs(angleDiff(this.yaw, toSrc)) < 1.5) {
+      if (Math.abs(angleDiff(this.yaw, toSrc)) < GUARD_ARC) {
         const low = !!(attacker && attacker.ducking);       // crouched attack
         const gb = guardBreak;
         const underGuard = low && !this.ducking;            // high block vs low hit
@@ -3096,9 +3090,9 @@ export class Fighter {
     // ~6 turns/s. The faster the tumble, the SHORTER the tail between
     // letting go and arriving upright — a release still has to finish its
     // current turn, so a quick spin is also the one that lands cleanly.
-    const SPIN = 37.5;
+    const SPIN = TUNING.airRoll.spinRate;
     r.t += dt;
-    const rate = SPIN * Math.min(1, r.t / 0.16);  // snappy ramp-in
+    const rate = SPIN * Math.min(1, r.t / TUNING.airRoll.rampSeconds);
     if (!r.ending && !this.intent.jumpHeld) {
       // released: finish the CURRENT turn at speed — the body arrives back
       // upright at exactly 2π, which IS the blend back to normal — and the
