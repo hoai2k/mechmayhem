@@ -452,6 +452,13 @@ export const ROSTER = [
       ankleL: [-37, 0, 0], ankleR: [-31, 0, 0],
     },
     stats: { hp: 1080, speed: 12.8, jump: 15, weight: 0.42, armor: 0.06, duck: 0.75, blockMult: 0.16, guardBreak: 0.6 },
+    // air-somersault tuck, reshaped for the raptor frame (see the `ball`
+    // clip + defClipVariants): clips ADD the restPose bias back on
+    // legs/torso/head, and this body's deep digitigrade bend + spine hunch
+    // on top of the shared tuck hyper-folded the knees (206°) and buried
+    // the snout. These values land the TOTALS where the shared clip puts a
+    // plain biped: knees ~130° folded, spine ~55° curled, claws in.
+    ballPose: { torso: [28, 0, 0], thighL: [-52, 0, -8], thighR: [-56, 0, 8], kneeL: [52, 0, 0], kneeR: [48, 0, 0] },
     ui: { power: 7, speed: 10, defense: 3 },
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.16, 0], hipsRot: [4, 0, 0], torso: [6, 0, 0], head: [-8, 0, 0], shoulderL: [-14, 0, -5], shoulderR: [-14, 0, 5], elbowL: [-18, 0, 0], elbowR: [-18, 0, 0], thighL: [-10, 0, -6], thighR: [-4, 0, 6], kneeL: [10, 0, 0], kneeR: [6, 0, 0] },

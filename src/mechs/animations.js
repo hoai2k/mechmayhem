@@ -23,6 +23,14 @@ const REST_FULL = { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], sh
 const REST_ARMSTANCE = { torso: [0, 0, 0], hipsRot: [0, 0, 0], hipsPos: [0, 0, 0], head: [0, 0, 0], shoulderR: [0, 0, 10], elbowR: [-12, 0, 0], handR: [0, 0, 0], shoulderL: [0, 0, -10], elbowL: [-12, 0, 0], thighL: [0, 0, 0], kneeL: [0, 0, 0], thighR: [0, 0, 0], kneeR: [0, 0, 0], ankleR: [0, 0, 0] };
 const REST_UPPER = { torso: [0, 0, 0], hipsRot: [0, 0, 0], hipsPos: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], elbowL: [-12, 0, 0], shoulderR: [0, 0, 10], elbowR: [-12, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0] };
 
+// The tight-ball tuck the air somersault curls into, and the stretched-long
+// pre-landing reach — named because each is shared across two places: the
+// tuck is both the `ball` clip's held key and the base a roster `ballPose`
+// override is merged over (defClipVariants), and the stretch is both
+// landReach's held pose and land's t=0 (the touchdown handover).
+const BALL_TUCK = { hipsPos: [0, -0.12, 0], hipsRot: [14, 0, 0], torso: [52, 0, 0], head: [26, 0, 0], thighL: [-96, 0, -4], thighR: [-100, 0, 4], kneeL: [126, 0, 0], kneeR: [122, 0, 0], ankleL: [-30, 0, 0], ankleR: [-30, 0, 0], shoulderL: [-62, 18, 4], shoulderR: [-62, -18, -4], elbowL: [-112, 0, 0], elbowR: [-112, 0, 0], handL: [24, 0, 0], handR: [24, 0, 0] };
+const LAND_STRETCH = { hipsPos: [0, 0.12, 0], hipsRot: [0, 0, 0], torso: [6, 0, 0], head: [-6, 0, 0], thighL: [-6, 0, -3], thighR: [-6, 0, 3], kneeL: [6, 0, 0], kneeR: [6, 0, 0], ankleL: [-32, 0, 0], ankleR: [-32, 0, 0], shoulderL: [-38, 0, -58], shoulderR: [-38, 0, 58], elbowL: [-18, 0, 0], elbowR: [-18, 0, 0], handL: [0, 0, 0], handR: [0, 0, 0] };
+
 const CLIPS_RAW = {
   // ---------- personality ----------
   intro: {
@@ -822,6 +830,53 @@ const CLIPS_RAW = {
       { t: 0.22, ease: 'outCubic', pose: { shoulderL: [-70, 30, -10], shoulderR: [-70, -30, 10], elbowL: [-105, 0, 0], elbowR: [-105, 0, 0], torso: [10, 0, 0], head: [8, 0, 0] } },
     ],
   },
+  // TIGHT BALL: the air somersault's carriage (see Fighter.startAirRoll) —
+  // knees hauled to the chest, shins folded flat against the thighs, spine
+  // curled and chin tucked, arms hugged around the shins. Authored so the
+  // whole silhouette pulls in toward the HIPS, which is the axis the roll
+  // spins about post-pose: the tighter the mass sits to that pivot, the
+  // cleaner the tumble reads (and a heavy mech that only TUCKS without
+  // spinning still reads as bracing, not falling). Full-body and held —
+  // the fighter drops it when the roll ends. Legs/torso/head ride the
+  // restBias like every clip, so digitigrade bodies keep their bend;
+  // beyond that, a roster def may reshape it per body type with a sparse
+  // `ballPose` override (see defClipVariants below).
+  ball: {
+    dur: 0.16, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.16, ease: 'outCubic', pose: BALL_TUCK },
+    ],
+  },
+  // ---------- landing ----------
+  // Two halves of one touchdown, split so the fighter can enter from any
+  // fall: LANDREACH is the anticipation — held while the ground rushes up,
+  // legs stretched long underneath with toes pointed, arms flung out for
+  // balance. LAND takes over at the instant of contact: its t=0 IS
+  // landReach's held pose (the same handover trick as flipOver→proneBack),
+  // so the stretch compresses seamlessly into a deep foot-flat crouch and
+  // the body stands back up out of it. The crouch follows the duck layer's
+  // geometry (ankle = -(knee - thigh), hip drop ≈ the leg fold's lost
+  // reach) so the feet land planted instead of punching through the floor.
+  landReach: {
+    dur: 0.22, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.22, ease: 'outCubic', pose: LAND_STRETCH },
+    ],
+  },
+  land: {
+    dur: 0.62,
+    keys: [
+      { t: 0, pose: LAND_STRETCH },
+      // impact: the stretch compresses into the crouch in one beat
+      { t: 0.1, ease: 'outCubic', pose: { hipsPos: [0, -0.74, 0.02], hipsRot: [2, 0, 0], torso: [30, 0, 0], head: [-22, 0, 0], thighL: [-50, 0, -4], thighR: [-50, 0, 4], kneeL: [92, 0, 0], kneeR: [92, 0, 0], ankleL: [-42, 0, 0], ankleR: [-42, 0, 0], shoulderL: [-30, 0, -30], shoulderR: [-30, 0, 30], elbowL: [-38, 0, 0], elbowR: [-38, 0, 0] } },
+      // the springs take the weight — a small settle up out of the deepest point
+      { t: 0.22, ease: 'outQuad', pose: { hipsPos: [0, -0.58, 0.02], torso: [24, 0, 0], head: [-16, 0, 0], thighL: [-42, 0, -4], thighR: [-42, 0, 4], kneeL: [78, 0, 0], kneeR: [78, 0, 0], ankleL: [-36, 0, 0], ankleR: [-36, 0, 0] } },
+      // ...and stand back up
+      { t: 0.62, ease: 'inOutQuad', pose: REST_FULL },
+    ],
+  },
   hitFlinch: {
     dur: 0.32,
     keys: [
@@ -1212,6 +1267,34 @@ export const CLIPS = {};
 for (const [name, raw] of Object.entries(CLIPS_RAW)) CLIPS[name] = compile(name, raw);
 // recompile the smash twins under their base name (see SMASH_MIRRORS)
 for (const [base, twin] of Object.entries(SMASH_MIRRORS)) CLIPS[twin] = compile(base, CLIPS_RAW[twin]);
+
+// ---------- per-mech clip variants (roster-def driven) ----------
+// One shared `ball` tuck can't fit every silhouette — a crab's claws, a
+// wolf's spine and a spring-legged shrimp all curl differently. A roster def
+// may carry `ballPose`: a sparse { joint: [x,y,z] degrees } that REPLACES
+// those joints' values in the tuck key (the rest of the tuck stays shared),
+// compiled once per mech under the same 'ball' name so everything keyed on
+// the clip name — the fighter, isPlaying, the workbenches — matches. The
+// Animator resolves these between profile clipOverrides and CLIPS (play()),
+// and the workbench adapter derives from the same function, so an edited
+// ballPose shows up everywhere with no hand-copying.
+const _defClips = new Map();
+export function defClipVariants(def) {
+  if (_defClips.has(def.id)) return _defClips.get(def.id);
+  let out = null;
+  if (def.ballPose) {
+    const raw = CLIPS_RAW.ball;
+    const tuck = { ...raw.keys[raw.keys.length - 1].pose, ...def.ballPose };
+    out = {
+      ball: compile('ball', {
+        ...raw,
+        keys: [...raw.keys.slice(0, -1), { ...raw.keys[raw.keys.length - 1], pose: tuck }],
+      }),
+    };
+  }
+  _defClips.set(def.id, out);
+  return out;
+}
 
 // ---------- which arm a light-combo clip throws with ----------
 // The authored punch trio is jab-LEFT, cross-RIGHT, uppercut-RIGHT — so the

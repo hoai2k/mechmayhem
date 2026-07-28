@@ -12,7 +12,12 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** ULT FOUNTAINS — ultimates are no longer charged by dealing or
+- **Latest:** BALL TUCK + LANDINGS — the air somersault curls into a real
+  tight-ball clip (per-body-type via roster `ballPose`; large bots tuck
+  without spinning), LT pressed airborne buys the same tuck on stamina,
+  and every fall now lands through a stretch → crouch → recover landing
+  animation. See the section at the end of this file.
+- **Previous:** ULT FOUNTAINS — ultimates are no longer charged by dealing or
   taking damage; golden powerup fountains (combat/fountains.js) well up
   around the arena every CONFIG.fountains.interval seconds (board cap =
   live robots × perRobot, both in config), preferring interesting ground:
@@ -4216,3 +4221,57 @@ models still derived), `npx vite build` green with the thumbs emitted, a
 scrapyard soak crash-free on the re-optimized models, and screenshots of the
 twin-viewport tool (toriiGate, gantryCrane), the landing page, and the
 unknown-tool banner.
+
+## Ball tuck, tuck-only heavies, LT air guard, landing animation
+
+**The somersault got a real ball.** The air roll used to borrow the upper-body
+`block` clip, so the "tumbling ball" was a standing guard cartwheeling. A new
+full-body `ball` clip (animations.js) curls the whole silhouette in toward the
+HIPS — the axis the post-pose spin turns about: knees hauled to the chest,
+shins folded flat, spine curled, chin tucked, arms hugging the shins. One
+shared clip fits most frames because the clip layer already adds each mech's
+restPose bias back onto legs/spine/head; where that isn't enough, a roster def
+may carry **`ballPose`** — a sparse per-joint override merged over the tuck key
+and compiled per mech under the same 'ball' name (`defClipVariants`,
+animations.js). SAURION is the worked example: his digitigrade bend + spine
+hunch on top of the shared fold hyper-folded the knees to 206° and buried the
+snout; his override lands the totals where a plain biped sits. Animator.play
+resolves profile clipOverrides → defClipVariants → CLIPS, and the workbench
+adapter derives from the same function, so the pose tool edits exactly what
+the game plays.
+
+**Large bots tuck, small bots spin.** Past `stats.weight > 0.8` (TUCK_ONLY_
+WEIGHT — titanus, colossus, rhino, glacier, cranky; the same line that cracks
+the ground on a heavy landing) the somersault keeps the ball, the bubble and
+the every-angle guard but spins at rate 0: a braced cannonball drop instead of
+a cartwheeling building. The release math already lands rate-0 at endAt 0, so
+a heavy's tuck simply opens the moment the input drops.
+
+**LT airborne = paid air guard.** Pressing block IN the air (a press, not a
+guard carried up from the ground — no accidental tuck risk) curls into the
+same ball behind the full-sphere bubble, funded by the standard BLOCK_DRAIN
+on the stamina tank; the tank running dry opens the tuck like a release. The
+A-press descent roll stays the free one, gated as before on an EMPTY hover
+tank on the way down. Both flavours keep the old trade: still tucked at
+touchdown = prone knockdown.
+
+**Every fall lands like a landing.** Two clips split one touchdown: 
+`landReach` (held) stretches the legs long under the body, toes pointed, arms
+out — triggered when a real fall is under ~0.4s from the pavement and nothing
+else claims the body; `land` (one-shot) starts from that exact pose and
+compresses it into a deep foot-flat crouch (duck-layer geometry, so feet stay
+planted) before standing back up. applyPhysics plays it at contact when the
+mech is its own master (not plunging/blocking/tucked/staggered); steering or
+leaving the ground fades the recovery early, so it never roots gameplay.
+
+Workbenches: all three clips are in CLIPS (wbconfig PASS, 99 clips) and
+tagged in the skin tool's picker ('Air tuck', 'Landing'); the pose tool
+shows/edits the per-mech ball variant.
+
+Verified: `npx vite build` green; neon soak crash-free; scripted-intent
+battle probe confirms LT-in-air starts the roll with clip `ball` and drains
+0.28 stamina in 0.5s (=BLOCK_DRAIN), titanus tucks at spin 0.00 and opens on
+release, free descent roll costs 0.00, a plain jump shows `landReach → land`
+at touchdown, and the tucked touchdown still goes prone. Screenshots judged
+across body types (viper, titanus, saurion, cranky, fenrir, colossus,
+frogger, jerry) on GLB + procedural routes.
