@@ -19,15 +19,42 @@ export const CONFIG = {
   // (?showcase, ?rigedit, pose/skin tools, ?battle=...) always show every
   // mech regardless. Persisted from the settings menu; ?showall=1 forces on.
   showAllRobots: params.get('showall') === '1' || readPref('rw.showAllRobots'),
+
+  // ---- battle soundtrack (src/music/, streamed — see core/music.js) ----
+  // MASTER SWITCH. Off means the songs are never fetched at all and battles
+  // fall back to the procedural themes in core/audio.js — the flag to flip for
+  // a build that must not stream media (offline/desktop packaging, a kiosk, a
+  // metered connection). ?music=0 turns it off for one session; a build made
+  // with RW_NO_MUSIC=1 ships no songs, which turns it off on its own.
+  music: params.get('music') !== '0',
+  // Music bus level, independent of the SFX bus. Settings slider, persisted.
+  musicVolume: readNum('rw.musicVol', 0.22),
+  // IDLE PREFETCH (game/predict.js): while the player is reading the title
+  // screen or picking a robot, quietly pull down what the fight is about to
+  // need — the song, the arena's textures, the models for RANDOM picks.
+  // ?prefetch=0 disables. Implies `music` for the song part.
+  prefetch: params.get('prefetch') !== '0',
 };
 
 function readPref(key) {
   try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
 }
 
+function readNum(key, dflt) {
+  try {
+    const v = parseFloat(localStorage.getItem(key));
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : dflt;
+  } catch (e) { return dflt; }
+}
+
 export function setInfiniteUltimates(on) {
   CONFIG.debugUltimates = on;
   try { localStorage.setItem('rw.infiniteUlts', on ? '1' : '0'); } catch (e) { /* ok */ }
+}
+
+export function setMusicVolume(v) {
+  CONFIG.musicVolume = Math.min(1, Math.max(0, +v || 0));
+  try { localStorage.setItem('rw.musicVol', String(CONFIG.musicVolume)); } catch (e) { /* ok */ }
 }
 
 export function setShowAllRobots(on) {

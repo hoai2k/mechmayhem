@@ -17,6 +17,7 @@ import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
 import { MusicPlayer } from '../core/music.js';
 import { NowPlaying } from '../ui/nowplaying.js';
+import { Predictor } from './predict.js';
 import { createMech, preloadMechModels, loadManifest, is3dMode } from '../mechs/gltf.js';
 import { preloadPropModels } from '../arena/propglb.js';
 import { TouchControls, installTouchZoomGuards } from './touch.js';
@@ -69,6 +70,12 @@ export async function bootGame() {
   const music = new MusicPlayer();
   const nowPlaying = new NowPlaying(uiRoot, music);
 
+  // ---- idle prefetch (game/predict.js): while the player reads the title
+  // screen and picks a robot, pull down what the fight is about to need. The
+  // RANDOM arena, the RANDOM robots and the first song are pre-ROLLED here and
+  // CONSUMED by the menus, so what gets downloaded is what actually plays.
+  const predictor = new Predictor({ music });
+
   // ---- sound on/off: corner button on menus, mirrored in the pause menu ----
   let muted = false;
   try { muted = localStorage.getItem('rw.muted') === '1'; } catch (e) { /* ok */ }
@@ -100,12 +107,32 @@ export async function bootGame() {
     'position:absolute;right:56px;bottom:58px;z-index:40;cursor:pointer;font-size:26px;' +
     'opacity:0.8;user-select:none;text-shadow:0 2px 6px #000;pointer-events:auto;';
   uiRoot.appendChild(gearBtn);
+  // 0..1 as ten blocks between dim ←→ chevrons (which say "this one adjusts"
+  // without competing with the menu's own cyan selection arrows) — the whole
+  // slider readout, no extra DOM
+  const volBar = (v) => {
+    const n = Math.round(v * 10);
+    const dim = (c) => `<span style="opacity:0.4;font-size:0.8em">${c}</span>`;
+    return dim('\u25c4') + `<span style="letter-spacing:0.06em;margin:0 0.35em">`
+      + `${'\u2588'.repeat(n)}${'\u2591'.repeat(10 - n)}</span>` + dim('\u25ba');
+  };
   const settingsItems = () => [
     { label: () => t(muted ? 'settings.sound.off' : 'settings.sound.on'), fn: () => setMuted(!muted) },
     ...(music.available
       ? [{
         label: () => t(music.enabled ? 'settings.music.on' : 'settings.music.off'),
         fn: () => music.setEnabled(!music.enabled),
+      }, {
+        // ←→ drags the music bus alone; SOUND: OFF still silences everything
+        label: () => t('settings.musicVol', {
+          bar: volBar(music.volume),
+          pct: Math.round(music.volume * 100),
+        }),
+        slide: (d) => {
+          const v = Math.min(1, Math.max(0, Math.round(music.volume * 20 + d) / 20));
+          music.setVolume(v);
+          if (!music.enabled && v > 0) music.setEnabled(true);
+        },
       }]
       : []),
     {
@@ -307,6 +334,7 @@ export async function bootGame() {
     ensureStage('lineup');
     S.mode = 'title';
     audio.music('menu');
+    predictor.start();
     setScreen(new TitleScreen(uiRoot, {
       audio, hotButtons,
       onPlay: () => goMechSelect(),
@@ -317,6 +345,7 @@ export async function bootGame() {
   function goMechSelect() {
     ensureStage('lineup');
     S.mode = 'mechselect';
+    predictor.start(S.picks || []);
     setScreen(new MechSelectScreen(uiRoot, {
       input, audio, hotButtons, prev: S.slots,
       onPreview: (entries) => S.stage?.showPreviews(entries),
@@ -330,8 +359,11 @@ export async function bootGame() {
   function goArenaSelect() {
     S.mode = 'arenaselect';
     preloadMechModels(S.picks.filter((p) => p && p !== 'random')); // warm GLB cache while browsing arenas
+    predictor.start(S.picks || []);
     setScreen(new ArenaSelectScreen(uiRoot, {
       audio,
+      // the RANDOM tile lands on the arena the prefetcher has been loading
+      pickRandom: () => predictor.takeArena(),
       onDone: (themeId) => { S.themeId = themeId; startBattle(); },
       onBack: () => goMechSelect(),
     }));
@@ -344,6 +376,8 @@ export async function bootGame() {
 
   // ---------------- battle ----------------
   async function startBattle() {
+    // from here every spare cycle belongs to the fight, not to a guess
+    predictor.stop();
     setScreen(null);
     S.stage?.destroy();
     S.stage = null;
@@ -369,9 +403,14 @@ export async function bootGame() {
     // build mechs up-front: GLB-backed where the model manifest has one.
     // Each fighter wears its chosen paint scheme; anyone sharing a mech id
     // with an identical scheme (e.g. random AI picks) gets auto-bumped.
+    const taken = active.map((a) => S.picks[a.slotIdx]).filter((p) => p && p !== 'random');
     const defs = active.map((a) => {
       const roster = playableRoster();
-      const base = ROSTER_BY_ID[S.picks[a.slotIdx]] || roster[(Math.random() * roster.length) | 0];
+      const base = ROSTER_BY_ID[S.picks[a.slotIdx]]
+        // RANDOM slot: take the robot the prefetcher pre-rolled (and whose
+        // model it has been downloading since the menus)
+        || ROSTER_BY_ID[predictor.takeMech(new Set(taken))] || roster[(Math.random() * roster.length) | 0];
+      taken.push(base.id);
       return { base, variant: S.variants?.[a.slotIdx] || 0 };
     });
     defs.forEach((d, i) => {
@@ -427,9 +466,11 @@ export async function bootGame() {
       onEnd: (winner) => {
         S.mode = 'results';
         touchControls?.setVisible(false);
+        // rematch/back-to-select is a menu again: get ahead of the NEXT fight
+        predictor.start(S.picks || []);
         setScreen(new ResultsScreen(uiRoot, {
           winner, audio,
-          onRematch: () => { setScreen(null); match.begin(); S.mode = 'battle'; },
+          onRematch: () => { predictor.stop(); setScreen(null); match.begin(); S.mode = 'battle'; },
           onChangeMechs: () => { teardownBattle(); ensureStage(); goMechSelect(); },
           onMenu: () => goTitle(),
         }));
@@ -448,7 +489,7 @@ export async function bootGame() {
         const roster = playableRoster();
         const pool = roster.filter((m) => !exclude.has(m.id));
         const src = pool.length ? pool : roster;
-        const base = src[(Math.random() * src.length) | 0];
+        const base = ROSTER_BY_ID[predictor.takeMech(exclude)] || src[(Math.random() * src.length) | 0];
         let variant = S.variants?.[old.playerIndex] || 0;
         for (let t = 0; fighters.some((o) => o !== old && o.def.id === base.id && (o.def.variant || 0) === variant) && t < SCHEME_COUNT; t++) {
           variant = (variant + 1) % SCHEME_COUNT;
@@ -651,5 +692,5 @@ export async function bootGame() {
     setTimeout(() => splash.remove(), 600);
   }));
 
-  window.__game = { S, engine, audio, music, tick: (dt) => engine.onUpdate(dt) }; // debug hook
+  window.__game = { S, engine, audio, music, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
 }

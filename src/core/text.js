@@ -125,6 +125,8 @@ export const MESSAGES = {
   'settings.split.stacked': 'SPLIT: STACKED',
   'settings.music.on': 'MUSIC: ON',
   'settings.music.off': 'MUSIC: OFF',
+  // {bar} is the ten-block level readout with its own dim ←→ hint (markup)
+  'settings.musicVol': 'MUSIC VOLUME {bar} {pct}%',
   'settings.btn.sound': 'sound on/off',
   'settings.btn.settings': 'settings',
   'settings.btn.instructions': 'how to play',

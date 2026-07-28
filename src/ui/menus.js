@@ -110,9 +110,14 @@ class MenuList {
     return false;
   }
 
-  // the plain list loop: ↑↓ move the selection, ENTER/A confirms
+  // the plain list loop: ↑↓ move the selection, ENTER/A confirms.
+  // An item carrying `slide(dir)` is a SLIDER: ←→ adjust it in place instead
+  // of doing nothing, and confirm nudges it up (so it's reachable one-handed
+  // and on touch, where there is no ←→).
   nav(ev) {
     const n = this.items.length;
+    const cur = this.items[this.sel];
+    if (cur?.slide && (ev.left || ev.right)) { cur.slide(ev.right ? 1 : -1); return; }
     if (ev.up) { this.sel = (this.sel + n - 1) % n; this.audio?.play('uiMove'); this.refresh(); }
     if (ev.down) { this.sel = (this.sel + 1) % n; this.audio?.play('uiMove'); this.refresh(); }
     if (ev.confirm) this.confirm();
@@ -756,10 +761,15 @@ export class MechSelectScreen {
 // Card 0 (top-left) is RANDOM: confirming it spins the selector visibly
 // through every arena before landing on the roulette's pick.
 export class ArenaSelectScreen {
-  constructor(root, { audio, onDone, onBack }) {
+  // `pickRandom` supplies the RANDOM tile's arena. boot hands over the one the
+  // idle prefetcher pre-rolled and has been downloading since the title screen
+  // — the roulette then lands on an arena that is already half-loaded. Absent
+  // (or prefetch off), it just rolls one here.
+  constructor(root, { audio, onDone, onBack, pickRandom = null }) {
     this.audio = audio;
     this.onDone = onDone;
     this.onBack = onBack;
+    this.pickRandom = pickRandom;
     this.rolling = false;
     this.el = el('div', 'screen dim fade-in');
     this.el.appendChild(el('div', 'screen-heading', t('arena.heading')));
@@ -882,7 +892,9 @@ export class ArenaSelectScreen {
   startRoulette() {
     this.rolling = true;
     this.audio?.play('uiSelect');
-    const target = 1 + ((Math.random() * THEMES.length) | 0);
+    const picked = this.pickRandom?.();
+    const pickedIdx = picked ? THEMES.findIndex((th) => th.id === picked) : -1;
+    const target = 1 + (pickedIdx >= 0 ? pickedIdx : (Math.random() * THEMES.length) | 0);
     const seq = [];
     for (let r = 0; r < 2; r++) for (let i = 1; i <= THEMES.length; i++) seq.push(i);
     for (let i = 1; i <= target; i++) seq.push(i); // final lap ends ON the pick
@@ -981,16 +993,23 @@ export class SettingsScreen {
     this.el.style.zIndex = 30;
     this.el.style.background = 'rgba(5, 8, 14, 0.86)'; // hide the menu beneath
     this.el.innerHTML = `<div class="mega-title pause-title">${t('settings.title')}</div>`;
+    // Two kinds of entry: a TOGGLE ({ label, fn }) whose label restates the
+    // new state, and a SLIDER ({ label, slide }) that ←→ drags. Both relabel
+    // themselves in place — the label function IS the readout.
+    const relabel = (src) => {
+      const i = this.items.findIndex((it) => it.src === src);
+      if (i < 0) return;
+      this.items[i].t = src.label();
+      this.list.itemEls[i].innerHTML = this.items[i].t;
+    };
     this.items = [
-      ...items.map((toggle) => ({
-        t: toggle.label(),
-        fn: () => {
-          toggle.fn();
-          const i = this.items.findIndex((it) => it.toggle === toggle);
-          this.items[i].t = toggle.label();
-          this.list.itemEls[i].textContent = this.items[i].t;
-        },
-        toggle,
+      ...items.map((src) => ({
+        t: src.label(),
+        fn: () => { (src.slide ? () => src.slide(1) : src.fn)(); relabel(src); },
+        slide: src.slide
+          ? (d) => { src.slide(d); relabel(src); this.audio?.play('uiMove'); }
+          : undefined,
+        src,
       })),
       { t: t('settings.back'), fn: () => this.onBack() },
     ];

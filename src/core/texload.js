@@ -19,6 +19,21 @@ export function hasTex(set, name) {
   return !!fileUrl(set, name, 'albedo');
 }
 
+const MAPS = ['albedo', 'normal', 'rough', 'metal', 'emissive'];
+
+/**
+ * Warm the browser cache for one pack entry, without building a texture.
+ * The idle prefetcher (game/predict.js) calls this for the arena it expects
+ * to be picked, so the real `loadMap` later reads from cache. Deliberately
+ * NOT `loadMap`: the material's repeat/tint (and so the texture cache key)
+ * depend on arena size, which isn't known yet — the HTTP cache doesn't care.
+ * Resolves when every map of the entry has landed (or failed).
+ */
+export function prefetchTex(set, name) {
+  const urls = MAPS.map((m) => fileUrl(set, name, m)).filter(Boolean);
+  return Promise.all(urls.map((u) => fetch(u, { priority: 'low' }).catch(() => null)));
+}
+
 export function loadMap(set, name, map, { srgb = false, repeat = 1 } = {}) {
   const u = fileUrl(set, name, map);
   if (!u) return null;
