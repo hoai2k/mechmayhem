@@ -28,11 +28,34 @@ import path from 'node:path';
 const BASE = 'https://api.tripo3d.ai/v2/openapi';
 const KEY = process.env.TRIPO_API_KEY;
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
-const IMG_DIR = path.join(ROOT, 'docs', 'tripo');
-const OUT_DIR = path.join(ROOT, 'public', 'models', 'props');
-const STATE_FILE = path.join(ROOT, 'tools', 'tripo-props-state.json');
-const MODEL_VERSION = 'P1-20260311';   // P1 line — cleaner mesh, autofix
-const FACE_LIMIT = 20000;              // P1 documented maximum (48..20000)
+
+// --kind selects the asset preset. props (default): P1 line, 50cr, cleaner
+// mesh for hero landmarks. buildings: H3 line, 30cr — these are VOXELIZED
+// into the chunk grid at load, so mesh fidelity barely matters; cheaper is
+// correct. Each preset has its own input dir / output dir / state file.
+const rawArgs = process.argv.slice(2);
+const kindIdx = rawArgs.indexOf('--kind');
+const KIND = kindIdx >= 0 ? rawArgs[kindIdx + 1] : 'props';
+if (kindIdx >= 0) rawArgs.splice(kindIdx, 2);
+const PRESETS = {
+  props: {
+    imgDir: path.join(ROOT, 'docs', 'tripo'),
+    outDir: path.join(ROOT, 'public', 'models', 'props'),
+    outRel: 'public/models/props',
+    state: path.join(ROOT, 'tools', 'tripo-props-state.json'),
+    route: 'p1', cost: 50,
+  },
+  buildings: {
+    imgDir: path.join(ROOT, 'docs', 'tripo', 'buildings'),
+    outDir: path.join(ROOT, 'public', 'models', 'buildings'),
+    outRel: 'public/models/buildings',
+    state: path.join(ROOT, 'tools', 'tripo-buildings-state.json'),
+    route: 'h3', cost: 30,
+  },
+};
+const CFG = PRESETS[KIND];
+if (!CFG) { console.error(`unknown --kind ${KIND} (props | buildings)`); process.exit(1); }
+const IMG_DIR = CFG.imgDir, OUT_DIR = CFG.outDir, STATE_FILE = CFG.state;
 
 const state = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : {};
 const save = () => fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + '\n');
@@ -87,18 +110,21 @@ async function runProp(name) {
   if (!fs.existsSync(img)) throw new Error(`${name}: no image at ${img}`);
 
   const bal = await balance();
-  console.log(`\n=== ${name} (balance ${bal})`);
-  if (bal < 60) throw new Error(`balance ${bal} too low for another prop (~50 needed) — stopping`);
+  console.log(`\n=== ${name} [${KIND}/${CFG.route}] (balance ${bal})`);
+  if (bal < CFG.cost + 10) throw new Error(`balance ${bal} too low for another (~${CFG.cost} needed) — stopping`);
 
   // model generation only — no rig. (reuse a prior task on resume)
   if (!rec.modelTask || rec.modelFailed) {
     const token = await upload(img);
+    // P1: cleaner watertight mesh + autofix (hero props). H3: v3.x line at a
+    // high face budget, cheaper — right for buildings that get voxelized.
+    const payload = CFG.route === 'p1'
+      ? { model_version: 'P1-20260311', enable_image_autofix: true, face_limit: 20000 }
+      : { model_version: 'v3.1-20260211', face_limit: 150000 };
     const t = await api('POST', '/task', {
       type: 'image_to_model',
       file: { type: 'png', file_token: token },
-      model_version: MODEL_VERSION,
-      enable_image_autofix: true,
-      face_limit: FACE_LIMIT,
+      ...payload,
     });
     rec.modelTask = t.task_id; rec.modelFailed = false; save();
   }
@@ -111,17 +137,17 @@ async function runProp(name) {
   const url = modelDone.output?.pbr_model ?? modelDone.output?.model;
   if (!url) throw new Error(`${name}: model task has no url: ${JSON.stringify(modelDone.output)}`);
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const glb = `public/models/props/${name}.glb`;
+  const glb = `${CFG.outRel}/${name}.glb`;
   const size = await download(url, path.join(ROOT, glb));
   const preview = modelDone.output?.rendered_image;
-  if (preview) await download(preview, path.join(ROOT, 'tools', `tripo-prop-${name}.png`)).catch(() => {});
+  if (preview) await download(preview, path.join(ROOT, 'tools', `tripo-${KIND}-${name}.png`)).catch(() => {});
   rec.glb = glb; rec.bytes = size; rec.done = true; save();
   console.log(`  DONE ${glb} (${(size / 1e6).toFixed(1)} MB, ${rec.modelCredits ?? '?'} credits)`);
 }
 
 const allNames = () => fs.readdirSync(IMG_DIR).filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4)).sort();
 
-const args = process.argv.slice(2);
+const args = rawArgs;   // --kind already stripped
 if (args[0] === '--status') {
   let spent = 0, done = 0;
   for (const [name, r] of Object.entries(state)) {

@@ -1,0 +1,10 @@
+{
+  "decoTower": {
+    "modelTask": "6ecba9de-9089-4617-b769-1df125f47937",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "glb": "public/models/buildings/decoTower.glb",
+    "bytes": 4989524,
+    "done": true
+  }
+}
