@@ -46,5 +46,21 @@
     "glb": "public/models/buildings/quarryMill.glb",
     "bytes": 5329832,
     "done": true
+  },
+  "templePyramid": {
+    "modelTask": "46eff1d8-e10b-42fd-816e-c469bfd94f6a",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "glb": "public/models/buildings/templePyramid.glb",
+    "bytes": 4819368,
+    "done": true
+  },
+  "worksHall": {
+    "modelTask": "708d915e-d043-484e-bdcb-ddbe2cad713f",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "glb": "public/models/buildings/worksHall.glb",
+    "bytes": 4811968,
+    "done": true
   }
 }
