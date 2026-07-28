@@ -9,6 +9,7 @@ config object.
 /workbench/?edit=skin&mech=colossus        bone-island skin repair
 /workbench/?edit=rig&mech=colossus         hand-place a skeleton
 /workbench/?edit=collider&mech=colossus    what combat actually hits
+/workbench/?edit=props&prop=toriiGate      arena props: original vs optimized
 
 The chevron beside the panel title switches between them, carrying the current
 mech across. `?edit=hurtbox` is the collider tool's old name and still resolves.
@@ -31,16 +32,25 @@ workbench/
     actionchars.js    robotworld's move descriptions
     anchoruses.js     robotworld's "what does this anchor drive"
     mechclips.js      robotworld's per-mech clip list
-  tools/              the five workbenches — no game imports at all
+  tools/              the six workbenches — no game imports at all
   ui/                 shared chrome: panel, subject picker, variant picker, save
 ```
 
 ## The deal
 
+**Not every subject is a character.** `?edit=props` edits nothing — it JUDGES:
+the arena props got a mesh merge and a model diet, and both are reversible, so
+the tool stands the original beside the optimized one at the same scale under
+the same light and counts what the renderer deals with. It reads a `props`
+section of the contract (list / build / merge / load / url), which the
+robotworld adapter derives from the live prop table, the prop manifest and the
+themes. A game without scenery leaves the section out and the tool is not
+offered.
+
 **Tools know a config, not a game.** Nothing in `tools/` imports from `src/`.
 They read `config.catalogue.list()`, `config.variants.build(id, …)`,
 `config.anim.clipsFor(id)`, `config.skin.analyze(mesh)` and so on. Porting the
-workbenches to another game is writing a second adapter, not editing five
+workbenches to another game is writing a second adapter, not editing six
 tools.
 
 **The adapter derives, it never copies.** Every list is a function, and

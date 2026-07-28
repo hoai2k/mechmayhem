@@ -71,6 +71,18 @@
  *   units(model)      -> { joint, bone } scale factors for authored numbers
  *   patch(model, …)   -> the persistable form of the current anchors
  *
+ * @property {Object} props           a SECOND family of models: scenery, not
+ *                                    characters — no rig, no clips, no anchors,
+ *                                    so it gets its own section rather than a
+ *                                    second catalogue. Omit it and ?edit=props
+ *                                    simply isn't offered.
+ *   list()            -> [{ id, name, hasModel, themes[] }]
+ *   build(name, opts) -> a built scenery object (the game's own builder)
+ *   merge(group)      -> apply the game's draw-call merge, return meshes saved
+ *   load(name, which) -> imported model, 'optimized' | 'source'
+ *   url(name, which)  -> where that file lives, for size/probing
+ *   entry(name)       -> its manifest entry
+ *
  * @property {Object} skin            skin-repair engine (islands, ops, patches)
  * @property {Object} hurtbox         hit-volume measurement
  * @property {Object} stage           a live 3D scene with the game's own loop

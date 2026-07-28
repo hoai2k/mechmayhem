@@ -28,10 +28,13 @@ const SEL_CSS = `width:100%;background:#0e131b;color:#dfe8f5;border:1px solid #2
  *   css     — style override for the element
  *   onPick  — (id) => void
  */
-export function subjectSelect({ config, ids, value, label, note, css = SEL_CSS, onPick } = {}) {
+export function subjectSelect({ config, entries: given, ids, value, label, note, css = SEL_CSS, onPick } = {}) {
   const sel = document.createElement('select');
   sel.style.cssText = css;
-  const entries = config?.catalogue.list() || [];
+  // `entries` lets a tool pick from a DIFFERENT catalogue in the same config —
+  // the props workbench lists scenery, not mechs — while keeping the ordering
+  // rule below in one place.
+  const entries = given || config?.catalogue.list() || [];
   const list = ids || entries.map((r) => r.id);
   const byId = Object.fromEntries(entries.map((r) => [r.id, r]));
 

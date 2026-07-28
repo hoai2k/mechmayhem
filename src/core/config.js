@@ -19,6 +19,11 @@ export const CONFIG = {
   // (?showcase, ?rigedit, pose/skin tools, ?battle=...) always show every
   // mech regardless. Persisted from the settings menu; ?showall=1 forces on.
   showAllRobots: params.get('showall') === '1' || readPref('rw.showAllRobots'),
+  // Bake each arena prop's sub-meshes together by material once it is placed
+  // and measured (src/arena/props.js mergePropMeshes) — same pixels, a
+  // fraction of the draw calls. ?props=raw keeps the props as authored, which
+  // is how the two are compared (/workbench/?edit=props).
+  mergeProps: params.get('props') !== 'raw',
 };
 
 function readPref(key) {

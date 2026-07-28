@@ -18,10 +18,18 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
+// Where the model files live, relative to the page. The game sits at the site
+// root; the workbench page is one directory down and says so
+// (setPropAssetBase('../')), the same way gltf.js's setAssetBase works for the
+// mech models.
+let assetBase = '';
+export function setPropAssetBase(base) { assetBase = base || ''; }
+
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);   // dist builds compress props too
 const templates = new Map();   // propName -> prepared THREE.Group
-let loadPromise = null;
+const inFlight = new Map();    // propName -> Promise, so nothing loads twice
+let manifestPromise = null;
 
 function prepare(scene, entry) {
   const root = new THREE.Group();
@@ -50,26 +58,71 @@ function prepare(scene, entry) {
   return root;
 }
 
-// kick off (or reuse) the async preload; safe to call many times
-export function preloadPropModels() {
-  if (loadPromise) return loadPromise;
-  loadPromise = (async () => {
-    let man = null;
-    try {
-      const res = await fetch('models/props/manifest.json');
-      if (res.ok) man = await res.json();
-    } catch { /* no manifest — all props stay procedural */ }
-    if (!man) return;
-    await Promise.all(Object.entries(man).map(async ([name, entry]) => {
-      if (!entry || !entry.file) return;
+// the prop manifest itself (a few hundred bytes), read once
+export function propManifest() {
+  if (!manifestPromise) {
+    manifestPromise = (async () => {
       try {
-        const gltf = await loader.loadAsync(`models/props/${entry.file}`);
-        const t = prepare(gltf.scene, entry);
-        if (t) templates.set(name, t);
-      } catch { /* missing/broken file — procedural fallback */ }
+        const res = await fetch(`${assetBase}models/props/manifest.json`);
+        if (res.ok) return await res.json();
+      } catch { /* no manifest — all props stay procedural */ }
+      return {};
+    })();
+  }
+  return manifestPromise;
+}
+
+/**
+ * Warm the prop GLBs — BY NAME.
+ *
+ * An arena uses one to three of these models; loading all twenty at boot cost
+ * ~13 MB of downloads and ~300 MB of texture memory for nineteen models nobody
+ * was going to see. So the caller says which props its theme places
+ * (`preloadPropModels(namesFromTheme)`) and only those are fetched. Each name
+ * is remembered, so walking from arena to arena accumulates rather than
+ * reloads, and calling with no argument still means "everything" — the level
+ * editor genuinely can place any prop.
+ */
+export function preloadPropModels(names = null) {
+  return (async () => {
+    const man = await propManifest();
+    const wanted = names ? [...new Set(names)].filter((n) => man[n]) : Object.keys(man);
+    await Promise.all(wanted.map((name) => {
+      if (templates.has(name)) return null;
+      if (inFlight.has(name)) return inFlight.get(name);
+      const entry = man[name];
+      if (!entry || !entry.file) return null;
+      const p = loader.loadAsync(`${assetBase}models/props/${entry.file}`)
+        .then((gltf) => {
+          const t = prepare(gltf.scene, entry);
+          if (t) templates.set(name, t);
+        })
+        .catch(() => { /* missing/broken file — procedural fallback */ });
+      inFlight.set(name, p);
+      return p;
     }));
   })();
-  return loadPromise;
+}
+
+/**
+ * Load ONE prop model on its own, prepared (fitted + grounded) exactly the way
+ * the game prepares it, from either the shipped models or the pre-optimization
+ * archive tools/propopt.mjs keeps in `props/source/`. Nothing is cached: this
+ * exists for /workbench/?edit=props, which stands the two side by side and
+ * measures them, and a workbench must always see the file as it is on disk.
+ * Returns null when there is no model (or the file is missing).
+ */
+export async function loadPropModel(name, which = 'optimized') {
+  const man = await propManifest();
+  const entry = man?.[name];
+  if (!entry?.file) return null;
+  const dir = which === 'source' ? 'models/props/source' : 'models/props';
+  try {
+    const gltf = await loader.loadAsync(`${assetBase}${dir}/${entry.file}`);
+    return prepare(gltf.scene, entry);
+  } catch {
+    return null;
+  }
 }
 
 // synchronous: swap a built procedural prop's visuals for the GLB, keeping

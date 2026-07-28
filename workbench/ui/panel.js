@@ -47,11 +47,12 @@ export const WORKBENCHES = {
   models: { tool: 'animation', title: 'Animation Workbench', color: '#b98cff' },
   rigedit: { tool: 'rig', title: 'Rig Editor', color: '#4aa8ff' },
   collider: { tool: 'collider', title: 'Hurtbox Workbench', color: '#7fd8ff' },
+  props: { tool: 'props', title: 'Props Workbench', color: '#ffd23c' },
 };
 
 // Order the switcher offers them in: the order you actually move through a
 // model — shape it, rig it, weight it, pose it, then check what it hits.
-const SWITCH_ORDER = ['models', 'rig', 'skin', 'pose', 'collider']
+const SWITCH_ORDER = ['models', 'rig', 'skin', 'pose', 'collider', 'props']
   .map((k) => (WORKBENCHES[k] ? k : 'rigedit'));
 
 /**
@@ -64,7 +65,7 @@ function gotoWorkbench(tool) {
   const cur = new URLSearchParams(location.search);
   const next = new URLSearchParams();
   next.set('edit', tool);
-  for (const k of ['mech', 'variant', 'alt']) if (cur.has(k)) next.set(k, cur.get(k));
+  for (const k of ['mech', 'variant', 'alt', 'prop']) if (cur.has(k)) next.set(k, cur.get(k));
   // the tools all live on the workbench page; keep whatever directory that is
   const dir = location.pathname.includes('/workbench/')
     ? location.pathname

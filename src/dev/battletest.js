@@ -2,7 +2,7 @@
 //   ?battle=foundry&p1=titanus&p2=viper&p3=vulcan&auto=1
 // auto=1 makes P1 an AI too (spectator soak test).
 import { Engine } from '../core/engine.js';
-import { THEMES_BY_ID, THEMES } from '../arena/themes.js';
+import { THEMES_BY_ID, THEMES, themePropNames } from '../arena/themes.js';
 import { ROSTER_BY_ID, ROSTER } from '../mechs/roster.js';
 import { applyColorScheme } from '../mechs/colorscheme.js';
 import { Fighter } from '../combat/fighter.js';
@@ -13,6 +13,7 @@ import { pick } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { createMech } from '../mechs/gltf.js';
 import { loadLevel, themeFromLevel } from '../arena/level.js';
+import { preloadPropModels } from '../arena/propglb.js';
 
 export async function runBattleTest() {
   const params = new URLSearchParams(location.search);
@@ -27,6 +28,10 @@ export async function runBattleTest() {
     const lvl = await loadLevel(levelName);
     if (lvl) theme = themeFromLevel(lvl);
   }
+
+  // the same per-theme prop-model warm the real match does, so a ?battle= URL
+  // (screenshots, soaks) shows the arena the player would see
+  await preloadPropModels(themePropNames(theme));
 
   const engine = new Engine(document.getElementById('game-canvas'));
   const input = new Input();

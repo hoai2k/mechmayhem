@@ -19,7 +19,9 @@ audio). Progress history: `TASKS.md`.
 - WORKBENCHES LIVE ON THEIR OWN PAGE: `/workbench/?edit=<tool>&mech=<id>` —
   `animation` (procedural-vs-GLB action comparison + anchor editor),
   `pose` (joints + clip keyframes), `skin` (bone-island repair), `rig`
-  (hand-placed skeletons), `collider` (what combat hits). `&variant=alt`
+  (hand-placed skeletons), `collider` (what combat hits), `props`
+  (ARENA PROPS, original vs optimized side by side — `?edit=props&prop=<name>`,
+  no `&mech=`). `&variant=alt`
   (legacy `&alt=1`) opens a mech's alternate build. The OLD urls
   (`?debug=models|pose|skin|collider`, `?rigedit=<id>`) still work — they
   redirect, carrying their params, so every tools/*.mjs script and bookmark is
@@ -165,6 +167,19 @@ audio). Progress history: `TASKS.md`.
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).
   `?debug=3d` is the old opt-in flag and still means GLBs.
+- ARENA PROP COST: props are an object-count problem, not a triangle one (they
+  were ~45-80% of a frame's draw calls for 3% of its triangles, because each is
+  a pile of small meshes and the toroidal wrap clones the lot into 8 neighbour
+  cells). Three levers, each revertible on its own:
+  `mergePropMeshes` (src/arena/props.js) bakes each placed prop's meshes
+  together by material — after the colliders are measured, before the ghost
+  clones — and `?props=raw` turns it off; `node tools/propopt.mjs [--apply]`
+  shrinks the imported prop GLBs, keeping the untouched originals in
+  `public/models/props/source/` (`--restore --apply` puts them back); and
+  `preloadPropModels(themePropNames(theme))` fetches only the models the arena
+  places instead of all twenty. Judge any of it in `/workbench/?edit=props`,
+  which stands original beside optimized and counts objects, triangles,
+  textures, VRAM and file size for both.
 - Level builder: `?edit=level` (place/move buildings, props, terrain + export)
   · `?edit=level&load=<name>` edits `public/levels/<name>.json` ·
   `?battle=<theme>&level=<name>` plays an authored level. Editor: `src/editor/`,

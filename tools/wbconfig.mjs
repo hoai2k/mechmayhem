@@ -27,6 +27,8 @@ const out = await page.evaluate(async () => {
   const { CLIPS } = await import('/src/mechs/animations.js');
   const { JOINT_ORDER } = await import('/src/mechs/rigadapter.js');
   const { rigIds } = await import('/src/mechs/rigs/index.js');
+  const { PROPS } = await import('/src/arena/props.js');
+  const propMan = await (await fetch('/models/props/manifest.json')).json();
   const manifest = cfg.manifest();
 
   const cat = cfg.catalogue.list();
@@ -44,6 +46,13 @@ const out = await page.evaluate(async () => {
     cat.filter((c) => c.hasModel).map((c) => c.id));
   check('alternates', Object.keys(manifest).filter((k) => manifest[k]?.alt?.url),
     cat.filter((c) => c.hasAlt).map((c) => c.id));
+
+  // the props workbench's catalogue is the game's prop table, and its "has an
+  // imported model" flag is the prop manifest — neither hand-listed
+  const props = cfg.props?.list() || [];
+  check('props', Object.keys(PROPS), props.map((p) => p.id));
+  check('prop models', Object.keys(propMan).filter((k) => propMan[k]?.file),
+    props.filter((p) => p.hasModel).map((p) => p.id));
 
   // per-subject clip lists must be non-empty and drawn from the clip table
   const clipNames = new Set(Object.keys(CLIPS));
