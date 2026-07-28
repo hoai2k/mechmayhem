@@ -3235,6 +3235,20 @@ export class Fighter {
     this._rollOffset = null;
   }
 
+  // CAMERA-STABLE position. `pos` is the group's own position, so for the
+  // rendered frame it necessarily carries the roll's centre-holding slide —
+  // which means pos itself ORBITS the ball's centre at the spin rate
+  // (~6 turns/s). A camera that frames pos inherits that orbit as jitter its
+  // own damping can't fully swallow. This returns the un-slid base, which
+  // physics integrates and which falls perfectly smoothly through the whole
+  // tumble; outside a roll it is exactly pos. Written into `out` so the
+  // camera's scratch vectors stay allocation-free.
+  focusPos(out) {
+    out.copy(this.pos);
+    if (this._rollOffset) out.sub(this._rollOffset);
+    return out;
+  }
+
   // ================= guard bubble =================
   // One shared sphere shield, worn by BOTH guards:
   //   • the air somersault covers every angle (a tumbling ball has no front)

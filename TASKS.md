@@ -12,7 +12,21 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** AUTO-AIMED BLOWS GO FOR THE CHEST AND HEAD — melee auto-aim now
+- **Latest:** ROLL-STABLE CAMERA — during the air somersault the pivot
+  slide makes the fighter's own `pos` (the group origin) orbit the ball's
+  centre at the spin rate, and every camera that framed `pos` inherited
+  that orbit as jiggle. `Fighter.focusPos()` exposes the un-slid base the
+  physics integrates (smooth through the whole tumble; exactly `pos`
+  otherwise) and camera.js frames that everywhere — combined centroid,
+  solo focus, split chase, lock azimuth, occlusion probes. Measured by
+  driving the real CameraSystem through a descending spin: the camera
+  target's max second difference is 0.0094/frame — exactly gravity's own
+  g·dt², zero residual jitter. JERRY also got a `ballPose` (his splayed
+  grasshopper rest bias wrapped the shared tuck to a 184° knee fold with
+  feet thrown wide; tools/rollpivot.mjs head/foot circle ratio 2.0 → 1.6,
+  centre drift −27% — the rest is the GLB rig under-folding its leg
+  bones, out of a pose override's reach).
+- **Previous:** AUTO-AIMED BLOWS GO FOR THE CHEST AND HEAD — melee auto-aim now
   steers a punch, kick or bite in HEIGHT as well as laterally, onto the
   target's chest-to-crown band instead of their waist or over their head.
   See the section at the end of this file.
