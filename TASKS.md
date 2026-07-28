@@ -4417,3 +4417,33 @@ flat dark disc, pulled well down toward the stage blue so it stays a backdrop.
 `CONFIG.menuFloorTextured` is the off switch (or `?menufloor=0`), and
 `CONFIG.menuFloorTex` names which arena ground it borrows — trying another one
 is a one-word edit.
+
+## THE SIGN BUZZES, AND THE MENUS ANSWER TO IT
+
+NEON BUZZ. `neonZap` (core/audio.js) is mains hum, its harsh third and a thin
+crackle — the starter arcing — and it fires every time a tube drops out. The CSS
+keyframes stay the single source of truth: TitleScreen reads the tubes' live
+opacity each frame and buzzes on the lit→dim edge, so editing the flicker in
+style.css moves the sound with it rather than desyncing from a duplicated
+table. The deeper the dip, the harder the tube complains.
+
+Verified by stepping the real animations through a full cycle and watching what
+the screen asked the audio engine for: 10 buzzes in 9.2s, at 0.59 / 0.72 / 0.88 /
+1.06 / 3.81 / 5.34 / 5.71 / 7.89 / 8.02 / 8.70s — exactly the measured dip times,
+including both stutter pairs — and the engine built 20 oscillators + 10 noise
+bursts, which is the 2+1 the sound is made of, times ten.
+
+FONT / COLOR PASS (kept). Two type
+stacks now: `--font-display`, a condensed grotesque (Bahnschrift / DIN Alternate
+/ Oswald / Arial Narrow, falling all the way back to the old stack) for headings,
+menu items, card names and hint keys; `--font-ui` stays the system sans for
+anything read in sentences. The sign's two tubes become the interface's two
+colors: cyan is structure, MAGENTA is what is active — the selected menu item
+and its ▶◀, the stat bars' hot end, the GAME READY chip (was a green pill), and
+a magenta bounce under the screen headings.
+
+Two layout bugs the wider tracking exposed, both fixed: the select heading
+wrapped to two lines in the fallback face (it is nowrap and a size smaller now),
+and the locked player card's colour strip ran off the end — at eleven schemes
+the scheme NAME no longer fits after the swatches, so it moved onto the ◀ ▶ row,
+which is where it belongs anyway.

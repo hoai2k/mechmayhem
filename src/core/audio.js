@@ -824,6 +824,15 @@ const SFX = Object.assign(Object.create(null), {
   },
 
   // ---- UI ----------------------------------------------------------------
+  // A neon tube stuttering: mains hum, its harsh third, and a thin crackle as
+  // the starter arcs. Deliberately quiet — this plays under the title screen
+  // every few seconds and must read as room tone, not as an event.
+  neonZap(a, t, p, v) {
+    const f = 118 * p;
+    a._tone({ t, dur: 0.085, type: 'sawtooth', f0: f, f1: f * 0.92, vol: 0.05 * v, attack: 0.003 });
+    a._tone({ t, dur: 0.07, type: 'square', f0: f * 3, f1: f * 2.5, vol: 0.018 * v });
+    a._noise({ t, dur: 0.055, vol: 0.045 * v, type: 'bandpass', f0: 2600 * p, q: 3.5 });
+  },
   uiMove(a, t, p, v) {
     a._tone({ t, dur: 0.05, type: 'square', f0: 520, f1: 480, vol: 0.12 * v });
   },
