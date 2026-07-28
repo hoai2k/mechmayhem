@@ -71,6 +71,15 @@ export const MELEE = {
   SWING_MIN: 0.45,  // floor on that radius, × attacker scale
   OVERSHOOT: 0.70,  // extension past the fist along the strike line, × reach
   PAD: 0.28,        // extra slack on the victim's capsules, × victim scale
+  // Ceiling on the vertical strike assist (fighter.strikeVolume): the most a
+  // swing may be slid up or down to reach a target it finished clear of,
+  // × the ATTACKER's height. It exists to close the head-height gap between
+  // a heavyweight and a lightweight — measured worst case is titanus'
+  // haymaker finishing 2.8 units over viper's crown, so 0.45 (3.4 on
+  // titanus) covers it with room. Uncapped, this same line slid a swing
+  // however far it took, which let a grounded mech punch someone 40 units
+  // up in the air.
+  ASSIST_Y: 0.45,
 };
 
 // Bullets and beams are aimed, so they get much less slack than a swing —

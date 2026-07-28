@@ -186,8 +186,10 @@ export const SPECIALS = {
               { life: 0.16, size: 0.7 * f.scale, color: 0x5aff2e, alpha: 0.85, grow: -1 });
           }
         }
+        // the swords are thrown out LEVEL at his own body height — jumping
+        // clear of the saw is a real read, not something the radius ignores
         eachEnemy(w, f, f.pos, 3.6 * f.scale, (e) => {
-          if ((hitAt.get(e) ?? -1) <= t - 0.22) {
+          if ((hitAt.get(e) ?? -1) <= t - 0.22 && overlapsY(e, f.pos.y, f.height)) {
             hitAt.set(e, t);
             e.takeHit(sp.dmg * f.dmgMult(), f, { knock: 5, srcPos: f.pos });
             w.audio?.play('slash');
@@ -675,9 +677,10 @@ export const SPECIALS = {
         // length = warn + sustain + ~0.95s collapse = sp.duration. The
         // scald opts arm the world's damage tick: anyone in the column
         // keeps taking hits for the whole eruption
+        const COLUMN = 22;                 // the water's own height
         w.spawnGeyser(
           new GeyserFX(w.scene, w.effects, target, {
-            height: 22, radius: 1.5, warn: WARN,
+            height: COLUMN, radius: 1.5, warn: WARN,
             sustain: (sp.duration || 6) - WARN - 0.95,
             boilRadius: sp.radius * 0.4,
           }),
@@ -687,6 +690,9 @@ export const SPECIALS = {
           w.audio?.play('wave');
           w.audio?.play('explosionBig');
           eachEnemy(w, f, target, sp.radius, (v) => {
+            // the blowout reaches as high as the water goes and no higher —
+            // it's a tall column, so this only spares someone truly above it
+            if (!overlapsY(v, target.y, COLUMN)) return;
             v.takeHit(sp.dmg * f.dmgMult(), f, { knock: 5, launch: sp.launch, srcPos: target, heavy: true });
             v.applySoak?.(2.4); // drenched: dripping frame, half speed
           }, (v) => v.hitRadius * 0.5);
@@ -2506,7 +2512,13 @@ export const ULTS = {
       const caught = [];
       for (const e of w.fighters) {
         if (e === f || !e.alive || f.isAllyOf(e)) continue;
-        if (Math.hypot(w.wrapDelta(e.pos.x - f.pos.x), w.wrapDelta(e.pos.z - f.pos.z)) < u.radius) {
+        // the croak propagates as a SPHERE, not an infinite column: measured
+        // to the victim's mid-body in all three axes, so it still washes over
+        // anyone jumping nearby (30 is a wide radius) but doesn't reach a bot
+        // hovering far overhead the way a flat x/z radius did
+        const c = e.center();
+        if (Math.hypot(w.wrapDelta(c.x - f.pos.x), c.y - (f.pos.y + f.height * 0.5),
+                       w.wrapDelta(c.z - f.pos.z)) < u.radius) {
           caught.push(e);
           w.effects.impactSparks(e.center(), 0x9ade2a, 8, 6);
         }
