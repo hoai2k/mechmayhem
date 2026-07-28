@@ -13,6 +13,8 @@ config object.
 
 The chevron beside the panel title switches between them, carrying the current
 mech across. `?edit=hurtbox` is the collider tool's old name and still resolves.
+A bare /workbench/ (or an unknown ?edit=) lands on the front page — a card per
+tool with a live screenshot (landing.js; re-shoot: node tools/wbthumbs.mjs).
 ```
 
 `&variant=alt` (or the legacy `&alt=1`) opens a mech's alternate build;
@@ -39,10 +41,10 @@ workbench/
 ## The deal
 
 **Not every subject is a character.** `?edit=props` edits nothing — it JUDGES:
-the arena props got a mesh merge and a model diet, and both are reversible, so
-the tool stands the original beside the optimized one at the same scale under
-the same light and counts what the renderer deals with. It reads a `props`
-section of the contract (list / build / merge / load / url), which the
+the imported arena prop models were dieted (tools/propopt.mjs) and the tool
+stands each original beside its optimized model in twin viewports that share
+one camera, so a size change cannot hide behind per-side framing. It reads a
+`props` section of the contract (list / load / url / entry), which the
 robotworld adapter derives from the live prop table, the prop manifest and the
 themes. A game without scenery leaves the section out and the tool is not
 offered.

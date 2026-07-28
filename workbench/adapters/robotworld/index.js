@@ -31,7 +31,7 @@ import {
   blendPatch, weldedAdjacency, enclaveScan,
 } from '../../../src/mechs/skinops.js';
 import { buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } from '../../../src/combat/hurtbox.js';
-import { PROPS, mergePropMeshes } from '../../../src/arena/props.js';
+import { PROPS } from '../../../src/arena/props.js';
 import { propManifest, loadPropModel, setPropAssetBase } from '../../../src/arena/propglb.js';
 import { THEMES, themePropNames } from '../../../src/arena/themes.js';
 import { Engine } from '../../../src/core/engine.js';
@@ -171,6 +171,10 @@ const CONFIG = defineWorkbenchConfig({
   // than a second catalogue. Everything here is derived from the live prop
   // table, the prop GLB manifest and the themes, so a prop added to
   // src/arena/props.js is in the props workbench on the next reload.
+  // (mergePropMeshes — the procedural props' draw-call diet — has no entry
+  // here on purpose: it changes the object count and not one pixel, so there
+  // is nothing for a viewer to compare. `?props=raw` on a battle URL is how
+  // that one is judged.)
   props: {
     list: () => Object.keys(PROPS).map((name) => ({
       id: name,
@@ -178,10 +182,6 @@ const CONFIG = defineWorkbenchConfig({
       hasModel: !!propManifestData?.[name],
       themes: THEMES.filter((t) => themePropNames(t).includes(name)).map((t) => t.id),
     })),
-    // the prop as the game builds it: a group of small sculpted meshes
-    build: (name, opts = {}) => (PROPS[name] ? PROPS[name]({ seed: 12345, ...opts }) : null),
-    // …and the same group after the draw-call merge the arena applies
-    merge: (group) => mergePropMeshes(group),
     // where the two GLBs live, relative to the workbench page: the shipped
     // (optimized) model, and the untouched original tools/propopt.mjs archived
     url: (name, which = 'optimized') => {
@@ -193,7 +193,7 @@ const CONFIG = defineWorkbenchConfig({
     },
     entry: (name) => propManifestData?.[name] || null,
     // the loader + fitting rule the game itself uses, so what the workbench
-    // stands on the stage is scaled and seated exactly like the in-game prop
+    // stands in a viewport is scaled and seated exactly like the in-game prop
     load: (name, which) => loadPropModel(name, which === 'source' ? 'source' : 'optimized'),
   },
 

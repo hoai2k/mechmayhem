@@ -30,17 +30,14 @@ const TOOLS = {
 const ALIASES = { hurtbox: 'collider' };
 
 const params = new URLSearchParams(location.search);
-const asked = (params.get('edit') || 'animation').toLowerCase();
+const asked = (params.get('edit') || '').toLowerCase();
 const which = ALIASES[asked] || asked;
 
 if (!TOOLS[which]) {
-  document.body.innerHTML = `<div style="font:14px/1.6 system-ui;color:#dfe8f5;background:#0b0f16;
-    position:fixed;inset:0;padding:40px">
-    <h2 style="color:#ffb4a2">Unknown workbench "${which}"</h2>
-    <p>Try one of:</p>
-    <ul>${Object.keys(TOOLS).map((k) => `<li><a style="color:#8fe" href="?edit=${k}${
-      params.get('mech') ? `&mech=${params.get('mech')}` : ''}">?edit=${k}</a></li>`).join('')}</ul>
-  </div>`;
+  // no tool asked for (bare /workbench/), or a name that doesn't exist:
+  // both land on the front door — a card per workbench, click to open.
+  // Static on purpose, so it never waits on the adapter or a WebGL context.
+  import('./landing.js').then(({ runLanding }) => runLanding(asked || null));
 } else {
   // wrapped rather than top-level await: the build targets es2020, where TLA
   // isn't available

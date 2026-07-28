@@ -76,9 +76,9 @@
  *                                    so it gets its own section rather than a
  *                                    second catalogue. Omit it and ?edit=props
  *                                    simply isn't offered.
- *   list()            -> [{ id, name, hasModel, themes[] }]
- *   build(name, opts) -> a built scenery object (the game's own builder)
- *   merge(group)      -> apply the game's draw-call merge, return meshes saved
+ *   list()            -> [{ id, name, hasModel, themes[] }] (the tool shows
+ *                        only the hasModel entries — imported models are the
+ *                        ones with an original to compare against)
  *   load(name, which) -> imported model, 'optimized' | 'source'
  *   url(name, which)  -> where that file lives, for size/probing
  *   entry(name)       -> its manifest entry
