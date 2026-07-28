@@ -4053,3 +4053,26 @@ files were prefetched; the slider moving 22%→35%→40%→15% with the bar, the
 percentage and `rw.musicVol` all tracking; `?music=0` fetching nothing and
 reporting no soundtrack; `?prefetch=0` fetching nothing during the menus.
 `npx vite build` green both with and without `RW_NO_MUSIC=1`.
+
+## CAMERA Y, AND THE DESERT'S "UPSIDE-DOWN BRIDGE"
+
+CAMERA PITCH. The two view modes disagreed with each other: in the combined
+(solo) view the right stick pitched one way, in a split viewport the other, and
+touch-drag disagreed with the stick in both. Every pitch input now goes through
+one helper in camera.js (`pitchY`), so there is a single answer, and the default
+is the standard third-person one — push DOWN and the camera rises so you look
+down on your mech. SETTINGS → **REVERSE CAMERA Y** flips it for anyone who wants
+the inversion (persisted in `rw.reverseCamY`, off by default).
+
+Verified by driving the real CameraSystem with the preference set before load,
+once per setting: OFF → push down gives +0.0243 on the combined view and +0.0243
+in a split viewport (camera rises, look down); ON → −0.0243 on both. Both paths
+agree now, which they didn't before.
+
+THE UPSIDE-DOWN BRIDGE was the Desert Ruins' `greatGate` — the pylon gate at the
+head of the processional way. Not upside down: its lintel was slung across the
+middle of two bare towers with open sky above it, so the silhouette read as an
+H, or as a bridge deck with its piers pointing up. It's a gateway again — the
+doorway lintel carries a filled span up to the tower tops, one cornice runs
+across the whole crown instead of a cap per tower, and a winged sun disc sits
+over the door. Collision bodies (the two towers) are unchanged.

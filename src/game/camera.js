@@ -4,6 +4,15 @@
 // side-by-side or stacked, toggled at runtime (pause menu / F9).
 import * as THREE from 'three';
 import { clamp, lerp, damp, angleDamp, angleDiff } from '../core/utils.js';
+import { CONFIG } from '../core/config.js';
+
+// WHICH WAY IS UP. Every pitch input — right stick, touch look-drag, combined
+// view or split — goes through this, so the two view modes can't drift apart
+// (they used to: the stick pitched the combined camera one way and a split
+// viewport the other). Positive result = the camera RISES and you look DOWN
+// on your mech, which is what pushing the stick down does by default;
+// SETTINGS → REVERSE CAMERA Y flips it for anyone who wants the inversion.
+const pitchY = (v) => (CONFIG.reverseCameraY ? -v : v);
 
 const _v = new THREE.Vector3();
 const _center = new THREE.Vector3();
@@ -109,7 +118,7 @@ export class CameraSystem {
   // deltas; rotate the orbit and nudge the pitch, and hold the view briefly.
   applyLook(dx, dy) {
     this.lookAzOffset -= dx * 0.006;
-    this.lookElOffset = clamp(this.lookElOffset - dy * 0.004, -0.22, 0.45);
+    this.lookElOffset = clamp(this.lookElOffset + pitchY(dy) * 0.004, -0.22, 0.45);
     this.lookCd = 3.0;
     this.azInit = true; // ensure the auto base eases (never snaps) under us
   }
@@ -119,7 +128,7 @@ export class CameraSystem {
     const ch = this.chase[humanIdx];
     if (!ch) return;
     ch.az -= dx * 0.006;
-    ch.el = clamp(ch.el - dy * 0.004, 0.1, 0.78);
+    ch.el = clamp(ch.el + pitchY(dy) * 0.004, 0.1, 0.78);
     ch.lookCd = 3.0; // manual look holds; the lazy follow stays out of it
   }
 
@@ -433,7 +442,7 @@ export class CameraSystem {
         ch.el = 0.38;
       }
       ch.az -= ch.lookX * 2.8 * dt;
-      ch.el = clamp(ch.el + ch.lookY * 2.0 * dt, 0.1, 0.78);
+      ch.el = clamp(ch.el + pitchY(ch.lookY) * 2.0 * dt, 0.1, 0.78);
 
       // LAZY FOLLOW, both ways: while this mech runs and its camera stick
       // is idle, ease the orbit to the character's BACK — unless they're

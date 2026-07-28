@@ -1882,40 +1882,57 @@ export const PROPS = {
     return g;
   },
   greatGate(o = {}) {
-    // Monumental temple pylon gate — twin tapering towers, glyphs lit.
+    // Monumental temple pylon gate — twin tapering towers, a doorway between
+    // them, glyphs lit. The stone ABOVE the doorway matters: with the lintel
+    // slung across two bare towers and open sky over it, the whole thing reads
+    // as an H — or, as it was reported from the Desert Ruins, an upside-down
+    // bridge. Filling that span (and running one cornice across both towers)
+    // is what makes it read as a gate you walk through.
     const g = new THREE.Group();
     const stone = texMat('prop_stone_carved', M.sandstone, { repeat: 3 });
     const h = o.h || 15, gap = o.gap || 7.5;
+    const towerX = gap / 2 + 3;
     for (const sx of [-1, 1]) {
       const tower = new THREE.Mesh(new THREE.BoxGeometry(6, h, 4.2), stone);
-      tower.position.set(sx * (gap / 2 + 3), h / 2, 0);
-      tower.scale.set(1, 1, 1);
+      tower.position.set(sx * towerX, h / 2, 0);
       tower.castShadow = true;
       tower.receiveShadow = true;
-      // taper: shear via a second, narrower cap
       g.add(tower);
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(6.6, 1.1, 4.8), stone);
-      cap.position.set(sx * (gap / 2 + 3), h + 0.55, 0);
-      cap.castShadow = true;
-      g.add(cap);
       const glyphMat = new THREE.MeshStandardMaterial({
         color: 0x2ee6c8, emissive: 0x2ee6c8, emissiveIntensity: 1.0,
       });
-      g.add(box(glyphMat, 0.24, h * 0.6, 0.08, sx * (gap / 2 + 3) - 1.2, h * 0.45, 2.15));
-      g.add(box(glyphMat, 0.24, h * 0.5, 0.08, sx * (gap / 2 + 3) + 1.2, h * 0.4, 2.15));
+      g.add(box(glyphMat, 0.24, h * 0.45, 0.08, sx * towerX - 1.2, h * 0.34, 2.15));
+      g.add(box(glyphMat, 0.24, h * 0.36, 0.08, sx * towerX + 1.2, h * 0.3, 2.15));
     }
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(gap + 4, 2.2, 3.6), stone);
-    lintel.position.y = h * 0.62;
+    // doorway lintel, and the masonry that carries the gate up to the towers
+    const doorH = h * 0.62;
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(gap + 5, 2.2, 4.0), stone);
+    lintel.position.y = doorH + 1.1;
     lintel.castShadow = true;
     g.add(lintel);
-    const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.2, 20),
-      new THREE.MeshStandardMaterial({ color: 0xffd23c, emissive: 0xffb43c, emissiveIntensity: 1.4 }));
+    const span = new THREE.Mesh(new THREE.BoxGeometry(gap + 1.2, h - doorH - 2.2, 3.8), stone);
+    span.position.y = (h + doorH + 2.2) / 2;
+    span.castShadow = true;
+    span.receiveShadow = true;
+    g.add(span);
+    // one cornice across the whole crown, rather than a cap per tower
+    const cornice = new THREE.Mesh(new THREE.BoxGeometry(2 * towerX + 6.6, 1.1, 4.8), stone);
+    cornice.position.y = h + 0.55;
+    cornice.castShadow = true;
+    g.add(cornice);
+    // winged sun disc over the doorway — what a pylon gate wears
+    const discMat = new THREE.MeshStandardMaterial({ color: 0xffd23c, emissive: 0xffb43c, emissiveIntensity: 1.4 });
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.2, 20), discMat);
     disc.rotation.x = Math.PI / 2;
-    disc.position.y = h * 0.62 + 2.2;
+    disc.position.set(0, doorH + 3.4, 2.0);
     g.add(disc);
+    for (const sx of [-1, 1]) {
+      g.add(box(discMat, 2.6, 0.34, 0.12, sx * 2.4, doorH + 3.4, 1.98));
+      g.add(box(discMat, 1.8, 0.26, 0.12, sx * 3.1, doorH + 2.85, 1.98));
+    }
     g.userData.bodies = [
-      { dx: -(gap / 2 + 3), dz: 0, r: 3.1, h },
-      { dx: gap / 2 + 3, dz: 0, r: 3.1, h },
+      { dx: -towerX, dz: 0, r: 3.1, h },
+      { dx: towerX, dz: 0, r: 3.1, h },
     ];
     return g;
   },

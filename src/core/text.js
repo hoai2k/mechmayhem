@@ -118,6 +118,8 @@ export const MESSAGES = {
   'settings.sound.off': 'SOUND: OFF',
   'settings.infiniteUlts.on': 'INFINITE ULTIMATES: ON',
   'settings.infiniteUlts.off': 'INFINITE ULTIMATES: OFF',
+  'settings.reverseCamY.on': 'REVERSE CAMERA Y: ON',
+  'settings.reverseCamY.off': 'REVERSE CAMERA Y: OFF',
   'settings.showAllRobots.on': 'SHOW ALL ROBOTS: ON',
   'settings.showAllRobots.off': 'SHOW ALL ROBOTS: OFF',
   'settings.reload': 'RELOAD PAGE',
