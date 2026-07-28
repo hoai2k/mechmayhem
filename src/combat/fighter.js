@@ -402,6 +402,17 @@ export class Fighter {
     if (snap) this.yaw = yaw;
   }
 
+  // Top LOCOMOTION speed: what this mech's walk/run/flight is capped at right
+  // now, before status effects and the sprint/duck/channel modifiers. Every
+  // caller must go through this — the animator normalises its run blend by
+  // the same number (`ratio = speed / maxSpeed`), so a cap that moved without
+  // it would read as a permanent sprint at walking pace. Foot cadence needs
+  // no help: animator.js drives the stride off ACTUAL ground speed, so faster
+  // travel strides faster instead of skating.
+  moveSpeed() {
+    return this.def.stats.speed * WALK_MULT * CONFIG.robotSpeed;
+  }
+
   speedMult() {
     let m = 1;
     if (this.status.slow) m *= this.status.slow.f;
@@ -2731,7 +2742,7 @@ export class Fighter {
 
     // ---- animation ----
     const spd = Math.hypot(this.vel.x, this.vel.z);
-    const maxSpd = st.speed * WALK_MULT * (this.sprinting ? SPRINT_MULT : 1);
+    const maxSpd = this.moveSpeed() * (this.sprinting ? SPRINT_MULT : 1);
     // STRANDED ON HIS BACK (see ROLLOVER): the body is going nowhere, but the
     // LEGS still answer the stick — feed the input itself in as speed and the
     // locomotion layer runs its stride, so he scuttles uselessly at the sky.
@@ -2804,7 +2815,7 @@ export class Fighter {
     // a dime — while the torso leads the turn at a quicker rate, so the
     // upper body looks INTO the new heading a beat before the legs carry
     // it there. Rates are kept high: this is flavor lag, not sluggishness.
-    const runK = clamp01(spd / (st.speed * WALK_MULT));
+    const runK = clamp01(spd / this.moveSpeed());
     this.yaw = angleDamp(this.yaw, this.targetYaw, lerp(13, 7, runK), dt);
     this.torsoYaw = angleDamp(this.torsoYaw, this.targetYaw, lerp(18, 12, runK), dt);
     this.group.rotation.y = this.yaw;
@@ -3016,8 +3027,7 @@ export class Fighter {
   }
 
   applyPhysics(dt, ax, az) {
-    const st = this.def.stats;
-    const speedCap = st.speed * WALK_MULT * this.speedMult() *
+    const speedCap = this.moveSpeed() * this.speedMult() *
       (this.sprinting ? SPRINT_MULT : 1) *
       (this.state === 'channel' ? 0.45 : 1) * (1 - 0.55 * this.duckT);
 

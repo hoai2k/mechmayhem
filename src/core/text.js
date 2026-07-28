@@ -129,6 +129,8 @@ export const MESSAGES = {
   'settings.music.off': 'MUSIC: OFF',
   // {bar} is the ten-block level readout with its own dim ←→ hint (markup)
   'settings.musicVol': 'MUSIC VOLUME {bar} {pct}%',
+  // how fast every robot walks / runs / flies; 100% is the old baseline pace
+  'settings.robotSpeed': 'ROBOT SPEED {bar} {pct}%',
   'settings.btn.sound': 'sound on/off',
   'settings.btn.settings': 'settings',
   'settings.btn.instructions': 'how to play',
