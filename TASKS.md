@@ -4474,7 +4474,13 @@ an event — handing back 37 slices; `playSlice()` triggers a different one each
 time with 12ms fades top and tail, since a slice cut out of a continuous take
 starts mid-waveform and would otherwise click. Detection rather than a
 hand-written table so replacing the mp3 moves the slices with it. The synthetic
-`neonZap` stays as the fallback for a file that will not fetch or decode. The CSS
+`neonZap` stays as the fallback for a file that will not fetch or decode.
+
+HOW LOUD: `CONFIG.neonBuzzVolume` (core/config.js), 0..1, default 0.6 — a
+number to EDIT rather than a stored preference, with `?neonbuzz=<0..1>` for a
+quick try without touching the file. Each flicker leans on it a little by how
+deep that particular drop-out goes. Measured across a cycle: 0.629–0.696 at the
+default (it was 0.98–1.03 before), and 0.157–0.174 under `?neonbuzz=0.15`. The CSS
 keyframes stay the single source of truth: TitleScreen reads the tubes' live
 opacity each frame and buzzes on the lit→dim edge, so editing the flicker in
 style.css moves the sound with it rather than desyncing from a duplicated
