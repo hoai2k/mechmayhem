@@ -4379,3 +4379,41 @@ themselves). Everything else reads through the catalogue and follows. Logo
 restyle pending — eight treatments mocked and sent for a pick (current chrome
 blue · gritty stencil · mirror chrome · molten · neon · heavy slab · organic ·
 military plate).
+
+## THE SIGN: NEON TITLE, AND A STAGE TO STAND ON
+
+THE LOGO IS A NEON SIGN (picked from eight mocked treatments — chrome, gritty
+stencil, mirror, molten, neon, heavy slab, organic, stamped plate). Hollow
+two-color tube, cyan word then magenta, and the fill is EMPTY on purpose: the
+line-up mechs read straight through the letters instead of being blocked by
+them. Each WORD is its own tube with its own flicker clock — `title.game` is
+split on whitespace in TitleScreen, so any name in any language gets the
+treatment rather than two hard-coded spans. `steps(1, end)` on the animation
+makes every change a hard cut: a tube snaps, it does not fade. The two clocks
+(7.3s and 9.1s, one offset −2.4s) are deliberately mismatched so the words never
+fall into a rhythm together.
+
+Measured by driving the animations through the Web Animations API and reading
+computed opacity every 20ms across 9.2s: MECH dips at 0.60s (0.22) with a
+stutter back at 0.72–0.78s (0.32), again at 3.80s (0.25), a shallow one at 5.34s
+(0.45), cycling at 7.90s. MAYHEM dips at 0.88–0.96s (0.20) + 1.06–1.12s (0.35),
+5.70s (0.30), 8.72s (0.28). They never coincide.
+
+LAYOUT: brand pinned to the top, menu to the bottom, the whole middle band left
+clear — the mechs are the thing you look at now, not something behind the words.
+
+THE BATTLE CIRCLE WAS ALIASED, in two different places for two different
+reasons. On the menu stage it was ring GEOMETRY: a 48-segment n-gon whose facets
+showed and whose thin hard edges crawled with MSAA off. It is one quad now,
+wearing a canvas ring that FADES at both edges, so the silhouette is resolved by
+an alpha ramp instead of by polygon edges (`ringMesh`, also used for the
+per-player preview rings). In the arena the circle is PAINTED into the ground
+overlay, and the culprit was anisotropy 4 on a texture seen edge-on all the way
+to the fog wall — it now takes what the GPU offers, up to 16 (measured: max 16,
+overlay now 16).
+
+MENU FLOOR: the stage borrows the Ironworks Foundry's iron plate instead of a
+flat dark disc, pulled well down toward the stage blue so it stays a backdrop.
+`CONFIG.menuFloorTextured` is the off switch (or `?menufloor=0`), and
+`CONFIG.menuFloorTex` names which arena ground it borrows — trying another one
+is a one-word edit.

@@ -46,6 +46,13 @@ export const CONFIG = {
   // camera rises so you look down on your mech; ON gives the flight-sim
   // inversion. Persisted from the settings menu.
   reverseCameraY: readPref('rw.reverseCamY'),
+  // MENU FLOOR: dress the menu stage's floor with the Ironworks Foundry iron
+  // plate instead of the flat dark disc. A LOOK CHOICE, deliberately one flag
+  // wide — flip it to false here (or add ?menufloor=0) to get the plain floor
+  // back. `menuFloorTex` names which texture-pack ground it borrows, so trying
+  // another arena's floor is a one-word edit.
+  menuFloorTextured: params.get('menufloor') !== '0',
+  menuFloorTex: 'ground_foundry_ironplate',
 
   // SPLIT-SCREEN POST FX: local multiplayer runs the same post chain as the
   // single view (distance haze blur, bloom, FXAA) — one composer per

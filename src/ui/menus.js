@@ -131,10 +131,16 @@ class MenuList {
 // ---------------- TITLE ----------------
 export class TitleScreen {
   constructor(root, { onPlay, onFullscreen, audio, hotButtons }) {
-    this.el = el('div', 'screen fade-in');
+    this.el = el('div', 'screen fade-in title-screen');
+    // Each WORD of the game name is its own neon tube: alternating colors, and
+    // each one flickers on its own clock (style.css). Splitting here rather
+    // than hard-coding two spans keeps the effect working for any name the
+    // catalogue carries, in any language.
+    const tubes = t('title.game').trim().split(/\s+/)
+      .map((w, i) => `<span class="tube tube-${i % 2}">${w}</span>`).join(' ');
     this.el.innerHTML = `
-      <div style="text-align:center">
-        <div class="mega-title">${t('title.game')}</div>
+      <div class="title-brand">
+        <div class="mega-title neon-title">${tubes}</div>
         <div class="mega-sub">${t('title.tagline')}</div>
       </div>`;
     this.list = new MenuList({ audio, hot: hotButtons });

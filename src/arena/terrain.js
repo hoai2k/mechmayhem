@@ -1220,7 +1220,12 @@ export class Terrain {
       const tex = new THREE.CanvasTexture(canvas);
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 4;
+      // The painted ground is the worst case for anisotropy in the game: it
+      // is one texture seen edge-on all the way to the fog wall, and the
+      // spawn-plaza circle is a thin stroke on it. 4 samples left that circle
+      // visibly stair-stepped; take what the GPU will give, up to 16.
+      const caps = this.arena.engine?.renderer?.capabilities;
+      tex.anisotropy = Math.min(16, caps ? caps.getMaxAnisotropy() : 4);
       // align texture cells with the world cell
       tex.repeat.set(span / P, span / P);
       tex.offset.set(0.5 - span / 2 / P, 0.5 - span / 2 / P);

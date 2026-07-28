@@ -10,6 +10,8 @@ import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
 import { PLAYER_COLORS } from '../core/colors.js';
 import { createMech, is3dMode, manifestHasGlb } from '../mechs/gltf.js';
+import { CONFIG } from '../core/config.js';
+import { pbrMaterial } from '../core/texload.js';
 
 // Loading spinner shown in place of a mech while its GLB downloads (only in
 // ?debug=3d, where we suppress the procedural stand-in). Two counter-rotating
@@ -28,6 +30,46 @@ function makeSpinner(color = 0x8fd8ff) {
   g.position.y = 4.2; // float at torso height
   return g;
 }
+// A RING WITH SOFT EDGES. Ring geometry gave a hard-edged n-gon: the facets
+// showed at 48 segments and, with MSAA off, both edges crawled with jaggies
+// against the dark floor. This is one quad wearing a canvas texture whose ring
+// FADES at both edges, so the silhouette is resolved by the alpha ramp instead
+// of by polygon edges — smooth at any size, and no thin geometry to alias.
+// Mipmaps + anisotropy keep it from shimmering when the floor tilts away.
+function ringMesh(renderer, outerR, thickness, color, opacity) {
+  const S = 512;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const ctx = cv.getContext('2d');
+  const c = S / 2;
+  // stroke in rings from the middle of the band outwards, alpha falling to 0
+  const px = (S / 2) * (thickness / outerR);       // band width in pixels
+  const rPx = (S / 2) * ((outerR - thickness / 2) / outerR);
+  const steps = Math.max(6, Math.round(px));
+  ctx.lineCap = 'butt';
+  for (let i = 0; i < steps; i++) {
+    const f = i / (steps - 1);                     // 0..1 across the band
+    const a = Math.sin(f * Math.PI) ** 0.8;        // soft on both edges
+    ctx.strokeStyle = `rgba(255,255,255,${a.toFixed(3)})`;
+    ctx.lineWidth = px / steps + 0.6;              // overlap so there are no gaps
+    ctx.beginPath();
+    ctx.arc(c, c, rPx + (f - 0.5) * px, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = Math.min(16, renderer?.capabilities?.getMaxAnisotropy?.() ?? 4);
+  tex.needsUpdate = true;
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(outerR * 2, outerR * 2),
+    new THREE.MeshBasicMaterial({
+      map: tex, color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide,
+    })
+  );
+  m.rotation.x = -Math.PI / 2;
+  return m;
+}
+
 // Soft radial bloom used behind a mech the instant its player locks in. A
 // fresh texture per burst — clearMechs() disposes the sprites it owns, and a
 // shared map would be disposed out from under the next one.
@@ -56,18 +98,25 @@ export class MenuStage {
     engine.scene.fog = new THREE.Fog(0x0a0e18, 40, 140);
     engine.scene.background = new THREE.Color(0x0a0e18);
 
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(60, 48),
-      new THREE.MeshStandardMaterial({ color: 0x161b24, roughness: 0.6, metalness: 0.5 })
-    );
+    // The menu floor borrows an arena ground (the foundry's iron plate by
+    // default) so the stage reads as a place rather than a void. CONFIG
+    // .menuFloorTextured is the off switch; a missing texture pack falls
+    // through to the plain disc on its own.
+    const plain = () => new THREE.MeshStandardMaterial({ color: 0x161b24, roughness: 0.6, metalness: 0.5 });
+    let fmat = null;
+    if (CONFIG.useTextures && CONFIG.menuFloorTextured) {
+      fmat = pbrMaterial('ground', CONFIG.menuFloorTex, {
+        repeat: 9,
+        // pulled well down toward the stage's own dark blue so the mechs
+        // still own the frame — this is a backdrop, not the subject
+        color: new THREE.Color(0x2a3038),
+      });
+    }
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(60, 96), fmat || plain());
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     this.group.add(floor);
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(11.5, 12, 48),
-      new THREE.MeshBasicMaterial({ color: 0x38e8ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
-    );
-    ring.rotation.x = -Math.PI / 2;
+    const ring = ringMesh(engine.renderer, 12, 0.75, 0x38e8ff, 0.75);
     ring.position.y = 0.04;
     this.group.add(ring);
 
@@ -197,13 +246,7 @@ export class MenuStage {
           { slotIdx: e.slotIdx, stageX: x, yawOffset: 0, fx: null });
       }
       if (n > 1) {
-        const ring = new THREE.Mesh(
-          new THREE.RingGeometry(2.3, 2.7, 40),
-          new THREE.MeshBasicMaterial({
-            color: PLAYER_COLORS[e.slotIdx % 4], transparent: true, opacity: 0.7, side: THREE.DoubleSide,
-          })
-        );
-        ring.rotation.x = -Math.PI / 2;
+        const ring = ringMesh(this.engine.renderer, 2.7, 0.5, PLAYER_COLORS[e.slotIdx % 4], 0.85);
         ring.position.set(x, 0.06, 0);
         this.group.add(ring);
         this.rings.push(ring);
@@ -256,6 +299,7 @@ export class MenuStage {
     for (const r of this.rings) {
       this.group.remove(r);
       r.geometry.dispose();
+      r.material.map?.dispose();
       r.material.dispose();
     }
     this.rings = [];

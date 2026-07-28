@@ -62,6 +62,61 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
   color: #9fd8ef; margin-top: 6px; text-indent: 0.55em;
 }
 
+/* ---------- title screen ---------- */
+/* Brand up top, menu at the bottom, and the whole middle band left clear so
+   the line-up mechs are the thing you look at. */
+.screen.title-screen { justify-content: flex-start; }
+.title-brand { text-align: center; margin-top: 5vh; }
+.title-screen .menu-list { position: absolute; bottom: 7vh; margin-top: 0; }
+
+/* THE SIGN. Hollow two-color tube, one tube per word — the fill is empty so
+   the mechs read straight through the letters instead of being blocked by
+   them, which is the whole reason this treatment survived the mock-ups. */
+.neon-title {
+  background: none; -webkit-background-clip: initial; background-clip: initial;
+  color: transparent; filter: none; letter-spacing: 0.06em;
+}
+.neon-title .tube {
+  display: inline-block;
+  -webkit-text-stroke: 3px var(--tube);
+  text-shadow: 0 0 18px var(--tube-glow), 0 0 60px var(--tube-halo), 0 0 120px var(--tube-halo);
+  /* steps(1) so every change is a hard cut: a tube snaps, it does not fade */
+  animation: tubeA 7.3s steps(1, end) infinite;
+}
+.neon-title .tube-0 { --tube: #38e8ff; --tube-glow: rgba(56,232,255,0.9); --tube-halo: rgba(56,232,255,0.42); }
+.neon-title .tube-1 { --tube: #ff4dd8; --tube-glow: rgba(255,77,216,0.9); --tube-halo: rgba(255,77,216,0.42);
+  animation: tubeB 9.1s steps(1, end) infinite; animation-delay: -2.4s; }
+
+/* Two flicker patterns, deliberately co-prime-ish in duration so the words
+   never settle into a rhythm with each other: long steady burns broken by a
+   stutter, the way a tired tube actually behaves. */
+@keyframes tubeA {
+  0%, 7.9% { opacity: 1; }
+  8%, 8.9% { opacity: 0.22; }      /* ~65ms: a four-frame drop-out */
+  9%, 9.7% { opacity: 1; }
+  9.8%, 10.6% { opacity: 0.32; }   /* …and the stutter back on */
+  10.7%, 51.9% { opacity: 1; }
+  52%, 52.9% { opacity: 0.25; }
+  53%, 72.9% { opacity: 1; }
+  73%, 73.7% { opacity: 0.45; }    /* a shallow one — the tube nearly holds */
+  73.8%, 100% { opacity: 1; }
+}
+@keyframes tubeB {
+  0%, 21.9% { opacity: 1; }
+  22%, 22.8% { opacity: 0.28; }
+  22.9%, 35.9% { opacity: 1; }
+  36%, 37% { opacity: 0.2; }
+  37.1%, 37.8% { opacity: 1; }
+  37.9%, 38.7% { opacity: 0.35; }
+  38.8%, 88.9% { opacity: 1; }
+  89%, 89.9% { opacity: 0.3; }
+  90%, 100% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .neon-title .tube { animation: none; }
+}
+.title-screen .mega-sub { color: #7fd8ef; }
+
 .press-start {
   margin-top: 7vh; font-size: clamp(15px, 1.8vw, 24px); letter-spacing: 0.3em;
   text-transform: uppercase; color: #ffffff;
