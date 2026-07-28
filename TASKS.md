@@ -4127,3 +4127,50 @@ in-arena screenshots of the optimized GLBs (frozen's icebreaker, quonset huts an
 snowcat) and of merged-vs-raw props on neon, and the workbench's own side-by-side
 on toriiGate, icebreakerShip, campfire and substation. Frame draw calls on neon:
 1,529 → 1,231.
+
+## Props workbench v2: twin viewports, GLB-only, a size audit — and a workbench front page (user request, 2026-07-28)
+
+Three corrections to the props work, from using it:
+
+**The size audit found real drift.** `node tools/propopt.mjs --audit` compares
+every optimized model's bounding box against its archived original, per axis,
+plus the box centre, at 0.5% tolerance — and the first run FAILED on four
+models (buriedMechHand, foodTruck, sphinxStatue, trawler — up to 1.3% on an
+axis). Decimation spends its error budget wherever triangles are cheapest,
+which is sometimes an extremity: shave a fingertip and the bounding box
+shrinks, and since the loader scales every prop to a target HEIGHT
+(`fit`), a shorter model gets scaled UP — moving the footprint the arena
+measures its collider from. The optimizer now tries its error ladder
+(0.02 → 0.004 → 0.001 → 0.0002 → 0) and keeps the first result whose box
+matches the original; those four models keep a few thousand more triangles
+(225k total vs 215k) and the audit now PASSes across all twenty. Size is not
+negotiable; triangles are.
+
+**The comparison became two viewports.** One scene with both models framed
+together answers "do they look alike from here"; two scissored viewports, each
+with its own scene and light rig but ONE SHARED CAMERA (the right camera copies
+the left's pose every frame), answer the question the tool exists for — each
+model alone, filling its viewport, at exactly the same angle and distance,
+framed off the OPTIMIZED model so a size change cannot hide behind per-side
+framing. The readout gained the measured size in metres and a per-prop size
+verdict; SCAN ALL names any model that drifted. The catalogue now lists ONLY
+the GLB-backed props — the procedural props' optimization (mergePropMeshes)
+changes the object count and not one pixel, so there is nothing for a viewer
+to compare; it is judged by flipping `?props=raw` on a battle URL. The
+adapter's `props` contract section slimmed to match (list/load/url/entry).
+
+**`/workbench/` got a front door.** A bare visit used to silently open the
+animation workbench, and a typo'd `?edit=` got a terse error list. Both now
+land on `workbench/landing.js`: a card per tool — real screenshot, colour-coded
+title matching its panel, what it is for, click to open — with the unknown-tool
+case adding a "no workbench called X" note above the cards. Static on purpose
+(no adapter, no WebGL): a menu should not wait on a game config. The
+screenshots live in `workbench/thumbs/` and are re-shot by
+`node tools/wbthumbs.mjs`; the landing page bundles them, so a missing one
+fails the build instead of 404ing.
+
+Verified: audit PASS over all 20 models, wbconfig PASS (props catalogue + prop
+models still derived), `npx vite build` green with the thumbs emitted, a
+scrapyard soak crash-free on the re-optimized models, and screenshots of the
+twin-viewport tool (toriiGate, gantryCrane), the landing page, and the
+unknown-tool banner.

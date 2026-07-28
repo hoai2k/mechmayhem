@@ -20,8 +20,11 @@ audio). Progress history: `TASKS.md`.
   `animation` (procedural-vs-GLB action comparison + anchor editor),
   `pose` (joints + clip keyframes), `skin` (bone-island repair), `rig`
   (hand-placed skeletons), `collider` (what combat hits), `props`
-  (ARENA PROPS, original vs optimized side by side — `?edit=props&prop=<name>`,
-  no `&mech=`). `&variant=alt`
+  (the IMPORTED ARENA PROP MODELS, original vs optimized in twin viewports
+  sharing one camera — `?edit=props&prop=<name>`, no `&mech=`). A bare
+  `/workbench/` (or an unknown `?edit=`) lands on a card-per-tool front page
+  with screenshots (`workbench/landing.js`; re-shoot with
+  `node tools/wbthumbs.mjs`). `&variant=alt`
   (legacy `&alt=1`) opens a mech's alternate build. The OLD urls
   (`?debug=models|pose|skin|collider`, `?rigedit=<id>`) still work — they
   redirect, carrying their params, so every tools/*.mjs script and bookmark is
@@ -177,9 +180,13 @@ audio). Progress history: `TASKS.md`.
   shrinks the imported prop GLBs, keeping the untouched originals in
   `public/models/props/source/` (`--restore --apply` puts them back); and
   `preloadPropModels(themePropNames(theme))` fetches only the models the arena
-  places instead of all twenty. Judge any of it in `/workbench/?edit=props`,
-  which stands original beside optimized and counts objects, triangles,
-  textures, VRAM and file size for both.
+  places instead of all twenty. The GLB diet is SIZE-PRESERVING: the decimation
+  error budget tightens per model until the bounding box matches the original
+  (`node tools/propopt.mjs --audit` proves it for all twenty, and FAILS on
+  drift). Judge the models in `/workbench/?edit=props` — original and optimized
+  in twin viewports with one shared camera, with triangle/texture/VRAM/file
+  deltas and a size check; the mesh merge is judged by flipping `?props=raw`
+  on a battle URL, since it changes draw calls and not pixels.
 - Level builder: `?edit=level` (place/move buildings, props, terrain + export)
   · `?edit=level&load=<name>` edits `public/levels/<name>.json` ·
   `?battle=<theme>&level=<name>` plays an authored level. Editor: `src/editor/`,
