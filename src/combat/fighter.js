@@ -50,8 +50,12 @@ const REGROW_TIME = 0.5;
 // default so a blind mortar shell still lands where it always did.
 const DEFAULT_ENGAGE_DIST = 25;
 const SPRINT_MULT = 1.6;   // ground-speed multiplier while sprinting (hold B on the move)
-const SPRINT_MAX = 3.2;    // seconds of sprint in a full tank
+const SPRINT_MAX = 3.2;    // size of the stamina tank
 const SPRINT_REGEN = 0.6;  // tank refill rate (per second) while not sprinting
+// Running costs 40% of what it used to: the tank drained 1.0/s (so its size
+// WAS its duration, 3.2s of sprint), now 0.4/s — the same full tank is worth
+// 8s of running. Blocking and dashing price themselves off the same bar.
+const SPRINT_DRAIN = 0.4;
 // ---- stamina tank costs (the same bar the sprint drains — HUD 'sprintFill').
 // Sprint spends it at 1.0/s by construction; these are the other draws.
 const BLOCK_DRAIN = 0.55;    // per second of held guard
@@ -2621,7 +2625,7 @@ export class Fighter {
     this.sprinting = this._sprintHold && bHeld && stickHeld && this.sprintEnergy > 0 &&
       (this.state === 'normal' || this.state === 'dash');
     if (this.sprinting) {
-      this.sprintEnergy = Math.max(0, this.sprintEnergy - dt);
+      this.sprintEnergy = Math.max(0, this.sprintEnergy - dt * SPRINT_DRAIN);
       if (this.sprintEnergy <= 0) this._sprintHold = false; // winded — re-press once it refills
     } else if (!this._sprintHold && !this.blocking) {
       // the tank only refills with the guard DOWN and the sprint released
