@@ -3,7 +3,6 @@ import { clamp01 } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { t } from '../core/text.js';
 
-const ROUND_TIME = 99;
 const KO_COLOR = '#ff4d5e';
 const FIGHT_COLOR = '#ffb43c';
 const WINS_NEEDED = 2;
@@ -18,7 +17,7 @@ export class Match {
     this.round = 0;
     this.state = 'idle';
     this.stateT = 0;
-    this.timeLeft = ROUND_TIME;
+    this.timeLeft = CONFIG.roundTime;
     this.unsub = world.events.on('ko', (e) => this.onKO(e));
     this.pendingWinner = null;
   }
@@ -44,7 +43,7 @@ export class Match {
     });
     this.state = 'intro';
     this.stateT = 2.5;
-    this.timeLeft = ROUND_TIME;
+    this.timeLeft = CONFIG.roundTime;
     this.hud.announce(t('match.round', { n: this.round }), true);
     this.world.audio?.play('stingRound');
     // a bit of personality: someone talks trash at the start of each round
