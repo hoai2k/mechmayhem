@@ -31,7 +31,8 @@ const _woundRed = new THREE.Color(0xd8202e); // poison wound flush
 // sniper's aim, a ground pound) locks him down for the duration.
 const RUN_AND_GUN_CLIPS = new Set(['shoot', 'shootL', 'saurionQuillFan']);
 const GRAVITY = 34;
-const ULT_RATE = 2;      // ult meter fills 2x faster (ultimates balance pass)
+// (ultimates are fountain-fed now — see combat/fountains.js. The old
+// damage-drip meter constants ULT_RATE / BLOCK_ULT_DIV are gone with it.)
 const WALK_MULT = 1.2;   // global ground-speed boost over roster stats
 const JUMP_MULT = 1.18;  // global jump boost
 const CHARGE_DASH_MAX = 3; // seconds of crouch that fully winds a charged dash
@@ -66,7 +67,6 @@ const CHARGE_MIN_WINDUP = 0.15;
 
 // ---- hit-reaction tuning (see takeHit) ----
 const BLOCK_LEAK_DEFAULT = 0.12; // damage fraction leaking through a guard when roster sets no blockMult
-const BLOCK_ULT_DIV = 3000;      // blocked-hit ult drip: flat dmg/3000 (NOT maxHp-scaled like clean hits — historical tuning, kept)
 const WEIGHT_KNOCK_RESIST = 0.45; // how much of stats.weight resists knockback/launch
 const HITSTUN_HEAVY = 0.42;      // seconds of stun from a heavy hit
 const HITSTUN_LIGHT = 0.24;
@@ -207,6 +207,12 @@ export class Fighter {
     // resources
     this.maxHp = def.stats.hp;
     this.hp = this.maxHp;
+    // ULT CHARGES: collected from the golden fountains (combat/fountains.js),
+    // up to CONFIG.fountains.maxCharges held at once. `ult` (0|1) mirrors
+    // "has at least one" so every existing ready-check (AI, HUD full-glow,
+    // the soak harness forcing the meter) keeps meaning what it meant.
+    this.ultCharges = 0;
+    this.ultFlashT = 0;        // HUD badge glow window while the ult fires
     this.ult = 0;              // 0..1
     this.specialCd = 0;
     this.rangedCd = 0;
@@ -854,7 +860,11 @@ export class Fighter {
     if (!impl) return;
     this._moveAttack = false;
     this.uncloak();
-    this.ult = 0;
+    // spend one collected charge (the cheat and the soak harness fire off an
+    // empty pouch — nothing to go below zero)
+    this.ultCharges = Math.max(0, this.ultCharges - 1);
+    this.ult = this.ultCharges > 0 ? 1 : 0;
+    this.ultFlashT = 1.4;
     this.faceNearestEnemyIfClose(80, true);
     this.world.events.emit('ult', { fighter: this, name: u.name });
     this.world.audio?.play('ultReady');
@@ -1696,15 +1706,14 @@ export class Fighter {
   // ================= damage =================
   // shared tail of every "the guard/shield ate it" path in takeHit: chip
   // damage that is never lethal (floor 1 hp), a reduced push instead of
-  // real knockback, the defender's small ult drip (flat BLOCK_ULT_DIV
-  // divisor), and the block spark + clank. Callers pick chip/ultFrom/push —
+  // real knockback and the block spark + clank. Callers pick chip/push —
+  // (ultFrom is vestigial: the blocked-hit ult drip died with the meter) —
   // the raised guard and AEGIS's passive cover are deliberately not
   // identical (see the call sites).
   _blockAbsorb(chip, ultFrom, dirX, dirZ, dLen, push, sparkPos, sparkColor) {
     this.hp = Math.max(1, this.hp - chip);
     this.vel.x += (dirX / dLen) * push;
     this.vel.z += (dirZ / dLen) * push;
-    this.ult = clamp01(this.ult + (ultFrom / BLOCK_ULT_DIV) * ULT_RATE);
     this.world.effects.blockSpark(sparkPos, sparkColor);
     this.world.audio?.play('block');
   }
@@ -1813,8 +1822,6 @@ export class Fighter {
     dmg = Math.max(1, Math.round(dmg));
     this.hp -= dmg;
     this.lastAttacker = attacker;
-    this.ult = clamp01(this.ult + (dmg / (this.maxHp * 1.35)) * ULT_RATE);
-    if (attacker) attacker.ult = clamp01(attacker.ult + (dmg / (attacker.maxHp * 2.6)) * ULT_RATE);
 
     if (status) this.applyStatus(status);
 
@@ -2227,6 +2234,7 @@ export class Fighter {
     this.rangedCd = Math.max(0, this.rangedCd - dt);
     this.dashCd = Math.max(0, this.dashCd - dt);
     this.iframes = Math.max(0, this.iframes - dt);
+    this.ultFlashT = Math.max(0, this.ultFlashT - dt);
     this.comboWindow -= dt;
     this.dashT = Math.max(0, this.dashT - dt);
     if (this.comboWindow <= 0) this.comboIdx = 0;
@@ -3162,9 +3170,12 @@ export class Fighter {
     this.status = {};
     this.clearGlitch(); // corruption lasts exactly one round
     this.setOpacity(1);
-    // the meter is a PER-ROUND resource, like the hp/ammo/fuel/energy above
-    // and beside it. Carried over, a round could open on a full bar that was
-    // earned in the last one — the other half of "the CPU has infinite ults".
+    // charges are a PER-ROUND resource, like the hp/ammo/fuel/energy above
+    // and beside it. Carried over, a round could open on a full pouch that
+    // was collected in the last one — the other half of "the CPU has
+    // infinite ults".
+    this.ultCharges = 0;
+    this.ultFlashT = 0;
     this.ult = 0;
     this.specialCd = 0;
     this.rangedCd = 0;

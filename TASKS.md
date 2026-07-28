@@ -12,7 +12,26 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** BUILDING DONORS BAKED + DEV-HARNESS PARITY FIX — the 8 Tripo
+- **Latest:** ULT FOUNTAINS — ultimates are no longer charged by dealing or
+  taking damage; golden powerup fountains (combat/fountains.js) well up
+  around the arena every CONFIG.fountains.interval seconds (board cap =
+  live robots × perRobot, both in config), preferring interesting ground:
+  40% building rooftops (≤20m so they're jumpable, via the destructible
+  grid's live top cells), 25% terrain features (hilltops, bridge and
+  viaduct decks), 35% open floor — never the spawn plaza, never hazard
+  lanes/patches, never inside props. Stand in one: golden geyser + rings +
+  a second of sparkles shed off the robot, one charge in the pouch (max 2,
+  fountain drains and wells up elsewhere; a roof fountain whose floor is
+  blown out drains too). `f.ultCharges` is the resource; `f.ult` (0|1)
+  mirrors "has one" so AI triggers, the soak harness's forced meters and
+  Infinite Ults all keep working; charges reset per round like the meter
+  did. HUD: the ult bar is replaced by two ★ badges (faint empty / gold
+  held / blazing while the spent ult fires — dev harness prints ★s too).
+  AI with an empty pouch detours to ground-level fountains between fights.
+  Verified end-to-end with new tools/fountaintest.mjs (spawn cap, collect,
+  cap-at-2, spend, flash timer), badge CSS screenshot-checked, ace soaks
+  clean on neon 4P + harbor.
+- **Previous:** BUILDING DONORS BAKED + DEV-HARNESS PARITY FIX — the 8 Tripo
   massing donors voxelize into exactly the intended silhouettes (stepped
   temple pyramid with shrine, works hall + boiler tower, offset hab stacks,
   terraced mill, crowned towers — `node tools/voxbake.mjs` prints per-floor

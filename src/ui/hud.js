@@ -78,7 +78,7 @@ export class Hud {
           <span class="hp-name">${mechIcon(f.def, 17)}${f.def.name}</span>
         </div>
         <div class="hud-bar hp"><div class="bar-ghost"></div><div class="bar-fill"></div></div>
-        <div class="hud-bar ult"><div class="bar-fill"></div></div>
+        <div class="ult-badges"><span class="ult-badge">★</span><span class="ult-badge">★</span></div>
         ${!f.isAI ? '<div class="hud-bar sprint"><div class="bar-fill"></div></div>' : ''}
         ${f.ammoMax !== undefined ? '<div class="ammo-count" style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:#ffd23c;margin-top:2px;"></div>' : ''}
         <div class="round-pips">
@@ -92,8 +92,7 @@ export class Hud {
         hpBar: root.querySelector('.hud-bar.hp'),
         hp: root.querySelector('.hud-bar.hp .bar-fill'),
         ghost: root.querySelector('.bar-ghost'),
-        ult: root.querySelector('.hud-bar.ult'),
-        ultFill: root.querySelector('.hud-bar.ult .bar-fill'),
+        ultBadges: [...root.querySelectorAll('.ult-badge')],
         sprintBar: root.querySelector('.hud-bar.sprint'),
         sprintFill: root.querySelector('.hud-bar.sprint .bar-fill'),
         pips: [...root.querySelectorAll('.round-pip')],
@@ -148,8 +147,14 @@ export class Hud {
       p.hp.style.transform = `scaleX(${frac})`;
       p.ghost.style.transform = `scaleX(${p.ghostVal})`;
       p.hpBar.classList.toggle('low', frac < 0.3);
-      p.ultFill.style.transform = `scaleX(${clamp01(f.ult)})`;
-      p.ult.classList.toggle('full', f.ult >= 1);
+      // ult badges: one ★ per collected fountain charge; the badge being
+      // SPENT blazes for the ult's opening beat, then disappears
+      p.ultBadges.forEach((el, bi) => {
+        const held = bi < f.ultCharges;
+        const firing = !held && bi === f.ultCharges && f.ultFlashT > 0;
+        el.classList.toggle('held', held);
+        el.classList.toggle('firing', firing);
+      });
       if (p.sprintFill) {
         p.sprintFill.style.transform = `scaleX(${clamp01(f.sprintEnergy / f.sprintEnergyMax)})`;
         p.sprintBar.classList.toggle('draining', !!f.sprinting);

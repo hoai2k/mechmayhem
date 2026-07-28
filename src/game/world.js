@@ -284,6 +284,7 @@ export class World {
     this.effects.update(dt);
     this.arena?.update(dt);
     this.updatePickups(dt);
+    this.fountains?.update(dt);
 
     // live ultimate entities (post-physics so they see settled positions).
     // A tick can cascade into clearTransient (a KO handler resetting the

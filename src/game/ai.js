@@ -116,6 +116,16 @@ export class AIController {
       }
       if (box && box.d > 2) { mx = box.bx / box.d; mz = box.bz / box.d; }
     }
+    // empty pouch and no enemy breathing down its neck: swing by a nearby
+    // ult fountain (ground-level ones only — see fountains.nearestForAI)
+    if (this.d.useUlt && f.ultCharges === 0 && dist > 16 && f.world.fountains) {
+      const fn = f.world.fountains.nearestForAI(f);
+      if (fn) {
+        const bx = f.world.wrapDelta(fn.x - f.pos.x), bz = f.world.wrapDelta(fn.z - f.pos.z);
+        const d = Math.hypot(bx, bz);
+        if (d > 1.2) { mx = bx / d; mz = bz / d; }
+      }
+    }
     I.moveX = mx; I.moveZ = mz;
 
     // occasional hops

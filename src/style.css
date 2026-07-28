@@ -305,9 +305,27 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
 .hud-bar .bar-ghost { position: absolute; inset: 0; transform-origin: left center; background: rgba(255,230,200,0.55); }
 .hud-bar.hp .bar-fill { background: linear-gradient(180deg, #79ffb0, #17c85f 60%, #0e8f44); }
 .hud-bar.hp.low .bar-fill { background: linear-gradient(180deg, #ffb0a0, #e33a2e 60%, #9c1c14); }
-.hud-bar.ult { height: 8px; margin-top: 4px; }
-.hud-bar.ult .bar-fill { background: linear-gradient(90deg, #b46bff, #38e8ff); }
-.hud-bar.ult.full .bar-fill { animation: ultflash 0.7s linear infinite; }
+/* ult badges: one ★ per fountain charge in the pouch (combat/fountains.js).
+   Empty slots sit as faint outlines; a held charge burns gold; the badge
+   being spent blazes through the ult's opening beat, then vanishes. */
+.ult-badges { display: flex; gap: 6px; margin-top: 3px; height: 16px; align-items: center; }
+.ult-badge {
+  font-size: 15px; line-height: 1; color: rgba(255,255,255,0.16);
+  -webkit-text-stroke: 0.6px rgba(255,255,255,0.25);
+  transition: color 0.15s, text-shadow 0.15s, transform 0.15s;
+}
+.ult-badge.held {
+  color: #ffd23c; -webkit-text-stroke: 0;
+  text-shadow: 0 0 6px rgba(255,210,60,0.9), 0 0 14px rgba(255,180,32,0.5);
+}
+.ult-badge.firing {
+  color: #fff2c0; -webkit-text-stroke: 0; transform: scale(1.35);
+  animation: ultbadge 0.18s linear infinite;
+}
+@keyframes ultbadge {
+  0%,100% { text-shadow: 0 0 8px #ffd23c, 0 0 22px #ffb020, 0 0 34px rgba(255,180,32,0.7); }
+  50% { text-shadow: 0 0 14px #ffe9a0, 0 0 30px #ffd23c, 0 0 44px rgba(255,210,60,0.9); }
+}
 @keyframes ultflash { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.9); } }
 .hud-bar.sprint { height: 5px; margin-top: 3px; }
 .hud-bar.sprint .bar-fill { background: linear-gradient(90deg, #ffd23c, #8dff5e); }

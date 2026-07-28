@@ -165,7 +165,7 @@ export async function runBattleTest() {
     input.endFrame();
 
     hud.textContent = fighters.map((f) =>
-      `${f.def.name.padEnd(9)} hp:${Math.max(0, f.hp | 0).toString().padStart(4)} ult:${(f.ult * 100) | 0}% ${f.state}`
+      `${f.def.name.padEnd(9)} hp:${Math.max(0, f.hp | 0).toString().padStart(4)} ult:${'★'.repeat(f.ultCharges) || '-'} ${f.state}`
     ).join('\n') + `\ncam:${cameraSys.mode} draws:${engine.renderer.info.render.calls}`;
   };
   engine.onRender = (dtReal) => {

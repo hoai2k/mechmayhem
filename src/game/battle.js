@@ -6,6 +6,7 @@
 // battletest: URL params + fully-awaited models).
 import { World } from './world.js';
 import { Arena } from '../arena/arena.js';
+import { UltFountains } from '../combat/fountains.js';
 import { CameraSystem } from './camera.js';
 
 // Returns { world, arena, arenaObjs, cameraSys }.
@@ -24,6 +25,7 @@ export function createBattle(engine, { theme, audio = null, input, seed }) {
   arena.bind(world);
   world.input = input;
   world.spawnAmmoBoxes(6, arena.bounds * 0.6);
+  world.fountains = new UltFountains(world);   // golden ult-charge fountains
   const arenaObjs = engine.scene.children.filter((o) => !preArena.includes(o));
   // per-view seam rendering: dynamic entities show their nearest image
   engine.onBeforeView = (cam) => world.applyViewWrap(cam);

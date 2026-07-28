@@ -38,6 +38,15 @@ export const CONFIG = {
   // inversion. Persisted from the settings menu.
   reverseCameraY: readPref('rw.reverseCamY'),
 
+  // ---- ULT FOUNTAINS (combat/fountains.js) ----
+  // Ultimates are no longer charged by dealing/taking damage: golden powerup
+  // fountains spawn around the arena and standing in one grants a charge.
+  fountains: {
+    interval: 10,     // seconds between spawn attempts
+    perRobot: 2,      // board cap = live robots × this
+    maxCharges: 2,    // charges a robot can hold
+  },
+
   // ---- battle soundtrack (src/music/, streamed — see core/music.js) ----
   // MASTER SWITCH. Off means the songs are never fetched at all and battles
   // fall back to the procedural themes in core/audio.js — the flag to flip for
