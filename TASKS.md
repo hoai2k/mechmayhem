@@ -3991,3 +3991,65 @@ all eight files found, a random one playing at 0.22, the element actually paused
 by the pause menu and playing again on resume, and the chip's click toggling
 volume 0.22 ↔ 0 and the label ↔ MUSIC OFF. `npx vite build` green, with all eight
 mp3s emitted as build assets.
+
+## Soundtrack streaming, a music volume slider, and menu branch prediction (user request, 2026-07-28)
+
+### The songs left the bundle
+
+`src/music/*` is no longer in the JS module graph. A vite plugin (`rw-music`)
+reads the folder and hands the game a virtual module of plain urls, then COPIES
+the files into `dist/music/` verbatim — no hashing, because a stable url is a
+cacheable one. Dropping a song in and reloading still adds it to the rotation
+(the plugin re-reads the folder on every load, and a watcher reloads the page).
+
+Copied rather than `emitFile`d: routing ~40MB of audio through rollup's asset
+pipeline cost **1m40s of build time** to produce files it must not rename anyway.
+The copy build is 6.7s, the same as before the soundtrack existed.
+
+Two off switches, per the request:
+- `CONFIG.music` (`?music=0`) — the runtime flag. No song is ever fetched and
+  battles fall back to the procedural themes in `core/audio.js`.
+- `RW_NO_MUSIC=1 npm run build` — the build flag for a packaged/offline build:
+  no files copied, an empty track list, 7.5s build.
+
+### Prefetch, and predicting what to prefetch
+
+A fight opens with a burst of loading while the player spends fifteen unhurried
+seconds on the title screen doing nothing. `src/game/predict.js` spends that time
+instead. The trick the owner pointed at: the "random" parts of the next fight are
+only random until someone rolls them — so roll them EARLY, prefetch those exact
+assets, and have the menus CONSUME the pre-rolled values:
+
+- the RANDOM arena tile's roulette now lands on `predictor.takeArena()`, whose
+  sky/horizon/ground/facade textures have been downloading since the title
+  screen (`arenaTexEntries()` in arena.js names them, `prefetchTex()` in
+  texload.js warms the http cache — deliberately not `loadMap`, whose texture
+  cache key needs an arena size nobody knows yet);
+- RANDOM robot slots deal `predictor.takeMech()`, whose GLBs are already in the
+  loader cache — for the first deal AND for the fresh robot dealt each round;
+- the fight's first song is downloaded to a blob, and the battle plays THAT
+  blob. Not a warmed `<audio>` element: this way the handoff is guaranteed
+  rather than dependent on what the browser chose to keep.
+
+Work runs one job at a time on `requestIdleCallback`, only while a menu is up
+(`stop()` at battle start — from there every spare cycle belongs to the fight),
+and every single item is optional: a miss costs bytes, never correctness.
+`?prefetch=0` disables the lot.
+
+### Music volume slider
+
+`MenuList` learned sliders: an item carrying `slide(dir)` takes ←→ instead of
+ignoring them, and confirm nudges it up (touch has no arrow keys). SETTINGS →
+MUSIC VOLUME is one, drawn as ten blocks between dim ◄► chevrons — dim so they
+don't compete with the menu's own cyan selection arrows. 5% steps, persisted in
+`rw.musicVol`, and nudging it up off zero turns MUSIC back on.
+
+### Verified
+
+Headless, driving the real menus: 8 tracks found; one song downloaded on the
+title screen and the fight opening on that exact blob (`currentSrc` is
+`blob:`); the roulette landing on the pre-rolled arena after 18 of its texture
+files were prefetched; the slider moving 22%→35%→40%→15% with the bar, the
+percentage and `rw.musicVol` all tracking; `?music=0` fetching nothing and
+reporting no soundtrack; `?prefetch=0` fetching nothing during the menus.
+`npx vite build` green both with and without `RW_NO_MUSIC=1`.

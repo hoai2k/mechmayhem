@@ -25,6 +25,24 @@ const FACADE_TEX = {
   2: 'bldg_glass_office', 3: 'bldg_steampunk_metal',
 };
 
+/**
+ * Every texture-pack entry an arena of this theme is going to ask for, as
+ * [set, name] pairs — the sky panorama, the horizon strip, the ground, the
+ * building facade and its roof. The idle prefetcher warms exactly this list
+ * for the arena it expects to be played (see game/predict.js), which is why
+ * the knowledge of WHICH textures a theme uses stays here, beside the code
+ * that uses them, instead of being copied into the prefetcher.
+ */
+export function arenaTexEntries(theme) {
+  const out = [];
+  if (!theme) return out;
+  out.push(['sky', `sky_${theme.id}`], ['sky', `horizon_${theme.id}`]);
+  if (GROUND_TEX[theme.id]) out.push(['ground', GROUND_TEX[theme.id]]);
+  const facade = FACADE_TEX[theme.buildings?.styles?.[0]];
+  if (facade) out.push(['building', facade], ['building', 'bldg_roof_gravel']);
+  return out.filter(([set, name]) => hasTex(set, name));
+}
+
 const _v = new THREE.Vector3();
 
 function makeSkyDome(theme) {

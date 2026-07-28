@@ -181,8 +181,10 @@ that combat silently depends on. Never rebuild a design without it.
 
 - `src/core/` — engine (renderer/loop/post-FX), pbrtex (PBR skin synth),
   textures (canvas tex), audio (WebAudio synth), music (the battle
-  soundtrack: every file in `src/music/` is a song, found by a build-time
-  glob, filename = title — drop one in and it joins the rotation), utils
+  soundtrack: every file in `src/music/` is a song, listed by the `rw-music`
+  vite plugin, filename = title — drop one in and it joins the rotation.
+  STREAMED, not bundled: copied to `dist/music/`, fetched on demand.
+  `?music=0` or a `RW_NO_MUSIC=1` build turns it off), utils
 - `src/mechs/` — roster.js (ALL stats/palettes/skins/moves — balance lives
   here), designs/<id>.js (one file per mech; parallel-agent-safe), parts.js
   (sculpting vocabulary + Assembler), factory.js (rig + materials),
@@ -201,7 +203,9 @@ that combat silently depends on. Never rebuild a design without it.
 - `src/arena/` — themes.js (12 arena configs), arena.js, destructible.js
   (instanced chunk buildings), props.js
 - `src/game/` — boot.js (screen flow), world.js, match.js, camera.js
-  (combine/split), input.js, ai.js; `src/ui/` — menus.js, hud.js
+  (combine/split), input.js, ai.js, predict.js (menu-idle prefetch: pre-ROLLS
+  the RANDOM arena / robots / next song so the menus can consume the same
+  values it downloaded — `?prefetch=0` off); `src/ui/` — menus.js, hud.js
 - `public/models/manifest.json` — drop rigged GLBs here to override any
   mech's procedural model (auto-fallback if missing/broken)
 
