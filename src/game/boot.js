@@ -12,7 +12,10 @@ import { Match } from './match.js';
 import { Hud, toast } from '../ui/hud.js';
 import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen } from '../ui/menus.js';
 import { InstructionsScreen } from '../ui/instructions.js';
-import { CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY } from '../core/config.js';
+import {
+  CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY,
+  setRobotSpeed, SPEED_MIN, SPEED_MAX, SPEED_STEP,
+} from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
 import { MusicPlayer } from '../core/music.js';
@@ -141,6 +144,18 @@ export async function bootGame() {
     {
       label: () => t(CONFIG.debugUltimates ? 'settings.infiniteUlts.on' : 'settings.infiniteUlts.off'),
       fn: () => setInfiniteUltimates(!CONFIG.debugUltimates),
+    },
+    {
+      // ←→ scales how fast every robot WALKS, RUNS and FLIES. The bar is
+      // drawn over the slider's own 50%..200% span rather than 0..max, so a
+      // full bar is the fastest setting and the midpoint is the middle of
+      // the range; the number beside it is the multiplier itself.
+      label: () => t('settings.robotSpeed', {
+        bar: volBar((CONFIG.robotSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN)),
+        pct: Math.round(CONFIG.robotSpeed * 100),
+      }),
+      slide: (d) => setRobotSpeed(
+        Math.round((CONFIG.robotSpeed + d * SPEED_STEP) / SPEED_STEP) * SPEED_STEP),
     },
     {
       // which way the right stick pitches the battle camera (camera.js)

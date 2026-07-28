@@ -4,6 +4,19 @@ const params = typeof location !== 'undefined'
   ? new URLSearchParams(location.search)
   : { get: () => null };
 
+// Robot-speed slider bounds. The step is what one ←→ press moves.
+export const SPEED_MIN = 0.5;
+export const SPEED_MAX = 2.0;
+export const SPEED_STEP = 0.05;
+export const SPEED_DEFAULT = 1.2;
+
+// Snapped to whole percent as well as clamped: stepping by 0.05 in binary
+// floating point otherwise banks visible crumbs (1.45 stored as
+// 1.4500000000000002), which then round-trips through localStorage forever.
+const clampSpeed = (v) => (Number.isFinite(v)
+  ? Math.round(Math.min(SPEED_MAX, Math.max(SPEED_MIN, v)) * 100) / 100
+  : SPEED_DEFAULT);
+
 export const CONFIG = {
   // use the generated PBR texture pack (src/textures/) for robots, grounds
   // and buildings; anything missing falls back to procedural automatically
@@ -44,16 +57,28 @@ export const CONFIG = {
   // fraction of the draw calls. ?props=raw keeps the props as authored, which
   // is how the two are compared (/workbench/?edit=props).
   mergeProps: params.get('props') !== 'raw',
+
+  // ROBOT SPEED: a global multiplier on how fast every fighter WALKS, RUNS
+  // and FLIES, over the per-mech speeds tuned in the roster. The DEFAULT is
+  // 1.2 — the game moves 20% quicker than the stats alone say — so the
+  // slider's 1.0 is the older, slower baseline and the relative pace of the
+  // roster (a nimble tempest against a lumbering colossus) is untouched
+  // either way. Attacks, dashes and the speeds written into special moves
+  // are deliberately NOT scaled: this is a locomotion dial, not a game-speed
+  // dial. Settings slider, persisted; ?speed=<n> overrides for a session.
+  robotSpeed: clampSpeed(params.get('speed') !== null
+    ? parseFloat(params.get('speed'))
+    : readNum('rw.robotSpeed', SPEED_DEFAULT, SPEED_MIN, SPEED_MAX)),
 };
 
 function readPref(key) {
   try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
 }
 
-function readNum(key, dflt) {
+function readNum(key, dflt, lo = 0, hi = 1) {
   try {
     const v = parseFloat(localStorage.getItem(key));
-    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : dflt;
+    return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
   } catch (e) { return dflt; }
 }
 
@@ -70,6 +95,12 @@ export function setMusicVolume(v) {
 export function setReverseCameraY(on) {
   CONFIG.reverseCameraY = on;
   try { localStorage.setItem('rw.reverseCamY', on ? '1' : '0'); } catch (e) { /* ok */ }
+}
+
+export function setRobotSpeed(v) {
+  CONFIG.robotSpeed = clampSpeed(parseFloat(v));
+  try { localStorage.setItem('rw.robotSpeed', String(CONFIG.robotSpeed)); } catch (e) { /* ok */ }
+  return CONFIG.robotSpeed;
 }
 
 export function setShowAllRobots(on) {
