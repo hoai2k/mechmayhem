@@ -12,7 +12,12 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** ROLL-STABLE CAMERA — during the air somersault the pivot
+- **Latest:** JERRY TUCKS, NEVER SPINS — roster defs can flag `tuckOnly` to
+  join the heavies' no-spin somersault regardless of combat weight; JERRY
+  (storey-tall shrimp shell on a 0.45 stat line, and a GLB whose leg bones
+  under-fold so a spin never read as a ball on him) is the first user.
+  rollpivot: spin 0, headR=footR 0.52. Soak clean.
+- **Previous:** ROLL-STABLE CAMERA — during the air somersault the pivot
   slide makes the fighter's own `pos` (the group origin) orbit the ball's
   centre at the spin rate, and every camera that framed `pos` inherited
   that orbit as jiggle. `Fighter.focusPos()` exposes the un-slid base the
