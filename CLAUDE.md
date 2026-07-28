@@ -146,6 +146,16 @@ audio). Progress history: `TASKS.md`.
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
   leading furthest forward), and bullets/beams test the swept segment.
   `Fighter.hitRadius` is unchanged and still owns AoE falloff + broad phase.
+- MELEE AUTO-AIM steers a live swing on BOTH axes, in `fighter.js`:
+  `aimStrikeAt` laterally (torso twist + palm clamp) and `elevateStrikeAt` in
+  HEIGHT — the striking limb is pulled into the target's CHEST-TO-CROWN band
+  (`MELEE.AIM_LO`/`AIM_HI`) by pitching its shoulder (punch), thigh (kick) or
+  torso (bite), so blows land on the upper body instead of a waist or thin
+  air. A swing already arriving in the band is left as authored. Judge it with
+  `node tools/aimheight.mjs "<battle url>"` (a fight played twice, servo off
+  vs on, every landed blow reported as a fraction of the victim's height) and
+  `node tools/aimshot.mjs <attacker> <victim> <out> [light|heavy] [dist]`
+  (the impact frame frozen side-on, both ways).
 - Paint jobs (`src/mechs/colorscheme.js` — 11 schemes, cycled in mech select):
   a scheme is a PAINT TARGET (hue + a saturation floor OR ceiling + the
   LIGHTNESS the paint wants), never a plain hue swap. The lightness is what
