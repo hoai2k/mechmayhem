@@ -172,6 +172,16 @@ massing (big readable forms — fine filigree is lost at chunk resolution),
 plain background, even light. Distinct color regions survive as chunk tints,
 so a stone base / glass shaft / copper crown reads in-game.
 
+Generation + downsampling: `node tools/tripoprops.mjs --kind buildings --all`
+runs `docs/tripo/buildings/*.png` through Tripo's cheaper H3 line (30cr — the
+mesh gets voxelized away, so P1's cleaner geometry buys nothing here). Then
+`node tools/downsample-buildings.mjs` archives each raw donor to
+`assets/models/buildings/` (source of truth, outside `public/` so it never
+ships) and writes a slim copy back to `public/models/buildings/`: weld →
+simplify to ~8k tris → 512px textures, ~12x smaller (38 MB → 3.2 MB for the
+set) and voxel-identical. Re-running always simplifies from the archived
+original, so it never double-degrades.
+
 - **decoTower** (neon, uptown) > A 1920s art-deco skyscraper massing model, bold stepped setbacks, limestone base, bronze-green crown tiers, simplified blocky architecture, single building centered, 3/4 aerial view, plain grey background, soft even lighting
 - **glassSpire** (uptown, skyterrace) > A modern supertall glass skyscraper, tapering square profile with two setbacks, pale blue glass with white mullion bands, blocky simplified massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting
 - **pagodaTower** (neon, jungle) > A five-story pagoda tower, stacked square tiers with wide overhanging eaves, dark timber and red lacquer bands, simplified blocky massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting
