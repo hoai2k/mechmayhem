@@ -4127,3 +4127,26 @@ in-arena screenshots of the optimized GLBs (frozen's icebreaker, quonset huts an
 snowcat) and of merged-vs-raw props on neon, and the workbench's own side-by-side
 on toriiGate, icebreakerShip, campfire and substation. Frame draw calls on neon:
 1,529 → 1,231.
+
+## CAMERA Y, AND THE DESERT'S "UPSIDE-DOWN BRIDGE"
+
+CAMERA PITCH. The two view modes disagreed with each other: in the combined
+(solo) view the right stick pitched one way, in a split viewport the other, and
+touch-drag disagreed with the stick in both. Every pitch input now goes through
+one helper in camera.js (`pitchY`), so there is a single answer, and the default
+is the standard third-person one — push DOWN and the camera rises so you look
+down on your mech. SETTINGS → **REVERSE CAMERA Y** flips it for anyone who wants
+the inversion (persisted in `rw.reverseCamY`, off by default).
+
+Verified by driving the real CameraSystem with the preference set before load,
+once per setting: OFF → push down gives +0.0243 on the combined view and +0.0243
+in a split viewport (camera rises, look down); ON → −0.0243 on both. Both paths
+agree now, which they didn't before.
+
+THE UPSIDE-DOWN BRIDGE was the Desert Ruins' `greatGate` — the pylon gate at the
+head of the processional way. Not upside down: its lintel was slung across the
+middle of two bare towers with open sky above it, so the silhouette read as an
+H, or as a bridge deck with its piers pointing up. It's a gateway again — the
+doorway lintel carries a filled span up to the tower tops, one cornice runs
+across the whole crown instead of a cap per tower, and a winged sun disc sits
+over the door. Collision bodies (the two towers) are unchanged.

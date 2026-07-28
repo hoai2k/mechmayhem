@@ -19,6 +19,11 @@ export const CONFIG = {
   // (?showcase, ?rigedit, pose/skin tools, ?battle=...) always show every
   // mech regardless. Persisted from the settings menu; ?showall=1 forces on.
   showAllRobots: params.get('showall') === '1' || readPref('rw.showAllRobots'),
+  // REVERSE CAMERA Y: which way the right stick (and a touch look-drag) pitches
+  // the camera. OFF is the standard third-person feel — push DOWN and the
+  // camera rises so you look down on your mech; ON gives the flight-sim
+  // inversion. Persisted from the settings menu.
+  reverseCameraY: readPref('rw.reverseCamY'),
 
   // ---- battle soundtrack (src/music/, streamed — see core/music.js) ----
   // MASTER SWITCH. Off means the songs are never fetched at all and battles
@@ -60,6 +65,11 @@ export function setInfiniteUltimates(on) {
 export function setMusicVolume(v) {
   CONFIG.musicVolume = Math.min(1, Math.max(0, +v || 0));
   try { localStorage.setItem('rw.musicVol', String(CONFIG.musicVolume)); } catch (e) { /* ok */ }
+}
+
+export function setReverseCameraY(on) {
+  CONFIG.reverseCameraY = on;
+  try { localStorage.setItem('rw.reverseCamY', on ? '1' : '0'); } catch (e) { /* ok */ }
 }
 
 export function setShowAllRobots(on) {

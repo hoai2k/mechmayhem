@@ -12,7 +12,7 @@ import { Match } from './match.js';
 import { Hud, toast } from '../ui/hud.js';
 import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen } from '../ui/menus.js';
 import { InstructionsScreen } from '../ui/instructions.js';
-import { CONFIG, setInfiniteUltimates, setShowAllRobots } from '../core/config.js';
+import { CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
 import { MusicPlayer } from '../core/music.js';
@@ -141,6 +141,11 @@ export async function bootGame() {
     {
       label: () => t(CONFIG.debugUltimates ? 'settings.infiniteUlts.on' : 'settings.infiniteUlts.off'),
       fn: () => setInfiniteUltimates(!CONFIG.debugUltimates),
+    },
+    {
+      // which way the right stick pitches the battle camera (camera.js)
+      label: () => t(CONFIG.reverseCameraY ? 'settings.reverseCamY.on' : 'settings.reverseCamY.off'),
+      fn: () => setReverseCameraY(!CONFIG.reverseCameraY),
     },
     {
       // work-in-progress mechs (roster `hidden`) join the game roster; the
