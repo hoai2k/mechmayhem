@@ -206,7 +206,13 @@ that combat silently depends on. Never rebuild a design without it.
   soundtrack: every file in `src/music/` is a song, listed by the `rw-music`
   vite plugin, filename = title — drop one in and it joins the rotation.
   STREAMED, not bundled: copied to `dist/music/`, fetched on demand.
-  `?music=0` or a `RW_NO_MUSIC=1` build turns it off), utils
+  `?music=0` or a `RW_NO_MUSIC=1` build turns it off), utils.
+  THREE TUNING LAYERS, don't confuse them: `tuning.js` = the GAMEPLAY DIALS
+  every mech shares (stamina durations, pace, dash, guard arc, hit reactions
+  — the file to edit for feel; costs are stated as SECONDS/fractions of a
+  full bar and the per-second rates are derived), `config.js` = PLAYER
+  settings the settings menu writes (robot speed, round time, music volume,
+  persisted to localStorage), `mechs/roster.js` = PER-MECH balance
 - `src/mechs/` — roster.js (ALL stats/palettes/skins/moves — balance lives
   here), designs/<id>.js (one file per mech; parallel-agent-safe), parts.js
   (sculpting vocabulary + Assembler), factory.js (rig + materials),
