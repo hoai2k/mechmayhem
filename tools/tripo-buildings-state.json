@@ -6,5 +6,9 @@
     "glb": "public/models/buildings/decoTower.glb",
     "bytes": 4989524,
     "done": true
+  },
+  "controlTower": {
+    "modelTask": "119657e0-5c23-4878-b43d-ade234cb3a67",
+    "modelFailed": false
   }
 }
