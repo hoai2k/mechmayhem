@@ -950,11 +950,18 @@ export class Fighter {
     // to graze that band. A swing that already overlaps them vertically is
     // never moved, and nothing here touches the horizontal test, which is
     // where "he punched past me and still hit" was actually coming from.
+    // The slide is CAPPED (MELEE.ASSIST_Y × the attacker's height). Closing a
+    // head-height gap between two mechs standing on the same floor is worth a
+    // unit or three; uncapped, the same line happily slid the swing 40 units
+    // to meet someone at the top of a jump, which is the airborne-hit report.
+    // Past the cap the swing moves as far as it may and simply misses.
     const tgt = this.nearestEnemy();
     if (tgt) {
       const lo = tgt.pos.y + tgt.height * 0.2, hi = tgt.pos.y + tgt.height * 0.95;
       const segLo = Math.min(a.y, b.y), segHi = Math.max(a.y, b.y);
-      const dy = segLo > hi ? hi - segLo : (segHi < lo ? lo - segHi : 0);
+      let dy = segLo > hi ? hi - segLo : (segHi < lo ? lo - segHi : 0);
+      const cap = MELEE.ASSIST_Y * this.height;
+      dy = clamp(dy, -cap, cap);
       a.y += dy; b.y += dy;
     }
     return { r, limb };
@@ -3125,6 +3132,10 @@ export class Fighter {
     this.status = {};
     this.clearGlitch(); // corruption lasts exactly one round
     this.setOpacity(1);
+    // the meter is a PER-ROUND resource, like the hp/ammo/fuel/energy above
+    // and beside it. Carried over, a round could open on a full bar that was
+    // earned in the last one — the other half of "the CPU has infinite ults".
+    this.ult = 0;
     this.specialCd = 0;
     this.rangedCd = 0;
     this.iframes = 0;

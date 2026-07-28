@@ -6,6 +6,7 @@ import { Effects } from '../combat/effects.js';
 import { FlameFX, fireCool } from '../combat/flamefx.js';
 import { ProjectileSystem } from '../combat/projectiles.js';
 import { FleaSystem } from '../combat/fleas.js';
+import { overlapsY } from '../combat/movekit.js';
 import { rand, clamp } from '../core/utils.js';
 
 const _v = new THREE.Vector3();
@@ -399,7 +400,10 @@ export class World {
       for (const v of this.fighters) {
         if (v === scald.owner || !v.alive) continue;
         const dx = this.wrapDelta(v.pos.x - fx.pos.x), dz = this.wrapDelta(v.pos.z - fx.pos.z);
-        if (Math.hypot(dx, dz) < scald.radius * 0.55 + v.hitRadius * 0.5) {
+        // the column has a TOP: scalding water reaches fx.height and stops,
+        // so a bot above the plume is over it, not in it
+        if (Math.hypot(dx, dz) < scald.radius * 0.55 + v.hitRadius * 0.5 &&
+            overlapsY(v, fx.pos.y, fx.height)) {
           v.takeHit(scald.dmg * 0.2 * scald.owner.dmgMult(), scald.owner,
             { knock: 3, launch: scald.launch * 0.55, srcPos: fx.pos, soft: true });
           v.applySoak?.(2.4); // drenched: dripping frame, half speed
