@@ -144,12 +144,18 @@ export class TitleScreen {
         <div class="mega-sub">${t('title.tagline')}</div>
       </div>`;
     this.audio = audio;
-    // The sign is AUDIBLE: every time a tube drops out it buzzes. The CSS
-    // keyframes stay the single source of truth for the timing — this reads
-    // the tubes' live opacity rather than duplicating the pattern in JS, so
-    // editing the flicker in style.css moves the sound with it.
+    // The sign is AUDIBLE: every drop-out plays ONE event cut out of the neon
+    // recording (public/sound/neon_buzz.mp3 is a long take with a couple of
+    // dozen flickers in it; the audio engine finds them by energy and hands
+    // back slices). A different slice each time, so a stutter pair never
+    // sounds like the same sample twice. The synth buzz remains the fallback
+    // for when the file cannot be fetched or decoded.
+    // The CSS keyframes stay the single source of truth for the TIMING — this
+    // reads the tubes' live opacity rather than duplicating the pattern in JS,
+    // so editing the flicker in style.css moves the sound with it.
     this.tubes = [...this.el.querySelectorAll('.neon-title .tube')];
     this.lit = this.tubes.map(() => true);
+    audio?.loadSliced?.('neonBuzz', new URL('sound/neon_buzz.mp3', document.baseURI).href);
     this.list = new MenuList({ audio, hot: hotButtons });
     this.el.appendChild(this.list.build([
       { t: t('title.menu.battle'), fn: onPlay },
@@ -173,7 +179,11 @@ export class TitleScreen {
       const o = parseFloat(getComputedStyle(this.tubes[i]).opacity);
       const dim = o < 0.9;
       if (dim && this.lit[i]) {
-        this.audio?.play('neonZap', { vol: 0.55 + (1 - o) * 0.6, pitch: 0.92 + Math.random() * 0.2 });
+        const vol = 0.55 + (1 - o) * 0.6;
+        // a real flicker, or the synth one if the recording never arrived
+        if (!this.audio?.playSlice('neonBuzz', { vol, rate: 0.94 + Math.random() * 0.12 })) {
+          this.audio?.play('neonZap', { vol, pitch: 0.92 + Math.random() * 0.2 });
+        }
       }
       this.lit[i] = !dim;
     }

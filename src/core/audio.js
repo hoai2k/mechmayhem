@@ -35,6 +35,7 @@ export class GameAudio {
   constructor() {
     // Lazy everything: constructor must be safe headless (Node, tests, SSR).
     this.ctx = null;
+    this._sliced = {};   // recorded one-shots, cut into their own events
     this._available =
       typeof window !== 'undefined' &&
       !!(window.AudioContext || window.webkitAudioContext);
@@ -142,6 +143,111 @@ export class GameAudio {
       if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
     } catch (e) {
       /* audio must never break the game */
+    }
+  }
+
+  /**
+   * RECORDED ONE-SHOTS, SLICED. Some sounds are easier to record than to
+   * synthesize — a neon tube's stutter is one — and a recording of them is
+   * usually a LONG take with many takes inside it. This loads such a file
+   * once, finds the individual events in it by energy, and hands back a table
+   * of slices the game can trigger one at a time.
+   *
+   * Detection rather than a hand-written table on purpose: replace the file
+   * and the slices follow, with no numbers to update in code.
+   *
+   * Returns a promise for the slice count (0 = unavailable; the caller should
+   * keep whatever fallback it has).
+   */
+  loadSliced(name, url, { hop = 0.005, gap = 0.06, minDur = 0.03, pad = 0.02 } = {}) {
+    if (this._sliced[name]) return this._sliced[name].ready;
+    const entry = { buffer: null, slices: [], last: -1, ready: null };
+    this._sliced[name] = entry;
+    entry.ready = (async () => {
+      try {
+        const ctx = this._init();
+        if (!ctx) return 0;
+        const res = await fetch(url);
+        if (!res.ok) return 0;
+        const ab = await ctx.decodeAudioData(await res.arrayBuffer());
+        const ch = ab.getChannelData(0);
+        const sr = ab.sampleRate;
+        // RMS envelope, then: above threshold = inside an event, and a run of
+        // quiet longer than `gap` ends it
+        const step = Math.max(1, Math.round(sr * hop));
+        const env = [];
+        for (let i = 0; i < ch.length; i += step) {
+          let sum = 0;
+          const n = Math.min(step, ch.length - i);
+          for (let k = 0; k < n; k++) sum += ch[i + k] * ch[i + k];
+          env.push(Math.sqrt(sum / n));
+        }
+        const sorted = [...env].sort((a, b) => a - b);
+        const median = sorted[sorted.length >> 1];
+        const peak = sorted[sorted.length - 1];
+        // the take has a constant hum under it, so the floor is the MEDIAN,
+        // not zero — an event is what rises clearly above the room
+        const thr = Math.max(median * 3, peak * 0.06);
+        const quietRun = Math.max(1, Math.round(gap / hop));
+        const slices = [];
+        let start = -1, quiet = 0;
+        for (let i = 0; i < env.length; i++) {
+          if (env[i] > thr) { if (start < 0) start = i; quiet = 0; }
+          else if (start >= 0 && ++quiet >= quietRun) {
+            slices.push([start, i - quiet]);
+            start = -1;
+          }
+        }
+        if (start >= 0) slices.push([start, env.length - 1]);
+        entry.buffer = ab;
+        entry.slices = slices
+          .map(([a, z]) => ({ t: Math.max(0, a * hop - pad), d: (z - a) * hop + pad * 2 }))
+          .filter((sl) => sl.d >= minDur);
+        return entry.slices.length;
+      } catch (e) {
+        return 0;   // audio must never break the game
+      }
+    })();
+    return entry.ready;
+  }
+
+  /** True once loadSliced() found at least one event in `name`. */
+  hasSlices(name) { return (this._sliced[name]?.slices.length || 0) > 0; }
+
+  /**
+   * Play ONE event out of a sliced file — a different one each time, so a
+   * repeated trigger never sounds looped. Short fades top and tail: a slice
+   * cut out of a continuous take starts and ends mid-waveform, and without
+   * them every trigger would click.
+   */
+  playSlice(name, { vol = 1, rate = 1 } = {}) {
+    try {
+      const e = this._sliced[name];
+      if (!e?.buffer || !e.slices.length) return false;
+      const ctx = this._init();
+      if (!ctx || ctx.state !== 'running') return false;
+      let i = (Math.random() * e.slices.length) | 0;
+      if (e.slices.length > 1 && i === e.last) i = (i + 1) % e.slices.length;
+      e.last = i;
+      const sl = e.slices[i];
+      const src = ctx.createBufferSource();
+      src.buffer = e.buffer;
+      src.playbackRate.value = rate;
+      const g = ctx.createGain();
+      const t = ctx.currentTime + 0.002;
+      const dur = sl.d / rate;
+      const fade = Math.min(0.012, dur * 0.25);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol, t + fade);
+      g.gain.setValueAtTime(vol, t + dur - fade);
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      src.connect(g);
+      g.connect(this._sfxBus);
+      src.start(t, sl.t, sl.d);
+      src.stop(t + dur + 0.02);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
