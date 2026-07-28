@@ -486,6 +486,17 @@ export class Fighter {
       }),
     });
     this.setState('attack', dur * 0.82);
+    // STEER THE JAB ONTO THE VICTIM, exactly as every heavy and every
+    // punchHold release already does. Without this a light attack landed
+    // only where the raw clip's arc happened to pass through a target
+    // standing dead ahead: the shared punch trio throws down the mech's
+    // flank, so the wider the build the further outside the victim the fist
+    // travelled — rhino's cross ended 2-3 units to his own right of a bot
+    // squared up in front of him and missed by a body's width, with nothing
+    // vertical about it. Measured across the roster at three ranges, the two
+    // punchHold mechs (who alone armed this) connected 9 times out of 9
+    // while glacier and frogger connected 0.
+    this.trackStrikeVictim(mv.range, dur);
     this._moveAttack = true;  // keep walking/running through the jab (upper-body clip)
     this.comboIdx++;
     this.comboWindow = dur + 0.35;
@@ -945,11 +956,21 @@ export class Fighter {
     // being able to punch a lightweight.
     //
     // The fix is the colossal-form clamp that already lived here, generalised
-    // and made symmetric: if the swept limb misses the target's body band
-    // ENTIRELY — over the head or under the feet — slide it just far enough
-    // to graze that band. A swing that already overlaps them vertically is
-    // never moved, and nothing here touches the horizontal test, which is
+    // and made symmetric: if the blow lands outside the target's body band —
+    // over the head or under the feet — slide the sweep just far enough to
+    // graze that band. Nothing here touches the horizontal test, which is
     // where "he punched past me and still hit" was actually coming from.
+    //
+    // Judged at the TIP (`b`, the extremity past the fist) rather than over
+    // the segment's whole extent. The other end is the elbow, which hangs at
+    // the attacker's own chest height and therefore lands inside the band of
+    // any target of remotely similar height by accident — so an "does the
+    // swing overlap them" test passed on the elbow and the assist sat out
+    // exactly when it was needed. Measured on rhino, whose cross finishes at
+    // y 7.8 over viper's crown at 6.0 while his elbow rides at 5.4, just
+    // inside viper's band: dy came out 0 and the punch sailed over. The tip
+    // is what strikes — onAttackEvent already reads `b` as the impact point.
+    //
     // The slide is CAPPED (MELEE.ASSIST_Y × the attacker's height). Closing a
     // head-height gap between two mechs standing on the same floor is worth a
     // unit or three; uncapped, the same line happily slid the swing 40 units
@@ -958,8 +979,7 @@ export class Fighter {
     const tgt = this.nearestEnemy();
     if (tgt) {
       const lo = tgt.pos.y + tgt.height * 0.2, hi = tgt.pos.y + tgt.height * 0.95;
-      const segLo = Math.min(a.y, b.y), segHi = Math.max(a.y, b.y);
-      let dy = segLo > hi ? hi - segLo : (segHi < lo ? lo - segHi : 0);
+      let dy = b.y > hi ? hi - b.y : (b.y < lo ? lo - b.y : 0);
       const cap = MELEE.ASSIST_Y * this.height;
       dy = clamp(dy, -cap, cap);
       a.y += dy; b.y += dy;

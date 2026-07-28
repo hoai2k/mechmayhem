@@ -618,6 +618,15 @@ export function bodyHitSegment(f, p0, p1, radius, pad = 0, stamp = null) {
 // STRIKE LIMB — which hand or foot is throwing the blow.
 // ---------------------------------------------------------------------
 
+// When a clip names a strike limb this rig has no capsule for, these are the
+// stand-ins, nearest joint first: still the same limb, just further up it.
+const LIMB_FALLBACK = {
+  handL: ['foreArmL', 'upperArmL'],
+  handR: ['foreArmR', 'upperArmR'],
+  footL: ['shinL', 'thighL'],
+  footR: ['shinR', 'thighR'],
+};
+
 /**
  * Resolve the limb a clip strikes with.
  *   1. clip.strikeLimb — explicit ('handR' | 'footL' | ...), the escape
@@ -632,10 +641,18 @@ export function bodyHitSegment(f, p0, p1, radius, pad = 0, stamp = null) {
  */
 export function pickStrikeLimb(hurtbox, clip, fwdX, fwdZ, originX, originZ, minLead = 0.35, stamp = null) {
   if (!hurtbox) return null;
-  if (clip?.strikeLimb && hurtbox.part(clip.strikeLimb)) return clip.strikeLimb;
-  if (clip?.strikeArm) {
-    const n = 'hand' + clip.strikeArm;
-    if (hurtbox.part(n)) return n;
+  const declared = clip?.strikeLimb || (clip?.strikeArm ? 'hand' + clip.strikeArm : null);
+  if (declared) {
+    if (hurtbox.part(declared)) return declared;
+    // The clip named a limb this rig doesn't measure — aegis' GLB yields no
+    // hand parts at all, so a lance thrust marked `strikeArm: 'R'` found no
+    // handR. Walk UP that same limb rather than dropping to the lead-limb
+    // scan below, which on a fencing lunge picked the front FOOT (the leg
+    // outruns the point) and resolved the skewer at ankle height. Same arm,
+    // same side, one joint back: still the thing doing the hitting.
+    for (const up of LIMB_FALLBACK[declared] || []) {
+      if (hurtbox.part(up)) return up;
+    }
   }
   hurtbox.refresh(stamp);
   let best = null, bestF = minLead;   // must actually lead the body to count
