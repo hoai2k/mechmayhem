@@ -80,6 +80,21 @@ export const MELEE = {
   // however far it took, which let a grounded mech punch someone 40 units
   // up in the air.
   ASSIST_Y: 0.45,
+  // ---- WHERE AN AUTO-AIMED BLOW WANTS TO ARRIVE (fighter.elevateStrikeAt).
+  // Fractions of the TARGET's height, feet = 0: the band a punch, kick or
+  // bite is steered into while the swing is live. It starts at the CHEST and
+  // ends at the crown, deliberately — a blow that finishes at a target's
+  // shins or waist reads as a body shot at best and a whiff at worst, and the
+  // one thing a fight has to sell is that the fist went where the fighter was
+  // looking. A blow already arriving inside the band is left exactly as the
+  // clip authored it, so head-hunting hooks and chest-height jabs keep their
+  // shape and only the ones sailing over the crown or sweeping the floor move.
+  AIM_LO: 0.58,     // chest
+  AIM_HI: 0.95,     // crown
+  // Ceiling on the elevation the aim servo may add at the shoulder/thigh/
+  // torso (radians). Generous enough to close a heavyweight-vs-lightweight
+  // height gap, small enough that the pose still reads as the authored swing.
+  AIM_PITCH: 0.5,
 };
 
 // Bullets and beams are aimed, so they get much less slack than a swing —

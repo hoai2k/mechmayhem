@@ -31,6 +31,23 @@ const _woundRed = new THREE.Color(0xd8202e); // poison wound flush
 // while movement keeps its legs. Everything else (braced artillery, the
 // sniper's aim, a ground pound) locks him down for the duration.
 const RUN_AND_GUN_CLIPS = new Set(['shoot', 'shootL', 'saurionQuillFan']);
+// ---- VERTICAL STRIKE AIM (elevateStrikeAt) ----
+// The extremities a blow can be thrown with, for AIMING purposes. The head is
+// in the list and is NOT in combat's own strike-limb table: a bite is thrown
+// with the jaws, and aiming saurion's pounce off whichever claw happened to
+// lead sent the head over the target's shoulder.
+const AIM_TIPS = ['handL', 'handR', 'ankleL', 'ankleR', 'head'];
+// clip strike-limb name -> the joint that limb actually hangs off
+const AIM_TIP_JOINT = { footL: 'ankleL', footR: 'ankleR' };
+// striking joint -> the joint that RAISES it. Pitching the shoulder lifts a
+// punch without tipping the whole frame over; a kick rides its thigh; a bite
+// (or any head-led lunge) is aimed by the torso, since a head can't lift
+// itself — rotating a joint never moves its own pivot.
+const AIM_DRIVER = {
+  handL: 'shoulderL', handR: 'shoulderR',
+  ankleL: 'thighL', ankleR: 'thighR',
+  head: 'torso',
+};
 const GRAVITY = 34;
 // (ultimates are fountain-fed now — see combat/fountains.js. The old
 // damage-drip meter constants ULT_RATE / BLOCK_ULT_DIV are gone with it.)
@@ -666,6 +683,7 @@ export class Fighter {
     if (this.inTwoFistSmash()) {
       this._aimYaw = 0;
       this._palmFix = (this._palmFix || 0) * 0.8;
+      this.unwindPitch(0.8);
       return;
     }
     const J = this.mech.joints;
@@ -719,6 +737,8 @@ export class Fighter {
     // the arms where the clip put them.
     if (striking && !strikeJ) this.clampPalmsTo(prey);
     else this._palmFix = (this._palmFix || 0) * 0.8;
+    // ...and the same aim in HEIGHT: onto the chest/head, never the shins.
+    this.elevateStrikeAt(prey, striking ? 1 - lock : 0);
   }
 
   // The joint driving the CURRENT clip's blow, when that clip is one-armed
@@ -726,6 +746,110 @@ export class Fighter {
   strikeArmJoint() {
     const s = this.animator?.action?.clip?.strikeArm;
     return s ? (this.mech.joints['hand' + s] || null) : null;
+  }
+
+  // ---- VERTICAL STRIKE AIM -------------------------------------------------
+  // The joint throwing the CURRENT blow, by NAME, for aiming purposes: the
+  // clip's own marker first (`strikeLimb` / `strikeArm` — the same markers
+  // combat resolves the hit on), else whichever extremity is reaching furthest
+  // along our facing, the head included so a bite aims with the jaws.
+  // Either way the limb must actually LEAD the body: during the wind-up the
+  // fist is cocked back behind the shoulder, where its height says nothing
+  // about where the punch is going, and this returns null so the servo sits
+  // still instead of banking a correction it will have to throw away.
+  strikeTipName() {
+    const J = this.mech.joints;
+    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+    const lead = (j) => {
+      j.getWorldPosition(_palmTmp);
+      return (_palmTmp.x - this.pos.x) * fx + (_palmTmp.z - this.pos.z) * fz;
+    };
+    const min = 0.2 * this.scale;
+    const clip = this.animator?.action?.clip;
+    const declared = clip?.strikeLimb || (clip?.strikeArm ? 'hand' + clip.strikeArm : null);
+    if (declared) {
+      const name = AIM_TIP_JOINT[declared] || declared;
+      const j = J[name];
+      if (j) return AIM_DRIVER[name] && lead(j) > min ? name : null;
+    }
+    let best = null, bestLead = min;
+    for (const name of AIM_TIPS) {
+      const j = J[name];
+      if (!j) continue;
+      const f = lead(j);
+      // A HAND OR FOOT WINS TIES WITH THE HEAD. On a long-snouted frame the
+      // jaws are out in front of the fists at all times, so a straight lead
+      // scan aimed saurion's every claw rake with his neck; the head only
+      // takes the blow when it is clearly the thing arriving first, which is
+      // exactly what a bite looks like.
+      const gain = name === 'head' ? 1.25 : 1;
+      if (f > bestLead * gain) { bestLead = f; best = name; }
+    }
+    return best;
+  }
+
+  // Steer the blow onto the UPPER BODY. aimStrikeAt twists the torso until the
+  // fist is on the target's LINE; nothing in the game aimed a swing in HEIGHT,
+  // so a heavyweight's punch finished over a lightweight's crown and a scout's
+  // finished at a giant's shins — connecting (the vertical hit assist in
+  // strikeVolume quietly slides the sweep onto the body) but reading as a
+  // whiff. This pulls the striking limb ITSELF into the chest-to-crown band,
+  // MELEE.AIM_LO..AIM_HI, so the blow lands where the eye says it did. A blow
+  // already arriving on the upper body is left alone: this rescues the ones
+  // that finish off the body, it does not re-author swings.
+  //
+  // The joint that lifts the limb is PROBED rather than assumed — the same
+  // trick clampPalmsTo uses for its inward roll. Nudge the shoulder (thigh,
+  // torso) a known amount, measure how far the fist really moved in Y, and
+  // that slope turns "I need 1.2 units of lift" into an angle on ANY rig,
+  // procedural or retargeted GLB, whichever way its bone axes happen to point.
+  // `gate` is 0..1 (0 = don't steer, unwind) — the same strike-window and
+  // no-twist gating the lateral servo runs under.
+  elevateStrikeAt(prey, gate) {
+    const J = this.mech.joints;
+    const tip = gate > 0 ? this.strikeTipName() : null;
+    const tipJ = tip && J[tip];
+    const drv = tip && J[AIM_DRIVER[tip]];
+    if (!tipJ || !drv) { this.unwindPitch(); return; }
+    // The limb throwing the blow can change mid-clip (a combo that finishes
+    // with the other fist, a lunge that hands over from claw to jaws). What is
+    // banked belongs to the joint it was measured on, so start the new one
+    // from zero rather than transplanting an angle onto a different bone.
+    if (this._pitchDrv && this._pitchDrv !== AIM_DRIVER[tip]) this._aimPitch = 0;
+    let fix = this._aimPitch || 0;
+    drv.rotation.x += fix;                 // re-apply what's already banked
+    const y0 = tipJ.getWorldPosition(_palmTmp).y;
+    const h = prey.height || this.height;
+    const lo = prey.pos.y + h * MELEE.AIM_LO, hi = prey.pos.y + h * MELEE.AIM_HI;
+    const dy = y0 > hi ? hi - y0 : (y0 < lo ? lo - y0 : 0);
+    if (dy) {
+      const PROBE = 0.08;
+      drv.rotation.x += PROBE;
+      const slope = (tipJ.getWorldPosition(_palmTmp).y - y0) / PROBE; // units / rad
+      drv.rotation.x -= PROBE;
+      // a driver that barely moves the tip (a locked shoulder, a limb folded
+      // onto the axis) would need an absurd angle for a small lift — leave it
+      if (Math.abs(slope) > 0.25 * this.scale) {
+        const want = clamp(fix + clamp(dy / slope, -0.2, 0.2),
+          -MELEE.AIM_PITCH, MELEE.AIM_PITCH) * gate;
+        drv.rotation.x += want - fix;
+        fix = want;
+      }
+    }
+    this._aimPitch = fix;
+    this._pitchDrv = AIM_DRIVER[tip];
+  }
+
+  // Ease the banked elevation back out instead of dropping it — the same
+  // reason the twist and the palm clamp unwind (see updatePose): zeroing it on
+  // the frame the strike window closes snaps the arm back onto the clip pose
+  // and reads as a second, unmotivated pull-back. Re-applies what is left.
+  unwindPitch(k = 0.72) {
+    let fix = (this._aimPitch || 0) * k;
+    if (Math.abs(fix) < 1e-4) { this._aimPitch = 0; this._pitchDrv = null; return; }
+    this._aimPitch = fix;
+    const j = this._pitchDrv && this.mech.joints[this._pitchDrv];
+    if (j) j.rotation.x += fix;
   }
 
   // Firing NEVER turns a human's mech — the shot goes wherever the mech is
@@ -1268,6 +1392,10 @@ export class Fighter {
       phantom: true,
       alive: true,
       hitRadius: this.baseHitRadius,
+      // ...and our own build's height, so the vertical strike aim has a body
+      // band to steer into out here too (a showcase swing then lands at the
+      // chest of the imaginary opponent instead of drifting)
+      height: this.height,
       pos,
       vel: new THREE.Vector3(),
       center: () => mid.clone(),
@@ -1311,6 +1439,8 @@ export class Fighter {
     const window = hits.length ? Math.max(...hits) + 0.12 : dur * 0.95;
     this._strikeAim = { f: target || this.phantomPrey(range), t: Math.min(window, dur * 0.95) };
     this._aimYaw = 0;
+    this._aimPitch = 0;
+    this._pitchDrv = null;
   }
 
   // ---- hold-to-charge haymaker (TITANUS/COLOSSUS): same contract as the
@@ -2902,7 +3032,7 @@ export class Fighter {
       } else {
         this.aimStrikeAt(sa.f);
       }
-    } else if (this._palmFix || this._aimYaw) {
+    } else if (this._palmFix || this._aimYaw || this._aimPitch) {
       // UNWIND, don't snap. Zeroing the banked clamp/twist the instant the strike
       // window closed teleported the arms back onto the clip pose in a single
       // frame, which read as a second, unmotivated pull-back at the end of every
@@ -2913,6 +3043,7 @@ export class Fighter {
       if (this._palmFix < 1e-3) this._palmFix = 0;
       if (Math.abs(this._aimYaw) < 1e-4) this._aimYaw = 0;
       if (this._aimYaw && this.mech.joints.torso) this.mech.joints.torso.rotation.y += this._aimYaw;
+      this.unwindPitch();
       this.applyPalmRoll();
     }
     if (this.state !== 'channel') this.firing = false;
@@ -3506,6 +3637,10 @@ export class Fighter {
     this._punchHold = null;
     this._aimPoint = null;
     this._lockAim = null;
+    this._aimYaw = 0;
+    this._aimPitch = 0;
+    this._pitchDrv = null;
+    this._strikeAim = null;
     this._oneArmLift = false;
     this.clearChargeGlow();
     if (this._fistOut?.size) { // fist projectile(s) died with the round — re-attach

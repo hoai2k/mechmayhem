@@ -12,7 +12,11 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** PERF PASS + ADAPTIVE SPLIT FX — split-screen post FX is now a
+- **Latest:** AUTO-AIMED BLOWS GO FOR THE CHEST AND HEAD — melee auto-aim now
+  steers a punch, kick or bite in HEIGHT as well as laterally, onto the
+  target's chest-to-crown band instead of their waist or over their head.
+  See the section at the end of this file.
+- **Previous:** PERF PASS + ADAPTIVE SPLIT FX — split-screen post FX is now a
   TRI-STATE (SETTINGS → SPLIT-SCREEN FX): DEFAULT runs them and drops them
   for the session if real frame time stays above ~22ms for ~3s (after a 2s
   warm-up grace for shader compilation), ALWAYS ON forces them, OFF is the
@@ -4379,3 +4383,45 @@ themselves). Everything else reads through the catalogue and follows. Logo
 restyle pending — eight treatments mocked and sent for a pick (current chrome
 blue · gritty stencil · mirror chrome · molten · neon · heavy slab · organic ·
 military plate).
+
+## AUTO-AIMED BLOWS GO FOR THE CHEST AND HEAD (user request, 2026-07-28)
+
+Melee auto-aim steered a swing LATERALLY only (`aimStrikeAt`: torso twist
+until the fist sits on the target's line, plus the palm clamp). Nothing aimed
+one in HEIGHT — the code said so in as many words — so a heavyweight's punch
+finished over a lightweight's crown and a scout's finished at a giant's shins.
+Both still *landed*: the vertical strike assist in `strikeVolume` quietly
+slides a sweep that misses the body onto it. They just didn't read as landing.
+
+`Fighter.elevateStrikeAt` is the height half of the same servo, riding the
+same strike window, no-twist ramp and unwind as the twist. While the blow is
+live it pulls the striking limb into MELEE.AIM_LO..AIM_HI — chest (0.58) to
+crown (0.95) of the TARGET's height — and a blow already arriving in that band
+is left exactly as authored, so head-hunting hooks and chest jabs keep their
+shape and only the ones sailing over or sweeping the floor move.
+
+- Which limb is throwing it: `strikeTipName()` — the clip's own
+  `strikeLimb`/`strikeArm` marker first (the same markers combat resolves the
+  hit on), else whichever extremity leads furthest along the facing. The HEAD
+  is a candidate here though it is not in combat's strike-limb table, because
+  a bite is thrown with the jaws; a hand or foot wins ties with it (on a
+  long-snouted frame the jaws lead at all times), and nothing counts until it
+  actually leads the body, so the wind-up banks no correction.
+- Which joint lifts it: shoulder for a punch (no tipping the frame), thigh for
+  a kick, torso for a bite — a joint can't move its own pivot.
+- How much: PROBED, not assumed — nudge the driver, measure how far the tip
+  really moved in Y, and that slope turns "1.2 units of lift" into an angle on
+  any rig, procedural or retargeted GLB, whichever way its bone axes point
+  (the trick `clampPalmsTo` already uses for its inward roll). Rate-limited,
+  capped at MELEE.AIM_PITCH (0.5 rad), and re-zeroed if the throwing limb
+  changes mid-clip.
+- Opted out: the two-fist SMASH, which is body-aimed and commits (it already
+  opts out of the lateral servo) — it unwinds instead.
+
+Verified: `npx vite build` green; neon + canyon soaks crash-free.
+New `tools/aimheight.mjs` plays a fight twice (servo off / on) and reports
+each landed swing's height as a fraction of the victim's body: saurion vs
+viper went from median 0.36 / 21% on the upper body to median 0.60 / 58%,
+titanus vs viper from 47% to 64% with over-the-crown swings 18% → 7%.
+New `tools/aimshot.mjs` freezes the impact frame side-on for a pair —
+viper's punch on titanus rose from his hip (0.51) to his chest (0.69).
