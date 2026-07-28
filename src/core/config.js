@@ -57,7 +57,7 @@ export const CONFIG = {
   // dial to turn if the sign is too chatty under the music — edit the number
   // here, or pass ?neonbuzz=<0..1> for a quick try. Each individual flicker is
   // scaled a little around this by how deep that drop-out goes.
-  neonBuzzVolume: readParam01('neonbuzz', 0.6),
+  neonBuzzVolume: readParam01('neonbuzz', 0.3),
 
   // SPLIT-SCREEN POST FX: local multiplayer runs the same post chain as the
   // single view (distance haze blur, bloom, FXAA) — one composer per
