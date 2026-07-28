@@ -48,6 +48,7 @@ const info = await page.evaluate(([p, y, h, frame]) => {
   return {
     fogNear: w.scene.fog?.near, fogFar: w.scene.fog?.far,
     wrapHalf: w.wrapHalf, period: w.wrapHalf * 2,
+    chunks: w.arena?.destructo?.count,
     hasPano: !!e.scene.children.find((c) => c.material?.uniforms?.uHasPano?.value),
   };
 }, [Number(pitch), Number(yaw), Number(height), framing]);

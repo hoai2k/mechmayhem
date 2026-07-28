@@ -155,3 +155,28 @@ background, soft even studio light, no ground shadow, no scene, no text.
 After dropping GLBs in, check any arena with that prop — or the level editor
 (`?edit=level`, palette places every prop) — and tweak the `fit` height in
 `public/models/props/manifest.json` if a model reads too big/small.
+
+---
+
+## 4. Building massing donors (image → Tripo → GLB → voxelized)
+
+Buildings are destructible chunk grids, so a GLB can't BE a building — but it
+can *shape* one. Drop a model at `public/models/buildings/<name>.glb` (the
+manifest there already lists the 8 names below with floor counts + themes)
+and the game voxelizes it into the chunk grid at load: the building gets the
+model's silhouette and its sampled colors, built out of ordinary destructible
+chunks. No manual work — silhouette in, destructible building out.
+
+Image guidelines: ONE building, straight-on 3/4 aerial view, simple bold
+massing (big readable forms — fine filigree is lost at chunk resolution),
+plain background, even light. Distinct color regions survive as chunk tints,
+so a stone base / glass shaft / copper crown reads in-game.
+
+- **decoTower** (neon, uptown) > A 1920s art-deco skyscraper massing model, bold stepped setbacks, limestone base, bronze-green crown tiers, simplified blocky architecture, single building centered, 3/4 aerial view, plain grey background, soft even lighting
+- **glassSpire** (uptown, skyterrace) > A modern supertall glass skyscraper, tapering square profile with two setbacks, pale blue glass with white mullion bands, blocky simplified massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting
+- **pagodaTower** (neon, jungle) > A five-story pagoda tower, stacked square tiers with wide overhanging eaves, dark timber and red lacquer bands, simplified blocky massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting
+- **worksHall** (foundry, scrapyard, harbor) > A Victorian brick factory hall with a tall attached boiler tower, pitched clerestory roof, dark red brick with soot stains, simplified blocky massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting
+- **templePyramid** (ruins, jungle) > A stepped stone temple pyramid with a small shrine on top, weathered sandstone tiers, wide staircase up one face, simplified blocky massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting
+- **habStack** (frozen, orbital) > A modular research habitat: stacked white cylindrical and boxy modules with orange trim, offset like containers, small antenna mast, simplified blocky massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting
+- **controlTower** (harbor, orbital, skyterrace) > A port control tower, slim concrete shaft flaring into a wide glazed observation deck at the top, simplified blocky massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting
+- **quarryMill** (quarry, volcano) > A hillside ore mill: terraced industrial sheds stepping down a slope, corrugated roofs, timber bracing, simplified blocky massing, single building centered, 3/4 aerial view, plain grey background, soft even lighting

@@ -1,7 +1,9 @@
 // The 12 arena themes. Pure data + prop placement lists, consumed by arena.js.
 // Layout fields:
 //   sky {top,bottom,stars}, fog {color,near,far}, sun/hemi/rim lights,
-//   ground {color, road(bool), accent}, buildings {count,tints,styles,hRange},
+//   ground {color, road(bool), accent}, buildings {count,tints,styles,hRange,
+//   massing?: [[normal styles],[landmark styles]] — silhouette families from
+//   src/arena/massing.js; every theme has a default in THEME_MASSING there},
 //   props [{name, ring:[rMin,rMax], count, opts}], ambient (particle style),
 //   bounds (half-size of square play area), pylonMat (boundary glow color)
 //

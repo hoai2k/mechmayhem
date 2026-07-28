@@ -12,7 +12,28 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** GENERATED SKIES + TEXTURES WIRED UP — the owner's asset drop
+- **Latest:** TRIPO PROPS LIVE + MASSED BUILDINGS — (1) the 20 Tripo prop
+  GLBs are integrated: optimized with gltf-transform (37→13 MB, 1024
+  textures, meshopt — a first pass wrote glTF-JSON sidecars whose texture
+  names collided across all 20 models; redone as true binary GLBs),
+  multi-body colliders remap onto each swapped model's real footprint, spin
+  hooks that lost their named part are dropped, and direct ?battle= URLs
+  give the preload 8s so no model is silently left procedural. (2) Buildings
+  stopped being rectangular prisms: `DestructibleSystem.addBuildingCells`
+  builds from ANY occupancy-cell grid (support cascade/collapse/fade
+  untouched — they were always grid-generic), `src/arena/massing.js`
+  generates theme-flavored silhouettes (setback towers with spires, slabs
+  with fins, L-shapes, ziggurats, pagodas with legal 1-cell eave overhangs,
+  clerestory warehouses, boiler-tower works, offset module stacks, bunkers,
+  terraces — THEME_MASSING maps all 12 arenas), and `src/arena/buildglb.js`
+  voxelizes Tripo massing donors (public/models/buildings/, manifest with 8
+  named slots + prompts in ARENA_ASSET_PROMPTS.md §4) into the same grid
+  with texture-sampled per-cell tints — surface rasterization + outside
+  flood fill, shell-only, orphan-guarded. Chunk capacity 1400→2200; live
+  counts 727–1133. Verified: chunk-count telemetry in skyshot, new
+  tools/smashtest.mjs carves a crater (105→97 alive, no false collapse),
+  ace soaks clean on ruins/neon-4P/frozen, build green.
+- **Previous:** GENERATED SKIES + TEXTURES WIRED UP — the owner's asset drop
   (12 equirect sky panoramas 4096×2048, 12 alpha horizon strips 4096×512,
   8 seamless prop textures) is now doing real work in every arena, and the
   three clashes it exposed are fixed: the procedural skyline boxes are the

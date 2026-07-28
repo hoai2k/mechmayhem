@@ -19,6 +19,7 @@ import { MusicPlayer } from '../core/music.js';
 import { NowPlaying } from '../ui/nowplaying.js';
 import { createMech, preloadMechModels, loadManifest, is3dMode } from '../mechs/gltf.js';
 import { preloadPropModels } from '../arena/propglb.js';
+import { preloadBuildingModels } from '../arena/buildglb.js';
 import { TouchControls, installTouchZoomGuards } from './touch.js';
 import { isTouchDevice } from '../core/utils.js';
 import { MenuStage } from './menustage.js';
@@ -43,9 +44,10 @@ export async function bootGame() {
   // decide spinner-vs-procedural synchronously. Skipped under ?debug=fallback,
   // where is3dMode() is false and the whole roster stays procedural.
   if (is3dMode()) { try { await loadManifest(); } catch (e) { /* falls back to procedural */ } }
-  // arena prop models (Tripo GLBs) warm in the background — any arena built
-  // before they land just keeps its procedural props
+  // arena prop models + building donors (Tripo GLBs) warm in the background —
+  // any arena built before they land keeps its procedural props / massing
   preloadPropModels();
+  preloadBuildingModels();
 
   let audio;
   try {
@@ -357,7 +359,10 @@ export async function bootGame() {
     // gate, the procedural props always work. 1.5s wasn't enough for all 20
     // models on slow renderers, which silently left a random subset
     // procedural.
-    await Promise.race([preloadPropModels(), new Promise((r) => setTimeout(r, 8000))]);
+    await Promise.race([
+      Promise.all([preloadPropModels(), preloadBuildingModels()]),
+      new Promise((r) => setTimeout(r, 8000)),
+    ]);
     // shared world/arena/camera wiring (arenaObjs = everything the arena
     // adds, hidden behind the warm-up's neutral backdrop and revealed
     // fully-warmed later)

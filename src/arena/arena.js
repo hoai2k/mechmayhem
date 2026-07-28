@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import { DestructibleSystem } from './destructible.js';
 import { Terrain } from './terrain.js';
+import { generateMassing, THEME_MASSING } from './massing.js';
+import { buildingDonors } from './buildglb.js';
 import { PROPS, PROP_MATS, placeProp } from './props.js';
 import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
@@ -293,16 +295,34 @@ export class Arena {
         this.destructo.addBuilding(o.x, o.z, nx, ny, nz, cw, ch, cd, { tint, rng });
       }
     } else {
+      // buildings are MASSED, not boxed: each site draws a theme-flavored
+      // silhouette (setback tower, ziggurat, warehouse, module stack...) or —
+      // when the owner has dropped voxelized GLB donors into
+      // public/models/buildings/ — a donor shape with its sampled colors.
+      // Either way the result is ordinary destructible chunks.
       const count = Math.min(theme.buildings.count * 2, 18);
+      const [mNormal, mLandmark] = theme.buildings.massing
+        || THEME_MASSING[theme.id]
+        || [['tower', 'slab', 'lshape'], ['tower']];
+      const donorPool = buildingDonors(theme.id);
       for (const site of this.terrain.buildingSites(count, rng)) {
-        const nx = rng.int(2, 3), nz = rng.int(2, 3);
-        let ny = rng.int(theme.buildings.hRange[0], theme.buildings.hRange[1]);
-        // one landmark tower per cluster; its neighbors read as its skirt
-        if (site.tall) ny = theme.buildings.hRange[1] + rng.int(1, 2);
-        else if (site.cluster >= 0 && rng.chance(0.5)) ny = Math.max(theme.buildings.hRange[0], ny - 1);
+        const hRange = [...theme.buildings.hRange];
+        if (site.cluster >= 0 && !site.tall && rng.chance(0.5)) {
+          hRange[1] = Math.max(hRange[0], hRange[1] - 1);
+        }
         const cw = rng.range(3.2, 3.9), ch = rng.range(3.1, 3.6), cd = rng.range(3.2, 3.9);
         const tint = tintFor(theme.buildings.tints[rng.int(0, theme.buildings.tints.length - 1)]);
-        this.destructo.addBuilding(site.x, site.z, nx, ny, nz, cw, ch, cd, { tint, rng });
+        let m = null;
+        if (donorPool.length && rng.chance(site.tall ? 0.65 : 0.35)) {
+          m = donorPool[rng.int(0, donorPool.length - 1)];
+        } else {
+          const styles = site.tall ? mLandmark : mNormal;
+          m = generateMassing(styles[rng.int(0, styles.length - 1)], rng,
+            { hRange, tall: site.tall });
+        }
+        // wide silhouettes shrink their cells instead of swallowing streets
+        const cwE = Math.min(cw, 19 / m.nx), cdE = Math.min(cd, 19 / m.nz);
+        this.destructo.addBuildingCells(site.x, site.z, m.cells, cwE, ch, cdE, { tint, rng });
       }
     }
 

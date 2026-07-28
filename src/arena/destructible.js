@@ -36,7 +36,7 @@ const _e = new THREE.Euler();
 const _c = new THREE.Color();
 
 export class DestructibleSystem {
-  constructor(scene, material, capacity = 1400) {
+  constructor(scene, material, capacity = 2200) {
     this.scene = scene;
     this.capacity = capacity;      // per-cell chunk budget
     // toroidal arenas: every chunk gets 8 ghost copies in the neighbor
@@ -230,46 +230,77 @@ export class DestructibleSystem {
 
   // Build a hollow tower of chunks. Returns building record.
   addBuilding(cx, cz, nx, ny, nz, cw, ch, cd, { tint = 0xffffff, rng = null } = {}) {
-    rng = rng || makeRng((cx * 13 + cz * 7) | 0);
-    const b = { grid: new Map(), chunkCount: 0, aabb: null, alive: 0 };
-    const w = nx * cw, d = nz * cd;
-    const x0 = cx - w / 2, z0 = cz - d / 2;
+    const cells = [];
     for (let gy = 0; gy < ny; gy++) {
       for (let gx = 0; gx < nx; gx++) {
         for (let gz = 0; gz < nz; gz++) {
           // hollow: only shell chunks
           const isShell = gx === 0 || gx === nx - 1 || gz === 0 || gz === nz - 1 || gy === ny - 1;
-          if (!isShell) continue;
-          if (this.count >= this.capacity) continue;
-          const i = this.count++;
-          const chunk = {
-            i,
-            x: x0 + (gx + 0.5) * cw,
-            y: (gy + 0.5) * ch,
-            z: z0 + (gz + 0.5) * cd,
-            w: cw, h: ch, d: cd,
-            gx, gy, gz,
-            alive: true,
-            hp: 30 + rng() * 25,
-            b,
-          };
-          this.chunks.push(chunk);
-          b.grid.set(`${gx},${gy},${gz}`, chunk);
-          b.chunkCount++;
-          b.alive++;
-          // slight per-chunk color variance (ghost copies match)
-          const v = 1.25 + rng() * 0.3;
-          _c.set(tint).multiplyScalar(v);
-          this.mesh.setColorAt(i, _c);
-          for (let g = 1; g <= 8; g++) this.mesh.setColorAt(this.capacity * g + i, _c);
-          this.writeChunk(chunk);
+          if (isShell) cells.push({ gx, gy, gz });
         }
       }
     }
+    return this.addBuildingCells(cx, cz, cells, cw, ch, cd, { tint, rng });
+  }
+
+  // Build a building from an EXPLICIT occupancy-cell list — the massing
+  // generator's silhouettes (setback towers, ziggurats, warehouses) and the
+  // voxelized GLB donors both land here. Cells are {gx,gy,gz, tint?} with
+  // gy=0 on the ground; grid coordinates may be any integers (the building
+  // is centered on the cells' XZ bounding box). Support cascade, collapse,
+  // collision, occlusion fade — everything downstream reads the grid map,
+  // so an arbitrary silhouette is exactly as destructible as a box tower.
+  // A cell's own `tint` (from a voxelized donor's sampled texture, or a
+  // massing accent band) overrides the building tint.
+  addBuildingCells(cx, cz, cells, cw, ch, cd, { tint = 0xffffff, rng = null } = {}) {
+    rng = rng || makeRng((cx * 13 + cz * 7) | 0);
+    const b = { grid: new Map(), chunkCount: 0, aabb: null, alive: 0 };
+    if (!cells.length) return b;
+    let minGx = Infinity, maxGx = -Infinity, minGz = Infinity, maxGz = -Infinity, maxGy = 0;
+    for (const c of cells) {
+      minGx = Math.min(minGx, c.gx); maxGx = Math.max(maxGx, c.gx);
+      minGz = Math.min(minGz, c.gz); maxGz = Math.max(maxGz, c.gz);
+      maxGy = Math.max(maxGy, c.gy);
+    }
+    const x0 = cx - ((maxGx - minGx + 1) * cw) / 2 - minGx * cw;
+    const z0 = cz - ((maxGz - minGz + 1) * cd) / 2 - minGz * cd;
+    for (const cell of cells) {
+      if (this.count >= this.capacity) {
+        if (!this._capWarned) {
+          this._capWarned = true;
+          console.warn(`DestructibleSystem: chunk capacity ${this.capacity} reached — later buildings are truncated`);
+        }
+        continue;
+      }
+      const { gx, gy, gz } = cell;
+      if (b.grid.has(`${gx},${gy},${gz}`)) continue;
+      const i = this.count++;
+      const chunk = {
+        i,
+        x: x0 + (gx + 0.5) * cw,
+        y: (gy + 0.5) * ch,
+        z: z0 + (gz + 0.5) * cd,
+        w: cw, h: ch, d: cd,
+        gx, gy, gz,
+        alive: true,
+        hp: 30 + rng() * 25,
+        b,
+      };
+      this.chunks.push(chunk);
+      b.grid.set(`${gx},${gy},${gz}`, chunk);
+      b.chunkCount++;
+      b.alive++;
+      // slight per-chunk color variance (ghost copies match)
+      const v = 1.25 + rng() * 0.3;
+      _c.set(cell.tint ?? tint).multiplyScalar(v);
+      this.mesh.setColorAt(i, _c);
+      for (let g = 1; g <= 8; g++) this.mesh.setColorAt(this.capacity * g + i, _c);
+      this.writeChunk(chunk);
+    }
     b.aabb = {
-      minX: x0 - 0.5, maxX: x0 + w + 0.5,
-      minY: 0, maxY: ny * ch + 0.5,
-      minZ: z0 - 0.5, maxZ: z0 + d + 0.5,
+      minX: x0 + minGx * cw - 0.5, maxX: x0 + (maxGx + 1) * cw + 0.5,
+      minY: 0, maxY: (maxGy + 1) * ch + 0.5,
+      minZ: z0 + minGz * cd - 0.5, maxZ: z0 + (maxGz + 1) * cd + 0.5,
     };
     this.buildings.push(b);
     this.mesh.instanceMatrix.needsUpdate = true;

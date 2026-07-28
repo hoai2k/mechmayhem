@@ -1,0 +1,10 @@
+{
+  "decoTower": { "file": "decoTower.glb", "floors": 10, "themes": ["neon", "uptown"] },
+  "glassSpire": { "file": "glassSpire.glb", "floors": 12, "themes": ["uptown", "skyterrace"] },
+  "pagodaTower": { "file": "pagodaTower.glb", "floors": 8, "themes": ["neon", "jungle"] },
+  "worksHall": { "file": "worksHall.glb", "floors": 5, "themes": ["foundry", "scrapyard", "harbor"] },
+  "templePyramid": { "file": "templePyramid.glb", "floors": 6, "themes": ["ruins", "jungle"] },
+  "habStack": { "file": "habStack.glb", "floors": 7, "themes": ["frozen", "orbital"] },
+  "controlTower": { "file": "controlTower.glb", "floors": 8, "themes": ["harbor", "orbital", "skyterrace"] },
+  "quarryMill": { "file": "quarryMill.glb", "floors": 6, "themes": ["quarry", "volcano"] }
+}
