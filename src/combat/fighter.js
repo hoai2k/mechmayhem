@@ -271,6 +271,7 @@ export class Fighter {
     this._onBack = false;     // ROLLOVER: turned right over, stranded on his back
     this._flipT = 0;          // ...time left in the one-shot flip before the prone loop
     this._rollUp = null;      // ...the flank he committed the righting roll to
+    this._airRoll = null;     // AIR SOMERSAULT (see updateAirRoll): {t, spin, ending, endAt}
     this.alive = true;
     this.wins = 0;
     this.lastAttacker = null;
@@ -1769,6 +1770,18 @@ export class Fighter {
     //     guardBreak chance) shatters the block outright; his normal
     //     attacks block like anyone else's
     //   • an unblockable hit (certain ults) ignores the guard entirely
+    // AIR-ROLL BUBBLE: the somersault's sphere shield blocks from EVERY
+    // direction (a tumbling ball has no facing), with the same leak-through
+    // as a raised guard. Crouch-under and guard-break are facing tricks, so
+    // neither applies; unblockable hits still pass, and the shield drops
+    // the instant A is released (the roll's wind-down is unprotected).
+    if (this._airRoll && !this._airRoll.ending && !unblockable && this.state !== 'hitstun') {
+      const pass = this.def.stats.blockMult ?? BLOCK_LEAK_DEFAULT;
+      this._blockAbsorb(dmg * pass, dmg * pass,
+        dirX, dirZ, dLen, knock * (0.25 + pass) * 0.5, this.center(), 0x7fd8ff);
+      return;
+    }
+
     if (this.blocking && !unblockable && this.state !== 'hitstun') {
       const toSrc = Math.atan2(-dirX, -dirZ);
       if (Math.abs(angleDiff(this.yaw, toSrc)) < 1.5) {
@@ -2206,6 +2219,7 @@ export class Fighter {
     this.alive = false;
     this.clearChargeGlow();
     this.clearGlitch();
+    this.endAirRoll();
     this.setState('dead', 999);
     this.blocking = false;
     this.firing = false;
@@ -2635,6 +2649,13 @@ export class Fighter {
         // second jump press in the air ignites the hover jets
         this.hovering = true;
         this.world.audio?.play('jump');
+      } else if (I.jump && !this.grounded && !this.hovering && this.vel.y < 0 &&
+                 !this._airRoll) {
+        // TANK EMPTY and falling: A again TUCKS into an air somersault
+        // instead — spin for as long as A is held behind an all-around
+        // bubble, at the price of falling PRONE if still tucked at
+        // touchdown (updateAirRoll owns the mechanics)
+        this.startAirRoll();
       }
     } else if (this.state === 'attack' && this.queuedLight && this.stateT < 0.14) {
       // combo chain
@@ -2684,9 +2705,10 @@ export class Fighter {
       this.hoverFuel = Math.min(this.hoverFuelMax, this.hoverFuel + dt * 0.9);
     }
 
-    // block anim
+    // block anim (the air roll borrows the block clip for its tuck — don't
+    // strip it off a somersaulting body just because no guard input is down)
     if (this.blocking && !this.animator.isPlaying('block')) this.animator.play('block');
-    else if (!this.blocking && this.animator.isPlaying('block')) this.animator.stop(0.1);
+    else if (!this.blocking && !this._airRoll && this.animator.isPlaying('block')) this.animator.stop(0.1);
 
     // ---- movement ----
     let ax = 0, az = 0;
@@ -2869,6 +2891,8 @@ export class Fighter {
     this.updateHeavySignature(dt);
     // ---- generic special FX: scripted joint whirls / grows (bulwark bash) ----
     this.updateSpecialFx(dt);
+    // ---- air somersault: post-pose hips tumble + bubble (see startAirRoll) ----
+    this.updateAirRoll(dt);
     // ---- thrown weapons re-forging in the grip ----
     this.updateRegrow(dt);
     // ---- poison bites: red flush + a flinch each time a wound opens ----
@@ -2889,6 +2913,86 @@ export class Fighter {
     if (this.def.id === 'nullbot' && this.alive) this.updateNullbotAura(dt);
     // corruption stacks keep flickering on whoever carries them
     this.updateGlitch(dt);
+  }
+
+  // ================= air somersault =================
+  // Falling with the hover tank empty, A tucks the mech into a tight
+  // forward somersault: the whole body spins about the HIPS (post-pose, so
+  // it rides on both model routes), a subtle sphere shield bubbles around
+  // them, and every hit is taken as a block — from any direction, since a
+  // tumbling ball has no facing. Release A and the roll finishes its
+  // current turn at speed, lands the pose back exactly where the clip left
+  // it, and the guard drops for that wind-down (the risk half of the
+  // trade). Still tucked at touchdown? He hits the dirt PRONE.
+  startAirRoll() {
+    this._airRoll = { t: 0, spin: 0, ending: false, endAt: 0 };
+    this.animator.play('block'); // the tuck: arms in, guard read
+    this.world.audio?.play('whoosh');
+    // a mech rebuild (colossal form) discarded the old group — and the
+    // bubble that was parented to it
+    if (this._rollShield && this._rollShield.parent !== this.group) this._rollShield = null;
+    if (!this._rollShield) {
+      const geo = new THREE.SphereGeometry(1, 20, 14);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x7fd8ff, transparent: true, opacity: 0.13,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      this._rollShield = new THREE.Mesh(geo, mat);
+      this.group.add(this._rollShield);
+    }
+    this._rollShield.visible = true;
+  }
+
+  endAirRoll() {
+    if (!this._airRoll) return;
+    this._airRoll = null;
+    if (this._rollShield) this._rollShield.visible = false;
+    if (this.animator.isPlaying('block')) this.animator.stop(0.15);
+  }
+
+  // Post-pose (called beside updateSpecialFx): the spin is written onto the
+  // hips AFTER the animator, so the clip pose rides inside the tumble and
+  // the GLB re-sync below carries it onto skinned models too.
+  updateAirRoll(dt) {
+    const r = this._airRoll;
+    if (!r) return;
+    if (!this.alive || this.state !== 'normal' || this.grounded) {
+      // staggered, frozen, launched, or a landing applyPhysics didn't turn
+      // into the prone crash (shouldn't happen) — drop the roll outright
+      this.endAirRoll();
+      return;
+    }
+    const SPIN = 12.5;                       // rad/s — a tight ~2 turns/s
+    r.t += dt;
+    const rate = SPIN * Math.min(1, r.t / 0.16);  // snappy ramp-in
+    if (!r.ending && !this.intent.jumpHeld) {
+      // released: finish the CURRENT turn at speed — the body arrives back
+      // upright at exactly 2π, which IS the blend back to normal — and the
+      // bubble drops now, not at the end of the turn
+      r.ending = true;
+      r.endAt = Math.ceil(r.spin / TAU - 0.02) * TAU;
+      if (this._rollShield) this._rollShield.visible = false;
+    }
+    r.spin += rate * dt;
+    if (r.ending && r.spin >= r.endAt) {
+      this.endAirRoll();
+      return;
+    }
+    const j = this.mech.joints.hips;
+    if (j) j.rotation.x += r.ending ? Math.min(r.spin, r.endAt) : r.spin;
+    if (this._rollShield?.visible) {
+      // subtle: a faint breathing bubble around the body's middle
+      const R = this.height * 0.62;
+      this._rollShield.scale.setScalar(R * (1 + 0.04 * Math.sin(r.t * 9)));
+      this._rollShield.position.set(0, this.height * 0.52, 0);
+      this._rollShield.material.opacity = 0.10 + 0.04 * Math.sin(r.t * 7);
+    }
+    // spin trail: the tumble reads at speed even in a far camera
+    this._rollFxT = (this._rollFxT ?? 0) - dt;
+    if (this._rollFxT <= 0) {
+      this._rollFxT = 0.14;
+      this.world.effects.dashTrail(this.pos, 0x7fd8ff, this.scale * 0.8);
+    }
   }
 
   // ---- generic post-pose special FX, driven by specials.js: a scripted
@@ -3064,6 +3168,16 @@ export class Fighter {
       this.vel.y = 0;
       if (!this.grounded) {
         this.grounded = true;
+        // still somersaulting at touchdown: no feet under him — he hits the
+        // dirt PRONE and eats the knockdown. The risk half of the air roll.
+        if (this._airRoll && this.alive) {
+          this.endAirRoll();
+          this.setState('knockdown', 0.9);
+          this.animator.play('knockdown');
+          this.world.effects.dustPuff(this.pos, 10);
+          this.world.audio?.play('bodyfall');
+          this.world.effects.addShake(0.25);
+        }
         if (fallSpeed > 9) {
           this.world.effects.dustPuff(this.pos, Math.min(16, fallSpeed));
           this.world.audio?.play('land');
@@ -3184,6 +3298,7 @@ export class Fighter {
     this._onBack = false;  // never start a round stranded on the shell
     this._flipT = 0;
     this._rollUp = null;
+    this.endAirRoll();     // a round never opens mid-somersault
     this.hovering = false;
     this.hoverFuel = this.hoverFuelMax;
     this.sprintEnergy = this.sprintEnergyMax;
