@@ -118,6 +118,12 @@ export const MESSAGES = {
   'settings.sound.off': 'SOUND: OFF',
   'settings.infiniteUlts.on': 'INFINITE ULTIMATES: ON',
   'settings.infiniteUlts.off': 'INFINITE ULTIMATES: OFF',
+  // split-screen post FX: bloom, distance haze, anti-aliasing in local
+  // multiplayer. DEFAULT = run them unless the frame rate says otherwise.
+  'settings.splitFx.auto': 'SPLIT-SCREEN FX: DEFAULT',
+  'settings.splitFx.autoOff': 'SPLIT-SCREEN FX: DEFAULT (OFF — SLOW)',
+  'settings.splitFx.on': 'SPLIT-SCREEN FX: ALWAYS ON',
+  'settings.splitFx.off': 'SPLIT-SCREEN FX: OFF',
   'settings.reverseCamY.on': 'REVERSE CAMERA Y: ON',
   'settings.reverseCamY.off': 'REVERSE CAMERA Y: OFF',
   'settings.showAllRobots.on': 'SHOW ALL ROBOTS: ON',

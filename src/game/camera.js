@@ -17,6 +17,7 @@ const pitchY = (v) => (CONFIG.reverseCameraY ? -v : v);
 const _v = new THREE.Vector3();
 const _center = new THREE.Vector3();
 const _ray = new THREE.Vector3();
+const _lift = new THREE.Vector3();   // per-frame scratch (was allocated per fighter, per frame)
 
 const LAYOUT_KEY = 'rw.splitLayout';
 const ZOOM_KEY = 'rw.camZoom';
@@ -489,7 +490,7 @@ export class CameraSystem {
       _v.set(
         Math.sin(ch.az) * Math.cos(el), Math.sin(el), Math.cos(ch.az) * Math.cos(el)
       ).multiplyScalar(ch.dist);
-      const wantPos = _v.add(f.pos).add(new THREE.Vector3(0, 2 * gf, 0));
+      const wantPos = _v.add(f.pos).add(_lift.set(0, 2 * gf, 0));
       // the chase cam tracks ONLY its own mech — opponents never pull the
       // frame; use the right stick to look around
       const lookAhead = _center.copy(f.pos);

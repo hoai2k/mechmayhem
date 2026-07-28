@@ -105,6 +105,16 @@ export class Engine {
     this.onAfterView = null;   // () => {} post-render per view
     this.timeScale = 1;
     this.hazeStrength = 1;     // distance-haze blur multiplier (0 = off)
+    // ---- split-screen post FX watchdog (CONFIG.splitPostFx === 'auto') ----
+    // Run the chains, watch the REAL frame time, and drop them for the
+    // session if the machine can't hold a playable rate with them on. The
+    // grace period covers shader compilation and the first-frame target
+    // allocations, which always spike and would otherwise auto-disable
+    // instantly on hardware that was going to be fine.
+    this._splitPostOk = true;   // effective state under 'auto'
+    this._frameMs = 16.7;       // EMA of real frame time
+    this._splitFrames = 0;      // frames rendered in split with FX on
+    this._splitSlow = 0;        // consecutive slow frames
     this.hitStop = 0;          // seconds of near-freeze remaining
     this.elapsed = 0;
     this.onUpdate = null;      // (dt) => {} game-time step
@@ -146,6 +156,44 @@ export class Engine {
       c.fxaa.material.uniforms.resolution.value.set(1 / (cssW * pr), 1 / (cssH * pr));
     }
     return c;
+  }
+
+  // Should split-screen render through the post chains right now?
+  // 'on'/'off' are the player's word; 'auto' defers to the watchdog.
+  splitPostActive() {
+    const mode = CONFIG.splitPostFx;
+    if (mode === 'on') return true;
+    if (mode === 'off') return false;
+    return this._splitPostOk;
+  }
+
+  // true when 'auto' has actually pulled the effects (the settings line says
+  // so, rather than leaving the player wondering why split looks different)
+  splitPostAutoDropped() {
+    return CONFIG.splitPostFx === 'auto' && !this._splitPostOk;
+  }
+
+  // Give the machine a grace period, then require a sustained bad rate
+  // before dropping: a couple of stutters (a collapsing tower, a GC pause)
+  // must not cost the effects for the rest of the session.
+  _watchSplitPost() {
+    if (CONFIG.splitPostFx !== 'auto' || !this._splitPostOk) return;
+    if (++this._splitFrames < 120) return;              // ~2s of warm-up
+    // 22ms ≈ 45fps: below that the split is visibly dragging
+    this._splitSlow = this._frameMs > 22 ? this._splitSlow + 1 : 0;
+    if (this._splitSlow > 150) {                        // ~3s straight
+      this._splitPostOk = false;
+      console.info(`split-screen post FX off: ${this._frameMs.toFixed(1)}ms frames ` +
+        '(SETTINGS → SPLIT-SCREEN FX to force them back on)');
+    }
+  }
+
+  // the player changed the setting — re-arm the watchdog so 'auto' gets a
+  // fresh look instead of staying stuck on an old verdict
+  resetSplitPostWatch() {
+    this._splitPostOk = true;
+    this._splitFrames = 0;
+    this._splitSlow = 0;
   }
 
   // fog band + resolution-scaled blur radius for one chain's haze pass
@@ -194,6 +242,10 @@ export class Engine {
         return;
       }
 
+      // frame-time EMA feeds the split-screen FX watchdog (hit-stop frames
+      // are deliberately long, so they don't count as lag)
+      if (this.hitStop <= 0) this._frameMs += (dtReal * 1000 - this._frameMs) * 0.12;
+
       let dt = dtReal * this.timeScale;
       if (this.hitStop > 0) {
         this.hitStop -= dtReal;
@@ -218,6 +270,14 @@ export class Engine {
         // setRenderTarget(null) restores the viewport/scissor set here — so
         // each chain lands in its own corner of the screen.
         const W = window.innerWidth, H = window.innerHeight;
+        const usePost = this.splitPostActive();
+        // ONE shadow map for the whole frame. three re-renders it on every
+        // render() call, so split-screen was paying for the entire shadow
+        // pass (~160 draw calls, ~0.9M triangles here) once PER VIEW — for
+        // an identical map, since the sun and the scene don't change between
+        // viewports of the same frame.
+        this.renderer.shadowMap.autoUpdate = false;
+        this.renderer.shadowMap.needsUpdate = true;
         this.renderer.setScissorTest(true);
         this.views.forEach((v, i) => {
           if (this.backdrop) this.backdrop.position.set(v.camera.position.x, 0, v.camera.position.z);
@@ -225,18 +285,20 @@ export class Engine {
           const x = v.x * W, y = v.y * H, w = v.w * W, h = v.h * H;
           this.renderer.setViewport(x, y, w, h);
           this.renderer.setScissor(x, y, w, h);
-          if (CONFIG.splitPostFx) {
+          if (usePost) {
             const chain = this._viewChain(i, v.camera, w, h);
             this._syncHaze(chain, v.camera);
             chain.composer.render();
           } else {
-            this.renderer.render(this.scene, v.camera);   // ?postfx=single
+            this.renderer.render(this.scene, v.camera);
           }
           this.onAfterView?.();
         });
         this.renderer.setScissorTest(false);
         this.renderer.setViewport(0, 0, W, H);
+        if (usePost) this._watchSplitPost();
       } else {
+        this.renderer.shadowMap.autoUpdate = true;
         if (this.backdrop) this.backdrop.position.set(this.camera.position.x, 0, this.camera.position.z);
         this.onBeforeView?.(this.camera);
         // the haze band tracks whatever fog the current arena installed

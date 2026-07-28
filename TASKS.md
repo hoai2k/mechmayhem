@@ -12,7 +12,27 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** BALL TUCK + LANDINGS — the air somersault curls into a real
+- **Latest:** PERF PASS + ADAPTIVE SPLIT FX — split-screen post FX is now a
+  TRI-STATE (SETTINGS → SPLIT-SCREEN FX): DEFAULT runs them and drops them
+  for the session if real frame time stays above ~22ms for ~3s (after a 2s
+  warm-up grace for shader compilation), ALWAYS ON forces them, OFF is the
+  old plain path; the DEFAULT line reads "(OFF — SLOW)" once the watchdog has
+  pulled them. Then a measured perf audit (new `tools/perfprobe.mjs` for CPU
+  per subsystem, `tools/drawprobe.mjs` for draw calls per frame). Findings and
+  fixes: (1) THE VIADUCT was the single biggest cost in the game — ~50
+  segments × 5 meshes = ~250 objects per cell, ×9 wrap ghosts = 2,250 meshes;
+  it is now 3 INSTANCED meshes total with the ghosts folded in as instances
+  and destruction zero-scaling a segment's copies. (2) three re-renders the
+  SHADOW MAP on every render() call, so split-screen paid the whole shadow
+  pass (~125 calls, ~0.9M triangles) once PER VIEW for an identical map —
+  now rendered once per frame (`shadowMap.autoUpdate` off + `needsUpdate`).
+  (3) two real per-frame allocations removed (a Vector3 per fighter in the
+  camera, one per projectile). Result: 1381 → 552 draw calls per frame
+  (terrain meshes per cell 269 → 19); a 4-player split frame goes from
+  ~5,500 draw calls to ~1,800. CPU side was already healthy: 1.1ms per
+  world.update at 4 fighters, dominated by fighter.update (0.24ms each).
+  Largest remaining item, if it ever matters: prop ghosts (~253 calls).
+- **Previous:** BALL TUCK + LANDINGS — the air somersault curls into a real
   tight-ball clip (per-body-type via roster `ballPose`; large bots tuck
   without spinning), LT pressed airborne buys the same tuck on stamina,
   and every fall now lands through a stretch → crouch → recover landing

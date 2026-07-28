@@ -29,6 +29,11 @@ import { TAU, clamp, rand } from '../core/utils.js';
 
 const _v = new THREE.Vector3();
 const _c = new THREE.Color();
+// scratch for zero-scaling an instanced viaduct segment out of existence
+const _zero = new THREE.Matrix4();
+const _zeroPos = new THREE.Vector3(0, -500, 0);
+const _zeroQ = new THREE.Quaternion();
+const _zeroScl = new THREE.Vector3(0.0001, 0.0001, 0.0001);
 
 // per-kind gameplay defaults; paint styles live in paintLane below
 const KINDS = {
@@ -588,8 +593,18 @@ export class Terrain {
   killVSeg(seg, idx, quiet = false) {
     if (!seg.alive) return;
     seg.alive = false;
-    for (const m of seg.meshes) m.visible = false;
     const v = this.viaduct;
+    // instanced deck: zero-scale this segment's pieces in every wrap copy
+    _zero.compose(_zeroPos, _zeroQ, _zeroScl);
+    for (const im of [v.slabMesh, v.railMesh, v.edgeMesh]) {
+      if (!im) continue;
+      const perSeg = im.userData.perSeg;
+      for (let slot = 0; slot < perSeg; slot++) {
+        for (let g = 0; g < 9; g++) im.setMatrixAt((idx * perSeg + slot) * 9 + g, _zero);
+      }
+      im.instanceMatrix.needsUpdate = true;
+    }
+    for (const m of seg.meshes) m.visible = false;
     const segMid = -this.P / 2 + (idx + 0.5) * v.segLen;
     const c = this.laneCenter(v.lane, segMid);
     const wx = v.lane.axis === 'z' ? c : segMid;
@@ -840,6 +855,16 @@ export class Terrain {
     // viaduct: a curve-following run of deck slabs with railings, dipping to
     // ground at the two ramps. Piers are placed separately by the arena as
     // solid destructible props (pylonSpots).
+    // Viaduct: a curve-following run of deck slabs with railings, dipping to
+    // ground at the two ramps. Piers are placed separately by the arena as
+    // solid destructible props (pylonSpots).
+    //
+    // INSTANCED, and it has to be: an endless loop is ~50 segments, and as
+    // plain meshes (slab + 2 rails + 2 edge strips) that was ~250 objects per
+    // cell — 2,250 once the 8 wrap ghosts cloned them, far and away the
+    // biggest draw-call source in the game. As instances it is 3 draw calls
+    // TOTAL, ghosts included: every segment's 9 wrap copies are just more
+    // instances, and killing a segment zero-scales its copies.
     if (this.viaduct) {
       const v = this.viaduct;
       const mat = new THREE.MeshStandardMaterial({ color: v.color, roughness: 0.72, metalness: 0.3 });
@@ -853,6 +878,28 @@ export class Terrain {
         const c = this.laneCenter(v.lane, along);
         return v.lane.axis === 'z' ? { x: c, z: along } : { x: along, z: c };
       };
+      const unit = new THREE.BoxGeometry(1, 1, 1);
+      const COPIES = 9;                       // this cell + 8 wrap ghosts
+      const mk = (m, perSeg, cast) => {
+        const im = new THREE.InstancedMesh(unit, m, v.nSeg * perSeg * COPIES);
+        im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        im.castShadow = cast;
+        im.receiveShadow = true;
+        im.frustumCulled = false;             // the loop always straddles the view
+        im.userData.perSeg = perSeg;          // instance = (seg*perSeg + slot)*9 + copy
+        return im;
+      };
+      v.slabMesh = mk(mat, 1, true);
+      v.railMesh = mk(railMat, 2, true);
+      v.edgeMesh = edgeMat ? mk(edgeMat, 2, false) : null;
+      // ghost offsets, primary cell first
+      const offs = [[0, 0]];
+      for (let gx = -1; gx <= 1; gx++) {
+        for (let gz = -1; gz <= 1; gz++) if (gx || gz) offs.push([gx * this.P, gz * this.P]);
+      }
+      const _m = new THREE.Matrix4(), _q = new THREE.Quaternion();
+      const _pos = new THREE.Vector3(), _scl = new THREE.Vector3();
+      const _e = new THREE.Euler();
       for (let i = 0; i < v.nSeg; i++) {
         const a0 = -this.P / 2 + i * v.segLen, a1 = a0 + v.segLen;
         const h0 = this.vProfile(a0), h1 = this.vProfile(a1);
@@ -860,30 +907,32 @@ export class Terrain {
         const dx = p1.x - p0.x, dz = p1.z - p0.z;
         const run = Math.hypot(dx, dz);
         const len = Math.hypot(run, h1 - h0) * 1.03;
-        const sGrp = new THREE.Group();
-        sGrp.userData.vSegKey = i;
-        const slab = new THREE.Mesh(new THREE.BoxGeometry(v.w, 1.0, len), mat);
-        slab.castShadow = true;
-        slab.receiveShadow = true;
-        slab.rotation.x = -Math.atan2(h1 - h0, run);
-        slab.position.y = -0.5;
-        sGrp.add(slab);
-        for (const sx of [-1, 1]) {
-          const rail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.8, len * 0.96), railMat);
-          rail.position.set(sx * (v.w / 2 - 0.2), 0.4, 0);
-          rail.rotation.x = slab.rotation.x;
-          sGrp.add(rail);
-          if (edgeMat) {
-            const strip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, len * 0.96), edgeMat);
-            strip.position.set(sx * (v.w / 2 - 0.2), 0.86, 0);
-            strip.rotation.x = slab.rotation.x;
-            sGrp.add(strip);
+        const pitch = -Math.atan2(h1 - h0, run);
+        const yaw = Math.atan2(dx, dz);
+        const cx = (p0.x + p1.x) / 2, cy = (h0 + h1) / 2, cz = (p0.z + p1.z) / 2;
+        // a piece's local offset, rotated by the segment's yaw
+        const place = (im, slot, lx, ly, sw, sh, sl) => {
+          _e.set(pitch, yaw, 0, 'YXZ');
+          _q.setFromEuler(_e);
+          const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+          for (let g = 0; g < COPIES; g++) {
+            _pos.set(cx + lx * cosY + offs[g][0], cy + ly, cz - lx * sinY + offs[g][1]);
+            _scl.set(sw, sh, sl);
+            _m.compose(_pos, _q, _scl);
+            im.setMatrixAt((i * im.userData.perSeg + slot) * COPIES + g, _m);
           }
-        }
-        sGrp.position.set((p0.x + p1.x) / 2, (h0 + h1) / 2, (p0.z + p1.z) / 2);
-        sGrp.rotation.y = Math.atan2(dx, dz);
-        v.segs[i].meshes.push(sGrp);
-        group.add(sGrp);
+        };
+        place(v.slabMesh, 0, 0, -0.5, v.w, 1.0, len);
+        [-1, 1].forEach((sx, k) => {
+          place(v.railMesh, k, sx * (v.w / 2 - 0.2), 0.4, 0.3, 0.8, len * 0.96);
+          if (v.edgeMesh) place(v.edgeMesh, k, sx * (v.w / 2 - 0.2), 0.86, 0.14, 0.12, len * 0.96);
+        });
+      }
+      for (const im of [v.slabMesh, v.railMesh, v.edgeMesh]) {
+        if (!im) continue;
+        im.instanceMatrix.needsUpdate = true;
+        this.arena.scene.add(im);        // NOT in `group`: ghosts are instances
+        this.arena.objects.push(im);
       }
     }
 

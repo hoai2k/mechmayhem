@@ -16,6 +16,7 @@ import {
   CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY,
   setRobotSpeed, SPEED_MIN, SPEED_MAX, SPEED_STEP,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
+  setSplitPostFx, SPLIT_POST_MODES,
 } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
@@ -170,6 +171,25 @@ export async function bootGame() {
       // which way the right stick pitches the battle camera (camera.js)
       label: () => t(CONFIG.reverseCameraY ? 'settings.reverseCamY.on' : 'settings.reverseCamY.off'),
       fn: () => setReverseCameraY(!CONFIG.reverseCameraY),
+    },
+    {
+      // split-screen post FX (bloom / distance haze / FXAA). DEFAULT runs
+      // them and drops them for the session if the frame rate actually
+      // suffers — the line says so when that has happened.
+      label: () => {
+        const m = CONFIG.splitPostFx;
+        if (m === 'auto') {
+          return t(engine.splitPostAutoDropped()
+            ? 'settings.splitFx.autoOff' : 'settings.splitFx.auto');
+        }
+        return t(m === 'on' ? 'settings.splitFx.on' : 'settings.splitFx.off');
+      },
+      fn: () => {
+        const next = SPLIT_POST_MODES[
+          (SPLIT_POST_MODES.indexOf(CONFIG.splitPostFx) + 1) % SPLIT_POST_MODES.length];
+        setSplitPostFx(next);
+        engine.resetSplitPostWatch();
+      },
     },
     {
       // work-in-progress mechs (roster `hidden`) join the game roster; the

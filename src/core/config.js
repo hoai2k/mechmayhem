@@ -51,9 +51,14 @@ export const CONFIG = {
   // single view (distance haze blur, bloom, FXAA) — one composer per
   // viewport, each sized to its own rect. Total pixel work is about the same
   // as one full-screen chain (each view is a fraction of the screen), but the
-  // per-pass overhead multiplies, so ?postfx=single falls back to the old
-  // plain scissored renders on hardware that struggles.
-  splitPostFx: params.get('postfx') !== 'single',
+  // per-pass overhead multiplies (four bloom chains at 4P), so this is a
+  // TRI-STATE, defaulting to 'auto':
+  //   'auto' — run them, and drop them for the session if the frame rate
+  //            actually suffers (engine.js watches real frame time)
+  //   'on'   — always, whatever it costs
+  //   'off'  — never; plain scissored renders, as before
+  // ?postfx=auto|on|off|single ('single' is the old spelling of 'off').
+  splitPostFx: readSplitPost(),
 
   // ---- ULT FOUNTAINS (combat/fountains.js) ----
   // Ultimates are no longer charged by dealing/taking damage: golden powerup
@@ -102,6 +107,25 @@ export const CONFIG = {
     ? parseFloat(params.get('round'))
     : readNum('rw.roundTime', ROUND_DEFAULT, ROUND_MIN, ROUND_MAX)),
 };
+
+export const SPLIT_POST_MODES = ['auto', 'on', 'off'];
+
+function readSplitPost() {
+  const p = params.get('postfx');
+  if (p === 'single' || p === 'off') return 'off';
+  if (p === 'on' || p === 'auto') return p;
+  try {
+    const v = localStorage.getItem('rw.splitPostFx');
+    if (SPLIT_POST_MODES.includes(v)) return v;
+  } catch (e) { /* ok */ }
+  return 'auto';
+}
+
+export function setSplitPostFx(mode) {
+  CONFIG.splitPostFx = SPLIT_POST_MODES.includes(mode) ? mode : 'auto';
+  try { localStorage.setItem('rw.splitPostFx', CONFIG.splitPostFx); } catch (e) { /* ok */ }
+  return CONFIG.splitPostFx;
+}
 
 function readPref(key) {
   try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }

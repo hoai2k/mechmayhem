@@ -12,6 +12,7 @@ const _dir = new THREE.Vector3();
 const _probe = new THREE.Vector3();
 const _sweepA = new THREE.Vector3();
 const _sweepB = new THREE.Vector3();
+const _fwd = new THREE.Vector3(0, 0, 1);   // constant basis for faceVel orientation
 
 const VISUALS = {
   bullet: { geo: () => new THREE.SphereGeometry(0.22, 6, 5), scaleZ: 4, light: false },
@@ -316,7 +317,7 @@ export class ProjectileSystem {
       if (p.mesh.userData.vis.rot || p.gravity) this.orient(p);
       if (p.mesh.userData.vis.faceVel) {
         _dir.copy(p.vel).normalize();
-        p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), _dir);
+        p.mesh.quaternion.setFromUnitVectors(_fwd, _dir);
       }
       if (p.mesh.userData.vis.pulse) {
         const s = (1 + Math.sin(performance.now() * 0.02) * 0.15) * p.size;
