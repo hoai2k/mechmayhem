@@ -4073,3 +4073,57 @@ files were prefetched; the slider moving 22%→35%→40%→15% with the bar, the
 percentage and `rw.musicVol` all tracking; `?music=0` fetching nothing and
 reporting no soundtrack; `?prefetch=0` fetching nothing during the menus.
 `npx vite build` green both with and without `RW_NO_MUSIC=1`.
+
+## Arena props: the draw-call diet, the model diet, and a workbench to judge both (user request, 2026-07-28)
+
+"Can any of the arena props be simplified?" — measured first, then acted on.
+Instrumented a live fight in a headless browser (wrap `renderer.render`, sample
+`info.render`, then hide the props and sample again): on `neon` the props were
+~720 of the frame's 1,590 draw calls and 18k of its 568k triangles; on
+`scrapyard`, 455 of 550. Props were never a triangle problem. They are an
+OBJECT-COUNT problem — 46 placed props are 2,400 meshes, because each prop is a
+pile of little boxes and cylinders and the arena's toroidal wrap clones the
+whole prop group into the 8 neighbour cells.
+
+Three changes, each independently revertible:
+
+1. **mergePropMeshes** (`src/arena/props.js`) — once a prop is built, placed and
+   MEASURED, the meshes sharing a material are baked into one geometry. Runs
+   after `_regProp` (every collider, hazard radius and steam anchor is measured
+   off the individual meshes) and before the ghost clones (so all nine copies
+   get the cheap version). A named moving part (`userData.spinName`) is kept as
+   its own object and merged internally instead. Indices are preserved when
+   every part has them, so a 24-vertex box does not become 36. Measured across
+   the whole prop table: 961 objects → 404 (−58%), triangles and vertices
+   identical. `?props=raw` turns it off (`CONFIG.mergeProps`).
+
+2. **tools/propopt.mjs** — the 20 imported prop GLBs were image-to-3D output at
+   a density nobody chose: ~16k triangles each and three 1024² maps, 12.7 MB of
+   files and 320 MB of texture memory for the set. dedup + prune + weld +
+   meshopt decimation + 512² JPEGs + quantize/meshopt: 12.7 → 6.9 MB, 335k →
+   215k triangles, 320 → 80 MB of texture VRAM. The untouched originals MOVE to
+   `public/models/props/source/` rather than being overwritten;
+   `node tools/propopt.mjs --restore --apply` is the whole revert, and
+   `tools/dist.mjs` drops the archive from a distribution.
+
+3. **Per-theme prop preloading** (`src/arena/propglb.js`) — `preloadPropModels()`
+   used to fetch all 20 models at boot for an arena that shows one to three.
+   It now takes NAMES; `themePropNames(theme)` derives them from the theme's
+   scatter list, its authored placements and the viaduct piers, and boot asks
+   for those. Calling with no argument still means everything.
+
+**`/workbench/?edit=props`** is where the trade is judged rather than asserted:
+a dropdown over every prop, the original on the left and the optimized on the
+right, same scale and same light, turntable + wireframe, and a readout of
+objects / triangles / vertices / materials / texture resolution / texture VRAM /
+file size with the delta. ROUTE picks which optimization: `glb` stands the
+archived original beside the shipped model, `proc` stands the prop as authored
+beside the merged one. SCAN ALL PROPS totals the whole table. The tool imports
+no game code — it reads a new `props` section of the workbench contract that the
+robotworld adapter derives from `PROPS`, the prop manifest and the themes.
+
+Verified: `npx vite build` green, soaks on frozen / scrapyard / ruins crash-free,
+in-arena screenshots of the optimized GLBs (frozen's icebreaker, quonset huts and
+snowcat) and of merged-vs-raw props on neon, and the workbench's own side-by-side
+on toriiGate, icebreakerShip, campfire and substation. Frame draw calls on neon:
+1,529 → 1,231.

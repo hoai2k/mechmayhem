@@ -34,6 +34,11 @@ export const CONFIG = {
   // need — the song, the arena's textures, the models for RANDOM picks.
   // ?prefetch=0 disables. Implies `music` for the song part.
   prefetch: params.get('prefetch') !== '0',
+  // Bake each arena prop's sub-meshes together by material once it is placed
+  // and measured (src/arena/props.js mergePropMeshes) — same pixels, a
+  // fraction of the draw calls. ?props=raw keeps the props as authored, which
+  // is how the two are compared (/workbench/?edit=props).
+  mergeProps: params.get('props') !== 'raw',
 };
 
 function readPref(key) {

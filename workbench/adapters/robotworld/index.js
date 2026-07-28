@@ -31,6 +31,9 @@ import {
   blendPatch, weldedAdjacency, enclaveScan,
 } from '../../../src/mechs/skinops.js';
 import { buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } from '../../../src/combat/hurtbox.js';
+import { PROPS, mergePropMeshes } from '../../../src/arena/props.js';
+import { propManifest, loadPropModel, setPropAssetBase } from '../../../src/arena/propglb.js';
+import { THEMES, themePropNames } from '../../../src/arena/themes.js';
 import { Engine } from '../../../src/core/engine.js';
 import { World } from '../../../src/game/world.js';
 import { Input } from '../../../src/game/input.js';
@@ -40,13 +43,16 @@ import { mechClipList } from '../mechclips.js';
 import { anchorUses } from '../anchoruses.js';
 import { saveManifestPatch, saveRigBones } from '../../ui/save.js';
 
-// the manifest is read once and shared; every catalogue answer needs it
+// the manifests are read once and shared; every catalogue answer needs them
 let manifest = null;
+let propManifestData = null;
 export async function loadRobotworldConfig() {
-  // the workbench page lives one directory down (/workbench/), so point the
-  // asset resolver back at the game root before anything asks for a model
+  // the workbench page lives one directory down (/workbench/), so point both
+  // asset resolvers back at the game root before anything asks for a model
   setAssetBase('../');
+  setPropAssetBase('../');
   manifest = await fetchRawManifest();
+  propManifestData = await propManifest();
   return CONFIG;
 }
 
@@ -57,7 +63,11 @@ const CONFIG = defineWorkbenchConfig({
 
   // This game's models are MECHS. A port would say character / vehicle / prop
   // here and every panel title, picker label and status line follows.
-  vocab: { subject: 'mech', subjects: 'mechs', Subject: 'Mech', Subjects: 'Mechs' },
+  vocab: {
+    subject: 'mech', subjects: 'mechs', Subject: 'Mech', Subjects: 'Mechs',
+    // the arena dressing is a second kind of model with its own workbench
+    prop: 'prop', props: 'props', Prop: 'Prop', Props: 'Props',
+  },
 
   // the raw asset manifest, for the few tools that reason about entries
   // directly (which builds exist, is the rig on the primary or the alt)
@@ -155,6 +165,37 @@ const CONFIG = defineWorkbenchConfig({
   },
 
   hurtbox: { build: buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE },
+
+  // ARENA PROPS — the OTHER family of models this game ships. Not characters:
+  // no rig, no clips, no anchors, so they get their own small section rather
+  // than a second catalogue. Everything here is derived from the live prop
+  // table, the prop GLB manifest and the themes, so a prop added to
+  // src/arena/props.js is in the props workbench on the next reload.
+  props: {
+    list: () => Object.keys(PROPS).map((name) => ({
+      id: name,
+      name,
+      hasModel: !!propManifestData?.[name],
+      themes: THEMES.filter((t) => themePropNames(t).includes(name)).map((t) => t.id),
+    })),
+    // the prop as the game builds it: a group of small sculpted meshes
+    build: (name, opts = {}) => (PROPS[name] ? PROPS[name]({ seed: 12345, ...opts }) : null),
+    // …and the same group after the draw-call merge the arena applies
+    merge: (group) => mergePropMeshes(group),
+    // where the two GLBs live, relative to the workbench page: the shipped
+    // (optimized) model, and the untouched original tools/propopt.mjs archived
+    url: (name, which = 'optimized') => {
+      const entry = propManifestData?.[name];
+      if (!entry?.file) return null;
+      return which === 'source'
+        ? `../models/props/source/${entry.file}`
+        : `../models/props/${entry.file}`;
+    },
+    entry: (name) => propManifestData?.[name] || null,
+    // the loader + fitting rule the game itself uses, so what the workbench
+    // stands on the stage is scaled and seated exactly like the in-game prop
+    load: (name, which) => loadPropModel(name, which === 'source' ? 'source' : 'optimized'),
+  },
 
   // measurement helpers the tools need but that are engine-shaped, not
   // game-shaped: a skinned model's real (posed) bounds, and where its head

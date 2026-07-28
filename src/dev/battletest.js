@@ -2,7 +2,7 @@
 //   ?battle=foundry&p1=titanus&p2=viper&p3=vulcan&auto=1
 // auto=1 makes P1 an AI too (spectator soak test).
 import { Engine } from '../core/engine.js';
-import { THEMES_BY_ID, THEMES } from '../arena/themes.js';
+import { THEMES_BY_ID, THEMES, themePropNames } from '../arena/themes.js';
 import { ROSTER_BY_ID, ROSTER } from '../mechs/roster.js';
 import { applyColorScheme } from '../mechs/colorscheme.js';
 import { Fighter } from '../combat/fighter.js';
@@ -33,8 +33,12 @@ export async function runBattleTest() {
   // the real match preloads prop GLBs + building donors before the arena
   // builds (boot.js) — the harness must too, or every ?battle screenshot
   // and soak silently exercises the procedural fallbacks instead of what
-  // actually ships (same reason mechs go through createMech below)
-  await Promise.all([preloadPropModels(), preloadBuildingModels()]);
+  // actually ships (same reason mechs go through createMech below). Props are
+  // asked for BY THEME, exactly as boot.js asks for them.
+  await Promise.all([
+    preloadPropModels(themePropNames(theme)),
+    preloadBuildingModels(),
+  ]);
 
   const engine = new Engine(document.getElementById('game-canvas'));
   const input = new Input();

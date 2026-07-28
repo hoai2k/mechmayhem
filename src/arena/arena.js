@@ -5,7 +5,7 @@ import { DestructibleSystem } from './destructible.js';
 import { Terrain } from './terrain.js';
 import { generateMassing, THEME_MASSING } from './massing.js';
 import { buildingDonors } from './buildglb.js';
-import { PROPS, PROP_MATS, placeProp } from './props.js';
+import { PROPS, PROP_MATS, placeProp, mergePropMeshes } from './props.js';
 import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
@@ -450,6 +450,13 @@ export class Arena {
           }
         }
       }
+    }
+    // Bake each prop's sub-meshes together by material. AFTER the placement
+    // loops above, because every collider, hazard radius and steam anchor is
+    // measured off the individual meshes, and BEFORE the ghost clones below,
+    // so all nine copies of the arena get the cheap version.
+    if (CONFIG.mergeProps) {
+      for (const g of this.propGroup.children) mergePropMeshes(g);
     }
     // ghost copies of the props in the 8 neighbor cells (static)
     {

@@ -113,6 +113,15 @@ console.log(`  hidden mechs: ${hidden.join(', ') || '(none)'}`);
 console.log(`  dropped entries: ${dropped.join(', ') || '(none)'} · alt entries stripped: ${altCount}`);
 console.log(`  removed ${removedFiles} GLB files, ${MB(removedBytes)}`);
 
+// the arena props' pre-optimization originals (tools/propopt.mjs) are an
+// authoring archive and a workbench comparison — the game never loads them
+const propSrc = path.join(modelsDir, 'props/source');
+if (fs.existsSync(propSrc)) {
+  const bytes = dirSize(propSrc);
+  fs.rmSync(propSrc, { recursive: true, force: true });
+  console.log(`  removed prop source archive, ${MB(bytes)}`);
+}
+
 // ---------------------------------------------------- 3. compress the models
 const modelRows = [];
 if (DO_MODELS) {

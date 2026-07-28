@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Engine } from '../core/engine.js';
 import { Input } from './input.js';
-import { THEMES_BY_ID } from '../arena/themes.js';
+import { THEMES_BY_ID, themePropNames } from '../arena/themes.js';
 import { ROSTER_BY_ID, playableRoster } from '../mechs/roster.js';
 import { applyColorScheme, SCHEME_COUNT } from '../mechs/colorscheme.js';
 import { Fighter } from '../combat/fighter.js';
@@ -45,9 +45,10 @@ export async function bootGame() {
   // decide spinner-vs-procedural synchronously. Skipped under ?debug=fallback,
   // where is3dMode() is false and the whole roster stays procedural.
   if (is3dMode()) { try { await loadManifest(); } catch (e) { /* falls back to procedural */ } }
-  // arena prop models + building donors (Tripo GLBs) warm in the background —
-  // any arena built before they land keeps its procedural props / massing
-  preloadPropModels();
+  // Building donors (Tripo GLBs) warm in the background — any arena built
+  // before they land keeps its procedural massing. The arena PROPS are not
+  // warmed here: which of them are wanted depends on the theme, and that is
+  // not known until a battle starts (see startBattle).
   preloadBuildingModels();
 
   let audio;
@@ -387,14 +388,13 @@ export async function bootGame() {
     S.mode = 'battle';
 
     const theme = THEMES_BY_ID[S.themeId];
-    // give the arena-prop GLBs a window to finish warming (direct ?battle=
-    // URLs build the arena within seconds of boot; from the menus the
-    // preload has long finished and this resolves instantly) — never a hard
-    // gate, the procedural props always work. 1.5s wasn't enough for all 20
-    // models on slow renderers, which silently left a random subset
-    // procedural.
+    // Warm the prop GLBs THIS arena places — one to three models, not the
+    // whole set, so the wait is short and nothing downloads for an arena the
+    // player never picked. Never a hard gate: the procedural props always
+    // work, and anything still in flight when the timeout fires simply stays
+    // procedural for this match.
     await Promise.race([
-      Promise.all([preloadPropModels(), preloadBuildingModels()]),
+      Promise.all([preloadPropModels(themePropNames(theme)), preloadBuildingModels()]),
       new Promise((r) => setTimeout(r, 8000)),
     ]);
     // shared world/arena/camera wiring (arenaObjs = everything the arena

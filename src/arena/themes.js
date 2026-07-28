@@ -531,3 +531,16 @@ export const THEMES = [
 THEMES.forEach(applyArenaText);
 
 export const THEMES_BY_ID = Object.fromEntries(THEMES.map((t) => [t.id, t]));
+
+/**
+ * Every prop name this theme can place — its scatter list, plus the exact
+ * placements of an authored level, plus the viaduct piers the terrain adds on
+ * its own. This is what the prop-GLB preload asks for, so an arena downloads
+ * the one to three models it actually shows instead of the whole set.
+ */
+export function themePropNames(theme) {
+  const names = new Set(['viaductPylon']);
+  for (const p of theme?.props || []) if (p?.name) names.add(p.name);
+  for (const o of theme?.authored || []) if (o?.k === 'prop' && o.name) names.add(o.name);
+  return [...names];
+}
