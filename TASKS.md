@@ -4368,3 +4368,14 @@ release, free descent roll costs 0.00, a plain jump shows `landReach → land`
 at touchdown, and the tucked touchdown still goes prone. Screenshots judged
 across body types (viper, titanus, saurion, cranky, fenrir, colossus,
 frogger, jerry) on GLB + procedural routes.
+
+## RENAME: MECH MAYHEM — ROBOT BATTLE ARENA
+
+The game is called MECH MAYHEM now, subtitle ROBOT BATTLE ARENA. Four strings
+carried the old name: `title.game` / `title.tagline` / `app.title` /
+`app.rotate.sub` in the text catalogue, plus the static boot splash and <title>
+in index.html (they show before text.js loads, so they carry the words
+themselves). Everything else reads through the catalogue and follows. Logo
+restyle pending — eight treatments mocked and sent for a pick (current chrome
+blue · gritty stencil · mirror chrome · molten · neon · heavy slab · organic ·
+military plate).

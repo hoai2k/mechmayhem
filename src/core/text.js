@@ -22,13 +22,13 @@
 
 export const MESSAGES = {
   // ---------------------------------------------------------------- document
-  'app.title': 'ROBOTWORLD — Mech Battle Arena',
+  'app.title': 'MECH MAYHEM — Robot Battle Arena',
   'app.rotate.title': 'Rotate your device',
-  'app.rotate.sub': 'ROBOTWORLD plays best in landscape',
+  'app.rotate.sub': 'MECH MAYHEM plays best in landscape',
 
   // ------------------------------------------------------------------- title
-  'title.game': 'ROBOTWORLD',
-  'title.tagline': 'MECH BATTLE ARENA',
+  'title.game': 'MECH MAYHEM',
+  'title.tagline': 'ROBOT BATTLE ARENA',
   'title.menu.battle': 'BATTLE',
   'title.menu.fullscreen': 'FULLSCREEN',
   'title.hint.html': '<b>↑↓</b> select&nbsp;&nbsp;<b>ENTER / A</b> confirm&nbsp;&nbsp;·&nbsp;&nbsp;<b>LB / RB</b> (Q/E) settings · sound&nbsp;&nbsp;·&nbsp;&nbsp;pad <b>SELECT</b> mouse pointer&nbsp;&nbsp;·&nbsp;&nbsp;P1 <b>WASD</b> + <b>F G H R T Y</b> · <b>SPACE</b> jump · <b>SHIFT</b> dash',
