@@ -8,7 +8,16 @@ const params = typeof location !== 'undefined'
 export const SPEED_MIN = 0.5;
 export const SPEED_MAX = 2.0;
 export const SPEED_STEP = 0.05;
-export const SPEED_DEFAULT = 1.2;
+export const SPEED_DEFAULT = 1.0;
+
+// Round length slider bounds, in SECONDS.
+export const ROUND_MIN = 30;
+export const ROUND_MAX = 300;
+export const ROUND_STEP = 10;
+export const ROUND_DEFAULT = 120;
+
+const clampRound = (v) => (Number.isFinite(v)
+  ? Math.round(Math.min(ROUND_MAX, Math.max(ROUND_MIN, v))) : ROUND_DEFAULT);
 
 // Snapped to whole percent as well as clamped: stepping by 0.05 in binary
 // floating point otherwise banks visible crumbs (1.45 stored as
@@ -68,16 +77,22 @@ export const CONFIG = {
   mergeProps: params.get('props') !== 'raw',
 
   // ROBOT SPEED: a global multiplier on how fast every fighter WALKS, RUNS
-  // and FLIES, over the per-mech speeds tuned in the roster. The DEFAULT is
-  // 1.2 — the game moves 20% quicker than the stats alone say — so the
-  // slider's 1.0 is the older, slower baseline and the relative pace of the
-  // roster (a nimble tempest against a lumbering colossus) is untouched
-  // either way. Attacks, dashes and the speeds written into special moves
-  // are deliberately NOT scaled: this is a locomotion dial, not a game-speed
+  // and FLIES, over the per-mech speeds tuned in the roster. 100% is now the
+  // DEFAULT pace and that pace is TWICE what it used to be — the doubling
+  // lives in fighter.js SPEED_BASE, so the slider reads a clean 100% at the
+  // shipped feel and the old pace is 50%. The relative pace of the roster (a
+  // nimble tempest against a lumbering colossus) is untouched at any
+  // setting. Attacks, dashes and the speeds written into special moves are
+  // deliberately NOT scaled: this is a locomotion dial, not a game-speed
   // dial. Settings slider, persisted; ?speed=<n> overrides for a session.
   robotSpeed: clampSpeed(params.get('speed') !== null
     ? parseFloat(params.get('speed'))
     : readNum('rw.robotSpeed', SPEED_DEFAULT, SPEED_MIN, SPEED_MAX)),
+  // ROUND TIME in seconds — the countdown a round times out on (match.js).
+  // Settings slider, persisted; ?round=<secs> overrides for a session.
+  roundTime: clampRound(params.get('round') !== null
+    ? parseFloat(params.get('round'))
+    : readNum('rw.roundTime', ROUND_DEFAULT, ROUND_MIN, ROUND_MAX)),
 };
 
 function readPref(key) {
@@ -104,6 +119,12 @@ export function setMusicVolume(v) {
 export function setReverseCameraY(on) {
   CONFIG.reverseCameraY = on;
   try { localStorage.setItem('rw.reverseCamY', on ? '1' : '0'); } catch (e) { /* ok */ }
+}
+
+export function setRoundTime(v) {
+  CONFIG.roundTime = clampRound(parseFloat(v));
+  try { localStorage.setItem('rw.roundTime', String(CONFIG.roundTime)); } catch (e) { /* ok */ }
+  return CONFIG.roundTime;
 }
 
 export function setRobotSpeed(v) {

@@ -131,6 +131,8 @@ export const MESSAGES = {
   'settings.musicVol': 'MUSIC VOLUME {bar} {pct}%',
   // how fast every robot walks / runs / flies; 100% is the old baseline pace
   'settings.robotSpeed': 'ROBOT SPEED {bar} {pct}%',
+  // seconds on the round clock before a timeout
+  'settings.roundTime': 'ROUND TIME {bar} {secs}s',
   'settings.btn.sound': 'sound on/off',
   'settings.btn.settings': 'settings',
   'settings.btn.instructions': 'how to play',

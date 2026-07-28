@@ -52,6 +52,24 @@ const DEFAULT_ENGAGE_DIST = 25;
 const SPRINT_MULT = 1.6;   // ground-speed multiplier while sprinting (hold B on the move)
 const SPRINT_MAX = 3.2;    // seconds of sprint in a full tank
 const SPRINT_REGEN = 0.6;  // tank refill rate (per second) while not sprinting
+// ---- stamina tank costs (the same bar the sprint drains — HUD 'sprintFill').
+// Sprint spends it at 1.0/s by construction; these are the other draws.
+const BLOCK_DRAIN = 0.55;    // per second of held guard
+const BLOCK_DASH_MULT = 2.2; // dash cost multiplier while the guard is up
+const DASH_COST = 0.3;       // per dash — was free, but a dash used to commit
+                             // you to the sprint tank, and DASH_COOLDOWN is
+                             // cut alongside this so dashing nets out CHEAPER
+const BLOCK_MOVE_MULT = 0.5; // you may walk while guarding, at half pace
+// The half-arc a raised guard covers, as a COSINE. takeHit tests the same
+// arc in radians (|angleDiff| < 1.5); the bubble shader fades out past it,
+// so what you see covered is exactly what is covered.
+const BLOCK_ARC_COS = Math.cos(1.5);
+// Global pace: the shipped feel is TWICE the old default, expressed here
+// rather than in the slider so ROBOT SPEED still reads a clean 100% at the
+// default. The old default was WALK_MULT x 1.2, so doubling it is
+// WALK_MULT x 2.4 — which puts the previous pace at exactly 50% on the
+// slider and the old pre-slider baseline at ~42%.
+const SPEED_BASE = 2.4;
 const PUNCH_HOLD_CAP = 1.8; // seconds to fully bank a held haymaker
 const HEAVY_HOLD_CAP = 2.4; // seconds to fully bank a held heavy
 // Minimum wind-up on a charge attack. Every other melee clip in the game opens
@@ -73,7 +91,7 @@ const HITSTUN_LIGHT = 0.24;
 const SOFT_FLINCH_CHANCE = 0.35; // rapid-tick chip: odds per tick of a torso rock (never stun-locks)
 const DASH_SPEED_MULT = 4.2;     // dash burst = stats.speed x this (a full coil nearly doubles it again)
 const DASH_CHARGE_BOOST = 0.95;
-const DASH_COOLDOWN = 0.9;
+const DASH_COOLDOWN = 0.6;   // was 0.9 — dashing draws down less than it did
 const ESCAPE_JUMP_MULT = 2.6;    // knockdown escape spring: ground speed x this
 const ESCAPE_JUMP_VY = 13;
 // ---- ROLLOVER (roster `rollover` — CRANKY) ----
@@ -417,7 +435,7 @@ export class Fighter {
   // no help: animator.js drives the stride off ACTUAL ground speed, so faster
   // travel strides faster instead of skating.
   moveSpeed() {
-    return this.def.stats.speed * WALK_MULT * CONFIG.robotSpeed;
+    return this.def.stats.speed * WALK_MULT * SPEED_BASE * CONFIG.robotSpeed;
   }
 
   speedMult() {
@@ -459,7 +477,12 @@ export class Fighter {
     // hold-to-charge haymaker (TITANUS/COLOSSUS): the wind-up pose HOLDS
     // while X stays down; the punch itself fires on release (updatePunchHold)
     if (this.def.punchHold) {
-      this._moveAttack = false; // rooted wind-up haymaker
+      // The WIND-UP travels: a punchHold mech (titanus, colossus) can keep
+      // walking and running while the fist is cocked, instead of the hold
+      // rooting them for its whole duration. The RELEASE still plants —
+      // updatePunchHold drops _moveAttack as it throws, and the release's
+      // own charge-lunge owns the step-through.
+      this._moveAttack = true;
       // Alternate arms every wind-up, so both fists get used. This rides its
       // OWN flip rather than comboIdx: updatePunchHold bumps comboIdx on release
       // but never opens a comboWindow, so the combo-expiry reset zeroed it again
@@ -876,6 +899,10 @@ export class Fighter {
   // an uncharged tap is the classic dodge, a full coil is a screaming lunge
   doDash(charge = 0) {
     if (this.dashCd > 0 && charge < 0.2) return;
+    // stamina: a small flat bite, MULTIPLIED if the guard is up — burning
+    // the tank two ways at once is meant to be expensive
+    this.sprintEnergy = Math.max(0,
+      this.sprintEnergy - DASH_COST * (this.blocking ? BLOCK_DASH_MULT : 1));
     const k = clamp(charge / CHARGE_DASH_MAX, 0, 1);
     const ix = this.intent.moveX, iz = this.intent.moveZ;
     let dir;
@@ -1312,7 +1339,9 @@ export class Fighter {
       fullFx: () => this.world.effects.rings.spawn(this.pos, { from: 0.5, to: 3.5, dur: 0.3, color: this.def.colors.glow, y: 0.5 }),
     });
     if (k === null) return;
-    // released: throw the banked punch
+    // released: throw the banked punch. The wind-up was mobile; the throw
+    // is not — plant for the swing itself.
+    this._moveAttack = false;
     const mv = this.def.moves.light;
     this.faceNearestEnemyIfClose(12);
     // A hold->release handover must NOT cross-fade. The animator keeps a single
@@ -1795,8 +1824,11 @@ export class Fighter {
             dirX, dirZ, dLen, knock * (0.25 + pass) * 0.5, this.center(), 0x7fd8ff);
           return;
         }
-        // guard beaten: orange spark, a jolt of extra hitstun, full damage
+        // GUARD BEATEN — the bubble bursts into shards so it is obvious the
+        // hit went THROUGH a block rather than around one: full damage, a
+        // jolt of extra hitstun, orange spark
         this.world.effects.blockSpark(this.center(), 0xff5a3c);
+        this.burstGuardShield();
         this.world.audio?.play(shattered ? 'hitHeavy' : 'hit');
         if (shattered) { knock *= 1.15; heavy = true; }
       }
@@ -2518,7 +2550,15 @@ export class Fighter {
 
     // ---- intents ----
     const acting = this.canAct();
-    this.blocking = acting && I.block; // blocking works airborne/hovering too
+    // Blocking works airborne/hovering too — and now runs on the STAMINA
+    // tank rather than being free and unlimited. An empty tank drops the
+    // guard and holding LT can't raise it again until some has refilled, so
+    // a turtle has to breathe.
+    this.blocking = acting && I.block && (this.sprintEnergy > 0 || this.blocking);
+    if (this.blocking) {
+      this.sprintEnergy = Math.max(0, this.sprintEnergy - BLOCK_DRAIN * dt);
+      if (this.sprintEnergy <= 0) this.blocking = false;
+    }
 
     // ---- B button, two personalities by whether you're moving ----
     // STANDING STILL + hold: crouch and wind up a dash coil (up to
@@ -2583,7 +2623,8 @@ export class Fighter {
     if (this.sprinting) {
       this.sprintEnergy = Math.max(0, this.sprintEnergy - dt);
       if (this.sprintEnergy <= 0) this._sprintHold = false; // winded — re-press once it refills
-    } else if (!this._sprintHold) {
+    } else if (!this._sprintHold && !this.blocking) {
+      // the tank only refills with the guard DOWN and the sprint released
       this.sprintEnergy = Math.min(this.sprintEnergyMax, this.sprintEnergy + dt * SPRINT_REGEN);
     }
 
@@ -2715,9 +2756,11 @@ export class Fighter {
     // basic light/heavy keep locomotion (jab clips are upper-body, and running
     // momentum feeds the kinetic-impact model); holds, specials, ults, ranged
     // and blocking still root you, and charging a dash just winds slower
-    const canMove = (this.state === 'normal' || this.state === 'channel' ||
-      (this.state === 'attack' && this._moveAttack)) &&
-      !this.blocking;
+    // A raised guard no longer ROOTS you: you may walk while blocking, at
+    // half pace (applyPhysics' BLOCK_MOVE_MULT), so a guard is a fighting
+    // stance you can carry rather than a decision to stand still.
+    const canMove = this.state === 'normal' || this.state === 'channel' ||
+      (this.state === 'attack' && this._moveAttack);
     if (canMove) {
       ax = I.moveX; az = I.moveZ;
       const len = Math.hypot(ax, az);
@@ -2891,8 +2934,10 @@ export class Fighter {
     this.updateHeavySignature(dt);
     // ---- generic special FX: scripted joint whirls / grows (bulwark bash) ----
     this.updateSpecialFx(dt);
-    // ---- air somersault: post-pose hips tumble + bubble (see startAirRoll) ----
+    // ---- air somersault: post-pose hips tumble (see startAirRoll) ----
     this.updateAirRoll(dt);
+    // ---- guard bubble: air-roll sphere or the block's forward arc ----
+    this.updateGuardShield(dt);
     // ---- thrown weapons re-forging in the grip ----
     this.updateRegrow(dt);
     // ---- poison bites: red flush + a flinch each time a wound opens ----
@@ -2928,26 +2973,108 @@ export class Fighter {
     this._airRoll = { t: 0, spin: 0, ending: false, endAt: 0 };
     this.animator.play('block'); // the tuck: arms in, guard read
     this.world.audio?.play('whoosh');
-    // a mech rebuild (colossal form) discarded the old group — and the
-    // bubble that was parented to it
-    if (this._rollShield && this._rollShield.parent !== this.group) this._rollShield = null;
-    if (!this._rollShield) {
-      const geo = new THREE.SphereGeometry(1, 20, 14);
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0x7fd8ff, transparent: true, opacity: 0.13,
-        blending: THREE.AdditiveBlending, depthWrite: false,
-      });
-      this._rollShield = new THREE.Mesh(geo, mat);
-      this.group.add(this._rollShield);
-    }
-    this._rollShield.visible = true;
   }
 
   endAirRoll() {
     if (!this._airRoll) return;
     this._airRoll = null;
-    if (this._rollShield) this._rollShield.visible = false;
     if (this.animator.isPlaying('block')) this.animator.stop(0.15);
+  }
+
+  // ================= guard bubble =================
+  // One shared sphere shield, worn by BOTH guards:
+  //   • the air somersault covers every angle (a tumbling ball has no front)
+  //   • a standing block covers only the arc it actually defends, and fades
+  //     to nothing behind — the exposed back is visibly exposed, which is
+  //     the same ±1.5 rad takeHit tests, drawn
+  // `cover` is the cosine of the half-arc: -1 shows the whole sphere, 0.07
+  // is the block's own arc. Parented to the fighter's group, so local +Z is
+  // wherever the body faces and the shader needs no per-frame uniform for it.
+  guardShield() {
+    // a mech rebuild (colossal form) discards the group the bubble hung on
+    if (this._shield && this._shield.parent !== this.group) this._shield = null;
+    if (!this._shield) {
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+          uCover: { value: -1 }, uAlpha: { value: 0.13 },
+          uColor: { value: new THREE.Color(0x7fd8ff) },
+        },
+        vertexShader: `
+          varying vec3 vLocal;
+          varying vec3 vView;
+          void main() {
+            vLocal = normalize(position);
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vView = normalize(-mv.xyz);
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          uniform float uCover; uniform float uAlpha; uniform vec3 uColor;
+          varying vec3 vLocal;
+          varying vec3 vView;
+          void main() {
+            // coverage: 1 dead ahead, feathered out to nothing past the arc
+            float cov = smoothstep(uCover - 0.30, uCover + 0.28, vLocal.z);
+            // rim light: the silhouette edge reads as a surface, the middle
+            // stays glassy enough to see the mech through it
+            float rim = pow(1.0 - abs(dot(normalize(vView), vLocal)), 2.0);
+            float a = uAlpha * cov * (0.35 + 1.5 * rim);
+            if (a < 0.002) discard;
+            gl_FragColor = vec4(uColor, a);
+          }`,
+      });
+      this._shield = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), mat);
+      this._shield.visible = false;
+      this.group.add(this._shield);
+    }
+    return this._shield;
+  }
+
+  // Size and show the bubble for this frame. cover: -1 for the full sphere,
+  // or the cosine of the guard arc. Called from updateGuardShield only.
+  showGuardShield(cover, pulse) {
+    const s = this.guardShield();
+    s.visible = true;
+    const R = this.height * 0.62;
+    s.scale.setScalar(R * (1 + 0.035 * Math.sin(pulse * 9)));
+    s.position.set(0, this.height * 0.52, 0);
+    s.material.uniforms.uCover.value = cover;
+    s.material.uniforms.uAlpha.value = 0.13 + 0.035 * Math.sin(pulse * 7);
+  }
+
+  hideGuardShield() { if (this._shield) this._shield.visible = false; }
+
+  // The bubble follows whichever guard is actually up, every frame — the air
+  // roll's full sphere wins over a standing block if somehow both are on.
+  updateGuardShield(dt) {
+    this._guardT = (this._guardT || 0) + dt;
+    if (this._airRoll && !this._airRoll.ending) this.showGuardShield(-1.05, this._guardT);
+    else if (this.blocking && this.alive) this.showGuardShield(BLOCK_ARC_COS, this._guardT);
+    else this.hideGuardShield();
+  }
+
+  // GUARD BROKEN: the bubble bursts. Called from takeHit whenever something
+  // beat the guard that the guard was nominally covering (a crouching attack
+  // slipping under, a guard-breaking pounce), so the player can see WHY the
+  // damage went through instead of only that it did.
+  burstGuardShield() {
+    const fx = this.world.effects;
+    const c = this.center();
+    const R = this.height * 0.62;
+    fx.rings.spawn(this.pos, { from: R * 0.6, to: R * 2.6, dur: 0.34, color: 0xff7a4c, y: this.height * 0.5 });
+    // shards flung off the sphere's own surface, not a puff at the middle
+    for (let i = 0; i < 22; i++) {
+      const a = rand(TAU), z = rand(-1, 1), rr = Math.sqrt(Math.max(0, 1 - z * z));
+      const nx = Math.cos(a) * rr, ny = z, nz = Math.sin(a) * rr;
+      fx.glows.emit(c.x + nx * R, c.y + ny * R * 0.9, c.z + nz * R,
+        nx * 11, ny * 11 + 2, nz * 11,
+        { life: rand(0.25, 0.5), size: rand(0.35, 0.8) * this.scale, color: i % 2 ? 0xff9a5c : 0x7fd8ff, alpha: 0.95, grow: -1 });
+    }
+    fx.impactSparks(c, 0xff7a4c, 10, 9);
+    this.world.audio?.play('hitHeavy');
+    this.hideGuardShield();
   }
 
   // Post-pose (called beside updateSpecialFx): the spin is written onto the
@@ -2962,16 +3089,19 @@ export class Fighter {
       this.endAirRoll();
       return;
     }
-    const SPIN = 12.5;                       // rad/s — a tight ~2 turns/s
+    // ~6 turns/s. The faster the tumble, the SHORTER the tail between
+    // letting go and arriving upright — a release still has to finish its
+    // current turn, so a quick spin is also the one that lands cleanly.
+    const SPIN = 37.5;
     r.t += dt;
     const rate = SPIN * Math.min(1, r.t / 0.16);  // snappy ramp-in
     if (!r.ending && !this.intent.jumpHeld) {
       // released: finish the CURRENT turn at speed — the body arrives back
       // upright at exactly 2π, which IS the blend back to normal — and the
-      // bubble drops now, not at the end of the turn
+      // bubble drops now (updateGuardShield reads `ending`), not at the end
+      // of the turn
       r.ending = true;
       r.endAt = Math.ceil(r.spin / TAU - 0.02) * TAU;
-      if (this._rollShield) this._rollShield.visible = false;
     }
     r.spin += rate * dt;
     if (r.ending && r.spin >= r.endAt) {
@@ -2980,13 +3110,6 @@ export class Fighter {
     }
     const j = this.mech.joints.hips;
     if (j) j.rotation.x += r.ending ? Math.min(r.spin, r.endAt) : r.spin;
-    if (this._rollShield?.visible) {
-      // subtle: a faint breathing bubble around the body's middle
-      const R = this.height * 0.62;
-      this._rollShield.scale.setScalar(R * (1 + 0.04 * Math.sin(r.t * 9)));
-      this._rollShield.position.set(0, this.height * 0.52, 0);
-      this._rollShield.material.opacity = 0.10 + 0.04 * Math.sin(r.t * 7);
-    }
     // spin trail: the tumble reads at speed even in a far camera
     this._rollFxT = (this._rollFxT ?? 0) - dt;
     if (this._rollFxT <= 0) {
@@ -3140,7 +3263,7 @@ export class Fighter {
 
   applyPhysics(dt, ax, az) {
     const speedCap = this.moveSpeed() * this.speedMult() *
-      (this.sprinting ? SPRINT_MULT : 1) *
+      (this.sprinting ? SPRINT_MULT : 1) * (this.blocking ? BLOCK_MOVE_MULT : 1) *
       (this.state === 'channel' ? 0.45 : 1) * (1 - 0.55 * this.duckT);
 
     if (this.state !== 'dash') {

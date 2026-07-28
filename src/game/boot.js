@@ -15,6 +15,7 @@ import { InstructionsScreen } from '../ui/instructions.js';
 import {
   CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY,
   setRobotSpeed, SPEED_MIN, SPEED_MAX, SPEED_STEP,
+  setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
 } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
@@ -156,6 +157,14 @@ export async function bootGame() {
       }),
       slide: (d) => setRobotSpeed(
         Math.round((CONFIG.robotSpeed + d * SPEED_STEP) / SPEED_STEP) * SPEED_STEP),
+    },
+    {
+      // ←→ sets the round clock in seconds; takes effect from the next round
+      label: () => t('settings.roundTime', {
+        bar: volBar((CONFIG.roundTime - ROUND_MIN) / (ROUND_MAX - ROUND_MIN)),
+        secs: CONFIG.roundTime,
+      }),
+      slide: (d) => setRoundTime(CONFIG.roundTime + d * ROUND_STEP),
     },
     {
       // which way the right stick pitches the battle camera (camera.js)
