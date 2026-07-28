@@ -1,13 +1,15 @@
 // Renderer, scene, camera, lighting rig, post-processing, game loop.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { HazeRenderPass } from './hazeblur.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { clamp } from './utils.js';
+
+const _bufSize = new THREE.Vector2();
 import { showContextLost, WebGLUnavailableError } from './fatal.js';
 
 export class Engine {
@@ -79,9 +81,13 @@ export class Engine {
     this.scene.add(this.rim);
 
     // ---- post-processing ----
+    // The scene render and the DISTANCE HAZE BLUR are one pass
+    // (core/hazeblur.js): fog that softens silhouettes instead of only
+    // greying them. It runs before bloom, so bloom sees the hazed image.
     this.composer = new EffectComposer(this.renderer);
-    this.renderPass = new RenderPass(this.scene, this.camera);
-    this.composer.addPass(this.renderPass);
+    this.haze = new HazeRenderPass(this.scene, this.camera);
+    this.renderPass = this.haze;   // it IS the scene render
+    this.composer.addPass(this.haze);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.5, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -94,6 +100,7 @@ export class Engine {
     this.onBeforeView = null;  // (camera) => {} pre-render per view (wrap shifting)
     this.onAfterView = null;   // () => {} post-render per view
     this.timeScale = 1;
+    this.hazeStrength = 1;     // distance-haze blur multiplier (0 = off)
     this.hitStop = 0;          // seconds of near-freeze remaining
     this.elapsed = 0;
     this.onUpdate = null;      // (dt) => {} game-time step
@@ -113,6 +120,7 @@ export class Engine {
     this.camera.updateProjectionMatrix();
     const pr = this.renderer.getPixelRatio();
     this.fxaa.material.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
+    this.haze.uniforms.uTexel.value.set(1 / (w * pr), 1 / (h * pr));
   }
 
   start() {
@@ -170,6 +178,17 @@ export class Engine {
       } else {
         if (this.backdrop) this.backdrop.position.set(this.camera.position.x, 0, this.camera.position.z);
         this.onBeforeView?.(this.camera);
+        // the haze band tracks whatever fog the current arena installed
+        const u = this.haze.uniforms;
+        u.uCamNear.value = this.camera.near;
+        u.uCamFar.value = this.camera.far;
+        const fog = this.scene.fog;
+        u.uFogNear.value = fog ? fog.near : 1e9;
+        u.uFogFar.value = fog ? fog.far : 1e9;
+        // blur radius scales with resolution so the softening reads the same
+        // at 720p and 4K (hazeStrength is a debug/tuning multiplier)
+        const px = this.renderer.getDrawingBufferSize(_bufSize).y;
+        u.uRadius.value = fog ? clamp(px * 0.009, 2.5, 12) * this.hazeStrength : 0;
         this.composer.render();
         this.onAfterView?.();
       }

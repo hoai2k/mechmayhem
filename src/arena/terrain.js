@@ -729,12 +729,19 @@ export class Terrain {
         first = false;
       }
     }
-    // scatter the rest: mid-field solo cover + outer ring
+    // scatter the rest: mid-field solo cover, outer ring, and the SEAM RING
+    // — the band between the play radius and the wrap edge used to be left
+    // empty, which is exactly what turned half the sightlines into open
+    // corridors onto the next tile's (heavily fogged) skyline. Filling it
+    // means the near city occludes the far one.
+    const seamMax = Math.min(this.B * 1.3, this.P / 2 - 16);
     let guard = 0;
-    while (sites.length < totalCount && guard++ < 220) {
-      const inner = sites.length % 3 === 0;
+    while (sites.length < totalCount && guard++ < 320) {
+      const band = sites.length % 3;
       const a = rng.range(0, TAU);
-      const r = inner ? rng.range(this.clearing + 8, this.B * 0.6) : rng.range(this.B * 0.7, this.B * 1.02);
+      const r = band === 0 ? rng.range(this.clearing + 8, this.B * 0.6)
+        : band === 1 ? rng.range(this.B * 0.7, this.B * 1.02)
+          : rng.range(this.B * 1.0, Math.max(this.B * 1.02, seamMax));
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (okSite(x, z, 17)) sites.push({ x, z, cluster: -1, tall: false });
     }

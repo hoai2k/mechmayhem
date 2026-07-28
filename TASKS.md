@@ -12,7 +12,29 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** ULT FOUNTAINS — ultimates are no longer charged by dealing or
+- **Latest:** DISTANCE BLUR + CITY DENSITY — two fixes to "the fog looks
+  wrong". (1) three's fog only lerps colour, so a far tower went grey with a
+  razor silhouette. `src/core/hazeblur.js` adds a HazeRenderPass (it IS the
+  scene render, into a target carrying its own depth texture) that blurs each
+  fragment by how deep into the fog band it sits, tapering back to zero past
+  the fog wall so the sky pano and horizon strip stay crisp. Radius scales
+  with resolution; `engine.hazeStrength` is the tuning dial. NOTE: only the
+  composer path runs it — split-screen renders scissored views directly and
+  has always skipped post (bloom, FXAA too). (2) The real cause of "buildings
+  in my line of sight are fogged": `tools/sightprobe.mjs` measured 18 of 36
+  sightlines running clear to the wrap seam, so what those corridors showed
+  was the NEXT TILE's city, correctly fogged. Buildings per arena 18 → up to
+  30, placement now reaches into the previously-empty seam ring, and the
+  destructible instance layout was changed so a chunk's 9 wrap copies are
+  CONTIGUOUS — `mesh.count` tracks the built city instead of the whole
+  budget, which made raising capacity (2200 → 3600) cost memory rather than
+  per-frame vertex work. Open sightlines now 6–9 of 36; chunk use 1683–2844.
+  Two dead ends worth remembering: hanging a shared depth texture on the
+  composer's ping-pong targets makes the GPU see a feedback loop and render
+  black, and resizing a render target that owns a depth texture leaves the
+  depth attachment stale (samples as 1.0, so nothing ever blurs) — the pass
+  reallocates instead.
+- **Previous:** ULT FOUNTAINS — ultimates are no longer charged by dealing or
   taking damage; golden powerup fountains (combat/fountains.js) well up
   around the arena every CONFIG.fountains.interval seconds (board cap =
   live robots × perRobot, both in config), preferring interesting ground:

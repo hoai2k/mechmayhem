@@ -36,12 +36,18 @@ const _e = new THREE.Euler();
 const _c = new THREE.Color();
 
 export class DestructibleSystem {
-  constructor(scene, material, capacity = 2200) {
+  constructor(scene, material, capacity = 3600) {
     this.scene = scene;
     this.capacity = capacity;      // per-cell chunk budget
     // toroidal arenas: every chunk gets 8 ghost copies in the neighbor
-    // cells (index blocks of `capacity`), so the city is visible across
-    // the wrap seam. Ghosts activate when setWrapPeriod() is called.
+    // cells, so the city is visible across the wrap seam. Ghosts activate
+    // when setWrapPeriod() is called.
+    //
+    // INSTANCE LAYOUT: a chunk's 9 copies are CONTIGUOUS (chunk i owns
+    // i*9 .. i*9+8, copy 0 being the primary cell). That keeps every live
+    // instance inside [0, count*9), so `mesh.count` can track what is
+    // actually built instead of the whole budget — raising the capacity
+    // for denser cities now costs memory, not per-frame vertex work.
     this.totalCap = capacity * 9;
     this.wrapPeriod = 0;
     this.ghostOffsets = [];
@@ -54,7 +60,7 @@ export class DestructibleSystem {
     this.mesh.frustumCulled = false;
     _m.compose(_p.set(0, -500, 0), _q.identity(), _s.set(0.0001, 0.0001, 0.0001));
     for (let i = 0; i < this.totalCap; i++) this.mesh.setMatrixAt(i, _m);
-    this.mesh.count = this.totalCap;
+    this.mesh.count = 0;   // grows with the city (see addBuildingCells)
     scene.add(this.mesh);
 
     this.chunks = [];      // {x,y,z (center), w,h,d, alive, bIdx, gx,gy,gz, hp}
@@ -151,14 +157,14 @@ export class DestructibleSystem {
       _p.set(chunk.x, chunk.y, chunk.z), _q.identity(),
       _s.set(chunk.w * 1.001, chunk.h * 1.001, chunk.d * 1.001)
     );
-    this.mesh.setMatrixAt(chunk.i, _m);
+    this.mesh.setMatrixAt(chunk.i * 9, _m);
     for (let g = 0; g < this.ghostOffsets.length; g++) {
       _m.compose(
         _p.set(chunk.x + this.ghostOffsets[g][0], chunk.y, chunk.z + this.ghostOffsets[g][1]),
         _q.identity(),
         _s.set(chunk.w * 1.001, chunk.h * 1.001, chunk.d * 1.001)
       );
-      this.mesh.setMatrixAt(this.capacity * (g + 1) + chunk.i, _m);
+      this.mesh.setMatrixAt(chunk.i * 9 + g + 1, _m);
     }
   }
 
@@ -176,7 +182,7 @@ export class DestructibleSystem {
         const val = v >= 0 && b.fadeV ? b.fadeV[v * 9 + g] : 1;
         for (const chunk of b.grid.values()) {
           if (!chunk.alive) continue;
-          this.fadeAttr.array[this.capacity * g + chunk.i] = val;
+          this.fadeAttr.array[chunk.i * 9 + g] = val;
         }
       }
     }
@@ -185,9 +191,9 @@ export class DestructibleSystem {
 
   hideChunk(chunk) {
     _m.compose(_p.set(0, -500, 0), _q.identity(), _s.set(0.0001, 0.0001, 0.0001));
-    this.mesh.setMatrixAt(chunk.i, _m);
+    this.mesh.setMatrixAt(chunk.i * 9, _m);
     for (let g = 0; g < 8; g++) {
-      this.mesh.setMatrixAt(this.capacity * (g + 1) + chunk.i, _m);
+      this.mesh.setMatrixAt(chunk.i * 9 + g + 1, _m);
     }
   }
 
@@ -293,8 +299,8 @@ export class DestructibleSystem {
       // slight per-chunk color variance (ghost copies match)
       const v = 1.25 + rng() * 0.3;
       _c.set(cell.tint ?? tint).multiplyScalar(v);
-      this.mesh.setColorAt(i, _c);
-      for (let g = 1; g <= 8; g++) this.mesh.setColorAt(this.capacity * g + i, _c);
+      this.mesh.setColorAt(i * 9, _c);
+      for (let g = 1; g <= 8; g++) this.mesh.setColorAt(i * 9 + g, _c);
       this.writeChunk(chunk);
     }
     b.aabb = {
@@ -303,6 +309,7 @@ export class DestructibleSystem {
       minZ: z0 + minGz * cd - 0.5, maxZ: z0 + (maxGz + 1) * cd + 0.5,
     };
     this.buildings.push(b);
+    this.mesh.count = this.count * 9;   // only the built city is drawn
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
     return b;

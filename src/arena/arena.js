@@ -138,8 +138,14 @@ export class Arena {
     // beyond full fog, so there is no pop-out to hide.
     // (0.92P, not 1.0P: a chase camera sits a little outside its fighter's
     // folded position, so the ghost ring must still cover the far edge)
+    //
+    // The band starts at 0.45–0.62P — far enough out that the WHOLE play
+    // area (radius B = 0.37P) is crisp, so haze only ever eats the wrap
+    // ring and the tile beyond it. The theme's own near distance still
+    // steers where in that window it lands, keeping murky arenas murky.
+    // Silhouettes inside the band are softened by core/hazeblur.js.
     this.scene.fog = new THREE.Fog(theme.fog.color,
-      Math.min(theme.fog.near * 1.5, P * 0.5), P * 0.92);
+      clamp(theme.fog.near * 1.5, P * 0.45, P * 0.62), P * 0.92);
     this.scene.background = null;
 
     const { sun, hemi, rim } = engine;
@@ -318,7 +324,13 @@ export class Arena {
       // when the owner has dropped voxelized GLB donors into
       // public/models/buildings/ — a donor shape with its sampled colors.
       // Either way the result is ordinary destructible chunks.
-      const count = Math.min(theme.buildings.count * 2, 18);
+      // DENSITY: 18 towers over a 300m cell left half of every sightline
+      // running clear to the wrap seam, so what a player saw down those
+      // corridors was the NEXT TILE's buildings — correctly fogged, but
+      // reading as "the fog is eating things right in front of me". More
+      // buildings, and (in buildingSites) placement that reaches into the
+      // seam ring, gives the near-field something to occlude with.
+      const count = Math.min(theme.buildings.count * 2 + 12, 30);
       const [mNormal, mLandmark] = theme.buildings.massing
         || THEME_MASSING[theme.id]
         || [['tower', 'slab', 'lshape'], ['tower']];
