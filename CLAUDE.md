@@ -180,7 +180,9 @@ that combat silently depends on. Never rebuild a design without it.
 ## Architecture map
 
 - `src/core/` — engine (renderer/loop/post-FX), pbrtex (PBR skin synth),
-  textures (canvas tex), audio (WebAudio synth), utils
+  textures (canvas tex), audio (WebAudio synth), music (the battle
+  soundtrack: every file in `src/music/` is a song, found by a build-time
+  glob, filename = title — drop one in and it joins the rotation), utils
 - `src/mechs/` — roster.js (ALL stats/palettes/skins/moves — balance lives
   here), designs/<id>.js (one file per mech; parallel-agent-safe), parts.js
   (sculpting vocabulary + Assembler), factory.js (rig + materials),

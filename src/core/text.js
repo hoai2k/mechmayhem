@@ -123,6 +123,8 @@ export const MESSAGES = {
   'settings.reload': 'RELOAD PAGE',
   'settings.split.side': 'SPLIT: SIDE BY SIDE',
   'settings.split.stacked': 'SPLIT: STACKED',
+  'settings.music.on': 'MUSIC: ON',
+  'settings.music.off': 'MUSIC: OFF',
   'settings.btn.sound': 'sound on/off',
   'settings.btn.settings': 'settings',
   'settings.btn.instructions': 'how to play',
@@ -203,6 +205,12 @@ export const MESSAGES = {
   'hud.ammoEmpty': 'AMMO 0 — FIND A CRATE',
   'hud.special': '{mech} — {move}',
   'hud.ult': '⚡ {mech}: {move}! ⚡',
+
+  // --------------------------------------------------------- battle soundtrack
+  // {name} is the song's FILENAME from src/music/ — add a file, it plays.
+  'music.nowPlaying': 'NOW PLAYING · {name}',
+  'music.off': 'MUSIC OFF',
+  'music.btn': 'music on/off',
 
   // --------------------------------------------------------------------- match
   'match.round': 'ROUND {n}',
