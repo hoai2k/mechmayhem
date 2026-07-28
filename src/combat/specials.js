@@ -11,7 +11,7 @@ import { TidalWaveFX } from './wavefx.js';
 import { Fighter } from './fighter.js';
 import { AIController } from '../game/ai.js';
 import { cloneMech } from '../mechs/factory.js';
-import { stillCasting, cast, eachEnemy, volley, timedUpdater } from './movekit.js';
+import { stillCasting, cast, eachEnemy, volley, timedUpdater, overlapsY } from './movekit.js';
 
 const _v = new THREE.Vector3();
 // scratch for bull-rush footfalls (consumed immediately, never retained)
@@ -268,7 +268,9 @@ export const SPECIALS = {
       for (const e of f.world.fighters) {
         if (e === f || !e.alive) continue;
         const dx = f.world.wrapDelta(e.pos.x - f.pos.x), dz = f.world.wrapDelta(e.pos.z - f.pos.z);
-        if (Math.hypot(dx, dz) < 3.6 * f.scale) {
+        // the horn rides at HIS body height and no higher — jump the charge
+        // and it passes under you
+        if (Math.hypot(dx, dz) < 3.6 * f.scale && overlapsY(e, f.pos.y, f.height)) {
           e.takeHit(sp.dmg * f.dmgMult(), f, { knock: sp.knock, launch: 8, srcPos: f.pos, heavy: true });
           f.world.engine.addHitStop(0.08);
           f.world.effects.addShake(0.5);
@@ -1676,12 +1678,14 @@ export const ULTS = {
     const dirX = Math.sin(f.yaw), dirZ = Math.cos(f.yaw);
     const hitAt = new Map(); // herd-wide: nobody gets trampled twice in a beat
     let t = 0;
-    const trample = (px, pz) => {
+    // py = the trampler's own foot height: the herd runs along the FLOOR, so
+    // anyone above the horns (mid-jump, hovering) is overflown, not hit
+    const trample = (px, pz, py) => {
       for (const e of w.fighters) {
         if (e === f || !e.alive || f.isAllyOf(e)) continue;
         if (t - (hitAt.get(e) ?? -9) < 0.45) continue;
         const dx = w.wrapDelta(e.pos.x - px), dz = w.wrapDelta(e.pos.z - pz);
-        if (Math.hypot(dx, dz) < 3.4 * f.scale) {
+        if (Math.hypot(dx, dz) < 3.4 * f.scale && overlapsY(e, py, f.height)) {
           hitAt.set(e, t);
           e.takeHit(u.dmg * f.dmgMult(), f, { unblockable: true,
             knock: u.knock, launch: 9, srcPos: P2.set(px, 0, pz), heavy: true,
@@ -1725,7 +1729,7 @@ export const ULTS = {
           // under its own power, so the run cycle drives the lower body while
           // chargeLean holds the horn down. Without it he skates.
           f._charging = true;
-          trample(f.pos.x, f.pos.z);
+          trample(f.pos.x, f.pos.z, f.pos.y);
           if (Math.random() < 0.6) w.effects.dustPuff(f.pos, 2, 0x9a9088);
         }
         for (const s of shells) {
@@ -1734,7 +1738,7 @@ export const ULTS = {
           s.g.position.y = Math.abs(Math.sin(t * 11 + s.ph)) * 0.45;
           s.g.rotation.x = 0.1 + Math.sin(t * 11 + s.ph) * 0.05;
           if (Math.random() < 0.4) w.effects.dustPuff(s.g.position, 1, 0x9a9088);
-          trample(s.g.position.x, s.g.position.z);
+          trample(s.g.position.x, s.g.position.z, s.g.position.y);
           // the herd wrecks facades too
           if (Math.random() < 0.25) {
             _v.set(s.g.position.x + dirX * 2, 2, s.g.position.z + dirZ * 2);
@@ -1940,7 +1944,10 @@ export const ULTS = {
             if (e === f || !e.alive || f.isAllyOf(e)) continue;
             if (t - (hitAt.get(e) ?? -9) < 0.25) continue;
             const dx = w.wrapDelta(e.pos.x - wl.g.position.x), dz = w.wrapDelta(e.pos.z - wl.g.position.z);
-            if (Math.hypot(dx, dz) < e.hitRadius + 1.2) {
+            // they run on all fours, so their bite tops out well below a
+            // standing mech's full height — no snapping at an airborne target
+            if (Math.hypot(dx, dz) < e.hitRadius + 1.2 &&
+                overlapsY(e, wl.g.position.y, f.height * 0.7)) {
               hitAt.set(e, t);
               e.takeHit(u.dmg * f.dmgMult(), f, { knock: 3, srcPos: wl.g.position, soft: Math.random() < 0.7 });
               w.effects.impactSparks(e.center(), 0x6cd8ff, 6, 6);

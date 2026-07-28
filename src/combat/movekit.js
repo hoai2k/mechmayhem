@@ -48,6 +48,19 @@ export function eachEnemy(w, owner, center, radius, cb, pad = 0) {
   }
 }
 
+/** Vertical gate for a GROUND-BOUND sweep — a charge, a trampling herd, a
+ *  wolf pack. Those loops test a HORIZONTAL radius, which on its own says a
+ *  bull galloping along the floor clips someone at the top of their jump.
+ *  The effect really occupies a slab from `baseY` up to `baseY + reach`
+ *  (`reach` = how high the thing swings: a body's height for a shoulder
+ *  ram, less for something on all fours), and a victim only counts if their
+ *  own body — feet at pos.y, head at pos.y + height — overlaps that slab.
+ *  Air-to-ground and ground-to-air moves that SHOULD reach across the gap
+ *  (mortars, AoE bursts, launchers) simply don't call this. */
+export function overlapsY(v, baseY, reach) {
+  return v.pos.y < baseY + reach && v.pos.y + v.height > baseY;
+}
+
 /** Schedule n beats at start, start+interval, ... Each beat is dropped if
  *  guard fails at fire time (default: caster died). Pass
  *  guard: (f) => stillCasting(f) for beats a stagger should cancel. */

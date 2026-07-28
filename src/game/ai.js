@@ -9,10 +9,13 @@ import { CONFIG } from '../core/config.js';
 // "why does the AI feel unbeatable" culprit). aimErr is yaw error in
 // radians applied to every AI aim snap (humans aim by camera; a perfect
 // snap was the #2 culprit). pace scales the gaps between attack beats.
+// useUlt:false means the tier never fires its ultimate at all — ROOKIE is
+// the tier you learn the game on, and eating a STAMPEDE there teaches
+// nothing. It still builds meter like everyone else; it just never spends it.
 export const DIFFICULTY = {
-  rookie: { react: 0.6, aggression: 0.4, blockP: 0.5, dodgeP: 0.4, ultDelay: 2.8, err: 0.5, aimErr: 0.3, pace: 1.7 },
-  veteran: { react: 0.34, aggression: 0.65, blockP: 1.4, dodgeP: 1.0, ultDelay: 1.3, err: 0.28, aimErr: 0.16, pace: 1.15 },
-  ace: { react: 0.16, aggression: 0.88, blockP: 3.2, dodgeP: 2.2, ultDelay: 0.5, err: 0.1, aimErr: 0.05, pace: 0.75 },
+  rookie: { react: 0.6, aggression: 0.4, blockP: 0.5, dodgeP: 0.4, ultDelay: 2.8, useUlt: false, err: 0.5, aimErr: 0.3, pace: 1.7 },
+  veteran: { react: 0.34, aggression: 0.65, blockP: 1.4, dodgeP: 1.0, ultDelay: 1.3, useUlt: true, err: 0.28, aimErr: 0.16, pace: 1.15 },
+  ace: { react: 0.16, aggression: 0.88, blockP: 3.2, dodgeP: 2.2, ultDelay: 0.5, useUlt: true, err: 0.1, aimErr: 0.05, pace: 0.75 },
 };
 
 // preferred fighting range by ranged-weapon type
@@ -170,7 +173,10 @@ export class AIController {
       const ultRange = SELF_AOE_ULTS.has(uMv.id) ? (uMv.radius || 12) - 2 : 24;
       const spMv = f.def.moves.special;
       const spRange = SELF_AOE_SPECIALS.has(spMv.id) ? (spMv.radius || 8) - 1 : this.rangedPref * 1.6;
-      if ((f.ult >= 1 || CONFIG.debugUltimates) && dist < ultRange && Math.random() < dt / this.d.ultDelay) {
+      // NOTE: no CONFIG.debugUltimates here. INFINITE ULTIMATES is a PLAYER
+      // cheat (fighter.js grants it to human-controlled fighters only), so
+      // the CPU spends a real, earned meter whatever the setting says.
+      if (this.d.useUlt && f.ult >= 1 && dist < ultRange && Math.random() < dt / this.d.ultDelay) {
         I.ult = true;
       } else if (f.specialCd <= 0 && dist < spRange && Math.random() < dt * 1.4) {
         I.special = true;

@@ -816,9 +816,17 @@ export class Fighter {
     this.world.events.emit('special', { fighter: this, name: sp.name });
   }
 
+  // INFINITE ULTIMATES (settings / ?debug=ultimates) is a PLAYER cheat: it
+  // fires the ult off an empty meter. Handing it to the CPU too turned every
+  // AI into an ult loop (the "why is Rhino stampeding four times a round"
+  // report), so it stops at human-controlled fighters.
+  ultCheat() {
+    return CONFIG.debugUltimates && !this.isAI;
+  }
+
   doUlt() {
     if (this.isMinion) return; // summons never cascade their own ults
-    if (this.ult < 1 && !CONFIG.debugUltimates) return;
+    if (this.ult < 1 && !this.ultCheat()) return;
     const u = this.def.moves.ult;
     const impl = ULTS[u.id];
     if (!impl) return;
@@ -2550,7 +2558,7 @@ export class Fighter {
     this.hitRadius = this.baseHitRadius * (1 - 0.22 * dk);
 
     if (acting && !this.blocking) {
-      if (I.ult && (this.ult >= 1 || CONFIG.debugUltimates)) this.doUlt();
+      if (I.ult && (this.ult >= 1 || this.ultCheat())) this.doUlt();
       else if (I.special) this.doSpecial();
       else if (I.light) {
         if (this.state === 'attack') this.queuedLight = true;
