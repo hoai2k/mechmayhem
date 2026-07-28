@@ -32,6 +32,7 @@ export class Input {
     this.keysPressed = new Set();   // edge (consumed per frame)
     this.padsPrev = [{}, {}, {}, {}];
     this.padsCur = [{}, {}, {}, {}];
+    this._lockLatch = [false, false, false, false]; // LB target-lock toggles
     this.onPadConnect = null;
     this._navHold = new Map();      // "src:dir" -> {t0, last} for menu auto-repeat
 
@@ -173,9 +174,12 @@ export class Input {
       // (fighter.js owns the mechanics)
       intent.chargeDash = this.padHeld(i, 'B');
       intent.dash = false;    // pads dash via the B coil/sprint
-      // LB: TARGET LOCK while held — face the locked enemy, camera tracks
-      // them; sideways movement becomes a natural strafe (replaces strafe)
-      intent.lockOn = this.padHeld(i, 'LB');
+      // LB: TARGET LOCK, a TOGGLE — tap to lock on (face the locked enemy,
+      // camera tracks them, sideways movement becomes a natural strafe),
+      // tap again to release. Was hold-to-lock; a toggle frees the finger
+      // for the bumper/trigger cluster during long lock fights.
+      if (this.padPressed(i, 'LB')) this._lockLatch[i] = !this._lockLatch[i];
+      intent.lockOn = this._lockLatch[i];
       intent.strafe = false;
       // BACK/View button — RS click would misfire while steering the camera
       intent.taunt = this.padPressed(i, 'BACK');
