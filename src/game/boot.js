@@ -675,11 +675,13 @@ export async function bootGame() {
           if (!h.device.startsWith('pad')) continue;
           const pad = input.padsCur[+h.device[3]];
           const rx = pad.rx || 0, ry = pad.ry || 0;
+          // left-stick CLICK = camera adjust: the vertical axis zooms the
+          // view in/out (forward = in) instead of pitching it
+          const adjust = input.padHeld(+h.device[3], 'LS');
           if (B.cameraSys.mode === 'split') {
-            B.cameraSys.setLook(h.idx, rx, ry);
+            B.cameraSys.setLook(h.idx, rx, ry, adjust);
           } else if (rx || ry) {
-            // solo combined view: stick feeds the shared look offsets
-            B.cameraSys.applyLook(rx * 420 * dtReal, ry * 380 * dtReal);
+            B.cameraSys.applyStick(rx, ry, dtReal, adjust);
           }
         }
       }

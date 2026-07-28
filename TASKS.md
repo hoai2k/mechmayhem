@@ -4216,3 +4216,40 @@ models still derived), `npx vite build` green with the thumbs emitted, a
 scrapyard soak crash-free on the re-optimized models, and screenshots of the
 twin-viewport tool (toriiGate, gantryCrane), the landing page, and the
 unknown-tool banner.
+
+## THE CAMERA IS THE PLAYER'S
+
+Four changes to how the battle camera answers to the right stick.
+
+FREE ORBIT WHEN UNLOCKED. Nothing swings the view any more except the player
+and a held target lock. The solo camera used to ease toward the mech's back
+while running, and toward the nearest enemy when idle; each split viewport did
+the same. Movement is CAMERA-RELATIVE, so an orbit that chases the facing
+quietly steers the player — you push one way, the camera follows, "forward"
+moves under you and the run curves. Both auto-swing branches are gone (with
+`followAzimuth`, which nothing else used); the orbit is aimed once, behind the
+mech as the round opens, and is the player's from then on. LB target lock still
+takes the view for as long as it is held. Manual PITCH still eases home as
+before — only yaw stays put.
+
+CAMERA ADJUST ON LEFT-STICK CLICK. LS no longer crouches (crouching rides on
+the B dash coil now); held, it turns the right stick's vertical axis into a
+ZOOM — forward comes in, back goes out — on both the combined view and a split
+viewport. The multiplier rides on top of the automatic framing (so the giant
+zoom, the split's shorter viewports and the COLOSSAL-FORM envelope all still
+work) and persists in `rw.camZoom`, because it is a preference, not a per-match
+thing. Range 0.55×–1.9×, about 2.7 seconds end to end.
+
+A MANUAL CAMERA CAN DROP TO HEAD HEIGHT. The pitch floor was 0.12 rad on the
+combined view and 0.10 on a split one, which kept the camera up above the mech
+no matter how hard you pushed. Both floors are 0 now — level with the look
+target, which rides at the mech's head. The AUTOMATIC framing is unchanged
+(0.34 solo / 0.38 split); only a player pushing the stick down gets there.
+
+Verified by driving the real CameraSystem: aim the orbit, then sprint the mech
+sideways for two seconds — drift 0.0000 rad, combined and split. Camera-adjust
+forward → 0.55× (in) and back → 1.55× (out), stored in localStorage. Full
+manual pitch-down puts the camera at y 5.62 against a head at y 5.62 — exactly
+on it — and the split's `el` lands on 0.000. Release the stick and the pitch
+offset eases back to −0.010 while the yaw offset stays at −1.260. `vite build`
+green, neon soak `"crash": null`, screenshot VIEWED.

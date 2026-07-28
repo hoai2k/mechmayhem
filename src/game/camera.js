@@ -3,7 +3,7 @@
 // mid-fight flipping between full and split. The 2-player split can be
 // side-by-side or stacked, toggled at runtime (pause menu / F9).
 import * as THREE from 'three';
-import { clamp, lerp, damp, angleDamp, angleDiff } from '../core/utils.js';
+import { clamp, lerp, damp, angleDamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 
 // WHICH WAY IS UP. Every pitch input — right stick, touch look-drag, combined
@@ -19,6 +19,19 @@ const _center = new THREE.Vector3();
 const _ray = new THREE.Vector3();
 
 const LAYOUT_KEY = 'rw.splitLayout';
+const ZOOM_KEY = 'rw.camZoom';
+const ZOOM_MIN = 0.55, ZOOM_MAX = 1.9;
+// How low a MANUALLY aimed camera may sit: 0 is level with the look target,
+// which rides at the mech's head. The automatic framing still lives well above
+// this — only a player pushing the stick down gets there.
+const EL_MIN = 0;
+
+function readZoom() {
+  try {
+    const v = parseFloat(localStorage.getItem(ZOOM_KEY));
+    return Number.isFinite(v) ? clamp(v, ZOOM_MIN, ZOOM_MAX) : 1;
+  } catch (e) { return 1; }
+}
 
 // viewport rects are in engine coords: x/y from bottom-left, 0..1
 const LAYOUTS = {
@@ -43,6 +56,10 @@ export class CameraSystem {
     this.lookAzOffset = 0;
     this.lookElOffset = 0;
     this.lookCd = 0;             // seconds of "hold" left since the last drag
+    // CAMERA ADJUST (left-stick click): a player-set zoom multiplier on the
+    // auto framing, so everyone can sit where they like. Persisted — it is a
+    // preference, not a per-match thing.
+    this.zoomMul = readZoom();
 
     // 2-player split orientation preference (persisted)
     this.layout2p = 'lr';
@@ -70,6 +87,7 @@ export class CameraSystem {
         el: 0.38,
         lookX: 0,   // right-stick input, set each frame via setLook()
         lookY: 0,
+        adjust: false, // left-stick click held: lookY zooms instead of pitching
       });
     }
 
@@ -114,11 +132,31 @@ export class CameraSystem {
     return this.layout2p;
   }
 
+  // Right stick on the COMBINED view. `adjust` = left-stick click held, which
+  // turns the vertical axis into a zoom (push forward to come in) instead of a
+  // pitch. Horizontal always steers the orbit: the camera is the player's to
+  // aim, and nothing auto-swings it while they are not locked on.
+  applyStick(x, y, dt, adjust = false) {
+    if (adjust) {
+      if (y) this.setZoom(this.zoomMul + y * 0.5 * dt);   // forward (y<0) = in
+      if (x) this.applyLook(x * 420 * dt, 0);
+      this.lookCd = 3.0;
+      return;
+    }
+    this.applyLook(x * 420 * dt, y * 380 * dt);
+  }
+
+  // The player's own zoom on the auto framing, remembered between matches.
+  setZoom(v) {
+    this.zoomMul = clamp(v, ZOOM_MIN, ZOOM_MAX);
+    try { localStorage.setItem(ZOOM_KEY, this.zoomMul.toFixed(3)); } catch (e) { /* ok */ }
+  }
+
   // Player dragged on the look region (touch). dx/dy are per-frame pixel
   // deltas; rotate the orbit and nudge the pitch, and hold the view briefly.
   applyLook(dx, dy) {
     this.lookAzOffset -= dx * 0.006;
-    this.lookElOffset = clamp(this.lookElOffset + pitchY(dy) * 0.004, -0.22, 0.45);
+    this.lookElOffset = clamp(this.lookElOffset + pitchY(dy) * 0.004, -0.40, 0.45);
     this.lookCd = 3.0;
     this.azInit = true; // ensure the auto base eases (never snaps) under us
   }
@@ -128,17 +166,19 @@ export class CameraSystem {
     const ch = this.chase[humanIdx];
     if (!ch) return;
     ch.az -= dx * 0.006;
-    ch.el = clamp(ch.el + pitchY(dy) * 0.004, 0.1, 0.78);
+    ch.el = clamp(ch.el + pitchY(dy) * 0.004, EL_MIN, 0.78);
     ch.lookCd = 3.0; // manual look holds; the lazy follow stays out of it
   }
 
   // Right-stick camera input for one player's split viewport; call every
   // frame (values are consumed by updateSplit and treated as a rate).
-  setLook(humanIdx, x, y) {
+  setLook(humanIdx, x, y, adjust = false) {
     const ch = this.chase[humanIdx];
     if (!ch) return;
     ch.lookX = x;
-    ch.lookY = y;
+    ch.lookY = adjust ? 0 : y;
+    ch.zoomIn = adjust ? y : 0;   // camera-adjust mode: vertical is a zoom
+    ch.adjust = adjust;
   }
 
   // ---- follow/lock/giant-zoom math shared by the combined and split cams ----
@@ -151,16 +191,6 @@ export class CameraSystem {
       -this.world.wrapDelta(other.pos.x - f.pos.x),
       -this.world.wrapDelta(other.pos.z - f.pos.z)
     );
-  }
-
-  // followFront hysteresis (shared 1.25/2.15 thresholds): while a mech runs
-  // at the camera, hold the FRONT view instead of whipping 180° around;
-  // biased toward the back view (moving away is the default read). Returns
-  // the azimuth to ease toward plus the new front-flag — each mode keeps
-  // its own damp rate and gating.
-  followAzimuth(curAz, yaw, wasFront) {
-    const front = Math.abs(angleDiff(curAz, yaw + Math.PI)) > (wasFront ? 1.25 : 2.15);
-    return { front, az: front ? yaw : yaw + Math.PI };
   }
 
   // how far past its natural size a mech is grown (COLOSSAL FORM) — 1 in a
@@ -276,10 +306,9 @@ export class CameraSystem {
       const headroom = gf > 1.05 ? framed[i].height * 0.8 : 0; // fit the whole giant
       radius = Math.max(radius, pts[i].distanceTo(_center) + 6 + headroom);
     }
-    // Single human: bias framing toward them (Override-style) and swing the
-    // camera BEHIND the player, looking toward the nearest enemy — a proper
-    // third-person over-the-shoulder view instead of staring at the mech's
-    // face. Gently damped so it trails the action rather than snapping.
+    // Single human: bias framing toward them (Override-style). The orbit is
+    // aimed once, behind the player, and is theirs to steer from then on —
+    // only a held target lock takes it back.
     const solo = humans.length === 1 && humans[0].alive;
     if (solo && humans[0]._wrap) {
       // shift the solo cam with a wrapping player — seamless fold
@@ -294,16 +323,6 @@ export class CameraSystem {
       // Enemies never pull the frame; the orbit azimuth alone turns the
       // view so the current threat tends to sit ahead of you.
       _center.set(player.pos.x, player.pos.y + player.height * 0.75, player.pos.z);
-      // LAZY FOLLOW, both ways: while running (velocity along the facing)
-      // and the look control is idle, ease the orbit to the mech's BACK —
-      // or, if they're charging AT the camera, hold the FRONT view instead
-      // of swinging 180° around them. Hysteresis biased toward the
-      // back-view (moving away is the default read).
-      const spd = Math.hypot(player.vel.x, player.vel.z);
-      const fwdDot = spd > 0.5
-        ? (player.vel.x * Math.sin(player.yaw) + player.vel.z * Math.cos(player.yaw)) / spd
-        : 0;
-      const enemy = player.nearestEnemy();
       const lockT = player.lockTarget && player.lockTarget.alive ? player.lockTarget : null;
       if (lockT) {
         // TARGET LOCK (LB held): the camera swings behind the player and
@@ -313,17 +332,15 @@ export class CameraSystem {
         this.azimuth = this.azInit ? angleDamp(this.azimuth, lockAz, 5, dt) : lockAz;
         this.azInit = true;
         this.lookAzOffset = damp(this.lookAzOffset, 0, 4, dt);
-      } else if (this.lookCd <= 0 && spd > 3 && fwdDot > 0.3) {
-        const fa = this.followAzimuth(this.azimuth, player.yaw, this._followFront);
-        this._followFront = fa.front;
-        this.azimuth = this.azInit ? angleDamp(this.azimuth, fa.az, 2.0, dt) : fa.az;
-        this.azInit = true;
-      } else if (enemy && this.lookCd <= 0) {
-        // (manual look owns the view — auto framing waits until it's released)
-        // offset direction points from the enemy toward the player (behind
-        // them) — via the shortest wrapped path
-        const behindAz = this.azimuthBehind(player, enemy);
-        this.azimuth = this.azInit ? angleDamp(this.azimuth, behindAz, 1.8, dt) : behindAz;
+      } else if (!this.azInit) {
+        // UNLOCKED, THE CAMERA IS THE PLAYER'S. It is aimed once — behind the
+        // mech as the round opens — and after that only the right stick turns
+        // it. Nothing auto-swings the orbit to the mech's back or toward the
+        // nearest enemy any more: movement is camera-relative, so a camera
+        // that chases the facing quietly steers the player, and every attempt
+        // to run one way ends up curving. Pitch still eases home (below);
+        // yaw does not.
+        this.azimuth = player.yaw + Math.PI;
         this.azInit = true;
       }
     }
@@ -335,6 +352,7 @@ export class CameraSystem {
     // Tight max — a distant enemy must not shrink YOUR mech into the void.
     // (A COLOSSAL-FORM giant in frame scales the whole envelope out.)
     if (solo) wantDist = clamp(wantDist * 0.58, 22 * giantF, 34 * giantF);
+    wantDist *= this.zoomMul;   // the player's own camera-adjust zoom
     if (!this.init) this.dist = wantDist;
     // COLOSSAL FORM: while a giant is in frame, ease the ZOOM slowly so the
     // size change lands FIRST — the scale reads before the reframe. The
@@ -342,14 +360,14 @@ export class CameraSystem {
     this.dist = this.giantZoomDamp(this.dist, wantDist, giantF, 3, dt);
 
     // Manual look offsets hold while dragging, then ease back to the auto view.
+    // Manual PITCH eases back to the auto framing; manual YAW does not — an
+    // unlocked orbit stays exactly where the player pointed it (under target
+    // lock the branch above damps it home instead).
     if (this.lookCd > 0) this.lookCd -= dt;
-    else {
-      this.lookAzOffset = damp(this.lookAzOffset, 0, 1.0, dt);
-      this.lookElOffset = damp(this.lookElOffset, 0, 1.0, dt);
-    }
+    else this.lookElOffset = damp(this.lookElOffset, 0, 1.0, dt);
 
     const az = this.azimuth + this.lookAzOffset;
-    const el = clamp((solo ? 0.34 : this.elevation) + this.lookElOffset, 0.12, 0.82);
+    const el = clamp((solo ? 0.34 : this.elevation) + this.lookElOffset, EL_MIN, 0.82);
     _v.set(
       Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)
     ).multiplyScalar(this.dist);
@@ -442,28 +460,20 @@ export class CameraSystem {
         ch.el = 0.38;
       }
       ch.az -= ch.lookX * 2.8 * dt;
-      ch.el = clamp(ch.el + pitchY(ch.lookY) * 2.0 * dt, 0.1, 0.78);
+      ch.el = clamp(ch.el + pitchY(ch.lookY) * 2.0 * dt, EL_MIN, 0.78);
+      // CAMERA ADJUST (left-stick click): the vertical axis zooms instead
+      if (ch.zoomIn) this.setZoom(this.zoomMul + ch.zoomIn * 0.5 * dt);
 
-      // LAZY FOLLOW, both ways: while this mech runs and its camera stick
-      // is idle, ease the orbit to the character's BACK — unless they're
-      // running AT the camera, in which case hold the FRONT view rather
-      // than whipping 180° around (hysteresis biased toward the back view).
-      // Any stick input owns the camera, with a short grace after release.
-      const stickActive = Math.abs(ch.lookX) > 0.08 || Math.abs(ch.lookY) > 0.08;
+      const stickActive = Math.abs(ch.lookX) > 0.08 || Math.abs(ch.lookY) > 0.08 || !!ch.adjust;
       ch.lookCd = stickActive ? 0.6 : Math.max(0, (ch.lookCd || 0) - dt);
-      const spd = Math.hypot(f.vel.x, f.vel.z);
       const lockT = f.lockTarget && f.lockTarget.alive ? f.lockTarget : null;
       if (lockT && !stickActive) {
         // TARGET LOCK (LB held): this viewport swings behind its player and
-        // keeps the locked enemy dead ahead (stick input still overrides)
+        // keeps the locked enemy dead ahead (stick input still overrides).
+        // Unlocked, nothing turns this orbit but the player's own stick —
+        // see the note on the combined view: an orbit that chases the mech's
+        // facing steers the player, because movement is camera-relative.
         ch.az = angleDamp(ch.az, this.azimuthBehind(f, lockT), 5, dt);
-      } else if (ch.lookCd <= 0 && spd > 3 && f.alive && !lockT) {
-        const fwdDot = (f.vel.x * Math.sin(f.yaw) + f.vel.z * Math.cos(f.yaw)) / spd;
-        if (fwdDot > 0.3) {
-          const fa = this.followAzimuth(ch.az, f.yaw, ch.followFront);
-          ch.followFront = fa.front;
-          ch.az = angleDamp(ch.az, fa.az, 1.6 * Math.min(1, spd / 10), dt);
-        }
       }
 
       // stacked viewports are short — pull back a touch so mechs fit.
@@ -474,7 +484,7 @@ export class CameraSystem {
       // pull out after; shrink → move in after) while the mech-follow stays
       // tight. Near-instant when not a giant, so normal framing is unchanged.
       if (ch.dist === undefined) ch.dist = baseDist;
-      ch.dist = this.giantZoomDamp(ch.dist, baseDist, gf, 12, dt);
+      ch.dist = this.giantZoomDamp(ch.dist, baseDist * this.zoomMul, gf, 12, dt);
       const el = ch.el;
       _v.set(
         Math.sin(ch.az) * Math.cos(el), Math.sin(el), Math.cos(ch.az) * Math.cos(el)
