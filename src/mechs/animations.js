@@ -833,8 +833,9 @@ const CLIPS_RAW = {
   // TIGHT BALL: the air somersault's carriage (see Fighter.startAirRoll) —
   // knees hauled to the chest, shins folded flat against the thighs, spine
   // curled and chin tucked, arms hugged around the shins. Authored so the
-  // whole silhouette pulls in toward the HIPS, which is the axis the roll
-  // spins about post-pose: the tighter the mass sits to that pivot, the
+  // whole silhouette pulls in toward the middle, which is what the roll
+  // spins about post-pose (Fighter.tuckCentre measures the curled body's own
+  // centre per rig): the tighter the mass sits to that pivot, the
   // cleaner the tumble reads (and a heavy mech that only TUCKS without
   // spinning still reads as bracing, not falling). Full-body and held —
   // the fighter drops it when the roll ends. Legs/torso/head ride the

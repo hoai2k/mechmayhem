@@ -14,6 +14,9 @@ import { PLAYER_COLORS } from '../core/colors.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _rollQ = new THREE.Quaternion();  // air-roll pivot: body-space transform
+const _rollBase = new THREE.Vector3();
+const _rollTmp = new THREE.Vector3();
 const _palmTmp = new THREE.Vector3();
 const _palmTmp2 = new THREE.Vector3();
 const _carryTmp = new THREE.Vector3();
@@ -2408,6 +2411,12 @@ export class Fighter {
   // ================= per-frame =================
   update(dt) {
     if (this.cinePuppet) return; // a cinematic finisher owns this body
+    // The air roll spins the body about its MIDDLE by nudging the group
+    // (see updateAirRoll). That nudge is a VISUAL offset only — peel it off
+    // before anything reads or integrates pos, and updateAirRoll re-applies
+    // a fresh one after the pose. Physics, collision and combat therefore
+    // never see it, and it can never accumulate.
+    this.unrollPivot();
     const st = this.def.stats;
     const I = this.intent;
     this.stateT -= dt;
@@ -3136,8 +3145,10 @@ export class Fighter {
   // ================= air somersault =================
   // The mech curls into the TIGHT BALL (the 'ball' clip — knees to chest,
   // spine curled, arms hugging the shins; per-body-type via def.ballPose)
-  // and, if it's small enough, the whole body spins about the HIPS
-  // (post-pose, so it rides on both model routes). LARGE bots — weight over
+  // and, if it's small enough, the whole body spins about the BALL'S OWN
+  // CENTRE (rollPivot, post-pose, so it rides on both model routes — it used
+  // to spin the hips joint, which pivoted half the roster around its ankles).
+  // LARGE bots — weight over
   // TUNING.airRoll.tuckOnlyWeight — only TUCK: same ball, same bubble, no
   // cartwheeling.
   // A subtle sphere shield bubbles around them and every hit is taken as a
@@ -3159,7 +3170,69 @@ export class Fighter {
   endAirRoll() {
     if (!this._airRoll) return;
     this._airRoll = null;
+    this.unrollPivot();
+    this.group.rotation.x = 0;
+    this.group.rotation.order = 'XYZ';
     if (this.animator.isPlaying('ball')) this.animator.stop(0.15);
+  }
+
+  // TUMBLE ABOUT THE MIDDLE. The roll used to spin the HIPS joint, which
+  // pivots the body about wherever that bone happens to sit — near the
+  // waist on some rigs, down by the feet on others, so half the roster
+  // cartwheeled around its own ankles instead of balling up and rolling.
+  //
+  // Rotating the whole GROUP is rig-independent, but the group's origin is
+  // at the feet, so a bare group rotation pivots there too. The body is
+  // therefore rotated AND slid by exactly the amount that holds its
+  // mid-height point still: offset = C - R*C, with C the centre in body
+  // space. Whatever the rig, the mech curls up and spins around the middle
+  // of that ball.
+  //
+  // (Joint-space compensation is not an option: the GLB rig adapter carries
+  // only VERTICAL hips translation onto the bones, and this needs a
+  // horizontal component too.)
+  rollPivot(spin) {
+    const r = this._airRoll;
+    // yaw first, then pitch about the body's own left-right axis — the
+    // default XYZ order would pitch about the WORLD x and the tumble would
+    // wobble with facing
+    this.group.rotation.order = 'YXZ';
+    this.group.rotation.x = spin;
+    this.group.rotation.y = this.yaw;
+    // Where the ball's middle actually IS, measured on this rig in this
+    // pose. Half the STANDING height is the wrong answer once the tuck has
+    // folded the legs up: the mass moves upward, and pivoting at the old
+    // waist line left the head swinging on a long arm. Tracked live (and
+    // eased) so the pivot follows the curl as it blends in.
+    const m = this.tuckCentre();
+    r.pivotY = r.pivotY === undefined ? m : r.pivotY + (m - r.pivotY) * 0.25;
+    const c = r.pivotY;
+    _v.set(0, c, 0).applyEuler(this.group.rotation);
+    this._rollOffset = _v.set(-_v.x, c - _v.y, -_v.z).clone();
+    this.pos.add(this._rollOffset);
+  }
+
+  // Mid-height of the curled body, in BODY space (the group's rotation is
+  // divided back out, so it reads the same on any frame of the tumble).
+  // Head and lead foot bracket the ball; their midpoint is what it spins
+  // about. Falls back to half the standing height on a rig missing either.
+  tuckCentre() {
+    const bones = this.mech.boneMap || null;
+    const node = (n) => (bones && bones[n]) || this.mech.joints?.[n] || null;
+    const head = node('head');
+    const foot = node('ankleL') || node('footL') || node('ankleR') || node('footR');
+    if (!head || !foot) return this.height * 0.5;
+    _rollQ.copy(this.group.quaternion).invert();
+    _rollBase.copy(this.pos);
+    if (this._rollOffset) _rollBase.sub(this._rollOffset);
+    const localY = (j) => j.getWorldPosition(_rollTmp).sub(_rollBase).applyQuaternion(_rollQ).y;
+    return clamp((localY(head) + localY(foot)) * 0.5, this.height * 0.25, this.height * 0.85);
+  }
+
+  unrollPivot() {
+    if (!this._rollOffset) return;
+    this.pos.sub(this._rollOffset);
+    this._rollOffset = null;
   }
 
   // ================= guard bubble =================
@@ -3299,11 +3372,11 @@ export class Fighter {
       this.endAirRoll();
       return;
     }
-    const j = this.mech.joints.hips;
-    if (j && SPIN > 0) j.rotation.x += r.ending ? Math.min(r.spin, r.endAt) : r.spin;
-    // spin trail: the tumble reads at speed even in a far camera (a tuck-only
-    // heavy isn't tumbling, so it leaves no streak)
+    // A tuck-only heavy (SPIN 0) still balls up and still wears the bubble;
+    // it just never leaves upright, so it neither pivots nor streaks.
     if (SPIN > 0) {
+      this.rollPivot(r.ending ? Math.min(r.spin, r.endAt) : r.spin);
+      // spin trail: the tumble reads at speed even in a far camera
       this._rollFxT = (this._rollFxT ?? 0) - dt;
       if (this._rollFxT <= 0) {
         this._rollFxT = 0.14;
@@ -3588,6 +3661,8 @@ export class Fighter {
     this._carry = null;
     this.cinePuppet = false;
     this.group.visible = true; // a shattered finisher victim comes back whole
+    this._rollOffset = null;            // never carry an air-roll pivot nudge over
+    this.group.rotation.order = 'XYZ';
     this.group.rotation.set(0, yaw, 0); // clear any carry/slam roll
     this._spinFx = null;
     this._scaleFx = null;
