@@ -143,6 +143,13 @@ export class TitleScreen {
         <div class="mega-title neon-title">${tubes}</div>
         <div class="mega-sub">${t('title.tagline')}</div>
       </div>`;
+    this.audio = audio;
+    // The sign is AUDIBLE: every time a tube drops out it buzzes. The CSS
+    // keyframes stay the single source of truth for the timing — this reads
+    // the tubes' live opacity rather than duplicating the pattern in JS, so
+    // editing the flicker in style.css moves the sound with it.
+    this.tubes = [...this.el.querySelectorAll('.neon-title .tube')];
+    this.lit = this.tubes.map(() => true);
     this.list = new MenuList({ audio, hot: hotButtons });
     this.el.appendChild(this.list.build([
       { t: t('title.menu.battle'), fn: onPlay },
@@ -154,9 +161,24 @@ export class TitleScreen {
     root.appendChild(this.el);
   }
   update(ev) {
+    this.buzz();
     if (this.list.hotNav(ev)) return;
     this.list.nav(ev);
   }
+
+  // one buzz per drop-out, per tube: the deeper the dip, the harder the tube
+  // complains. Reduced-motion leaves the tubes lit, so it stays silent there.
+  buzz() {
+    for (let i = 0; i < this.tubes.length; i++) {
+      const o = parseFloat(getComputedStyle(this.tubes[i]).opacity);
+      const dim = o < 0.9;
+      if (dim && this.lit[i]) {
+        this.audio?.play('neonZap', { vol: 0.55 + (1 - o) * 0.6, pitch: 0.92 + Math.random() * 0.2 });
+      }
+      this.lit[i] = !dim;
+    }
+  }
+
   destroy() {
     this.list.destroy();
     this.el.remove();
@@ -530,8 +552,10 @@ export class MechSelectScreen {
     }
     // the ◀ ▶ hints under the strip: the swatches are cycled with left/right,
     // which is not otherwise discoverable once you're locked in
-    return `<div class="pc-sub pc-colors">${t('select.colorLabel')}${row}<span style="opacity:0.8;">${SCHEME_NAMES[pk.variant]}</span></div>
-      <div class="pc-color-arrows"><span>◀</span>${t('select.colorHint')}<span>▶</span></div>`;
+    // The scheme NAME rides on the arrow row rather than after the swatches:
+    // at eleven schemes the inline version ran off the end of the card.
+    return `<div class="pc-sub pc-colors" title="${t('select.colorHint')}">${t('select.colorLabel')}${row}</div>
+      <div class="pc-color-arrows"><span>◀</span>${SCHEME_NAMES[pk.variant]}<span>▶</span></div>`;
   }
 
   renderCard() {
