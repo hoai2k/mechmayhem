@@ -16,6 +16,11 @@ import { RagdollSim } from '../combat/ragdollphys.js';
 import { SCRIPTS } from './finisher/index.js';
 import { smooth } from './finisher/shared.js';
 
+// Seconds at the end of a scene over which a victim left in the air is eased
+// down to the floor (see the settle in update). Long enough to read as a
+// body coming to rest, short enough not to fight a script's own choreography.
+const SETTLE_TIME = 0.55;
+
 export class Finisher {
   constructor(world, winner, victim, onDone) {
     this.w = world;
@@ -349,6 +354,18 @@ export class Finisher {
       this.win._palmFix = 0;
     }
     this.win.group.rotation.y = this.win.yaw;
+    // SETTLE: end() clamps the victim to the dirt so a scene can never hand
+    // back a hovering corpse — but a clamp on the last frame is a body
+    // TELEPORTING down as the camera cuts away. Whatever a script (or a
+    // ragdoll that hasn't come to rest) left in the air, ease it onto the
+    // floor across the scene's final beat instead, so that clamp is a no-op
+    // and the landing is something you watch rather than something you catch.
+    const settleLeft = this.dur - this.t;
+    if (settleLeft < SETTLE_TIME && this.vic.pos.y > 0) {
+      const k = 1 - Math.max(0, settleLeft) / SETTLE_TIME;
+      this.vic.pos.y = Math.max(0, this.vic.pos.y * (1 - k * k));
+      if (this.vic.pos.y <= 0.02) { this.vic.pos.y = 0; this.vic.vel.set(0, 0, 0); }
+    }
     if (this.t >= this.dur) this.end();
   }
 

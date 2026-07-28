@@ -115,6 +115,20 @@ export function nullbot(F) {
   });
   // ...and then it notices YOU. Locked-off lens shot at chest height;
   // NULLBOT turns square into it while the corrupted mass hangs behind.
+  // The levitation ends WITH THE SCENE, not with its hold. Nothing else was
+  // bringing the body down after 4.2, so the wreck was left hanging ~3 units
+  // off the deck for the rest of the finisher and into the round-end beat —
+  // the "victim floating above the ground" case. It keeps hanging through
+  // the lens shot (the corrupted mass behind him is the point), then drops
+  // under the bluescreen, which covers the whole screen from 4.97: by the
+  // time the overlay lifts, the wreck is lying on the floor where it belongs.
+  F.hold(4.2, 5.35, () => {
+    vic.pos.y = 2.3 * win.scale;   // held: the mass hangs behind the lens shot
+  });
+  F.hold(5.35, F.dur, (k) => {
+    vic.pos.y = Math.max(0, 2.3 * win.scale * (1 - smooth(Math.min(1, k * 2.6))));
+    if (vic.pos.y <= 0) { vic.grounded = true; vic.vel.set(0, 0, 0); }
+  });
   F.hold(4.25, 5.2, () => {
     const az = F.axis + 2.5;
     const d = 6.2 * F.stageScale;
