@@ -222,6 +222,11 @@ const CLIPS_RAW = {
     // front) and clamps the shaft ahead of the right hand; the whole frame
     // then drops into a full fencing lunge — front knee deep, rear leg
     // driven straight — and both arms ram the lance through
+    // The blow is on the LANCE, which rides handR. Without saying so, the
+    // "whichever extremity leads furthest forward" fallback picked footL —
+    // a full fencing lunge throws the front foot further out than the point
+    // — and resolved the skewer down at ankle height behind the target.
+    strikeArm: 'R',
     dur: 0.62,
     keys: [
       { t: 0, pose: {} },
