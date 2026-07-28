@@ -520,6 +520,14 @@ export const ROSTER = [
     restPose: { torso: [14, 0, 0], head: [-8, 0, 0], shoulderL: [-30, 0, -14], shoulderR: [-30, 0, 14], elbowL: [22, 0, 0], elbowR: [22, 0, 0], thighL: [-26, 0, -24], thighR: [-26, 0, 24], kneeL: [58, 0, 4], kneeR: [58, 0, -4], ankleL: [-30, 0, 20], ankleR: [-30, 0, -20] },
     // jumpWindup: he CROUCHES first, then launches — highest jump in the game
     stats: { hp: 980, speed: 9.8, jump: 24, jumpWindup: 0.18, weight: 0.45, armor: 0.08, duck: 0.9, blockMult: 0.15 },
+    // air-somersault tuck reshaped for the grasshopper legs (see the `ball`
+    // clip + defClipVariants): clips add the restPose bias back on
+    // legs/torso/head, and this frame's deep splayed crouch on top of the
+    // shared fold wrapped the knees to 184° with the feet thrown wide —
+    // measured by tools/rollpivot.mjs, his feet swept twice the circle his
+    // head did. These land the totals at a plain biped's tuck (thigh ~-98,
+    // knee ~128) and cancel the splay so the feet ride the ball's surface.
+    ballPose: { torso: [40, 0, 0], thighL: [-72, 0, 20], thighR: [-72, 0, -20], kneeL: [70, 0, -4], kneeR: [70, 0, 4], ankleL: [0, 0, -20], ankleR: [0, 0, 20] },
     ui: { power: 6, speed: 8, defense: 4 },
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.14, 0], torso: [6, 0, 0], shoulderL: [-16, 0, -6], shoulderR: [-16, 0, 6], elbowL: [-24, 0, 0], elbowR: [-24, 0, 0], thighL: [-8, 0, -4], thighR: [-8, 0, 4], kneeL: [12, 0, 0], kneeR: [12, 0, 0] },

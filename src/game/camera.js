@@ -18,6 +18,13 @@ const _v = new THREE.Vector3();
 const _center = new THREE.Vector3();
 const _ray = new THREE.Vector3();
 const _lift = new THREE.Vector3();   // per-frame scratch (was allocated per fighter, per frame)
+// Roll-stable fighter positions (Fighter.focusPos): the air somersault holds
+// the BALL's centre still by sliding the group every frame, so a tumbling
+// fighter's raw `pos` orbits at the spin rate — every framing read below goes
+// through focusPos so the camera tracks the smooth falling base instead.
+const _fpA = new THREE.Vector3();
+const _fpB = new THREE.Vector3();
+const _fpSeg = new THREE.Vector3();
 
 const LAYOUT_KEY = 'rw.splitLayout';
 const ZOOM_KEY = 'rw.camZoom';
@@ -188,9 +195,10 @@ export class CameraSystem {
   // through the shortest wrapped path (target lock, and the solo
   // behind-the-player framing toward the nearest enemy)
   azimuthBehind(f, other) {
+    const a = f.focusPos(_fpA), b = other.focusPos(_fpB);
     return Math.atan2(
-      -this.world.wrapDelta(other.pos.x - f.pos.x),
-      -this.world.wrapDelta(other.pos.z - f.pos.z)
+      -this.world.wrapDelta(b.x - a.x),
+      -this.world.wrapDelta(b.z - a.z)
     );
   }
 
@@ -210,17 +218,18 @@ export class CameraSystem {
 
   // spread a segment's occlusion samples across the fighter's whole body
   fillSegTargets(seg, camPos, f) {
-    let dx = f.pos.x - camPos.x, dz = f.pos.z - camPos.z;
+    const p = f.focusPos(_fpSeg);
+    let dx = p.x - camPos.x, dz = p.z - camPos.z;
     const L = Math.hypot(dx, dz) || 1;
     dx /= L; dz /= L;
     const rx = -dz, rz = dx;                 // view-perpendicular (XZ)
     const r = f.hitRadius * 0.85;
-    const midY = f.pos.y + f.height * 0.55;
-    seg.targets[0].set(f.pos.x, midY, f.pos.z);
-    seg.targets[1].set(f.pos.x + rx * r, midY, f.pos.z + rz * r);
-    seg.targets[2].set(f.pos.x - rx * r, midY, f.pos.z - rz * r);
-    seg.targets[3].set(f.pos.x, f.pos.y + f.height, f.pos.z);
-    seg.targets[4].set(f.pos.x, f.pos.y + 0.5, f.pos.z);
+    const midY = p.y + f.height * 0.55;
+    seg.targets[0].set(p.x, midY, p.z);
+    seg.targets[1].set(p.x + rx * r, midY, p.z + rz * r);
+    seg.targets[2].set(p.x - rx * r, midY, p.z - rz * r);
+    seg.targets[3].set(p.x, p.y + f.height, p.z);
+    seg.targets[4].set(p.x, p.y + 0.5, p.z);
   }
 
   // fighters framed by the camera; humans get viewports when split
@@ -271,20 +280,19 @@ export class CameraSystem {
       this._pts = [];
       for (let i = 0; i < 8; i++) this._pts.push(new THREE.Vector3());
     }
+    const sref = soloRef ? soloRef.focusPos(_fpA) : null;
     const pts = [];
     let upperY = 0; // frame upper bodies, not waists
     for (let i = 0; i < framed.length && i < this._pts.length; i++) {
       const f = framed[i];
       upperY += f.height * 0.75;
-      const p = this._pts[i];
-      if (soloRef && f !== soloRef && this.world.wrapHalf) {
+      const p = f.focusPos(this._pts[i]);
+      if (sref && f !== soloRef && this.world.wrapHalf) {
         p.set(
-          soloRef.pos.x + wd(f.pos.x - soloRef.pos.x),
-          f.pos.y,
-          soloRef.pos.z + wd(f.pos.z - soloRef.pos.z)
+          sref.x + wd(p.x - sref.x),
+          p.y,
+          sref.z + wd(p.z - sref.z)
         );
-      } else {
-        p.copy(f.pos);
       }
       pts.push(p);
     }
@@ -323,7 +331,8 @@ export class CameraSystem {
       // the camera frames ONLY the player's mech — dead-center, always.
       // Enemies never pull the frame; the orbit azimuth alone turns the
       // view so the current threat tends to sit ahead of you.
-      _center.set(player.pos.x, player.pos.y + player.height * 0.75, player.pos.z);
+      const pp = player.focusPos(_fpA);
+      _center.set(pp.x, pp.y + player.height * 0.75, pp.z);
       const lockT = player.lockTarget && player.lockTarget.alive ? player.lockTarget : null;
       if (lockT) {
         // TARGET LOCK (LB held): the camera swings behind the player and
@@ -490,11 +499,12 @@ export class CameraSystem {
       _v.set(
         Math.sin(ch.az) * Math.cos(el), Math.sin(el), Math.cos(ch.az) * Math.cos(el)
       ).multiplyScalar(ch.dist);
-      const wantPos = _v.add(f.pos).add(_lift.set(0, 2 * gf, 0));
+      const fp = f.focusPos(_fpA);
+      const wantPos = _v.add(fp).add(_lift.set(0, 2 * gf, 0));
       // the chase cam tracks ONLY its own mech — opponents never pull the
       // frame; use the right stick to look around
-      const lookAhead = _center.copy(f.pos);
-      // aim at the mech's upper body/head; riding on f.pos.y also keeps the
+      const lookAhead = _center.copy(fp);
+      // aim at the mech's upper body/head; riding on its y also keeps the
       // target with a flying mech, and f.height carries the COLOSSAL-FORM
       // giant's inflated size automatically
       lookAhead.y += f.height * 0.75;
