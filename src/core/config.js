@@ -53,6 +53,11 @@ export const CONFIG = {
   // another arena's floor is a one-word edit.
   menuFloorTextured: params.get('menufloor') !== '0',
   menuFloorTex: 'ground_foundry_ironplate',
+  // NEON BUZZ: how loud the title sign's flicker is, 0..1 (0 = silent). The
+  // dial to turn if the sign is too chatty under the music — edit the number
+  // here, or pass ?neonbuzz=<0..1> for a quick try. Each individual flicker is
+  // scaled a little around this by how deep that drop-out goes.
+  neonBuzzVolume: readParam01('neonbuzz', 0.6),
 
   // SPLIT-SCREEN POST FX: local multiplayer runs the same post chain as the
   // single view (distance haze blur, bloom, FXAA) — one composer per
@@ -136,6 +141,14 @@ export function setSplitPostFx(mode) {
 
 function readPref(key) {
   try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
+}
+
+// A 0..1 knob whose default lives in this file and which a URL param can
+// override for a quick try (?neonbuzz=0.25). Unlike readNum() there is no
+// stored preference behind it — it is a value you EDIT here.
+function readParam01(key, dflt) {
+  const v = parseFloat(params.get(key));
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : dflt;
 }
 
 function readNum(key, dflt, lo = 0, hi = 1) {

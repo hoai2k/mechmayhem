@@ -7,6 +7,7 @@ import { isTouchDevice } from '../core/utils.js';
 import { mechIcon } from './icons.js';
 import { PLAYER_COLORS_CSS as COLOR_CSS, hexCss } from '../core/colors.js';
 import { t } from '../core/text.js';
+import { CONFIG } from '../core/config.js';
 
 // pseudo roster entry: the RANDOM pick (last cell in the grid). Locking it
 // deals you a DIFFERENT random robot every round; the color scheme you pick
@@ -179,7 +180,9 @@ export class TitleScreen {
       const o = parseFloat(getComputedStyle(this.tubes[i]).opacity);
       const dim = o < 0.9;
       if (dim && this.lit[i]) {
-        const vol = 0.55 + (1 - o) * 0.6;
+        // CONFIG.neonBuzzVolume is the dial; the depth of this particular
+        // drop-out just leans on it a little
+        const vol = CONFIG.neonBuzzVolume * (0.8 + (1 - o) * 0.45);
         // a real flicker, or the synth one if the recording never arrived
         if (!this.audio?.playSlice('neonBuzz', { vol, rate: 0.94 + Math.random() * 0.12 })) {
           this.audio?.play('neonZap', { vol, pitch: 0.92 + Math.random() * 0.2 });
