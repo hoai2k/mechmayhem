@@ -9,6 +9,42 @@
   },
   "controlTower": {
     "modelTask": "119657e0-5c23-4878-b43d-ade234cb3a67",
-    "modelFailed": false
+    "modelFailed": false,
+    "modelCredits": 30,
+    "glb": "public/models/buildings/controlTower.glb",
+    "bytes": 4680380,
+    "done": true
+  },
+  "glassSpire": {
+    "modelTask": "4f776028-7233-44eb-81c6-a295e28fc5c5",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "glb": "public/models/buildings/glassSpire.glb",
+    "bytes": 4867556,
+    "done": true
+  },
+  "habStack": {
+    "modelTask": "4facc5ef-bc6e-4a0c-9102-e0cc3ce64ad4",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "glb": "public/models/buildings/habStack.glb",
+    "bytes": 4945828,
+    "done": true
+  },
+  "pagodaTower": {
+    "modelTask": "c340810e-b9be-4b8a-b285-774efc81cf17",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "glb": "public/models/buildings/pagodaTower.glb",
+    "bytes": 4677056,
+    "done": true
+  },
+  "quarryMill": {
+    "modelTask": "02f1104c-6f8e-4cc5-9f0d-3140dd5dc29e",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "glb": "public/models/buildings/quarryMill.glb",
+    "bytes": 5329832,
+    "done": true
   }
 }
