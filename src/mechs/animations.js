@@ -822,6 +822,27 @@ const CLIPS_RAW = {
       { t: 0.22, ease: 'outCubic', pose: { shoulderL: [-70, 30, -10], shoulderR: [-70, -30, 10], elbowL: [-105, 0, 0], elbowR: [-105, 0, 0], torso: [10, 0, 0], head: [8, 0, 0] } },
     ],
   },
+  // AIR SOMERSAULT tuck (fighter.startAirRoll). The guard clip used to stand
+  // in for this, but `block` is upper: true — it never touches the legs, so
+  // the mech "balled up" with its legs still hanging straight down and its
+  // feet swept a far wider arc than its head. This is a real cannonball:
+  // knees to the chest, heels to the seat, arms wrapped in, chin down, so
+  // the whole mass sits close to the middle it spins about. hold: true keeps
+  // the ball for as long as the tumble lasts.
+  airTuck: {
+    dur: 0.18, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.18, ease: 'outCubic', pose: {
+        torso: [30, 0, 0], head: [24, 0, 0], hipsPos: [0, -0.28, 0],
+        shoulderL: [-58, 26, -14], shoulderR: [-58, -26, 14],
+        elbowL: [-128, 0, 0], elbowR: [-128, 0, 0],
+        thighL: [-98, 0, 7], thighR: [-98, 0, -7],
+        kneeL: [112, 0, 0], kneeR: [112, 0, 0],
+        ankleL: [22, 0, 0], ankleR: [22, 0, 0],
+      } },
+    ],
+  },
   hitFlinch: {
     dur: 0.32,
     keys: [
