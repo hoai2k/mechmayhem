@@ -74,10 +74,40 @@ export function preloadPropModels() {
 
 // synchronous: swap a built procedural prop's visuals for the GLB, keeping
 // the group (position/rotation/userData hooks) intact. True if swapped.
+const _bb = new THREE.Box3();
 export function propGlbSwap(name, group) {
   const t = templates.get(name);
   if (!t) return false;
+  // multi-body colliders were authored against the procedural silhouette —
+  // remap them onto the GLB's footprint so "walk between the legs" still
+  // matches what's on screen (offsets scale with the XZ extents, heights
+  // clamp to the model)
+  let remap = null;
+  if (group.userData.bodies) {
+    _bb.setFromObject(group);
+    const pw = Math.max(_bb.max.x - _bb.min.x, 0.001);
+    const pd = Math.max(_bb.max.z - _bb.min.z, 0.001);
+    _bb.setFromObject(t);
+    const sx = (_bb.max.x - _bb.min.x) / pw;
+    const sz = (_bb.max.z - _bb.min.z) / pd;
+    const gh = _bb.max.y;
+    remap = { sx, sz, sr: Math.min((sx + sz) / 2, 1.4), gh };
+  }
   group.clear();
   group.add(t.clone(true));
+  if (remap) {
+    group.userData.bodies = group.userData.bodies.map((b) => ({
+      ...b,
+      dx: b.dx * remap.sx, dz: b.dz * remap.sz,
+      r: b.r * remap.sr, h: Math.min(b.h, remap.gh),
+    }));
+  }
+  // a spin hook aimed at a named procedural part (crusher beacon, solar
+  // wing) has no target inside the GLB — dropping it beats spinning the
+  // entire model
+  if (group.userData.spinName && !group.getObjectByName(group.userData.spinName)) {
+    delete group.userData.spin;
+    delete group.userData.spinName;
+  }
   return true;
 }

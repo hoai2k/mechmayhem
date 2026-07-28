@@ -351,10 +351,13 @@ export async function bootGame() {
     S.mode = 'battle';
 
     const theme = THEMES_BY_ID[S.themeId];
-    // give the arena-prop GLBs a short window to finish warming (direct
-    // ?battle= URLs build the arena within seconds of boot) — never a hard
-    // gate, the procedural props always work
-    await Promise.race([preloadPropModels(), new Promise((r) => setTimeout(r, 1500))]);
+    // give the arena-prop GLBs a window to finish warming (direct ?battle=
+    // URLs build the arena within seconds of boot; from the menus the
+    // preload has long finished and this resolves instantly) — never a hard
+    // gate, the procedural props always work. 1.5s wasn't enough for all 20
+    // models on slow renderers, which silently left a random subset
+    // procedural.
+    await Promise.race([preloadPropModels(), new Promise((r) => setTimeout(r, 8000))]);
     // shared world/arena/camera wiring (arenaObjs = everything the arena
     // adds, hidden behind the warm-up's neutral backdrop and revealed
     // fully-warmed later)
