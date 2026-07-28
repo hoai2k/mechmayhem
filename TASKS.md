@@ -4465,8 +4465,16 @@ viper's punch on titanus rose from his hip (0.51) to his chest (0.69).
 
 ## THE SIGN BUZZES, AND THE MENUS ANSWER TO IT
 
-NEON BUZZ. `neonZap` (core/audio.js) is mains hum, its harsh third and a thin
-crackle — the starter arcing — and it fires every time a tube drops out. The CSS
+NEON BUZZ. Every tube drop-out plays ONE flicker cut out of a real recording
+(`public/sound/neon_buzz.mp3`, a 16.85s take with dozens of flickers in it).
+`GameAudio.loadSliced()` decodes the file once and finds the events in it by
+energy — a 5ms RMS envelope, a threshold set off the MEDIAN (the take has a
+constant hum under it, so the floor is not zero), and a 60ms quiet run to end
+an event — handing back 37 slices; `playSlice()` triggers a different one each
+time with 12ms fades top and tail, since a slice cut out of a continuous take
+starts mid-waveform and would otherwise click. Detection rather than a
+hand-written table so replacing the mp3 moves the slices with it. The synthetic
+`neonZap` stays as the fallback for a file that will not fetch or decode. The CSS
 keyframes stay the single source of truth: TitleScreen reads the tubes' live
 opacity each frame and buzzes on the lit→dim edge, so editing the flicker in
 style.css moves the sound with it rather than desyncing from a duplicated
@@ -4475,8 +4483,9 @@ table. The deeper the dip, the harder the tube complains.
 Verified by stepping the real animations through a full cycle and watching what
 the screen asked the audio engine for: 10 buzzes in 9.2s, at 0.59 / 0.72 / 0.88 /
 1.06 / 3.81 / 5.34 / 5.71 / 7.89 / 8.02 / 8.70s — exactly the measured dip times,
-including both stutter pairs — and the engine built 20 oscillators + 10 noise
-bursts, which is the 2+1 the sound is made of, times ten.
+including both stutter pairs. With the recording in place all ten came from it
+(0 synth fallbacks), on slices 5,10,16,8,34,33,24,29,3,10 — never the same one
+twice in a row.
 
 FONT / COLOR PASS (kept). Two type
 stacks now: `--font-display`, a condensed grotesque (Bahnschrift / DIN Alternate
