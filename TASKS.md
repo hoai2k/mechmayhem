@@ -12,7 +12,29 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** ARMS COUNTER-SWING THE LEGS (they were marching WITH them) —
+- **Latest:** A MANNEQUIN TO CHECK THE ANIMATION AGAINST, AND FOOTPRINTS ON THE
+  GROUND — two answers to "what is this SUPPOSED to look like". (1) The
+  MANNEQUIN (`src/mechs/mannequin.js`): a reference humanoid on the game's own 15
+  joints, same hierarchy and same measurements as the mech it stands in for,
+  built as a real SkinnedMesh with real weights — one flat colour per bone (warm
+  = left, cool = right), a foot with a heel BEHIND the ankle and a toe box in
+  front, a nose and eyes, a thumb per hand. The gait and pose workbenches offer
+  it as a third BUILD button (it runs that mech's own gait and poses the same
+  clips); the skin workbench loads it read-only as the reference bind — one
+  contiguous island per bone, the seam at each joint, a narrow blend band across
+  it, which is the layout a repair is aiming at; the rig editor ghosts it over
+  the raw model as an X-RAY with every joint NAMED on screen, so "the ankle is
+  the joint above and forward of the heel" is a thing you can see rather than a
+  thing you have to be told. (2) FOOTPRINTS in the gait workbench: the mech runs
+  on the spot, so the GROUND runs instead — every plant stamps a print where the
+  foot landed and the whole floor scrolls backward at the real ground speed. The
+  gap between two prints of the same foot is the stride MEASURED off the
+  footfalls; the readout shows it beside the value derived from the cadence, and
+  the two agreeing (6.47 vs 6.4 u on viper at 55% throttle) is a no-skate proof
+  that used to need a probe script. Track width falls out of the same trail
+  (0.35 u on tempest's sprint — nearly single-file, which is what `adduct` is
+  for).
+- **Previous:** ARMS COUNTER-SWING THE LEGS (they were marching WITH them) —
   every mech in the game walked and ran with its left arm going forward
   alongside its left leg. The shared engine's line was `shoulderL += armSwing *
   sinR` while the leg was `thighL += -swing * sinL`, and since shoulder pitch
@@ -4791,3 +4813,77 @@ sole clearance / lean / arm swing / arm phase off the real posed model and
 diffs two gaits;
 `node tools/gaitsheet.mjs <mech> out.png [throttle] [frames] [vsGait]` renders
 the cycle as a filmstrip with the comparison ghost in every frame.
+
+---
+
+## THE MANNEQUIN + THE FOOTPRINT TREADMILL (user request)
+
+**The mannequin** — `src/mechs/mannequin.js`.
+
+Every workbench keeps asking one question in a different accent: *where is this
+part supposed to be?* On a real mech that is hard to answer, because the answer
+is buried under a service model's own bind pose, its fused weapons, its
+digitigrade crouch and whatever the skin weights are doing. So there is now a
+body with nothing hidden — and, crucially, it is not a picture of a humanoid: it
+is the SAME 15 joints in the SAME hierarchy at the SAME measurements
+(`factory.buildRig` / `computeDims`), built as a genuine `SkinnedMesh` with real
+weights.
+
+  · blocky limbs with a joint ball at every joint;
+  · a FOOT: heel block behind the ankle, ankle stub above the arch, sole plate,
+    toe box in front — the sole exactly 0.32·scale under the ankle joint, which
+    is the procedural convention the gait's toe-off is authored against;
+  · a nose and two eyes, so no screenshot is ever read back-to-front;
+  · a thumb on each hand, so a rolled wrist is visible;
+  · one flat colour per bone — WARM = left, COOL = right, darker further out the
+    limb, neutral grey down the centre line;
+  · weights that are hard per segment with a NARROW BLEND BAND across each
+    joint, which is exactly the layout a repaired mech should end up with.
+
+Where it shows up:
+
+  · **gait** and **pose**: a third BUILD button beside GLB / Procedural. It runs
+    the mech's own gait and poses the mech's own clips (per-mech SIGNATURE motion
+    is off — a reference body has no business owning a tail — so what you see is
+    the shared engine plus that mech's rest and combat stance).
+  · **skin**: a `Mannequin reference` box swaps the subject for it, read-only
+    (there is no manifest entry to save to, and Save greys out). The tool
+    colours it by bone exactly as it colours a mech, so its islands ARE the
+    answer to "what should this look like".
+  · **rig**: a `Mannequin reference` box ghosts it over the raw model at the
+    model's own height, drawn with `depthTest: false` so it is an X-RAY rather
+    than something hidden behind an opaque mech, with every joint NAMED by a
+    sprite parented to its bone. Drag a bone to the labelled dot and the rig is
+    anatomically right before a single pose is tested.
+
+The contract gained a `reference` section (`mannequin(height)` / `labels(model)`
+/ `tints()`) for the beside-it case, and `variant: 'mannequin'` in
+`variants.build` / `variants.raw` for the instead-of-it case. A game with no
+reference body leaves both out and the boxes simply aren't offered.
+
+**The footprint treadmill** — the gait workbench.
+
+Locomotion is judged ON THE SPOT, which is what makes two gaits comparable and
+also what hides the one thing a stride is for. So the ground runs instead: each
+plant stamps a foot-shaped print where the foot landed, and the prints, the grid
+and everything else on the floor scroll backward at the mech's real ground speed
+(and at the ANIMATION SPEED dial's rate, so slow-motion keeps them in sync).
+
+Three things fall out of that trail for free:
+
+  · **stride, measured.** The gap between two prints of the same foot is the
+    distance actually covered. The readout shows it next to the number derived
+    from the cadence; they agree to ~1% (viper 6.47 vs 6.4 u per step), which is
+    the foot-plant contract holding.
+  · **track width, measured.** The sideways offset between left and right
+    prints — 0.35 u on tempest's sprint, nearly single-file.
+  · **the skate test, visible.** A planted foot should sit still on top of its
+    own print for the whole stance. If it slides off, the cadence doesn't match
+    the speed.
+
+Plant detection deliberately does NOT look for a local minimum of the foot's
+height: that needs the frame rate to out-sample the stride and it doesn't (at 5
+steps/s, whole steps fell between frames and went unstamped, and under
+SwiftShader it was worse). A foot is planted when it is near the ground AND it is
+the lower of the two, with one stamp per foot per cycle enforced by a gait-phase
+guard rather than by the height signal.

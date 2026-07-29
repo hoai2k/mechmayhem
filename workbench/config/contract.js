@@ -94,6 +94,16 @@
  *   phaseRate(gait, {…}) -> gait phase advance per second, for a frozen preview
  *   topSpeed(id, {game, sprint}) -> the game's real top locomotion speed
  *
+ * @property {Object} reference       a REFERENCE BODY a tool can stand beside
+ *                                    (or instead of) the thing being edited —
+ *                                    this game's is a mannequin on the same 15
+ *                                    joints, which is what makes "where does
+ *                                    the ankle bone go" answerable. Omit it and
+ *                                    the tools that offer it just don't.
+ *   mannequin(height) -> model, canonically proportioned at that total height
+ *   labels(model, {size}) -> a group of named joint dots, parented to its bones
+ *   tints()           -> the per-bone colour vocabulary (warm = left, cool = right)
+ *
  * @property {Object} actions         the "trigger this move" buttons
  *   list()            -> [{ id, label, hold }]
  *   fire(stage, id)   -> make it happen on the stage's subject

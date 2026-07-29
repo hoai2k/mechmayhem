@@ -28,6 +28,22 @@
 //     up) without touching what the mech "is" doing, for reading a fast cycle.
 //     PAUSE + the PHASE scrubber freeze one moment of the cycle.
 //
+// FOOTPRINTS run the GROUND instead of the mech. Locomotion is judged on the
+// spot (that is what makes two gaits comparable), which hides the one thing a
+// stride is for — covering ground. So each plant stamps a print where the foot
+// landed and the whole floor, prints and grid together, scrolls backward at the
+// mech's real speed. The gap between two prints of the same foot is the stride,
+// measured rather than derived; the sideways offset is the track; and a stance
+// foot sliding out from under its own print is a cadence that does not match
+// the speed.
+//
+// THE MANNEQUIN (the third BUILD button) swaps the mech for the reference
+// humanoid — src/mechs/mannequin.js, the same 15 joints at this mech's own
+// measurements, one flat colour per bone (warm left, cool right), a foot with a
+// real heel behind the ankle and a toe box in front. It runs this mech's gait,
+// so it answers "where is the animator actually putting this foot" without a
+// Tripo model's bind pose in the way.
+//
 // COMPARE lands a second, ghosted copy of the same mech beside the first
 // running the SHIPPED gait, phase-locked to yours — the only honest way to
 // judge "is this actually better".
@@ -76,8 +92,16 @@ export async function runGaitWorkbench(config, params) {
   scene.add(ground);
   // The grid is the SKATE TEST: the mech runs on the spot, so a stance foot
   // that slides over the lines is a cadence that doesn't match the ground speed.
-  const grid = new THREE.GridHelper(120, 120, 0x3d4a5e, 0x27303f);
+  // Coarse cells on purpose (5 units), because this grid SCROLLS with the
+  // treadmill below — 1-unit lines at 39 u/s strobe instead of flowing.
+  const GRID_CELL = 5;
+  const grid = new THREE.GridHelper(240, 240 / GRID_CELL, 0x3d4a5e, 0x27303f);
   scene.add(grid);
+  // a fixed centre line, so a scrolling world still has one honest reference
+  const centreLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0.01, -60), new THREE.Vector3(0, 0.01, 60)]),
+    new THREE.LineBasicMaterial({ color: 0x55657a }));
+  scene.add(centreLine);
   camera.position.set(9, 5.5, 10);
   const orbit = new OrbitControls(camera, renderer.domElement);
   orbit.target.set(0, 3.6, 0);
@@ -87,7 +111,12 @@ export async function runGaitWorkbench(config, params) {
   const manifest = config.manifest?.() || null;
   const catalogue = config.catalogue.list();
   let curId = config.catalogue.get(params.get('mech') || params.get('id')) ? (params.get('mech') || params.get('id')) : catalogue[0].id;
-  let useGlb = params.get('model') !== 'proc';
+  // WHICH BODY: the shipped GLB, the hand-sculpted procedural robot, or the
+  // MANNEQUIN — the reference humanoid (src/mechs/mannequin.js) on this mech's
+  // own measurements, which is the body to look at when the question is "where
+  // is the animator actually putting this foot".
+  let build = params.get('model') === 'proc' ? 'proc'
+    : params.get('model') === 'mannequin' ? 'mann' : 'glb';
   let altOn = params.get('alt') === '1';
   let throttle = clamp(Number(params.get('throttle')) || 1, 0, 1);
   let gameSpeed = clamp(Number(params.get('game')) || G.gameSpeed?.() || 1, 0.5, 2);
@@ -154,9 +183,9 @@ export async function runGaitWorkbench(config, params) {
 
   async function buildOne(id, x) {
     const hasGlb = !!altChoice(manifest, id, altOn).entry?.url;
-    const m = await config.variants.build(id, {
-      variant: (useGlb && hasGlb) ? (altOn ? 'alt' : 'glb') : 'proc',
-    });
+    const variant = build === 'mann' ? 'mannequin'
+      : build === 'glb' && hasGlb ? (altOn ? 'alt' : 'glb') : 'proc';
+    const m = await config.variants.build(id, { variant });
     m.group.position.set(x, 0, 0);
     scene.add(m.group);
     const a = config.anim.animator(m, id);
@@ -170,7 +199,7 @@ export async function runGaitWorkbench(config, params) {
     altOn = altChoice(manifest, id, altOn).useAlt;
     const u = new URL(location.href);
     u.searchParams.set('mech', id);
-    u.searchParams.set('model', useGlb ? 'glb' : 'proc');
+    u.searchParams.set('model', build === 'mann' ? 'mannequin' : build === 'proc' ? 'proc' : 'glb');
     if (altOn) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
     history.replaceState(null, '', u);
 
@@ -187,13 +216,17 @@ export async function runGaitWorkbench(config, params) {
     if (compare) await buildGhost();
 
     mechSel.value = curId;
-    for (const [b, on] of [[bGlb, useGlb && built.hasGlb], [bProc, !(useGlb && built.hasGlb)]]) {
+    const shown = build === 'mann' ? 'mann' : (build === 'glb' && built.hasGlb) ? 'glb' : 'proc';
+    for (const [b, key] of [[bGlb, 'glb'], [bProc, 'proc'], [bMann, 'mann']]) {
+      const on = shown === key;
       b.style.background = on ? '#2b6cb0' : '#1a2433';
       b.style.color = on ? '#fff' : '#9fb2c8';
     }
-    glbNote.textContent = (useGlb && !built.hasGlb) ? 'no GLB for this mech — procedural shown' : '';
+    glbNote.textContent = (build === 'glb' && !built.hasGlb) ? 'no GLB for this mech — procedural shown' : '';
     refreshAltRow();
-    panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${mech.isGLB ? 'GLB' : 'procedural'} · gait: ${gaitId}`);
+    panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${
+      mech.isMannequin ? 'MANNEQUIN' : mech.isGLB ? 'GLB' : 'procedural'} · gait: ${gaitId}`);
+    buildPrints();
     buildGaitHeader();
     buildCompareOptions();
     buildDialRows();
@@ -267,14 +300,17 @@ export async function runGaitWorkbench(config, params) {
   // through the camera's real fov and aspect.
   function frameCamera() {
     const { h, len } = bodySize();
-    const wide = (compare ? len * 1.15 : 0) + len;
+    // with the treadmill running, the trail behind the mech is part of what you
+    // are looking at, so give it room and sit the mech forward of centre
+    const trail = printsOn && !compare ? len * 0.8 : 0;
+    const wide = (compare ? len * 1.15 : 0) + len + trail;
     const vfov = camera.fov * Math.PI / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (camera.aspect || 1.6));
     const dist = Math.max(
       (h * 1.12 * 0.5) / Math.tan(vfov / 2),
       (wide * 0.5) / Math.tan(hfov / 2),
     ) * 1.08;
-    const cz = compare ? -ghostSpan() * 0.5 : 0;
+    const cz = compare ? -ghostSpan() * 0.5 : -trail * 0.3;
     orbit.target.set(0, h * 0.5, cz);
     // side-on: a stride is a profile, not a front view
     camera.position.set(dist, h * 0.58, cz + dist * 0.06);
@@ -314,11 +350,156 @@ export async function runGaitWorkbench(config, params) {
       ghostAnim.update(paused ? step : step * animSpeed, ctx);
       ghostAnim.phase = animator.phase;
     }
+    if (printsOn && !paused) {
+      trackFeet(animator.phase);
+      scrollGround(ctx.speed * step * animSpeed);
+    }
     drawMarks();
     readoutT += dt;
     if (readoutT > 0.1) { readoutT = 0; refreshReadout(rate); }
   };
   engine.start();
+
+  // ---------- FOOTPRINTS: the treadmill ----------
+  // The mech runs ON THE SPOT, which is what makes every dial comparable — and
+  // also what hides the thing a stride is FOR. So run the ground instead: every
+  // time a foot plants, stamp a print where it landed, then scroll the prints
+  // (and the grid) backward at the real ground speed. The trail behind the mech
+  // is then a true record of the gait — the gap between successive prints of the
+  // same foot IS the stride length, the offset between left and right IS the
+  // track width, and a foot that skates shows up as a print that slides out from
+  // under it.
+  const PRINT_POOL = 32;
+  const printGroup = new THREE.Group();
+  scene.add(printGroup);
+  const prints = [];                 // ring buffer of { mesh, side, alive }
+  let printAt = 0;                   // next slot to (re)use
+  const feet = { L: null, R: null }; // per-foot plant detector
+  let measured = { stride: 0, track: 0 };
+  let printsOn = params.get('prints') !== '0';
+  const _fw = new THREE.Vector3(), _fq = new THREE.Quaternion(), _fz = new THREE.Vector3();
+
+  // A foot-shaped decal: rounded heel, wider rounded toe, so which way the foot
+  // was pointing when it landed is readable at a glance.
+  function footShape(len, wid) {
+    const hw = wid * 0.5, sh = new THREE.Shape();
+    sh.moveTo(-hw * 0.78, -len * 0.28);
+    sh.quadraticCurveTo(-hw * 0.9, -len * 0.5, 0, -len * 0.5);
+    sh.quadraticCurveTo(hw * 0.9, -len * 0.5, hw * 0.78, -len * 0.28);
+    sh.lineTo(hw, len * 0.22);
+    sh.quadraticCurveTo(hw, len * 0.5, 0, len * 0.5);
+    sh.quadraticCurveTo(-hw, len * 0.5, -hw, len * 0.22);
+    sh.closePath();
+    const g = new THREE.ShapeGeometry(sh, 8);
+    g.rotateX(Math.PI / 2);          // lie flat, toe pointing +Z (the facing)
+    return g;
+  }
+
+  function buildPrints() {
+    for (const p of prints) { printGroup.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); }
+    prints.length = 0;
+    printAt = 0;
+    if (!mech) return;
+    const d = mech.dims;
+    const len = (d.footLen || 0.85 * d.scale) * 1.05;
+    const wid = (0.30 * d.scale) * (d.bulk || 1) * 1.5;
+    for (let i = 0; i < PRINT_POOL; i++) {
+      const mesh = new THREE.Mesh(footShape(len, wid), new THREE.MeshBasicMaterial({
+        transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+      }));
+      mesh.renderOrder = 5;
+      mesh.visible = false;
+      printGroup.add(mesh);
+      prints.push({ mesh, side: 'L', z0: 0 });
+    }
+    // L warm / R cool, the same reading as the mannequin's own colours
+    feet.L = { prev: Infinity, falling: false, lastPh: -99, last: null, colour: 0xff7a5c };
+    feet.R = { prev: Infinity, falling: false, lastPh: -99, last: null, colour: 0x5cc8ff };
+    measured = { stride: 0, track: 0 };
+  }
+
+  function stampPrint(side, x, z, yaw) {
+    const slot = prints[printAt % prints.length];
+    printAt++;
+    if (!slot) return;
+    slot.side = side;
+    slot.mesh.visible = true;
+    slot.mesh.material.color.setHex(feet[side].colour);
+    slot.mesh.material.opacity = 0.85;
+    slot.mesh.position.set(x, 0.02 * (mech.dims.scale || 1), z);
+    slot.mesh.rotation.set(0, yaw, 0);
+    // the gap to this foot's PREVIOUS print is the stride — and because the
+    // prints have been scrolling backward at ground speed since then, that gap
+    // is the real distance covered, measured rather than derived
+    const prev = feet[side].last;
+    if (prev && prev.mesh.visible) {
+      measured.stride = Math.hypot(x - prev.mesh.position.x, z - prev.mesh.position.z);
+    }
+    const other = feet[side === 'L' ? 'R' : 'L'].last;
+    if (other && other.mesh.visible) measured.track = Math.abs(x - other.mesh.position.x);
+    feet[side].last = slot;
+  }
+
+  // Plant detection. The obvious rule — "stamp at the local minimum of the
+  // ankle's height" — needs the frame rate to out-sample the stride, and it
+  // doesn't: at 5 steps/s (and far worse under SwiftShader in a screenshot) the
+  // minimum falls between frames and whole steps go unstamped. So use the rule
+  // that survives coarse sampling: a foot is PLANTED when it is near the ground
+  // AND it is the lower of the two, and one plant per foot per cycle is enforced
+  // by a gait-phase guard rather than by the height signal.
+  function trackFeet(phase) {
+    if (!mech || !prints.length) return;
+    const d = mech.dims;
+    const legLen = d.thighLen + d.shinLen;
+    const floor = 0.32 * (d.scale || 1) + legLen * 0.2;      // "near the ground"
+    const h = {}, pos = {}, yaw = {};
+    for (const side of ['L', 'R']) {
+      const j = mech.joints['ankle' + side];
+      if (!j) return;
+      j.getWorldPosition(_fw);
+      h[side] = _fw.y - mech.group.position.y;
+      pos[side] = _fw.clone();
+      j.getWorldQuaternion(_fq);
+      _fz.set(0, 0, 1).applyQuaternion(_fq);
+      yaw[side] = Math.atan2(_fz.x, _fz.z);
+    }
+    for (const side of ['L', 'R']) {
+      const f = feet[side];
+      const other = side === 'L' ? 'R' : 'L';
+      if (!f || h[side] > floor || h[side] > h[other] || phase - f.lastPh < 2.0) continue;
+      // the print belongs under the FOOT, which reaches forward of its joint
+      const fl = (d.footLen || 0.85 * d.scale) * 0.18;
+      stampPrint(side, pos[side].x + Math.sin(yaw[side]) * fl,
+        pos[side].z + Math.cos(yaw[side]) * fl, yaw[side]);
+      f.lastPh = phase;
+    }
+  }
+
+  // everything on the ground moves backward at the mech's own ground speed
+  let gridScroll = 0;
+  function scrollGround(dz) {
+    if (!dz) return;
+    for (const p of prints) {
+      if (!p.mesh.visible) continue;
+      p.mesh.position.z -= dz;
+      // fade with distance travelled, and retire well before the pool wraps
+      const back = -p.mesh.position.z;
+      p.mesh.material.opacity = 0.85 * clamp(1 - back / (mech.dims.hipHeight * 14), 0, 1);
+      if (p.mesh.material.opacity <= 0.01) p.mesh.visible = false;
+    }
+    gridScroll = (gridScroll + dz) % GRID_CELL;
+    grid.position.z = -gridScroll;
+  }
+
+  function setPrintsOn(v) {
+    printsOn = !!v;
+    printGroup.visible = printsOn;
+    if (!printsOn) { grid.position.z = 0; gridScroll = 0; }
+    else buildPrints();
+    const u = new URL(location.href);
+    if (printsOn) u.searchParams.delete('prints'); else u.searchParams.set('prints', '0');
+    history.replaceState(null, '', u);
+  }
 
   // ---------- joint marks ----------
   const marks = new THREE.Group();
@@ -575,9 +756,16 @@ export async function runGaitWorkbench(config, params) {
   const modelRow = row('<span style="width:38px;color:#8ba0b8">build</span>');
   const bGlb = el('button', btnCss, 'GLB');
   const bProc = el('button', btnCss, 'Procedural');
-  bGlb.onclick = () => { if (!useGlb) { useGlb = true; load(curId, { keepCam: true }); } };
-  bProc.onclick = () => { if (useGlb) { useGlb = false; load(curId, { keepCam: true }); } };
-  modelRow.append(bGlb, bProc);
+  const bMann = el('button', btnCss, 'Mannequin');
+  bMann.title = 'The REFERENCE humanoid, on this mech\'s own measurements and running this '
+    + 'mech\'s gait: one flat colour per bone (warm = left, cool = right), a foot with a real '
+    + 'heel behind the ankle and a toe box in front, a nose on the head. What the animator is '
+    + 'asking for, with nothing hidden. Per-mech signature motion is off.';
+  const pick = (next) => { if (build !== next) { build = next; load(curId, { keepCam: true }); } };
+  bGlb.onclick = () => pick('glb');
+  bProc.onclick = () => pick('proc');
+  bMann.onclick = () => pick('mann');
+  modelRow.append(bGlb, bProc, bMann);
   const glbNote = el('span', 'color:#e0a13c;font-size:11px');
   modelRow.appendChild(glbNote);
   const altRow = el('div', '');
@@ -705,6 +893,20 @@ export async function runGaitWorkbench(config, params) {
     phaseInp.value = scrubPhase;
   }
 
+  const printRow = row('');
+  const printChk = el('input');
+  printChk.type = 'checkbox';
+  printChk.checked = printsOn;
+  printChk.onchange = () => setPrintsOn(printChk.checked);
+  const printLbl = el('label', 'display:flex;gap:5px;align-items:center;font-size:11.5px;cursor:pointer');
+  printLbl.append(printChk, document.createTextNode('footprints — run the ground instead of the mech'));
+  printLbl.title = 'The mech runs on the spot, so the GROUND scrolls: a print is stamped where '
+    + 'each foot plants and then travels backward at the real ground speed. The gap between two '
+    + 'prints of the same foot is the true stride length (shown above), the sideways offset is '
+    + 'the track width, and a stance foot that slides out from under the mech is a cadence that '
+    + 'does not match the speed.';
+  printRow.appendChild(printLbl);
+
   const cmpRow = row('');
   const cmpChk = el('input');
   cmpChk.type = 'checkbox'; cmpChk.checked = compare;
@@ -740,6 +942,12 @@ export async function runGaitWorkbench(config, params) {
     readout.innerHTML =
       `speed  ${fmt(ctx.speed, 1)} u/s  of ${fmt(ctx.maxSpeed, 1)}   ratio ${fmt(throttle, 2)}<br>` +
       `stride ${fmt(steps, 2)} steps/s · ${fmt(strideLen, 2)} u per step<br>` +
+      (printsOn && measured.stride
+        // MEASURED off the footfalls, not derived from the cadence: the gap the
+        // prints actually left behind, and how far apart the two feet track
+        ? `landed ${fmt(measured.stride / 2, 2)} u per step (${fmt(measured.stride, 2)} u same foot)`
+          + ` · track ${fmt(measured.track, 2)} u<br>`
+        : '') +
       `phase  ${fmt(scrubPhase, 2)} rad${paused ? '  (frozen)' : ''}`;
     if (!paused) phaseInp.value = scrubPhase;
   }
@@ -930,6 +1138,8 @@ export async function runGaitWorkbench(config, params) {
     setGameSpeed: (v) => { gameSpeed = clamp(v, 0.5, 2); gs.set(gameSpeed); },
     setAnimSpeed: (v) => { animSpeed = clamp(v, 0.05, 2); as.set(animSpeed); },
     setPaused, setPhase,
+    setPrints: setPrintsOn,
+    get footfalls() { return { ...measured, stamped: printAt }; },
     setCompare: async (v, vs) => {
       compare = !!v; cmpChk.checked = compare;
       if (vs !== undefined) { compareGait = vs || null; cmpSel.value = compareGait || ''; }

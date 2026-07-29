@@ -142,6 +142,28 @@ audio). Progress history: `TASKS.md`.
   measures d(joint)/d(dial) at that phase, works out which way that pushes the
   limb on screen and projects the drag onto it. **Output gait** downloads a
   paste-ready `GAITS` block with every changed dial listed from -> to.
+  FOOTPRINTS (on by default, `&prints=0` off) run the GROUND instead of the
+  mech: each plant stamps a print where the foot landed and the floor, prints
+  and grid together, scrolls backward at the real ground speed. The gap between
+  two prints of the same foot is the stride MEASURED rather than derived (the
+  readout prints both, and they agreeing is the no-skate proof), the sideways
+  offset is the track, and a stance foot sliding off its own print is a cadence
+  that doesn't match the speed.
+- THE MANNEQUIN (`src/mechs/mannequin.js`) is a REFERENCE HUMANOID on the game's
+  own 15 joints — same hierarchy, same measurements as the mech it stands in for
+  (`factory.buildRig`/`computeDims`), built as a genuine SkinnedMesh with real
+  weights: one flat colour per bone (WARM = left, COOL = right, darker further
+  out the limb), a foot with a real heel behind the ankle and a toe box in front,
+  a nose and eyes on the head, a thumb on each hand. It answers "where is this
+  part SUPPOSED to be" in four workbenches: **gait** and **pose** offer it as a
+  third BUILD button beside GLB/Procedural (it runs the mech's own gait and
+  poses the same clips — per-mech signature motion is off, so what you see is the
+  shared engine); **skin** has a `Mannequin reference` box that loads it as the
+  subject, read-only, to show the layout a repaired bind is aiming at (one
+  contiguous island per bone, seam at each joint, a narrow blend band across it);
+  **rig** ghosts it over the raw model at the model's own height as an X-RAY with
+  every joint NAMED on screen (`config.reference.mannequin/labels`), which is how
+  "the ankle is above and forward of the heel" stops being a guess.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit

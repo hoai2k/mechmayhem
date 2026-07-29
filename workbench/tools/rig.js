@@ -651,6 +651,70 @@ export async function runRigWorkbench(config, params) {
     bgRow.appendChild(sw);
   }
   panel.appendChild(bgRow);
+
+  // ---- MANNEQUIN REFERENCE -------------------------------------------------
+  // "Where does a bone actually belong?" The reference humanoid, ghosted in
+  // place at this model's height with every joint NAMED on screen, is the
+  // answer: the ankle sits above and forward of the heel, the knee at the front
+  // of the shin, the shoulder inboard of the deltoid. Drag your bone to the
+  // labelled dot and the rig is anatomically right before you even test a pose.
+  let mannGroup = null, mannLabels = null, mannOn = false;
+  function modelHeight() {
+    container.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(mesh);
+    return Math.max(0.5, box.max.y - box.min.y);
+  }
+  function setMannequin(on) {
+    mannOn = on;
+    if (!on) {
+      if (mannLabels) { mannLabels.dispose?.(); mannLabels = null; }
+      if (mannGroup) {
+        scene.remove(mannGroup);
+        mannGroup.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); });
+        mannGroup = null;
+      }
+      return;
+    }
+    if (mannGroup) { mannGroup.visible = true; return; }
+    const ref = config.reference?.mannequin?.(modelHeight());
+    if (!ref) { note.textContent = 'no mannequin reference in this game config'; return; }
+    mannGroup = ref.group;
+    // X-RAY, not a ghost behind an opaque mech: the whole job of this overlay is
+    // to be compared against bones INSIDE the model, so it draws through it.
+    mannGroup.traverse((o) => {
+      if (!o.material) return;
+      const fade = (m) => {
+        const c = m.clone();
+        c.transparent = true; c.opacity = 0.34;
+        c.depthWrite = false; c.depthTest = false;
+        return c;
+      };
+      o.material = Array.isArray(o.material) ? o.material.map(fade) : fade(o.material);
+      o.renderOrder = 900;
+    });
+    // stand it where the model stands, so a bone and its reference joint are
+    // directly comparable — same ground, same height, same centre line
+    container.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(mesh);
+    mannGroup.position.set((box.min.x + box.max.x) * 0.5, box.min.y, (box.min.z + box.max.z) * 0.5);
+    scene.add(mannGroup);
+    mannLabels = config.reference?.labels?.(ref, { size: modelHeight() * 0.045 });
+    note.textContent = `reference: ${ref.height.toFixed(2)} tall vs model ${modelHeight().toFixed(2)}`;
+  }
+  const mannRow = el('div', 'display:flex;gap:5px;align-items:center;margin:0 0 6px');
+  const mannChk = document.createElement('input');
+  mannChk.type = 'checkbox';
+  mannChk.onchange = () => setMannequin(mannChk.checked);
+  const mannLab = document.createElement('label');
+  mannLab.style.cssText = 'display:flex;gap:5px;align-items:center;font-size:11px;cursor:pointer;color:#dfe8f5';
+  mannLab.append(mannChk, document.createTextNode(' Mannequin reference (named joints)'));
+  mannLab.title = 'Ghost the REFERENCE humanoid over this model at the same height, with every '
+    + 'joint labelled. It is the map for what each bone name MEANS: the ankle is the joint above '
+    + 'and forward of the heel, not the heel itself; the knee is at the front of the leg; the '
+    + 'shoulder is inboard of the arm.';
+  mannRow.appendChild(mannLab);
+  panel.appendChild(mannRow);
+
   function refreshModeButtons() {
     bColor.style.background = colorOn ? '#24405e' : '#1a2433';
     bSolo.style.background = soloRoot ? '#1f7a4d' : '#1a2433';
