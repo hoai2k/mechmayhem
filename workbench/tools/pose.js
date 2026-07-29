@@ -135,7 +135,13 @@ export async function runPoseWorkbench(config, params) {
 
   const manifest = config.manifest();
   let curId = config.catalogue.get(startId) ? startId : config.catalogue.list()[0].id;
-  let useGlb = params.get('model') !== 'proc';
+  // WHICH BODY is being posed: the shipped GLB, the procedural robot, or the
+  // MANNEQUIN — the reference humanoid (src/mechs/mannequin.js) on this mech's
+  // measurements. A clip pose authored on the mannequin is still a clip pose
+  // (same 15 joints, same rest bias), and it is far easier to see whether a
+  // wrist has rolled or a foot is pointing when the body hides nothing.
+  let build = params.get('model') === 'proc' ? 'proc'
+    : params.get('model') === 'mannequin' ? 'mann' : 'glb';
   // ?alt=1 — pose the manifest's ALTERNATE build (a second model, or the same
   // model on a staged custom rig). Same control as ?debug=skin / ?rigedit; here
   // it rebuilds in place instead of reloading, since this tool already swaps
@@ -206,7 +212,7 @@ export async function runPoseWorkbench(config, params) {
     altOn = alt.useAlt;          // a mech with no alternate falls back silently
     const u = new URL(location.href);
     u.searchParams.set('mech', id);
-    u.searchParams.set('model', useGlb ? 'glb' : 'proc');
+    u.searchParams.set('model', build === 'mann' ? 'mannequin' : build === 'proc' ? 'proc' : 'glb');
     if (altOn) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
     history.replaceState(null, '', u);
     gizmo.detach(); selJoint = null; hoverJoint = null;
@@ -219,7 +225,9 @@ export async function runPoseWorkbench(config, params) {
       });
     }
     const hasGlb = !!alt.entry?.url;
-    mech = await config.variants.build(id, { variant: (useGlb && hasGlb) ? (altOn ? 'alt' : 'glb') : 'proc' });
+    const variant = build === 'mann' ? 'mannequin'
+      : build === 'glb' && hasGlb ? (altOn ? 'alt' : 'glb') : 'proc';
+    mech = await config.variants.build(id, { variant });
     mech.group.position.set(0, 0, 0);
     scene.add(mech.group);
     animator = config.anim.animator(mech, id);
@@ -236,14 +244,18 @@ export async function runPoseWorkbench(config, params) {
     }
     loadedFrom = 'rest';
     mechSel.value = curId;
-    for (const [b, on] of [[bGlb, useGlb && hasGlb], [bProc, !(useGlb && hasGlb)]]) {
+    const shown = build === 'mann' ? 'mann' : (build === 'glb' && hasGlb) ? 'glb' : 'proc';
+    for (const [b, key] of [[bGlb, 'glb'], [bProc, 'proc'], [bMann, 'mann']]) {
+      const on = shown === key;
       b.style.background = on ? '#2b6cb0' : '#1a2433';
       b.style.color = on ? '#fff' : '#9fb2c8';
     }
-    modelRow.style.display = hasGlb ? 'flex' : 'none';
-    glbNote.textContent = (useGlb && !hasGlb) ? 'no GLB for this mech — procedural shown' : '';
+    // the row always shows now: the mannequin is offered for every mech, GLB or not
+    modelRow.style.display = 'flex';
+    glbNote.textContent = (build === 'glb' && !hasGlb) ? 'no GLB for this mech — procedural shown' : '';
     refreshAltRow();
-    panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${mech.isGLB ? 'GLB' : 'procedural'}`);
+    panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${
+      mech.isMannequin ? 'MANNEQUIN' : mech.isGLB ? 'GLB' : 'procedural'}`);
     buildJointButtons();
     buildBoneMarks();
     // a rebuild is a new rig — nothing from the old one can be restored onto it
@@ -1315,9 +1327,15 @@ export async function runPoseWorkbench(config, params) {
   }
 
   const modelRow = el('div', 'display:flex;gap:6px;margin-top:6px');
-  const bGlb = btn('GLB', () => { useGlb = true; load(curId, { keepCam: true }); });
-  const bProc = btn('Procedural', () => { useGlb = false; load(curId, { keepCam: true }); });
-  modelRow.append(bGlb, bProc);
+  const pickBuild = (next) => { if (build !== next) { build = next; load(curId, { keepCam: true }); } };
+  const bGlb = btn('GLB', () => pickBuild('glb'));
+  const bProc = btn('Procedural', () => pickBuild('proc'));
+  const bMann = btn('Mannequin', () => pickBuild('mann'));
+  bMann.title = 'Pose the REFERENCE humanoid instead: the same 15 joints at this mech\'s '
+    + 'measurements, one flat colour per bone (warm = left, cool = right), a foot with a real '
+    + 'heel behind the ankle and a toe box in front, a thumb on each hand. The pose and the '
+    + 'export mean exactly the same thing — you can just see what you are doing.';
+  modelRow.append(bGlb, bProc, bMann);
   panel.appendChild(modelRow);
   const glbNote = el('div', 'color:#ffd9a0;font-size:10px;margin-top:3px');
   panel.appendChild(glbNote);

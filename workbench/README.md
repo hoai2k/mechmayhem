@@ -22,7 +22,11 @@ optionally naming just the tools to re-shoot).
 ```
 
 `&variant=alt` (or the legacy `&alt=1`) opens a mech's alternate build;
-`&model=proc` opens the procedural body where a tool offers one. The old URLs
+`&model=proc` opens the procedural body where a tool offers one, and
+`&model=mannequin` (gait, pose) or `&ref=mannequin` (skin) opens the REFERENCE
+HUMANOID instead — same 15 joints, one colour per bone, a foot you can read.
+The rig editor ghosts the same body over the model it is rigging, with every
+joint labelled, from its `Mannequin reference` box. The old URLs
 (`?debug=skin`, `?rigedit=<id>`, …) redirect here with their params carried
 over, so existing links, bookmarks and the `tools/*.mjs` scripts keep working.
 
@@ -44,6 +48,14 @@ workbench/
 ```
 
 ## The deal
+
+**A reference is a capability too.** `config.reference.mannequin(height)` hands
+back a canonically proportioned humanoid on the same rig, and
+`config.reference.labels(model)` names its joints on screen. That is what lets
+the rig editor answer "where does the ankle bone go" without the tool knowing
+anything about anatomy — and `variants.build/raw(id, {variant:'mannequin'})`
+lets the other three swap the subject for it outright. A game with no reference
+body leaves the section out and the boxes aren't offered.
 
 **Not every subject is a model, either.** `?edit=gait` edits the LOCOMOTION —
 a named bundle of numbers (`src/mechs/gaits.js`) that several mechs share, not
