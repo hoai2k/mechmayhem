@@ -11,10 +11,13 @@
 //     "heightScale": 1.0,             // fine-tune vs the mech's gameplay height
 //     "yawOffset": 0,                 // degrees, if the model faces the wrong way
 //     "emissiveBoost": 1.5,           // multiply emissive intensity on materials
-//     "stretch": { "elbowL": 1.2 }    // lengthen a limb segment: multiplies the
+//     "stretch": { "elbowL": 1.2 },   // lengthen a limb segment: multiplies the
 //                                     // mapped bone's local offset from its
 //                                     // parent (the skin follows) — fix models
 //                                     // whose proportions undershoot the mech
+//     "seamCuts": [                   // separate parts the mesher wrongly WELDED
+//       {"a":["handL"],"b":["torso"],"cap":true}   // — see seamcut.js
+//     ]
 //   }, ...
 // }
 // Any mech missing from the manifest (or failing to load) falls back to the
@@ -30,6 +33,7 @@ import { RigAdapter, mapBones, JOINT_ORDER } from './rigadapter.js';
 import { GLB_DRESS } from './designs.js';
 import { profileFor as glbProfileFor } from './glbanim.js';
 import { applySkinOpsToGltf, applySkinOps } from './skinops.js';
+import { applySeamCuts } from './seamcut.js';
 import { rigFor } from './rigs/index.js';
 import { applyCustomRig, buildRigPosts } from './reskin.js';
 import { buildFistSplit } from './fistsplit.js';
@@ -45,15 +49,25 @@ let manifestPromise = null;
 const KNOWN_ENTRY_KEYS = new Set([
   'url', 'bindPose', 'boneOverrides', 'heightScale', 'yawOffset',
   'emissiveBoost', 'stretch', 'bonePos', 'boneCorrections', 'noHeadMatch',
-  'skinOps', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
+  'skinOps', 'seamCuts', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
 ]);
 const _entryWarned = new Set(); // "<id>|<msg>" — each complaint fires once per entry
 // Fields of a manifest entry that decide where the bones end up, and
 // therefore what anything measured off this build is true of. See mech.glbKey.
 const SKELETON_KEYS = ['url', 'rig', 'boneOverrides', 'stretch', 'bonePos',
-  'boneCorrections', 'reparent', 'skinOps', 'modelScale', 'heightScale', 'noHeadMatch'];
+  'boneCorrections', 'reparent', 'skinOps', 'seamCuts', 'modelScale', 'heightScale', 'noHeadMatch'];
 function glbBuildKey(entry) {
   return SKELETON_KEYS.map((k) => (entry?.[k] === undefined ? '' : JSON.stringify(entry[k]))).join('|');
+}
+
+// One line per model whose shell was cut, so a silent no-op rule is visible in
+// the console rather than only in the geometry.
+function reportSeamCuts(id, report) {
+  if (!report) return;
+  const what = report.rules
+    .map((r) => `${r.bridgeTris} tri, +${r.duplicated} vert, ${r.capTris} lid tri, ${r.unblended} unblended`)
+    .join(' · ');
+  console.info(`seamCuts[${id}]: ${what}`);
 }
 
 function warnEntryOnce(id, msg) {
@@ -383,6 +397,10 @@ function buildGlbMech(def, entry, gltf) {
       // a rebind it exports lands here. applyCustomRig clones the geometry per
       // build, so this is a per-clone application — no shared-scene guard needed.
       if (entry.skinOps?.length) applySkinOps(sk, entry.skinOps);
+      // ...and THEN cut the parts the mesher wrongly welded into one surface
+      // (seamcut.js). After skinOps on purpose: it reads the final weights, so
+      // "hand" and "torso" mean whatever the hand-authored rebinds made them.
+      reportSeamCuts(def.id, applySeamCuts(sk, entry.seamCuts));
     }
   } else {
     // Map GLB bones onto the virtual rig's joints EARLY (mapBones is pure
@@ -415,6 +433,12 @@ function buildGlbMech(def, entry, gltf) {
     // geometry); clones share it, so applying after cloneSkinned still fixes
     // this clone. (A custom rig takes its own skinOps in the branch above.)
     applySkinOpsToGltf(gltf.scene, entry.skinOps);
+    // and the seam cuts on top of them, same order and same reason as the
+    // custom-rig branch above
+    if (entry.seamCuts?.length) {
+      const sk = meshes.find((m) => m.isSkinnedMesh);
+      if (sk) reportSeamCuts(def.id, applySeamCuts(sk, entry.seamCuts));
+    }
   }
 
   // Alternate paint scheme (colorscheme.js): repaint the baked GLB textures so

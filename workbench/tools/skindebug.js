@@ -486,12 +486,14 @@ export async function runSkinDebugWorkbench(config, params) {
       for (let i = 0; i < preps.length; i++) addSpots(clusterSpots(preps[i], peaks[i]), c, i);
     }
 
+    const splitPairs = preps.reduce((a, p) => a + (p.splitPairs || 0), 0);
     instances = mergeSpots();
     scanning = false;
     const ms = Math.round(performance.now() - t0);
     setStatus(`${curId}${altOn ? ' · ALT' : ''} — ${instances.length} finding(s) `
       + `from ${rawSpots.length} spot·clip hit(s) over ${clips.length + 1} clip(s), ${(ms / 1000).toFixed(1)}s\n`
-      + `${preps.reduce((a, p) => a + p.E, 0)} deformable edges of ${preps.reduce((a, p) => a + p.n, 0)} verts`);
+      + `${preps.reduce((a, p) => a + p.E, 0)} deformable edges of ${preps.reduce((a, p) => a + p.n, 0)} verts`
+      + (splitPairs ? `\n${splitPairs} seam-cut pair(s) skipped — split on purpose, see manifest seamCuts` : ''));
     renderList();
     // ?clip= / ?i= deep-link one finding; otherwise open on the worst
     const wantClip = params.get('clip');
@@ -967,8 +969,10 @@ export async function runSkinDebugWorkbench(config, params) {
         p.set('t', occ.t.toFixed(3));
       }
       if (tool === 'skin') {
-        // the vertex whose island IS the problem — the skin workbench selects it
-        p.set('vert', String(inst.peakVert));
+        // The vertex whose island IS the problem. Translated back to the FILE's
+        // own numbering first: a seam cut adds vertices to the built model that
+        // the raw GLB the skin workbench edits has never heard of.
+        p.set('vert', String(sourceVert(inst.meshIdx, inst.peakVert)));
         if (clip) p.set('clip', clip);
       }
     }
@@ -976,6 +980,15 @@ export async function runSkinDebugWorkbench(config, params) {
       ? location.pathname
       : location.pathname.replace(/[^/]*$/, '') + 'workbench/';
     window.open(`${dir}?${p.toString()}`, '_blank', 'noopener');
+  }
+
+  // A built model's vertex id in the numbering of the FILE it was built from.
+  // seamcut.js appends vertices (split copies and cap lids) past the end of the
+  // original buffer and records where each came from; without this a hand-off
+  // to the skin workbench could name a vertex that does not exist there.
+  function sourceVert(meshIdx, vert) {
+    const src = preps[meshIdx]?.mesh.geometry.userData?.seamCut?.source;
+    return src && vert < src.length ? src[vert] : vert;
   }
 
   // ================= re-read the sources =================
@@ -1051,7 +1064,15 @@ export async function runSkinDebugWorkbench(config, params) {
 
   // scripting / headless audit (tools/skinaudit.mjs)
   window.__skinDebug = {
-    engine, panel,
+    engine, panel, camera, orbit,
+    // pose the model exactly as the scan did, for a scripted look at a frame
+    poseAt: (clipName, t) => {
+      previewClip = clipName ? (config.anim.clip(clipName, mech) || null) : null;
+      scrubT = t || 0;
+      poseAt(scrubT);
+      syncTime();
+    },
+    setHighlight: (on) => { highlight = !!on; refreshOverlay(); syncChecks(); },
     get mech() { return mech; },
     get instances() { return instances; },
     get scanning() { return scanning; },

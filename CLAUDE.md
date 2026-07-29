@@ -112,6 +112,23 @@ audio). Progress history: `TASKS.md`.
   are the fit metrics; `node tools/hurtboxfit.mjs` prints them for the whole
   roster on both routes, and `node tools/hitprobe.mjs "<battle url>"` reports
   the new melee test against the old one on a real fight.
+- WELDED PARTS — when no reskinning can fix it: an auto-mesher returns ONE
+  shell, so two parts that sit close at bind pose (jerry's claw-arm wrists
+  against his shell) get triangles running between them. Rebinding cannot help,
+  the geometry itself says they are one surface, and the loser is dragged across
+  the arena. `seamCuts` in a manifest entry cuts them apart
+  (`src/mechs/seamcut.js`, applied straight after skinOps so it reads the FINAL
+  weights): `"seamCuts": [{"a":["handL","handR"],"b":["torso"],"cap":true}]`.
+  Each bridging triangle goes to the side carrying more of its weight, corners
+  belonging to the other side become DUPLICATE vertices bound to the side that
+  took them, cross-side weights are stripped, and both rims are CAPPED with a
+  lid (own vertices, own flat normal, wound from the rim's own directed edges).
+  Nothing moves at bind pose — the duplicates sit on top of the originals — so a
+  poster/showcase render is untouched; the cut only appears when the joint does.
+  Distinct from reskin.js' `cutWelds`, which DELETES the triangles: that is right
+  for a hidden membrane spanning an air gap (rhino), wrong for visible shell.
+  The skin audit knows a deliberate split from a crack (`seamId`/`seamSide` on
+  the geometry) and skips it, reporting the count instead.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit

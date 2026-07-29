@@ -104,7 +104,21 @@ export function prepareMesh(mesh) {
   }
   // weld pairs — same position, no edge between them, nothing holding them
   // together but matching weights
+  //
+  // …EXCEPT the pairs a seam cut SPLIT ON PURPOSE. src/mechs/seamcut.js
+  // separates two parts the mesher wrongly welded — it duplicates the vertices
+  // along the seam, binds each copy to its own side and caps both rims. Those
+  // pairs are MEANT to come apart, and the lid is what stops it being a hole.
+  // The geometry says which cut each vertex is on and which side of it
+  // (`userData.seamCut.seamId/seamSide`) — an optional convention, absent on a
+  // model that was never cut — and ONLY a pair on opposite sides of the SAME
+  // cut is excused, so an unrelated crack at the same seam still reports.
+  // Counted, never silently dropped: `splitPairs` reaches the status line.
+  const cut = mesh.geometry.userData?.seamCut || null;
+  const sameSeamSplit = (a, b) => !!cut && cut.seamId[a] !== 0
+    && cut.seamId[a] === cut.seamId[b] && cut.seamSide[a] !== cut.seamSide[b];
   const weldMates = new Map();     // vert -> the other verts sharing its position
+  let splitPairs = 0;
   {
     const first = new Map();
     const q = 1e4;
@@ -112,6 +126,7 @@ export function prepareMesh(mesh) {
       const key = `${Math.round(pos.getX(i) * q)},${Math.round(pos.getY(i) * q)},${Math.round(pos.getZ(i) * q)}`;
       const f = first.get(key);
       if (f === undefined) { first.set(key, i); continue; }
+      if (sameSeamSplit(f, i)) { splitPairs++; continue; }
       addEdge(f, i, 1);
       for (const [a, b] of [[f, i], [i, f]]) {
         let l = weldMates.get(a);
@@ -180,7 +195,7 @@ export function prepareMesh(mesh) {
   for (const [v, mates] of weldMates) for (const m of mates) link(v, m);
 
   return {
-    mesh, n, height, verts, slotOf, bind, si4, sw4, domSlot, adj,
+    mesh, n, height, verts, slotOf, bind, si4, sw4, domSlot, adj, splitPairs,
     edgeA, edgeB, restLen, edgeKind, V, E,
     // scratch, reused across every sample
     _pose: new Float32Array(V * 3),

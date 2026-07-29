@@ -4675,3 +4675,71 @@ FIRST RESULTS. Jerry's two worst are handfuls of vertices bound to `handL` /
 `handR` that sit on the TORSO, so they stretch ~240× and ~180× in 19 and 20
 clips respectively — the smeared spikes are visible in the thumbnail. Cranky's
 worst is `legMLknee` geometry riding the `head` bone (217×, 21 clips).
+
+## JERRY: new skinning, and CUTTING the hand off the torso (user request, 2026-07-29)
+
+The owner sent a fresh `skinOps` list for jerry (67 ops) and the observation the
+audit could not make itself: the top three findings are not weight mistakes at
+all. *"There's some geometry that is connected but shouldn't be, so I can't use
+reskinning to fix it."*
+
+MEASURED FIRST. With the new skinning in, `?edit=skindebug&mech=jerry` still put
+handR~torso (282x rest length, 20 clips), handL~torso (240x, 19) and a third
+handL~torso spot (148x, 19) at the top of the list. Probing the geometry
+directly: **37 triangles, 70 vertices** running between hand-dominated and
+torso-dominated vertices, at both wrists (y≈0.61, z≈±0.30). Their median area is
+half the mesh's own, so this is ORDINARY SHELL, not the thin hidden membrane
+reskin.js' `cutWelds` was written for — delete those and you punch a window in
+the robot.
+
+SO A CUT THAT SPLITS RATHER THAN DELETES — `src/mechs/seamcut.js`, driven by a
+new manifest key and applied right after skinOps (so it reads the final,
+hand-authored weights):
+
+    "seamCuts": [{"a":["handL","handR","clawL","clawR"],"b":["torso"],"cap":true}]
+
+  1. SPLIT — each bridging triangle goes to the side carrying more of its skin
+     weight; any corner belonging to the other side becomes a DUPLICATE vertex
+     bound to the side that took it. The two surfaces now share nothing.
+  2. UNBLEND — a torso vertex keeps no hand influence and a hand vertex no torso
+     influence, renormalized (the owner's "remove the hand component of the
+     torso geometry's skinning and vice versa"). Jerry needed none: his custom
+     rig is already rigid, which is exactly why only a cut could fix this.
+  3. CAP — splitting a closed shell opens it, so each rim is closed with a fan
+     to its own centre: its own vertices, its own flat normal, its own side's
+     bone, wound from the rim's own directed edges (an interior edge of a closed
+     mesh is traversed once each way, so the lid for rim edge u->v is (v,u,C)).
+     Adjacency is by WELDED POSITION, not vertex id — these meshes are split at
+     every UV seam, and id-matching found a tenth of the real neighbours (4 lid
+     triangles instead of 48).
+
+RESULT: 37 bridge triangles, +105 vertices, 48 lid triangles, 0 remaining
+hand~torso triangles, 0 vertices mixing hand and torso weights. Jerry's audit
+goes 16 findings / worst 282 -> **13 findings / worst 75** (the new worst is
+shoulderL~torso~elbowL, a different defect, untouched).
+
+PROVED, NOT ASSUMED:
+  · AT REST NOTHING MOVED. Four rest-pose renders are pixel-identical before and
+    after — the duplicates sit exactly on the originals, so posters, the
+    showcase and mech select are untouched. (postercheck: 4px, its pre-existing
+    drift.)
+  · NO NEW HOLES. Welded directed-edge audit of the whole shell: 81 unpaired and
+    78 mismatched edges BEFORE, and exactly 81 / 78 after — the lids close what
+    the cut opened, and none is wound backwards. A red-backface render agrees:
+    inside-out pixels fall by up to 7,200 per view and a blue/magenta lid render
+    shows no backfacing lid from any angle.
+  · `npx vite build` green; soak (jerry vs cranky, ace, neon) crash-free.
+
+THE AUDIT LEARNED ABOUT IT. A deliberate split is two coincident vertices that
+part — which is precisely what the workbench calls a `tear`, so the cut promoted
+itself to the top of its own list. seamcut now tags every vertex with which cut
+and which SIDE of it (`seamId`/`seamSide`), and stretchscan skips a weld pair
+only when both ends are on opposite sides of the SAME cut — an unrelated crack
+at the same seam still reports, and the number skipped is printed in the status
+line rather than silently swallowed. The hand-off to the skin workbench also
+translates vertex ids back through `seamCut.source`, since the raw GLB that tool
+edits has never heard of the vertices the cut added.
+
+STILL WELDED, NOT ASKED FOR: the same probe found arm-to-leg welds
+(elbowL~thighL 46 triangles, elbowR~thighR 27, shoulderR~thighR 26,
+elbowL~kneeL 9). Same illness, same one-line fix if wanted.
