@@ -309,6 +309,19 @@ export class Engine {
     }
   }
 
+  // A PNG of exactly what is on screen right now, as a data URL.
+  //
+  // The renderer runs with the default preserveDrawingBuffer:false, so reading
+  // the canvas after a frame has been presented gives back a blank image. The
+  // only reliable capture is to draw and read in the same synchronous step,
+  // which is what this does — and it goes through _render(), so the shot
+  // includes the post chain (haze, bloom, FXAA) rather than a bare re-render
+  // that would look nothing like the game.
+  capture(type = 'image/png') {
+    this._render();
+    return this.canvas.toDataURL(type);
+  }
+
   addHitStop(seconds) {
     this.hitStop = Math.max(this.hitStop, seconds);
   }

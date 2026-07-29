@@ -201,6 +201,19 @@ audio). Progress history: `TASKS.md`.
   and the in-array comments. Saving is local — **Export uncommitted saves**
   (both tools, enabled only when the tree is dirty) downloads every uncommitted
   change as ONE `git apply`-able patch to hand over for committing.
+- SKIN WORKBENCH **Debug output ▶** downloads ONE self-contained HTML file for
+  handing a deformation problem to someone else: two screenshots of the current
+  frame (shaded + bone colours), the full tool state (mech, build, selected
+  island, what is wiggling, live ops, camera) and the STRETCH MEASUREMENT at
+  that exact moment — every edge over the limits, ranked, each named by vertex,
+  bone and island, plus a by-bone-pair summary. The raw JSON is embedded in a
+  `<script type="application/json">` block, so the file reads by eye and parses
+  by machine. NOTE the caveat it prints in red: the skin workbench renders the
+  RAW file (skinOps only), so `seamCuts` are NOT applied there and geometry the
+  GAME has already separated still stretches in that view — wiggling jerry's
+  elbow swings his hand, whose weld to the torso is cut in game and intact
+  here. The panel says so whenever the loaded entry has seam cuts; judge a cut
+  in Skin Debug, not in the skin workbench.
 - Skin workbench selections: click = the bone-island under the cursor ·
   SHIFT-click = the BLEND PATCH (the run of geometry sharing that vertex's own
   bone plus a minority weight on another — the bit of torso that wiggles with

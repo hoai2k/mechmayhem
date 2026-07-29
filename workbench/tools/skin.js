@@ -33,6 +33,7 @@ import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js'
 import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { wireExportChanges } from '../ui/save.js';
+import { prepareMesh, poseMatrices, skinVertices, edgeLengths, scoreEdge, DEFAULTS } from './stretchscan.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
 
@@ -107,6 +108,9 @@ export async function runSkinWorkbench(config, params) {
   let wigglePaused = false;  // SPACE freezes the wiggle so you can click a
                              // stretched-out piece of geometry
   let hoverInfo = '';
+  // the deformation model (edges whose ends are weighted differently), built on
+  // demand for "Debug output" and dropped whenever the mesh changes
+  let stretchPrep = null;
   // ---- bind-geometry panel: per-bone weights for the selected island ----
   let bindOpen = false;      // is the weight editor showing?
   // undo/redo of the ops list (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y)
@@ -232,6 +236,7 @@ export async function runSkinWorkbench(config, params) {
     selComp = null; wiggle = null; wigglePaused = false; ops = []; colorAttr = null;
     undoStack = []; redoStack = [];
     animMech = null; animBones = null; jointOfBone = null;
+    stretchPrep = null;
     selBone = null; clipOpts = []; clipRestore = null;   // preferredClip is sticky across mechs
     // reset paint mode for the new mesh (indices/islands differ per mech)
     paintMode = false; paintPhase = 'off'; painting = false;
@@ -285,6 +290,14 @@ export async function runSkinWorkbench(config, params) {
         for (const [j, b] of Object.entries(animMech.boneMap)) if (b?.name) jointOfBone.set(b.name, j);
       }
     } catch (e) { console.warn('skintool: animation driver unavailable —', e); }
+    const cuts = raw.entry.seamCuts || [];
+    seamNote.style.display = cuts.length ? 'block' : 'none';
+    if (cuts.length) {
+      seamNote.textContent = `${cuts.length} seam cut${cuts.length > 1 ? 's' : ''} NOT applied here: `
+        + cuts.map((c) => `${(c.a || []).join('/')} ↔ ${(c.b || []).join('/')}`).join(', ')
+        + '. The game separates that geometry after skinOps; in this view it is still joined, '
+        + 'so it will still stretch when you wiggle. Judge a cut in Skin Debug (chevron above).';
+    }
     // preload the mech's committed ops so Export is a full replacement
     ops = (raw.entry.skinOps || []).map((o) => ({ ...o }));
     applyAllOps();
@@ -974,6 +987,17 @@ export async function runSkinWorkbench(config, params) {
   // actually have an alternate
   const altSlot = document.createElement('div');
   panel.appendChild(altSlot);
+  // WHAT THIS VIEW IS NOT. The workbench renders the RAW file with skinOps and
+  // nothing else, because that is what it edits — a vertex id here is the
+  // file's own numbering, which is what an op selector means. A SEAM CUT
+  // (seamcut.js) is applied later, when the GAME builds the mech, so geometry
+  // the game has already separated is still joined in here and still stretches
+  // in here. Unsaid, that makes the tool lie: wiggling jerry's elbow swings his
+  // hand, and the hand is still welded to the torso in this view alone.
+  const seamNote = document.createElement('div');
+  seamNote.style.cssText = `display:none;margin:2px 0 6px;padding:6px 8px;border-radius:5px;
+    background:#241d10;border:1px solid #5a4a2a;color:#ffcc66;font-size:10.5px;line-height:1.45`;
+  panel.appendChild(seamNote);
   function refreshAltRow() {
     altSlot.textContent = '';
     const row = altCheckbox(altChoice(manifest, curId, altOn), reloadWithVariant);
@@ -1268,6 +1292,201 @@ export async function runSkinWorkbench(config, params) {
     });
   }
 
+  // ================= DEBUG OUTPUT =================
+  // One file that answers "what am I looking at, and why is it doing that".
+  //
+  // Reading a skinning problem over someone's shoulder needs three things at
+  // once: the PICTURE (what deformed), the STATE (which mech, which build,
+  // which bone is wiggling, which ops are live) and the MEASUREMENT (which
+  // edges are actually being stretched, on which bones, in which islands). A
+  // screenshot has the first, the panel has the second and only the skin audit
+  // has the third — so this bundles all three into a single self-contained HTML
+  // file: two screenshots (shaded + bone colours), the state, and the worst
+  // stretching edges at THIS moment, each named by vertex, bone and island so
+  // it can be looked up here or handed to `?edit=skindebug`.
+  //
+  // The raw JSON is embedded verbatim in a <script type="application/json">
+  // block, so the file is readable by eye AND parseable by machine.
+
+  // Every edge that is over the limits AT THE CURRENT POSE. Same maths as the
+  // skin audit (stretchscan.js), run on this workbench's own raw mesh, so a
+  // wiggle can be measured while it is happening.
+  function stretchNow(limit = 50) {
+    if (!mesh) return null;
+    if (!stretchPrep) stretchPrep = prepareMesh(mesh);
+    const prep = stretchPrep;
+    if (!prep) return { note: 'nothing on this mesh can deform (no differing weights)' };
+    holder?.updateMatrixWorld(true);
+    mesh.skeleton.update();
+    prep._mats = poseMatrices(THREE, mesh, prep._mats);
+    skinVertices(prep, prep._mats);
+    prep._lens = edgeLengths(prep, prep._lens);
+    const lim = { ...DEFAULTS };
+    const nameOf = (slot) => bones[prep.domSlot[slot]]?.name || '?';
+    const weightsOf = (vi) => {
+      const jnt = mesh.geometry.attributes.skinIndex, wgt = mesh.geometry.attributes.skinWeight;
+      const out = [];
+      for (let k = 0; k < 4; k++) {
+        const w = wgt.getComponent(vi, k);
+        if (w > 1e-4) out.push(`${bones[jnt.getComponent(vi, k)]?.name || '?'}:${w.toFixed(3)}`);
+      }
+      return out;
+    };
+    const rows = [];
+    const byPair = new Map();
+    for (let e = 0; e < prep.E; e++) {
+      const sc = scoreEdge(prep, e, prep._lens[e], lim);
+      if (!sc) continue;
+      const sa = prep.edgeA[e], sb = prep.edgeB[e];
+      const va = prep.verts[sa], vb = prep.verts[sb];
+      const pair = [nameOf(sa), nameOf(sb)].sort().join('~');
+      const agg = byPair.get(pair) || { pair, edges: 0, worst: 0 };
+      agg.edges++;
+      agg.worst = Math.max(agg.worst, sc.sev);
+      byPair.set(pair, agg);
+      rows.push({
+        type: sc.type, sev: +sc.sev.toFixed(2), ratio: +sc.ratio.toFixed(2),
+        rest: +prep.restLen[e].toFixed(4), now: +prep._lens[e].toFixed(4),
+        pair,
+        a: { vert: va, bone: nameOf(sa), island: liveAnalysis?.compId[va], pristineIsland: analysis?.compId[va], weights: weightsOf(va) },
+        b: { vert: vb, bone: nameOf(sb), island: liveAnalysis?.compId[vb], pristineIsland: analysis?.compId[vb], weights: weightsOf(vb) },
+      });
+    }
+    rows.sort((x, y) => y.sev - x.sev);
+    return {
+      limits: lim,
+      deformableEdges: prep.E,
+      flagged: rows.length,
+      byBonePair: [...byPair.values()].sort((x, y) => y.worst - x.worst)
+        .map((x) => ({ ...x, worst: +x.worst.toFixed(2) })),
+      worstEdges: rows.slice(0, limit),
+    };
+  }
+
+  function debugState() {
+    const entry = manifest?.[curId] || null;
+    const live = altOn ? entry?.alt : entry;
+    const boneAngles = {};
+    for (const b of bones) {
+      const e = b.rotation;
+      if (Math.abs(e.x) + Math.abs(e.y) + Math.abs(e.z) > 1e-4) {
+        boneAngles[b.name] = [e.x, e.y, e.z].map((v) => +(v * 180 / Math.PI).toFixed(2));
+      }
+    }
+    return {
+      tool: 'skin workbench', url: location.href, when: new Date().toISOString(),
+      mech: curId, build: altOn ? 'alt' : 'primary',
+      // THE THING THAT CATCHES PEOPLE OUT: this workbench renders the RAW file
+      // with skinOps applied and NOTHING else. A seam cut is applied when the
+      // GAME builds the mech (seamcut.js, after skinOps), so geometry that the
+      // game has separated is still welded here and still stretches here.
+      seamCuts: {
+        inManifest: live?.seamCuts || null,
+        appliedInThisView: false,
+        note: live?.seamCuts?.length
+          ? 'This mech HAS seam cuts, and this workbench does NOT apply them — it '
+            + 'edits the raw file. Geometry the game has already split is still '
+            + 'joined in this view, so it will still stretch here. Judge a cut in '
+            + '?edit=skindebug (or in game), not here.'
+          : 'none for this mech',
+      },
+      selection: {
+        island: selComp ? { id: selComp.id, bone: selComp.boneName, verts: selComp.count } : null,
+        bone: selBone?.name || null,
+      },
+      wiggle: wiggle
+        ? { bone: wiggle.bone?.name, clip: wiggle.clip || '(single-bone shake)', paused: wigglePaused, t: +(wiggle.t || 0).toFixed(2) }
+        : null,
+      clipPicker: { preferred: preferredClip, offered: clipOpts.map((c) => c.name), driver: !!animMech },
+      poseNow: boneAngles,
+      ops: { count: ops.length, list: compactSkinOps(ops) },
+      mesh: mesh ? {
+        verts: mesh.geometry.attributes.position.count,
+        tris: mesh.geometry.index ? mesh.geometry.index.count / 3 : 0,
+        bones: bones.map((b) => b.name),
+        islands: liveAnalysis?.comps.length,
+      } : null,
+      camera: {
+        position: camera.position.toArray().map((v) => +v.toFixed(3)),
+        target: orbit.target.toArray().map((v) => +v.toFixed(3)),
+      },
+      stretchAtThisMoment: stretchNow(),
+    };
+  }
+
+  function debugOutput() {
+    if (!mesh) { setStatus('Nothing loaded to report on.'); return; }
+    // two shots of the same frame: what you are looking at, and the same view
+    // in bone colours (which is what makes a wrong binding legible)
+    const wasTex = showTex;
+    mesh.material = wasTex ? texturedMat : boneMat;
+    const shotNow = engine.capture('image/png');
+    mesh.material = wasTex ? boneMat : texturedMat;
+    const shotOther = engine.capture('image/png');
+    mesh.material = wasTex ? texturedMat : boneMat;      // put it back
+    const shaded = wasTex ? shotNow : shotOther;
+    const boneView = wasTex ? shotOther : shotNow;
+
+    const state = debugState();
+    const st = state.stretchAtThisMoment || {};
+    const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const rows = (st.worstEdges || []).map((r) => `<tr>
+      <td class="${r.type}">${r.type}</td><td class="n">${r.sev}</td><td class="n">${r.ratio}x</td>
+      <td>${esc(r.pair)}</td>
+      <td>v${r.a.vert} <span class="d">${esc(r.a.bone)} · island ${r.a.island} · ${esc(r.a.weights.join(' '))}</span></td>
+      <td>v${r.b.vert} <span class="d">${esc(r.b.bone)} · island ${r.b.island} · ${esc(r.b.weights.join(' '))}</span></td>
+    </tr>`).join('');
+    const pairRows = (st.byBonePair || []).map((p) =>
+      `<tr><td>${esc(p.pair)}</td><td class="n">${p.edges}</td><td class="n">${p.worst}</td></tr>`).join('');
+
+    const html = `<!doctype html><meta charset="utf-8">
+<title>skin debug — ${esc(curId)}${altOn ? ' (alt)' : ''}</title>
+<style>
+ body{background:#0d1219;color:#dfe8f5;font:13px/1.5 system-ui,sans-serif;margin:0;padding:24px}
+ h1{font-size:18px;margin:0 0 4px} h2{font-size:14px;margin:26px 0 8px;color:#f5a33c}
+ .sub{color:#8ba0b8;font:12px ui-monospace,monospace;margin-bottom:18px}
+ .shots{display:flex;gap:14px;flex-wrap:wrap} .shots figure{margin:0;flex:1;min-width:340px}
+ .shots img{width:100%;border:1px solid #2c3648;border-radius:6px;display:block}
+ figcaption{color:#8ba0b8;font-size:11px;margin-top:4px}
+ table{border-collapse:collapse;width:100%;font:11px/1.45 ui-monospace,monospace}
+ th{text-align:left;color:#7d8ea3;font-weight:400;border-bottom:1px solid #2c3648;padding:4px 6px}
+ td{padding:3px 6px;border-bottom:1px solid #161d27;vertical-align:top}
+ td.n{text-align:right} .d{color:#7d8ea3}
+ .stretch{color:#ff6b8a} .pinch{color:#ffb347} .tear{color:#7fd8ff}
+ .warn{background:#241d10;border:1px solid #5a4a2a;color:#ffcc66;padding:10px 14px;border-radius:6px;margin:14px 0}
+ pre{background:#0b0f16;border:1px solid #222c3a;border-radius:6px;padding:12px;overflow:auto;font-size:11px;max-height:420px}
+</style>
+<h1>skin workbench debug — ${esc(curId)}${altOn ? ' · ALT' : ''}</h1>
+<div class="sub">${esc(state.when)} · ${esc(state.url)}</div>
+${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in this view.</b><br>${esc(state.seamCuts.note)}</div>` : ''}
+<div class="shots">
+  <figure><img src="${shaded}"><figcaption>textures / shaded</figcaption></figure>
+  <figure><img src="${boneView}"><figcaption>bone colours (one hue per bone)</figcaption></figure>
+</div>
+<h2>Wiggle</h2>
+<div class="sub">${state.wiggle
+  ? `bone <b>${esc(state.wiggle.bone)}</b> · clip ${esc(state.wiggle.clip)} · ${state.wiggle.paused ? 'PAUSED' : 'running'}`
+  : 'not wiggling — this is the rest pose'} · selected island ${state.selection.island
+  ? `#${state.selection.island.id} of ${esc(state.selection.island.bone)}` : '(none)'}</div>
+<h2>Stretching right now — by bone pair</h2>
+<table><tr><th>bones</th><th>edges over</th><th>worst sev</th></tr>${pairRows || '<tr><td colspan=3>nothing over the limits</td></tr>'}</table>
+<h2>Worst edges (${st.flagged || 0} over the limits, of ${st.deformableEdges || 0} that can deform)</h2>
+<table><tr><th>type</th><th>sev</th><th>ratio</th><th>bones</th><th>end A</th><th>end B</th></tr>${rows || '<tr><td colspan=6>none</td></tr>'}</table>
+<h2>Full state</h2>
+<pre>${esc(JSON.stringify(state, null, 2))}</pre>
+<script type="application/json" id="rw-skin-debug">${JSON.stringify(state)}<\/script>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `skin-debug-${curId}${altOn ? '-alt' : ''}-${new Date().toISOString().slice(11, 19).replace(/:/g, '')}.html`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    setStatus(`Debug output downloaded — ${st.flagged || 0} edge(s) over the limits right now`
+      + (st.byBonePair?.length ? `\nworst: ${st.byBonePair[0].pair} (${st.byBonePair[0].worst})` : '')
+      + `\nOpen it in a browser, or send the file on.`);
+  }
+
   // the patch this session's ops make, as an object — the one source both
   // Export (text, for pasting) and Save (POST, for writing) format from
   function opsPatch() {
@@ -1322,6 +1541,10 @@ export async function runSkinWorkbench(config, params) {
     setStatus('Ops copied + downloaded. Merge into manifest.json under "'
       + curId + (altOn ? '.alt' : '') + '".');
   }, true));
+
+  // WHAT AM I LOOKING AT — a picture, the state and the live measurement, in
+  // one file to send on when the deformation needs another pair of eyes
+  panel.appendChild(actionBtn('Debug output ▶', debugOutput));
 
   const out = document.createElement('textarea');
   out.style.cssText = `width:100%;height:110px;margin-top:6px;background:#0b0f16;color:#8fe;border:1px solid #2c3648;
