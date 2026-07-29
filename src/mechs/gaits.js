@@ -190,13 +190,13 @@ export const GAITS = {
     note: 'Light, fast mechs at full tilt: long reaching stride, narrow track, driving bent arms, body pitched into it.',
     legs: {
       swing: 0.44, swingRun: 0.36, reach: 0.28, extend: 0.16,
-      adduct: 0.03, adductRun: 0.07,
+      adduct: 0.105, adductRun: 0.07,
       stanceBend: 0.14, stanceBendRun: 0.16,
       kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.15,
       cadence: 0.95, cadenceCap: 16,
     },
     ankle: { roll: 0.55, tilt: -0.14, push: 0.42, pushRun: 0.45, pushPhase: -0.45 },
-    arms: { swing: 0.78, swingRun: 0.12, lift: -0.10, elbow: 0.25, elbowRun: 0.55, elbowPump: 0.40, tuck: 0.18, cross: 0.12 },
+    arms: { swing: 0.78, swingRun: 0.89, lift: -0.10, elbow: 0.25, elbowRun: 0.55, elbowPump: 0.40, tuck: 0.18, cross: 0.12 },
     body: { bob: 0.21, pitch: 0.12, yaw: 0.10, roll: 0.05, lean: 0.46, twist: 0.15, head: -0.36 },
   },
 
