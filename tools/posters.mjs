@@ -15,6 +15,7 @@
 import { chromium } from 'playwright-core';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
+import { PNG } from 'pngjs';
 
 const BASE = process.env.RW_URL || 'http://localhost:5173/';
 const OUT = 'public/posters';
@@ -22,6 +23,8 @@ const OUT = 'public/posters';
 // the roster, read straight out of the source so this can never drift
 const roster = [...readFileSync('src/mechs/roster.js', 'utf8')
   .matchAll(/^    id: '(\w+)'/gm)].map((m) => m[1]);
+// ...and the model manifest, so a mech that HAS a GLB can be held to it
+const manifest = JSON.parse(readFileSync('public/models/manifest.json', 'utf8'));
 const want = process.argv.slice(2).length ? process.argv.slice(2) : roster;
 
 const browser = await chromium.launch({
@@ -49,11 +52,36 @@ for (const id of want) {
     await page.close();
     continue;
   }
-  const el = await page.$('#poster-canvas');
-  await el.screenshot({ path: `${OUT}/${id}.png`, omitBackground: true });
+  // ---- the two ways a poster can be silently, confidently wrong ----
+  // 1. THE WRONG BODY. The select screen shows the GLB; a poster of the
+  //    procedural stand-in looks like a deliberate art choice and nobody
+  //    notices until they compare. Refuse to write one.
+  if (!meta.isGLB && manifest[id]?.url) {
+    console.log(`  ${id}: FAILED — rendered the PROCEDURAL body, but this mech has a GLB`);
+    failed++;
+    await page.close();
+    continue;
+  }
+  // the page hands back a finished PNG (colour from the engine's post chain,
+  // alpha from a plain pass) — no element screenshot, so nothing of the page
+  // can composite in behind the robot
+  await writeFile(`${OUT}/${id}.png`, Buffer.from(meta.png.split(',')[1], 'base64'));
+  // 2. NO ALPHA. A page background composites under the canvas and the PNG
+  //    comes out a solid rectangle, which reads as a card behind the robot.
+  const png = PNG.sync.read(readFileSync(`${OUT}/${id}.png`));
+  let clear = 0;
+  for (let i = 3; i < png.data.length; i += 4) if (png.data[i] < 8) clear++;
+  const clearPct = (100 * clear) / (png.data.length / 4);
+  if (clearPct < 5) {
+    console.log(`  ${id}: FAILED — only ${clearPct.toFixed(1)}% transparent; the poster has no alpha`);
+    failed++;
+    await page.close();
+    continue;
+  }
   mechs[id] = { box: meta.box, w: meta.w, h: meta.h, yaw: meta.yaw };
   const n = meta.box;
-  console.log(`  ${id}: ${meta.w}x${meta.h}px  world x[${n.u0.toFixed(2)},${n.u1.toFixed(2)}] y[${n.v0.toFixed(2)},${n.v1.toFixed(2)}]`);
+  console.log(`  ${id}: ${meta.w}x${meta.h}px  ${meta.isGLB ? 'GLB' : 'proc'}  ` +
+    `${clearPct.toFixed(0)}% clear  world x[${n.u0.toFixed(2)},${n.u1.toFixed(2)}] y[${n.v0.toFixed(2)},${n.v1.toFixed(2)}]`);
   await page.close();
 }
 

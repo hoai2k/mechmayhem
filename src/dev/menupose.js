@@ -15,6 +15,7 @@
 import { Engine } from '../core/engine.js';
 import { MenuStage } from '../game/menustage.js';
 import { loadPosterIndex } from '../ui/posters.js';
+import { loadManifest } from '../mechs/gltf.js';
 
 export async function runMenuPose(arg) {
   const ids = String(arg || '').split(',').filter(Boolean);
@@ -27,6 +28,12 @@ export async function runMenuPose(arg) {
   for (const c of scenery) c.visible = false;
   engine.scene.background = new (engine.scene.background.constructor)(0x000000);
   engine.scene.fog = null;
+  // AWAIT THE MANIFEST FIRST. menustage.spawnUnit gates its GLB path on
+  // manifestHasGlb(), which answers false until the manifest has resolved —
+  // so a harness that skips this silently compares posters against the
+  // PROCEDURAL body and reports nonsense. The real boot flow awaits it before
+  // building any screen; so must this.
+  await loadManifest();
   await loadPosterIndex();
   const entries = ids.map((id, i) => ({ id, slotIdx: i, variant: 0 }));
 
@@ -74,6 +81,11 @@ export async function runMenuPose(arg) {
       return { kept, units: stage.mechs.length, posters: stage.posters.length };
     },
     stageObj: stage,
+    // every promoted slot has its GLB in place (spawnUnit swaps it in async
+    // behind a spinner) — the check waits on this before screenshotting
+    glbReady() {
+      return stage.mechs.length > 0 && stage.mechs.every((m) => !m.isSpinner && m.isGLB);
+    },
   };
   engine.onUpdate = (dt) => stage.update(dt);
   engine.start();

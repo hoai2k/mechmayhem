@@ -9,6 +9,15 @@
 // (SETTLE_MS) or locked it in. A mech already built stays built — the image
 // is never shown for it again.
 //
+// A POSTER IS A STAND-IN FOR THE GLB. The manifest models are the default for
+// every mech, so the GLB is what the select screen shows, what takes time to
+// load, and therefore what a poster must depict — rendered from the GLB, with
+// a real alpha channel, at the exact mark the model lands on. The generator
+// gets its body from menustage.previewBody (the same call the stage makes,
+// never a re-derived copy) and REFUSES to write a poster that came out
+// procedural for a mech that has a GLB, or a PNG that turned out opaque.
+// Both of those have happened; both now fail the build of the asset.
+//
 // THE CORRELATION. A poster is not "an image of a robot", it is an image of a
 // KNOWN SCREEN RECT. tools/posters.mjs renders each mech through the select
 // stage's OWN camera (menustage.aimPreviewCamera, shared by both so they

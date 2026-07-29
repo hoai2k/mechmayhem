@@ -176,6 +176,20 @@ audio). Progress history: `TASKS.md`.
   `?rigedit`, pose/skin tools, `?battle=...`, the level editor) always sees
   the full `ROSTER`, so iteration is unaffected. Game code that offers mechs
   must go through `playableRoster()` / `isPlayable()` from `roster.js`.
+- MECH-SELECT POSTERS (`public/posters/`, `src/ui/posters.js`): flipping
+  through the roster shows a pre-rendered PNG per mech and builds no model;
+  the real body appears after 0.7s of rest or on lock-in. A poster stands in
+  for THE GLB (the default body — so that is what it must be rendered from,
+  with alpha), framed through the select stage's own camera
+  (`menustage.aimPreviewCamera`) and recorded as a world-space box off the
+  mech's feet, which the runtime projects live so one render serves 1-4
+  pickers. Regenerate with `node tools/posters.mjs` after any change to a
+  mech's model, rig, rest pose or scale; it refuses to write a procedural or
+  opaque poster. Check the handover with
+  `node tools/postercheck.mjs viper cranky,jerry <4 ids>` — it reports
+  poster-vs-model drift in pixels per slot at each player count. NOTE any
+  harness that builds preview mechs must `await loadManifest()` first, or
+  `manifestHasGlb()` answers false and the stage quietly shows procedural.
 - Model set: the GLBs in `public/models/manifest.json` are the DEFAULT for
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).
