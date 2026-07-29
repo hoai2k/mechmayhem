@@ -18,7 +18,8 @@ audio). Progress history: `TASKS.md`.
   ALL ROBOTS on for the session)
 - WORKBENCHES LIVE ON THEIR OWN PAGE: `/workbench/?edit=<tool>&mech=<id>` —
   `animation` (procedural-vs-GLB action comparison + anchor editor),
-  `pose` (joints + clip keyframes), `skin` (bone-island repair),
+  `pose` (joints + clip keyframes), `gait` (the walk/run cycle's own dials),
+  `skin` (bone-island repair),
   `skindebug` (the SKIN AUDIT — see below), `rig`
   (hand-placed skeletons), `collider` (what combat hits), `props`
   (the IMPORTED ARENA PROP MODELS, original vs optimized in twin viewports
@@ -112,6 +113,35 @@ audio). Progress history: `TASKS.md`.
   are the fit metrics; `node tools/hurtboxfit.mjs` prints them for the whole
   roster on both routes, and `node tools/hitprobe.mjs "<battle url>"` reports
   the new melee test against the old one on a real fight.
+- GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
+  `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
+  nova) and `quad` (fenrir's gallop, a `quad` block over the same biped layer).
+  A roster def names one with `gait: '<id>'` and mechs SHARE them, so tuning a
+  gait moves every mech that runs it. `applyGait()` is the whole cycle and is
+  PURE — the animator runs it and so does the gait workbench, so what is tuned
+  there is what ships. Each dial has a `*Run` twin (`base + run * ratio`), which
+  is how one gait walks politely and sprints hard. Add a dial by adding it to
+  `GAIT_SCHEMA` + reading it in `applyGait` — the workbench's sliders, its
+  "which dial moves this limb" logic and `tools/wbconfig.mjs` all derive from
+  the schema. Judge a change with `node tools/gaitprobe.mjs <mech> [throttle]
+  [vsGait]` (foot reach/stride/lift/track/lean measured off the posed model,
+  diffed against another gait) and `node tools/gaitsheet.mjs <mech> out.png
+  [throttle] [frames] [vsGait]` (the cycle as a filmstrip, comparison ghost in
+  every frame).
+- THE GAIT WORKBENCH (`/workbench/?edit=gait&mech=<id>`) runs one mech ON THE
+  SPOT with every gait dial live. THREE speed knobs, deliberately separate:
+  THROTTLE (how fast the mech is moving — what `ratio` and the foot cadence
+  read), GAME SPEED (the player-facing ROBOT SPEED setting, 50-200%) and
+  ANIMATION SPEED (slow-motion for reading a fast cycle; changes nothing about
+  the gait). Pause + a phase scrubber (`[`/`]`) freeze a moment of the stride; a
+  phase-locked GHOST beside the mech runs the SHIPPED gait — or any other gait,
+  which is how a mech is moved between gaits with eyes open. The mech dropdown
+  names each mech's gait, the panel lists every other mech running it (click one
+  to load that body with your edits intact — edits belong to the gait, not the
+  mech), and CLICKING A LIMB then DRAGGING IT tunes the dial behind it: the tool
+  measures d(joint)/d(dial) at that phase, works out which way that pushes the
+  limb on screen and projects the drag onto it. **Output gait** downloads a
+  paste-ready `GAITS` block with every changed dial listed from -> to.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
@@ -129,7 +159,8 @@ audio). Progress history: `TASKS.md`.
   `label: (id) => id`; the ordering rule stays in one place either way.
 - Workbench chrome is shared: `src/dev/panelui.js` owns the resizable panel,
   its scrollbars AND the coloured title bar every workbench wears (pose
-  green · skin orange · animation purple · rig blue · collider cyan, with a
+  green · skin orange · animation purple · rig blue · collider cyan · gait
+  amber, with a
   live `mech · ALT · GLB` subtitle) — add a tool to `WORKBENCHES` and pass
   `workbench:'<id>'` to `setupDevPanel`. The chevron beside the title SWITCHES
   WORKBENCH, carrying the current mech (and its staged variant) over; each

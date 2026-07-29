@@ -123,6 +123,7 @@ export const ROSTER = [
     body: { scale: 1.0, torsoW: 0.85, torsoH: 0.95, headSize: 0.85, armLen: 1.05, legLen: 1.12, hipW: 0.85, bulk: 0.85 },
     restPose: DIGITIGRADE_REST,
     stats: { hp: 780, speed: 13.5, jump: 15.5, weight: 0.3, armor: 0, blockMult: 0.2 },
+    gait: 'sprint', // fastest thing on the roster — it must RUN, not walk quickly
     ui: { power: 6, speed: 10, defense: 2 },
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.22, 0], hipsRot: [0, 14, 0], torso: [8, -18, 0], head: [0, 16, 0], shoulderL: [-64, -10, -14], elbowL: [-30, 0, 0], shoulderR: [-20, 0, 18], elbowR: [-95, 0, 0], thighL: [-16, 0, -6], thighR: [6, 0, 6], kneeL: [20, 0, 0], kneeR: [10, 0, 0] },
@@ -154,6 +155,7 @@ export const ROSTER = [
     },
     body: { scale: 1.05, torsoW: 0.9, torsoH: 1.05, headSize: 0.85, armLen: 1.0, legLen: 1.08, hipW: 0.88, bulk: 0.85 },
     stats: { hp: 850, speed: 10, jump: 14, weight: 0.4, armor: 0.05, blockMult: 0.14 },
+    gait: 'sprint', // fast tier: the same long-strided run
     ui: { power: 8, speed: 6, defense: 3 },
     // heavy: starlight strikes the raised staff, then she hammers it down —
     // the impact bursts in an area around the strike point
@@ -202,6 +204,7 @@ export const ROSTER = [
     // light athletic crouch — dead-straight legs read stiff in motion
     restPose: { thighL: [-13, 0, 0], thighR: [-13, 0, 0], kneeL: [24, 0, 0], kneeR: [24, 0, 0], ankleL: [-11, 0, 0], ankleR: [-11, 0, 0] },
     stats: { hp: 880, speed: 11.5, jump: 15, weight: 0.42, armor: 0.04, blockMult: 0.14 },
+    gait: 'sprint', // light and quick: reaching stride, driving arms
     ui: { power: 7, speed: 8, defense: 3 },
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.12, 0], hipsRot: [0, -18, 0], torso: [4, 20, 0], head: [0, -16, 0], shoulderR: [-72, -10, 6], elbowR: [-24, 0, 0], shoulderL: [-14, -6, -26], elbowL: [-60, 0, 0], thighL: [6, 0, -6], thighR: [-22, 0, 6], kneeL: [10, 0, 0], kneeR: [28, 0, 0] },
@@ -312,6 +315,7 @@ export const ROSTER = [
     body: { scale: 1.02, torsoW: 0.85, torsoH: 1.0, headSize: 0.9, armLen: 1.05, legLen: 1.1, hipW: 0.85, bulk: 0.82 },
     restPose: { thighL: [-26, 0, 0], thighR: [-26, 0, 0], kneeL: [49, 0, 0], kneeR: [49, 0, 0], ankleL: [-23, 0, 0], ankleR: [-23, 0, 0] },
     stats: { hp: 800, speed: 11, jump: 14, weight: 0.35, armor: 0, blockMult: 0.2 },
+    gait: 'sprint', // a stalker who covers ground in long, low strides
     ui: { power: 8, speed: 7, defense: 2 },
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.16, 0], hipsRot: [0, 16, 0], torso: [10, -20, 0], head: [-6, 18, 0], shoulderL: [-46, -12, -10], elbowL: [-40, 0, 0], shoulderR: [-10, 6, 14], elbowR: [-30, 0, 0], thighL: [-16, 0, -5], thighR: [4, 0, 7], kneeL: [24, 0, 0], kneeR: [10, 0, 0] },

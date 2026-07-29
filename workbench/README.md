@@ -7,6 +7,7 @@ config object.
 /workbench/?edit=animation&mech=colossus   GLB vs procedural, trigger moves, anchors
 /workbench/?edit=pose&mech=colossus        pose joints, edit clip keyframes,
                                            scrub the generated walk/run
+/workbench/?edit=gait&mech=viper           TUNE that walk/run: the gait's dials
 /workbench/?edit=skin&mech=colossus        bone-island skin repair
 /workbench/?edit=skindebug&mech=jerry      audit every clip for torn/stretched skin
 /workbench/?edit=rig&mech=colossus         hand-place a skeleton
@@ -16,7 +17,8 @@ config object.
 The chevron beside the panel title switches between them, carrying the current
 mech across. `?edit=hurtbox` is the collider tool's old name and still resolves.
 A bare /workbench/ (or an unknown ?edit=) lands on the front page — a card per
-tool with a live screenshot (landing.js; re-shoot: node tools/wbthumbs.mjs).
+tool with a live screenshot (landing.js; re-shoot: node tools/wbthumbs.mjs,
+optionally naming just the tools to re-shoot).
 ```
 
 `&variant=alt` (or the legacy `&alt=1`) opens a mech's alternate build;
@@ -36,12 +38,21 @@ workbench/
     actionchars.js    robotworld's move descriptions
     anchoruses.js     robotworld's "what does this anchor drive"
     mechclips.js      robotworld's per-mech clip list
-  tools/              the seven workbenches — no game imports at all
+  tools/              the eight workbenches — no game imports at all
     stretchscan.js    the skin-deformation maths ?edit=skindebug measures with
   ui/                 shared chrome: panel, subject picker, variant picker, save
 ```
 
 ## The deal
+
+**Not every subject is a model, either.** `?edit=gait` edits the LOCOMOTION —
+a named bundle of numbers (`src/mechs/gaits.js`) that several mechs share, not
+anything belonging to the mech on screen. That is why its edits follow the GAIT
+when you switch mech, why the picker names each mech's gait, and why its output
+is a table block rather than a per-mech patch. It reads a `gait` section of the
+contract (ids / users / schema / evaluate / install / topSpeed); a game whose
+characters have no parameterised locomotion leaves it out and the tool is not
+offered.
 
 **Not every subject is a character.** `?edit=props` edits nothing — it JUDGES:
 the imported arena prop models were dieted (tools/propopt.mjs) and the tool

@@ -1,6 +1,6 @@
 // The workbench FRONT DOOR — /workbench/ with no ?edit=.
 //
-// Six tools share this page, and the URL used to be the only map of them:
+// Seven tools share this page, and the URL used to be the only map of them:
 // land here bare and you were silently dropped into the animation workbench,
 // mistype a tool id and you got a terse error. Both now come here instead — a
 // card per workbench, its real screenshot, what it is for, click to open.
@@ -50,6 +50,13 @@ const TOOLS = [
     desc: 'Pose a mech joint by joint and edit the clip itself: scrub keys, '
       + 'move them in time, add and delete them, and export the key list for '
       + 'animations.js.',
+  },
+  {
+    id: 'gait', title: 'Gait Workbench', color: '#ff9f43',
+    tag: 'walk · run cycles',
+    desc: 'Locomotion as numbers. Run a mech on the spot at any throttle, game '
+      + 'speed or slow-motion, drag a limb to tune the dial behind it, and see '
+      + 'the same shared gait on every mech that runs it.',
   },
   {
     id: 'collider', title: 'Hurtbox Workbench', color: '#7fd8ff',
