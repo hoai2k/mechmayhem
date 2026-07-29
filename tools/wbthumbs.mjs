@@ -14,7 +14,7 @@ const shots = [
   ['skin',      'http://localhost:5173/workbench/?edit=skin&mech=viper', 16000],
   ['skindebug', 'http://localhost:5173/workbench/?edit=skindebug&mech=jerry', 60000],
   ['rig',       'http://localhost:5173/workbench/?edit=rig&mech=inferno', 16000],
-  ['gait',      'http://localhost:5173/workbench/?edit=gait&mech=viper&throttle=1', 16000],
+  ['gait',      'http://localhost:5173/workbench/?edit=gait&mech=viper&model=mannequin&throttle=0.5', 20000],
   ['collider',  'http://localhost:5173/workbench/?edit=collider&mech=titanus&clip=heavy&at=hit', 16000],
   ['props',     'http://localhost:5173/workbench/?edit=props&prop=toriiGate&spin=0', 14000],
 ];

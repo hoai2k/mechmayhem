@@ -25,7 +25,10 @@ import {
 } from '../../../src/mechs/gaits.js';
 import { TUNING } from '../../../src/core/tuning.js';
 import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
-import { buildMech } from '../../../src/mechs/factory.js';
+import { buildMech, computeDims } from '../../../src/mechs/factory.js';
+import {
+  buildMannequin, buildReferenceMannequin, canonicalDims, mannequinLabels, BONE_TINTS,
+} from '../../../src/mechs/mannequin.js';
 import { profileFor } from '../../../src/mechs/glbanim.js';
 import {
   buildGlbForTool, fetchRawManifest, loadRawGlbScene, skinnedBox, measureHeadTop, setAssetBase,
@@ -114,22 +117,36 @@ const CONFIG = defineWorkbenchConfig({
 
   variants: {
     // 'glb'  the shipped model · 'proc' the hand-sculpted body · 'alt' a
-    // staged second build (a different GLB, or the same one on a new rig)
+    // staged second build (a different GLB, or the same one on a new rig) ·
+    // 'mannequin' the REFERENCE humanoid (mechs/mannequin.js) — not a build of
+    // this mech at all, but the same 15 joints at this mech's measurements, so
+    // a tool can show what the rig is being ASKED to do on a body you can read
     list: (id) => [
       { key: 'glb', label: 'GLB', available: !!manifest?.[id]?.url },
       { key: 'proc', label: 'Procedural Robot', available: true },
       { key: 'alt', label: 'Alternate GLB', available: !!manifest?.[id]?.alt?.url },
+      { key: 'mannequin', label: 'Mannequin', available: true },
     ],
     async build(id, { variant = 'glb', overrides = null } = {}) {
       const def = ROSTER_BY_ID[id];
       if (!def) return null;
+      if (variant === 'mannequin') return buildMannequin({ dims: computeDims(def), def });
       if (variant === 'proc') return buildMech(def);
       const built = await buildGlbForTool(def, overrides, { alt: variant === 'alt' });
       return built?.mech || null;
     },
     // the untouched asset — skin + rig work happens on private geometry, not
-    // on the cached scene the game clones from
-    raw: (id, { variant = 'glb' } = {}) => loadRawGlbScene(id, { alt: variant === 'alt' }),
+    // on the cached scene the game clones from. The mannequin answers here too
+    // (it IS private geometry, freshly built), which is what lets the skin and
+    // rig tools open the reference body with the code they already have; there
+    // is no manifest entry behind it, and both tools disable saving on that.
+    raw: (id, { variant = 'glb' } = {}) => {
+      if (variant === 'mannequin') {
+        const m = buildMannequin({ dims: canonicalDims(7) });
+        return { scene: m.group, entry: null, mannequin: m };
+      }
+      return loadRawGlbScene(id, { alt: variant === 'alt' });
+    },
     entry: (id, { variant = 'glb' } = {}) => entryOf(id, variant === 'alt'),
     height: (model) => {
       const box = skinnedBox(model.group);
@@ -246,6 +263,17 @@ const CONFIG = defineWorkbenchConfig({
         * (sprint ? TUNING.movement.sprintMult : 1);
     },
     gameSpeed: () => GAME_CONFIG.robotSpeed,
+  },
+
+  // A REFERENCE BODY, for tools that want to show one BESIDE what they are
+  // editing rather than instead of it. The rig editor ghosts it over a raw model
+  // at the same height with every joint named, which is how "ankle" stops being
+  // a guess. (Tools that want the mannequin AS the subject go through
+  // variants.build / variants.raw with variant 'mannequin' instead.)
+  reference: {
+    mannequin: (height) => buildReferenceMannequin(height),
+    labels: (m, opts) => mannequinLabels(m, opts),
+    tints: () => BONE_TINTS,
   },
 
   anchors: {

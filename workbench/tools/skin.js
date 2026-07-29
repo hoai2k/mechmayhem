@@ -77,6 +77,13 @@ export async function runSkinWorkbench(config, params) {
   // per-mech, because the dropdown switches mechs without a reload and most
   // mechs have no alternate at all
   let altOn = wantAlt && !!manifest[curId]?.alt?.url;
+  // MANNEQUIN REFERENCE: not a mech at all — the reference humanoid
+  // (src/mechs/mannequin.js) loaded through the same path, so this tool paints
+  // it with the same bone colours it paints a mech with. That is the point: it
+  // is what a REPAIRED bind looks like — one contiguous region per bone, seams
+  // at the joints, a narrow blend band across each one, no enclaves and no
+  // strays. Read-only (there is no manifest entry to save to).
+  let mannOn = new URLSearchParams(location.search).get('ref') === 'mannequin';
 
   // ---- state ----
   let holder = null;         // scaled group containing the raw scene
@@ -241,7 +248,7 @@ export async function runSkinWorkbench(config, params) {
     curId = id;
     altOn = wantAlt && !!manifest[id]?.alt?.url;
     refreshAltRow();
-    panelUI.setSubtitle(`${id}${altOn ? ' · ALT' : ''}`);
+    panelUI.setSubtitle(mannOn ? 'MANNEQUIN reference (read-only)' : `${id}${altOn ? ' · ALT' : ''}`);
     // keep the URL's ?mech= in sync so a reload / shared link reopens this mech.
     // replaceState (not pushState) avoids cluttering back-button history.
     try {
@@ -262,7 +269,7 @@ export async function runSkinWorkbench(config, params) {
     paintOp = null; paintSet = null; paintColorAttr = null;
     bindOpen = false; bindComp = null; bindRows = [];
     setOrbitPaintMode(false); updatePaintUI();
-    const raw = await config.variants.raw(id, { variant: altOn ? 'alt' : 'glb' });
+    const raw = await config.variants.raw(id, { variant: mannOn ? 'mannequin' : altOn ? 'alt' : 'glb' });
     if (!raw) { setStatus('no GLB for ' + id); return; }
     mesh = null;
     raw.scene.traverse((o) => {
@@ -282,7 +289,8 @@ export async function runSkinWorkbench(config, params) {
     // so a geometry-box ground sinks the rendered mech into the floor.
     holder = new THREE.Group();
     holder.add(raw.scene);
-    if (raw.entry.yawOffset) raw.scene.rotation.y = raw.entry.yawOffset * Math.PI / 180;
+    // the mannequin has no manifest entry behind it — hence the optional chain
+    if (raw.entry?.yawOffset) raw.scene.rotation.y = raw.entry.yawOffset * Math.PI / 180;
     const box = skinnedBox(raw.scene);
     const size = box.getSize(new THREE.Vector3());
     const k = 7 / Math.max(0.01, size.y);
@@ -299,6 +307,7 @@ export async function runSkinWorkbench(config, params) {
     // scene. Built with skinOps stripped so it can't touch the shared cached
     // geometry the raw scene was cloned from (it only ever supplies poses).
     try {
+      if (mannOn) throw new Error('mannequin reference: static');
       const built = await config.variants.build(id, { variant: altOn ? 'alt' : 'glb', overrides: { skinOps: [] } });
       if (built?.isGLB && built.boneMap && built.premadeAnimator) {
         animMech = built;
@@ -308,7 +317,7 @@ export async function runSkinWorkbench(config, params) {
         for (const [j, b] of Object.entries(animMech.boneMap)) if (b?.name) jointOfBone.set(b.name, j);
       }
     } catch (e) { console.warn('skintool: animation driver unavailable —', e); }
-    const cuts = raw.entry.seamCuts || [];
+    const cuts = raw.entry?.seamCuts || [];
     seamCuts = cuts;
     cutView = false; editGeo = null; cutInfo = null;
     cutChk.checked = false;
@@ -321,12 +330,20 @@ export async function runSkinWorkbench(config, params) {
         + 'so it will still stretch when you wiggle. Judge a cut in Skin Debug (chevron above).';
     }
     // preload the mech's committed ops so Export is a full replacement
-    ops = (raw.entry.skinOps || []).map((o) => ({ ...o }));
+    ops = (raw.entry?.skinOps || []).map((o) => ({ ...o }));
     applyAllOps();
     updateCutUI();
     buildBoneList();
-    setStatus(`${id.toUpperCase()} — ${liveAnalysis.comps.length} islands, ${bones.length} bones.` +
-      `\nClick a wrong-colored patch to select it.`);
+    refreshMannRow();
+    if (mannOn) {
+      setStatus(`MANNEQUIN REFERENCE — ${liveAnalysis.comps.length} islands, ${bones.length} bones.`
+        + '\nThis is the target: ONE island per bone, seams at the joints, a narrow'
+        + '\nblend band across each. Nothing here can be saved — untick to go back'
+        + `\nto ${id.toUpperCase()}.`);
+    } else {
+      setStatus(`${id.toUpperCase()} — ${liveAnalysis.comps.length} islands, ${bones.length} bones.` +
+        `\nClick a wrong-colored patch to select it.`);
+    }
   }
 
   // ---- picking ----
@@ -1044,6 +1061,35 @@ export async function runSkinWorkbench(config, params) {
   cutRow.title = 'Swap in the geometry the GAME builds — welds already cut, weights unblended. '
     + 'Editing is off while this is on, because the cut renumbers vertices and islands.';
   panel.appendChild(cutRow);
+  // "what should this look like?" — the reference bind, one click away
+  const mannRow = document.createElement('label');
+  mannRow.style.cssText = 'display:flex;gap:6px;align-items:center;margin:0 0 6px;font-size:11px;cursor:pointer';
+  const mannChk = document.createElement('input');
+  mannChk.type = 'checkbox';
+  mannChk.checked = mannOn;
+  mannChk.onchange = () => {
+    mannOn = mannChk.checked;
+    const u = new URL(location.href);
+    if (mannOn) u.searchParams.set('ref', 'mannequin'); else u.searchParams.delete('ref');
+    history.replaceState(null, '', u);
+    load(curId);
+  };
+  mannRow.append(mannChk, document.createTextNode(' Mannequin reference'));
+  mannRow.title = 'Swap the mech for the REFERENCE humanoid and look at its colours: one '
+    + 'contiguous island per bone, the seam at each joint, a narrow blend band across it. That '
+    + 'is the layout a repaired mech should end up with — read-only, nothing to save.';
+  panel.appendChild(mannRow);
+  // The buttons that WRITE are built further down the panel, so they register
+  // themselves here and this runs again once they exist (and on every load).
+  const writeBtns = [];
+  function refreshMannRow() {
+    mannChk.checked = mannOn;
+    for (const b of writeBtns) {
+      b.disabled = mannOn;
+      b.style.opacity = mannOn ? 0.45 : 1;
+      b.title = mannOn ? 'The mannequin is a reference — there is no manifest entry to save to.' : '';
+    }
+  }
   function refreshAltRow() {
     altSlot.textContent = '';
     const row = altCheckbox(altChoice(manifest, curId, altOn), reloadWithVariant);
@@ -1707,12 +1753,14 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
     }
   }, true);
   panel.appendChild(saveBtn);
+  writeBtns.push(saveBtn);
+  refreshMannRow();          // the mannequin reference greys it out
   // hand the whole batch of local saves to whoever commits them
   const exportChangesBtn = actionBtn('Export uncommitted saves', () => {});
   panel.appendChild(exportChangesBtn);
   const changes = wireExportChanges(exportChangesBtn, { setStatus: (t) => setStatus(t) });
 
-  panel.appendChild(actionBtn('Export ops ▶', () => {
+  const exportOpsBtn = actionBtn('Export ops ▶', () => {
     // export compacted (superseded ops dropped) + one-op-per-line so pasting
     // into manifest.json doesn't re-grow the file the compactor just shrank
     // the ops belong to the entry they were painted on: nest them under
@@ -1732,7 +1780,12 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
     a.click();
     setStatus('Ops copied + downloaded. Merge into manifest.json under "'
       + curId + (altOn ? '.alt' : '') + '".');
-  }, true));
+  }, true);
+  panel.appendChild(exportOpsBtn);
+  // an ops patch is keyed by the MECH id, so it means nothing off the reference
+  // body — the mannequin greys this out along with Save
+  writeBtns.push(exportOpsBtn);
+  refreshMannRow();
 
   // WHAT AM I LOOKING AT — a picture, the state and the live measurement, in
   // one file to send on when the deformation needs another pair of eyes

@@ -23,7 +23,10 @@ const N = Math.max(2, Math.min(10, Number(frames) || 6));
 const W = 520, H = 620;
 
 const base = process.env.RW_BASE || 'http://localhost:5173';
-const url = `${base}/workbench/?edit=gait&mech=${mech}&throttle=${throttle}&compare=1`
+// `prints=0`: the footprint treadmill re-frames the camera to leave room for the
+// trail, and a filmstrip wants the tight framing (nothing is scrolling anyway —
+// every frame is frozen)
+const url = `${base}/workbench/?edit=gait&mech=${mech}&throttle=${throttle}&compare=1&prints=0`
   + (vs ? `&vs=${vs}` : '');
 
 const browser = await chromium.launch({
