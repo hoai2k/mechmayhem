@@ -121,13 +121,29 @@ export function applySeamCuts(mesh, cuts) {
   // both work on the RAW file, which has none of these extra vertices, so a
   // finding measured on the built model has to be able to name itself in the
   // file's own numbering.
+  // The compact form of the same fact, as plain arrays: which vertices sit on
+  // which side of which cut. The typed arrays above are for this session; THIS
+  // is what survives being written into a .glb (tools/bake-glb.mjs keeps it as
+  // mesh extras), so a BAKED model can still tell the skin audit that its
+  // coincident vertices were split on purpose rather than cracked.
+  const seams = [];
+  for (let rule = 1; rule <= cuts.length; rule++) {
+    const a = [], b = [];
+    for (let v = 0; v < w.seamId.length; v++) {
+      if (w.seamId[v] !== rule) continue;
+      (w.seamSide[v] === A ? a : b).push(v);
+    }
+    if (a.length || b.length) seams.push({ id: rule, a, b });
+  }
   geo.userData = {
     ...geo.userData,
     seamCut: {
       count0: n0, source: new Int32Array(w.src), lids: w.lids,
       seamId: new Int32Array(w.seamId), seamSide: new Uint8Array(w.seamSide),
+      seams,
     },
   };
+  report.seams = seams;
   return report;
 }
 

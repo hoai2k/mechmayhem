@@ -37,6 +37,26 @@
 // rest stance is scanned as its own clip instead, and every spot carries an
 // `atRest` flag telling you whether the animation caused it or merely showed it.
 
+/**
+ * Where the deliberate splits are, whichever way the model records them.
+ *   live  geometry.userData.seamCut.seamId / .seamSide  (typed, this session)
+ *   baked geometry.userData.rwSeam  (or .seamCut.seams) — plain arrays that
+ *         survive being written into a .glb
+ * Returns null for a model that was never cut.
+ */
+function seamLookup(geo, n) {
+  const cut = geo.userData?.seamCut;
+  if (cut?.seamId && cut?.seamSide) return { id: cut.seamId, side: cut.seamSide };
+  const seams = geo.userData?.rwSeam || cut?.seams;
+  if (!seams?.length) return null;
+  const id = new Int32Array(n), side = new Uint8Array(n);
+  for (const s of seams) {
+    for (const v of s.a || []) if (v < n) { id[v] = s.id; side[v] = 1; }
+    for (const v of s.b || []) if (v < n) { id[v] = s.id; side[v] = 2; }
+  }
+  return { id, side };
+}
+
 /** Weight signature: bones+weights as one string, order-independent. */
 function signatures(geo, n) {
   const si = geo.attributes.skinIndex;
@@ -114,9 +134,12 @@ export function prepareMesh(mesh) {
   // model that was never cut — and ONLY a pair on opposite sides of the SAME
   // cut is excused, so an unrelated crack at the same seam still reports.
   // Counted, never silently dropped: `splitPairs` reaches the status line.
-  const cut = mesh.geometry.userData?.seamCut || null;
-  const sameSeamSplit = (a, b) => !!cut && cut.seamId[a] !== 0
-    && cut.seamId[a] === cut.seamId[b] && cut.seamSide[a] !== cut.seamSide[b];
+  // Two spellings of the same record: the live one a runtime cut leaves behind,
+  // and the compact one a BAKED model carries in its mesh extras. Normalized
+  // here so the audit reads a baked mech exactly like a cut-at-load one.
+  const seam = seamLookup(mesh.geometry, n);
+  const sameSeamSplit = (a, b) => !!seam && seam.id[a] !== 0
+    && seam.id[a] === seam.id[b] && seam.side[a] !== seam.side[b];
   const weldMates = new Map();     // vert -> the other verts sharing its position
   let splitPairs = 0;
   {

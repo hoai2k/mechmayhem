@@ -14,6 +14,23 @@
 // post-bake (baked glb via the stock load path) and compare joint world
 // positions across poses — it aborts/warns if they drift.
 //
+// THE SOURCE IS KEPT. --apply first copies the untouched asset to
+// public/models/source/mech_<id>.glb (once — a second bake never overwrites the
+// true original) and writes public/models/source/<id>.edits.json: every manifest
+// field that was folded in, with its values, plus the custom rig file's text.
+// So the baked model stays explainable and re-derivable without digging through
+// git history, and a re-bake from source is one copy away.
+//
+// THE FIDELITY CHECK ONLY SEES JOINTS. It compares the 15 game joints across
+// three poses, which catches a broken skeleton and nothing else — it cannot see
+// skinning, and it cannot see a glbanim profile hook that stopped firing. Baking
+// jerry silently stopped his cannon pods aiming (the hook bails when
+// mech.rigBones is empty, which used to be the case for every stock skeleton)
+// and this check passed at 0.0001. So after a bake, also run:
+//     node tools/skindebug.mjs <id>     — same findings, same severities?
+//     node tools/weldmap.mjs <id> --list — same welds?
+//     node tools/postercheck.mjs <id>   — and regenerate the poster
+//
 // Requires the dev server running on :5175 (npm run dev).
 import { chromium } from 'playwright-core';
 import fs from 'fs';
@@ -40,7 +57,7 @@ const APPLY = process.argv.includes('--apply');
 if (!id) { console.error('usage: node tools/bake-glb.mjs <mechId> [--apply]'); process.exit(1); }
 
 // ---- manifest entry cleaning (surgical, preserves the file's formatting) ----
-const BAKED_FIELDS = ['rig', 'skinOps', 'reparent', 'stretch', 'bonePos', 'alt'];
+const BAKED_FIELDS = ['rig', 'skinOps', 'seamCuts', 'reparent', 'stretch', 'bonePos', 'alt'];
 function cleanEntry(text, mechId, customRig) {
   const m = JSON.parse(text);
   const entry = m[mechId];
@@ -171,14 +188,57 @@ function removeRigFile(mechId) {
   return changed;
 }
 
+// ---- keep the source + the edit list ----
+// A baked asset has swallowed its own recipe: the manifest fields are gone and
+// the rig file is deleted, so "what is actually in this model?" would only be
+// answerable from git. Archive both next to the model instead — the untouched
+// GLB, and a JSON listing exactly what was folded into it.
+function archiveSource(entry, removedFields, manifestText) {
+  const dir = path.join(ROOT, 'public/models/source');
+  fs.mkdirSync(dir, { recursive: true });
+  // NAMED BY THE FILE, not by the mech: an entry's url is not always
+  // mech_<id>.glb (jerry's primary model is mech_jerry_alt.glb, with the plain
+  // name belonging to his staged alternate).
+  const base = path.basename(entry.url);
+  const src = path.join(dir, base);
+  const glbPath = path.join(ROOT, 'public', entry.url);
+  // ONCE: a second bake must not overwrite the true original with an already
+  // baked one. The first archive is the pristine service asset, forever.
+  const firstTime = !fs.existsSync(src);
+  if (firstTime) fs.copyFileSync(glbPath, src);
+
+  const before = JSON.parse(manifestText)[id];
+  const edits = {};
+  for (const f of removedFields) if (before[f] !== undefined) edits[f] = before[f];
+  const rigPath = path.join(ROOT, `src/mechs/rigs/${id}.rig.js`);
+  const sidecar = {
+    mech: id,
+    bakedAt: new Date().toISOString(),
+    note: `These edits were folded into public/${entry.url} by tools/bake-glb.mjs. `
+      + `The untouched service asset is ${base} in this directory. To start over: `
+      + 'copy it back, restore these manifest fields and the rig file below.',
+    sourceGlb: `public/models/source/${base}${firstTime ? '' : ' (kept from an earlier bake)'}`,
+    manifestFieldsFolded: edits,
+    rigFile: fs.existsSync(rigPath)
+      ? { path: `src/mechs/rigs/${id}.rig.js`, text: fs.readFileSync(rigPath, 'utf8') }
+      : null,
+  };
+  fs.writeFileSync(path.join(dir, `${id}.edits.json`), JSON.stringify(sidecar, null, 2) + '\n');
+  console.log(`     archived source${firstTime ? '' : ' (already present)'} + edit list -> public/models/source/`);
+}
+
 // ---- main ----
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+let mutated = false;
 try {
-  const glbPath = path.join(ROOT, `public/models/mech_${id}.glb`);
   const origManifest = fs.readFileSync(MANIFEST, 'utf8');
   const entry = JSON.parse(origManifest)[id];
   if (!entry?.url) throw new Error(`no GLB manifest entry for "${id}"`);
+  // the file the ENTRY names — see archiveSource on why this is not mech_<id>.glb
+  const glbPath = path.join(ROOT, 'public', entry.url);
+  const bakedPath = glbPath.replace(/\.glb$/, '.baked.glb');
+  console.log(`     asset: ${entry.url}`);
   const customRig = !!entry.rig;
 
   console.log(`\n== bake ${id} ${APPLY ? '(APPLY)' : '(dry run)'} ==`);
@@ -193,9 +253,12 @@ try {
   const { out: cleanManifest, removed } = cleanEntry(origManifest, id, customRig);
 
   console.log('3/5  writing baked GLB + cleaned manifest (temporarily) for fidelity check…');
+  if (APPLY) archiveSource(entry, removed, origManifest);
   fs.writeFileSync(glbPath, buffer);                 // overwrite (restored below if dry run)
   fs.writeFileSync(MANIFEST, cleanManifest);
   const rigChanged = customRig ? removeRigFile(id) : [];
+
+  mutated = true;    // from here on the tree is dirty; see the finally below
 
   console.log('4/5  capturing post-bake joint positions (stock load path)…');
   const after = await capturePoses(browser, 'post-bake');
@@ -217,20 +280,31 @@ try {
 
   console.log('5/5  finalizing…');
   if (APPLY) {
-    fs.writeFileSync(path.join(ROOT, `public/models/mech_${id}.baked.glb`), Buffer.alloc(0)); // no leftover
-    fs.rmSync(path.join(ROOT, `public/models/mech_${id}.baked.glb`));
+    fs.writeFileSync(bakedPath, Buffer.alloc(0)); // no leftover
+    fs.rmSync(bakedPath);
     console.log(`\nAPPLIED. Review 'git status' / 'git diff', then commit — that commit is the revertible changelist.`);
+    console.log('NOW CHECK WHAT JOINTS CANNOT SHOW (see the header):');
+    console.log(`  node tools/skindebug.mjs ${id}        (skinning: same findings + severities?)`);
+    console.log(`  node tools/weldmap.mjs ${id} --list   (welds + seam cuts unchanged?)`);
+    console.log(`  node tools/posters.mjs ${id}          (the asset moved: re-render the poster)`);
     console.log(`Suggested: git add -A && git commit -m "Bake ${id} GLB: fold rig/skinning into the asset"`);
   } else {
-    // restore every mutated file; leave a .baked.glb for inspection
-    fs.writeFileSync(path.join(ROOT, `public/models/mech_${id}.baked.glb`), buffer);
-    // eslint-disable-next-line no-undef
-    const { execSync } = await import('node:child_process');
-    execSync(`git checkout -- public/models/mech_${id}.glb public/models/manifest.json`, { cwd: ROOT });
-    for (const p of rigChanged) execSync(`git checkout -- "${path.relative(ROOT, p)}"`, { cwd: ROOT });
-    console.log(`\nDRY RUN — repo restored. Inspect public/models/mech_${id}.baked.glb.`);
+    // leave a .baked.glb for inspection; the finally below restores the tree
+    fs.writeFileSync(bakedPath, buffer);
+    console.log(`\nDRY RUN — repo restored. Inspect ${path.relative(ROOT, bakedPath)}.`);
     console.log(`Re-run with --apply to write the changes.`);
   }
 } finally {
+  // A DRY RUN LEAVES NOTHING BEHIND, even when a step throws. The baked GLB,
+  // the cleaned manifest and the removed rig file all land on disk before the
+  // fidelity check can run, so an exception in between used to leave the repo
+  // half-baked and the next command working against it.
+  if (!APPLY && mutated) {
+    const { execSync } = await import('node:child_process');
+    try {
+      execSync('git checkout -- public/models src/mechs/rigs', { cwd: ROOT });
+      console.log('(dry run: repo restored)');
+    } catch (e) { console.error('COULD NOT RESTORE — check git status:', e.message); }
+  }
   await browser.close();
 }

@@ -284,6 +284,21 @@ audio). Progress history: `TASKS.md`.
   poster-vs-model drift in pixels per slot at each player count. NOTE any
   harness that builds preview mechs must `await loadManifest()` first, or
   `manifestHasGlb()` answers false and the stage quietly shows procedural.
+- BAKING A MECH (`node tools/bake-glb.mjs <id> [--apply]`) folds every runtime
+  edit — custom rig, skinOps, `seamCuts`, reparent, stretch, bonePos, rig posts —
+  INTO the .glb, strips those manifest fields and deletes the rig file, leaving
+  one revertible commit. `--apply` first archives the untouched asset to
+  `public/models/source/<file>.glb` (once — a re-bake never overwrites the true
+  original) and writes `public/models/source/<id>.edits.json`: every folded field
+  with its values, plus the rig file's text, so a baked model stays explainable
+  without digging through git. Paths come from the entry's `url`, not from the
+  mech id (jerry's primary model is `mech_jerry_alt.glb`). A dry run restores the
+  tree even if a step throws. THE BUILT-IN FIDELITY CHECK ONLY SEES THE 15
+  JOINTS — it cannot see skinning or a glbanim `post` hook that stopped firing,
+  so after a bake also run `tools/skindebug.mjs <id>` (same findings?),
+  `tools/weldmap.mjs <id> --list` (same welds?) and re-render the poster.
+  A baked model keeps its seam record as `rwSeam` mesh extras, so the skin audit
+  still knows a deliberate split from a crack.
 - Model set: the GLBs in `public/models/manifest.json` are the DEFAULT for
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).

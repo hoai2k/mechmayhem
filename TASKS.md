@@ -4858,3 +4858,53 @@ edits has never heard of the vertices the cut added.
 STILL WELDED, NOT ASKED FOR: the same probe found arm-to-leg welds
 (elbowL~thighL 46 triangles, elbowR~thighR 27, shoulderR~thighR 26,
 elbowL~kneeL 9). Same illness, same one-line fix if wanted.
+
+## BAKING THE EDITS INTO THE ASSET, and previewing a cut before it is one (user request, 2026-07-29)
+
+Two asks. First, a way to SEE the cut geometry in the skin workbench — see the
+commit for "preview the seam-cut build"; the short version is that the workbench
+edits the raw file, so it renders welds the game has already separated, and now
+a read-only toggle swaps in what the game builds. The measurement that goes with
+it, "What moves? (M)", reports two things on purpose: which bones' vertices
+travel, AND which bone pairs have geometry stretched between them. They are not
+the same question — a welded torso vertex does not move at all; it sits still
+while the triangle joining it to the arm is dragged across the arena.
+
+Second: fold the runtime edits into the GLBs. tools/bake-glb.mjs already did the
+hard part (bake rig + skinOps + reparent + stretch + bonePos, strip the manifest
+fields, delete the rig file, one revertible commit, joint-fidelity check). What
+it needed:
+
+  · seamCuts baked too, with the seam record kept as `rwSeam` mesh extras so the
+    skin audit can still tell a deliberate split from a crack once the cut IS
+    the asset.
+  · THE SOURCE KEPT. --apply archives the untouched asset to
+    public/models/source/ (once — a second bake cannot overwrite the original)
+    and writes <id>.edits.json: every folded manifest field with its values, and
+    the rig file's text.
+  · Paths from the entry's `url`, not `mech_<id>.glb`. Jerry's primary model is
+    mech_jerry_alt.glb; the tool baked over his ALTERNATE and the post-bake
+    build fell back to procedural.
+  · A dry run that restores the tree even when a step throws — it writes the
+    GLB, the manifest AND deletes the rig file before the check can fail.
+
+JERRY IS BAKED. 3.99 MB, 23 bones, 15/15 joints, joint fidelity 0.0001 world
+units (tolerance 0.01). Manifest entry went from 6 fields of instructions to
+url + modelScale + bindPose + yawOffset + heightScale + muzzles.
+
+AND THE BAKE HAD A BUG THAT THE FIDELITY CHECK CANNOT SEE. Baked jerry's audit
+came back 13 findings -> 9, which is not an improvement: the four that vanished
+all involved strutMidL/R and tail — his CANNON PODS, which had stopped moving.
+`mech.rigBones` was only ever populated on the custom-rig path, and his glbanim
+profile aims the pods through it (`if (!bones) return`). Bake the rig in and the
+hook silently no-ops, his Bilge Spit goes back to firing sideways, and 15 joint
+positions are all still perfect. rigBones is now filled in from the model's own
+bones for ANY skeleton, which is what it should always have been.
+
+With that fixed, pre-bake and post-bake audits are the same list: 13 findings,
+no additions, no removals, severities equal to 3 decimals on 9 of 11 and inside
+0.15 on the other two (animator settling jitter). weldmap agrees pair for pair,
+hand~torso still absent. Soak clean, build green, poster re-rendered (5px).
+
+The joint-only fidelity check is now documented as insufficient, and --apply
+prints the three checks that cover what it misses.

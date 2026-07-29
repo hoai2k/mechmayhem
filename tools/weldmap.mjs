@@ -62,19 +62,41 @@ const pairs = await page.evaluate(async (minDist) => {
     for (let k = 0; k < 4; k++) { const x = sw.getComponent(i, k); if (x > bw) { bw = x; bi = si.getComponent(i, k); } }
     dom[i] = bi;
   }
-  // hierarchy distance over the mech's own rig
-  const rig = rigFor(d.mech.def?.id || '');
+  // Hierarchy distance — over the SKELETON THAT IS LOADED, not over a rig file.
+  // A baked mech (tools/bake-glb.mjs) has no rig file left; its bones carry the
+  // same names and the same parent links inside the .glb, and those are what
+  // the distance actually means. The rig file is only consulted as a fallback
+  // for a model whose skeleton somehow has no parenting.
+  const skel = mesh.skeleton.bones;
+  const nB = skel.length;
+  const at = new Map(skel.map((b, i) => [b, i]));
+  const adj = skel.map(() => []);
+  let links = 0;
+  skel.forEach((b, i) => {
+    const p = at.get(b.parent);
+    if (p !== undefined) { adj[i].push(p); adj[p].push(i); links++; }
+  });
   let hd = () => 9;
-  if (rig) {
-    const order = rig.bones.map((b) => b.name), at = new Map(order.map((x, i) => [x, i])), nB = order.length;
-    const adj = rig.bones.map(() => []);
-    rig.bones.forEach((b, i) => { const p = at.get(b.parent); if (p !== undefined) { adj[i].push(p); adj[p].push(i); } });
+  if (links) {
     const dist = new Uint8Array(nB * nB).fill(255);
     for (let s = 0; s < nB; s++) {
       const q = [s]; dist[s * nB + s] = 0;
       while (q.length) { const u = q.shift(); for (const v of adj[u]) if (dist[s * nB + v] === 255) { dist[s * nB + v] = dist[s * nB + u] + 1; q.push(v); } }
     }
-    hd = (a, b) => { const i = at.get(bones[a]), j = at.get(bones[b]); return (i === undefined || j === undefined) ? 9 : dist[i * nB + j]; };
+    hd = (a, b) => (dist[a * nB + b] === 255 ? 9 : dist[a * nB + b]);
+  } else {
+    const rig = rigFor(d.mech.def?.id || '');
+    if (rig) {
+      const order = rig.bones.map((b) => b.name), rat = new Map(order.map((x, i) => [x, i])), rN = order.length;
+      const radj = rig.bones.map(() => []);
+      rig.bones.forEach((b, i) => { const p = rat.get(b.parent); if (p !== undefined) { radj[i].push(p); radj[p].push(i); } });
+      const dist = new Uint8Array(rN * rN).fill(255);
+      for (let s = 0; s < rN; s++) {
+        const q = [s]; dist[s * rN + s] = 0;
+        while (q.length) { const u = q.shift(); for (const v of radj[u]) if (dist[s * rN + v] === 255) { dist[s * rN + v] = dist[s * rN + u] + 1; q.push(v); } }
+      }
+      hd = (a, b) => { const i = rat.get(bones[a]), j = rat.get(bones[b]); return (i === undefined || j === undefined) ? 9 : dist[i * rN + j]; };
+    }
   }
   // a seam cut already separated some of these; those are no longer welded
   const cut = g.userData.seamCut || null;

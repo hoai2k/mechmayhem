@@ -70,6 +70,19 @@ function reportSeamCuts(id, report) {
   console.info(`seamCuts[${id}]: ${what}`);
 }
 
+// Seam cuts, for the BAKE path. Same call the game makes, then the bulky
+// session-only bookkeeping is dropped: only `rwSeam` (plain arrays saying which
+// vertices sit on which side of which cut) is left on the mesh, because that is
+// what the exporter can write into the glb as extras — and what lets the skin
+// audit still tell a deliberate split from a crack once the cut IS the asset.
+function bakeSeamCuts(sk, entry) {
+  if (!entry.seamCuts?.length) return null;
+  const report = applySeamCuts(sk, entry.seamCuts);
+  if (!report) return null;
+  sk.geometry.userData = { rwSeam: report.seams || [] };
+  return report;
+}
+
 function warnEntryOnce(id, msg) {
   const key = id + '|' + msg;
   if (_entryWarned.has(key)) return;
@@ -298,6 +311,7 @@ export async function bakeMechScene(id) {
       for (const j of JOINT_ORDER) if (byName[j]) boneMap[j] = byName[j];
       buildRigPosts(byName, customRig);
       if (entry.skinOps?.length) applySkinOps(sk, entry.skinOps);
+      bakeSeamCuts(sk, entry);
       // prune the now-orphaned original auto-rig skeleton so the baked GLB
       // carries ONLY the custom bones (no dead Tripo bones). Safe: the mesh was
       // rebound to the new skeleton, and the originals sit in a separate subtree
@@ -313,6 +327,7 @@ export async function bakeMechScene(id) {
     if (entry.skinOps?.length) {
       for (const mm of meshes) if (mm.isSkinnedMesh) applySkinOps(mm, entry.skinOps);
     }
+    for (const mm of meshes) if (mm.isSkinnedMesh) bakeSeamCuts(mm, entry);
   }
 
   applyBoneNudges(boneMap, entry);
@@ -607,12 +622,20 @@ function buildGlbMech(def, entry, gltf) {
   });
   mech.postAnimate = () => { adapter.sync(); mech.postDress?.(); };
   mech.boneMap = boneMap;   // pose tool reaches bones by virtual-joint name
-  // Every custom-rig bone by name, including the ones that are NOT game joints
-  // (fenrir's tail0..5, claws, paws). adapter.sync() only writes the 15 mapped
-  // joints, so these are free for a glbanim profile's post hook to animate —
-  // that's how a GLB gets back a personality joint the procedural design
-  // creates and the retarget has no route for. Undefined on stock auto-rigs.
-  mech.rigBones = rigBones;
+  // EVERY BONE BY NAME, including the ones that are NOT game joints (fenrir's
+  // tail0..5, claws, paws, jerry's cannon-pod struts). adapter.sync() only
+  // writes the 15 mapped joints, so these are free for a glbanim profile's post
+  // hook to animate — that's how a GLB gets back a personality joint the
+  // procedural design creates and the retarget has no route for.
+  //
+  // Filled in for a stock skeleton too, NOT just a custom rig. Baking a mech
+  // (tools/bake-glb.mjs) folds its custom rig into the asset and there is no
+  // rig object afterwards — but the BONES are still there under the same names,
+  // and a profile that reaches for them must keep working. Leaving this null
+  // for baked models is what silently stopped jerry's pods aiming his Bilge
+  // Spit: the hook bails on `if (!bones) return`, and his shots went back to
+  // flying out sideways with nothing in the fidelity check to catch it.
+  mech.rigBones = rigBones || Object.fromEntries(bones.map((b) => [b.name, b]));
   mech.adapter = adapter;
 
   // Muzzle (projectile-spawn) anchors — the SINGLE source of every ranged /
