@@ -83,6 +83,11 @@ export async function bootGame() {
   // RANDOM arena, the RANDOM robots and the first song are pre-ROLLED here and
   // CONSUMED by the menus, so what gets downloaded is what actually plays.
   const predictor = new Predictor({ music });
+  // mouse / touch / wheel never reach menuEvents (the screens own their own
+  // DOM handlers), so park the prefetcher straight off the raw events too
+  for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydown']) {
+    window.addEventListener(ev, () => predictor.nudge(), { passive: true });
+  }
 
   // ---- sound on/off: corner button on menus, mirrored in the pause menu ----
   let muted = false;
@@ -369,6 +374,11 @@ export async function bootGame() {
 
   // menu input goes to the settings modal when one is open, else the screen
   function screenUpdate(ev) {
+    // any menu input parks the background prefetcher for a beat (predict.js
+    // nudge) — the player flipping through robots gets a quiet machine, and
+    // the loading resumes once they settle
+    if (ev && (ev.any || ev.up || ev.down || ev.left || ev.right ||
+               ev.confirm || ev.back || ev.lb || ev.rb)) predictor.nudge();
     if (S.modal) S.modal.update(ev);
     else S.screen?.update(ev);
   }
