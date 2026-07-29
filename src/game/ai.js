@@ -24,6 +24,7 @@ function preferredRange(def) {
   if (t === 'railgun' || t === 'mortar') return 26;
   if (t === 'gatling' || t === 'plasma' || t === 'shell' || t === 'lightning' || t === 'bats') return 16;
   if (t === 'shard' || t === 'slime' || t === 'flea' || t === 'glitch') return 14;
+  if (t === 'goo') return 18; // JERRY's bilge spit outranges a slime gun
   if (t === 'fist' || t === 'spikes') return 13; // boomerang fist / spine volley
   if (t === 'flame' || t === 'hose') return 9;
   if (t === 'groundpound') return 4; // stand IN their face and slam

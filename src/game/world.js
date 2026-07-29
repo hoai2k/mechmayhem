@@ -2,7 +2,7 @@
 // scheduler, ranged-fire dispatch, explosions and area effects.
 import * as THREE from 'three';
 import { Finisher } from './finisher.js';
-import { Effects } from '../combat/effects.js';
+import { Effects, GOO_TINTS } from '../combat/effects.js';
 import { FlameFX, fireCool } from '../combat/flamefx.js';
 import { ProjectileSystem } from '../combat/projectiles.js';
 import { FleaSystem } from '../combat/fleas.js';
@@ -999,6 +999,66 @@ const WEAPONS = {
   flea(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // JERRY: launches a live robo-shrimp flea that hunts on foot
     w.fleas.spawn(f, from, dir, { dmg: mv.dmg * f.dmgMult() });
     w.effects.muzzleFlash(from);
+  },
+
+  goo(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // JERRY: a SHORT BURST of black bilge —
+    // CRANKY's pressurized stream (same jet tube, in tar) fired as a
+    // half-second spit instead of a held hose, reaching much further; what
+    // it lands on it gunks like FROGGER's slime, in black (GOO_TINTS.bilge).
+    // ONE cannon pod fires per press, alternating (doRanged toggles _altSide
+    // and stamps _shotSide, and the glbanim jerry profile swings THAT pod
+    // forward) — so the stream leaves the barrel that just aimed.
+    const side = (f._shotSide && anchors.muzzleL) ? anchors.muzzleL : anchors.muzzleR;
+    const ticks = mv.ticks || 4;
+    const tint = GOO_TINTS.bilge;
+    // WHERE the burst is going, as a POINT rather than a direction. His pods
+    // sit a couple of metres out to the sides, so a stream fired parallel to
+    // the base aim leaves the fight line by its own offset and sails past the
+    // target — and the barrel deflection every other gun uses would splay it
+    // further, which is exactly what the pod animation is there to cancel.
+    // Ranging each tick off the pod's live position onto one aim point keeps
+    // both cannons converged on what he is looking at.
+    const aimAt = aimP ? aimP.clone()
+      : (e && barrelDot > 0.5) ? e.center()
+      : from.clone().add(dir.clone().multiplyScalar(Math.max(flatDist, 12)));
+    for (let i = 0; i < ticks; i++) {
+      w.schedule(i * 0.05, () => {
+        if (!f.alive) return;
+        // re-read the pod every tick: it is still swinging onto the target
+        // while the burst pours out, so the stream sweeps onto the line
+        const p0 = side.getWorldPosition(new THREE.Vector3());
+        const d = aimAt.clone().sub(p0).normalize();
+        // the visible rope of tar (the jet keeps rebuilding for ~0.15s after
+        // the last tick, so four ticks read as one continuous stream)
+        // The visible rope is SHORT — a spit, not a beam. It reaches a
+        // fraction of the move's range and sags out of the air; the wads it
+        // throws are what actually carry the shot the rest of the way.
+        const end = w.effects.jet('goo' + f.playerIndex, p0, d, {
+          type: 'tar', speed: mv.speed, range: Math.min(mv.range * 0.42, 19), gravity: 22, r0: 0.17, r1: 0.62,
+        });
+        if (end && end.y <= 0.4 && Math.random() < 0.5) {
+          w.effects.puddle(end, { slime: true, color: tint.puddle, life: 5 });
+        }
+        // the wads themselves carry the damage — lead glob splashes and
+        // sticks them slow, the trailing spatter just gunks
+        const d2 = d.clone();
+        d2.x += rand(-0.03, 0.03); d2.y += rand(-0.012, 0.03); d2.z += rand(-0.03, 0.03);
+        const lead = i === 0;
+        w.projectiles.spawn('glob', f, p0, d2, {
+          dmg: (lead ? mv.dmg : mv.dmg * 0.5) * f.dmgMult(),
+          speed: mv.speed * (1 - i * 0.06),
+          splash: lead ? mv.splash : 0,
+          color: lead ? 0x1b1913 : 0x121110,
+          knock: lead ? 7 : 2,
+          status: lead ? { slow: 0.62, slowT: 1.6 } : { slow: 0.8, slowT: 0.8 },
+          size: lead ? 1 : 0.72,
+          maxDist: mv.range,
+          goop: true, goopTint: tint,
+        });
+        w.effects.slime(p0, 3, 3, d, tint);       // muzzle drool
+        if (lead) w.audio?.play('wave', { pitch: 0.55 });
+      });
+    }
   },
 
   slime(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // FROGGER: a sputtering STREAM of gel wads — a lead

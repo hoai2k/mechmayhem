@@ -541,7 +541,13 @@ export const ROSTER = [
     moves: {
       light: { dmg: [28, 30, 44], knock: [4, 4, 10], range: 3.4 },
       heavy: { dmg: 76, knock: 18, range: 3.6, launch: 8 },
-      ranged: { name: 'Flea Pod', type: 'flea', dmg: 34, speed: 26, cooldown: 0.95, ammo: 14 },
+      // BILGE SPIT: a short burst of black sticky goo out of ONE cannon pod
+      // (alternating), thrown much further than CRANKY's water hose and
+      // gunking whoever it lands on like FROGGER's slime. `ticks` wads per
+      // press — the first is the lead glob (splash + the heavy slow), the
+      // rest trail behind it. `range` is both the jet's reach and the wads'
+      // kill line, so the stream and the damage stop at the same distance.
+      ranged: { name: 'Bilge Spit', type: 'goo', dmg: 18, speed: 42, cooldown: 1.1, splash: 2.2, range: 46, ticks: 4, ammo: 16 },
       special: { id: 'fleaSwarm', name: 'Brine Swarm', cooldown: 7.5, dmg: 26, count: 6 },
       ult: { id: 'fleaCircus', name: 'FLEA CIRCUS', dmg: 14, count: 20, duration: 6 },
     },

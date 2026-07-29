@@ -71,6 +71,23 @@ const JET_STYLES = {
   fire: { core: 0xffc878, edge: 0xb62a06, foam: 0xffc878, foamAmt: 0, alpha: 0.6, brk: 0.8, blending: THREE.AdditiveBlending },
   // TIDE-scheme flamethrower: the same roaring stream in gas-flame blue
   firecool: { core: 0x8fd4ff, edge: 0x0b3cb6, foam: 0x8fd4ff, foamAmt: 0, alpha: 0.6, brk: 0.8, blending: THREE.AdditiveBlending },
+  // JERRY: black bilge. Cranky's pressurized tube in tar — near-black body
+  // with a thin oily sheen for the highlight (a pure-black jet reads as a
+  // hole in the world), and a LOW break-up so the burst stays one heavy
+  // rope of goo instead of atomizing into spray like water does.
+  tar: { core: 0x27231d, edge: 0x08080a, foam: 0x6a5a3e, foamAmt: 0.3, alpha: 0.86, brk: 0.34, blending: THREE.NormalBlending },
+};
+
+// Goo palettes. One tint object travels the whole life of a wad — trail
+// drips in flight, the blotch stuck on whoever it hits, the puddle it leaves
+// and the splat ring — so a new flavour of goo is one entry here rather than
+// a colour argument threaded through five call sites.
+export const GOO_TINTS = {
+  // FROGGER: the acid-green gunk gun
+  slime: { trail: 0x9fe23a, trail2: 0x3c7410, drip: 0x6cb022, drip2: 0x2c5210, blotch: 0x74bc24, puddle: 0x63a81e, ring: 0x6fae1e },
+  // JERRY: black sticky bilge out of the cannon pods — same behaviour,
+  // read as tar. Kept just off pure black so it still catches the light.
+  bilge: { trail: 0x2b2820, trail2: 0x0c0c0e, drip: 0x1d1a15, drip2: 0x08080a, blotch: 0x14130f, puddle: 0x121110, ring: 0x2a2620 },
 };
 const _ja = new THREE.Vector3(), _jb = new THREE.Vector3(), _jt = new THREE.Vector3();
 
@@ -735,27 +752,28 @@ export class Effects {
         drag: 1.5, grow: 2.4, spin: 1, fadeIn: 0.25 });
   }
 
-  // thick green GOOP: lumpy glossy globs tumbling slow and heavy, stringy
-  // drips, and a splat ring when it lands hard
-  slime(pos, n = 8, power = 6, dir = null) {
+  // thick GOOP: lumpy glossy globs tumbling slow and heavy, stringy drips,
+  // and a splat ring when it lands hard. `tint` picks the flavour (green
+  // slime by default, JERRY's black bilge with GOO_TINTS.bilge).
+  slime(pos, n = 8, power = 6, dir = null, tint = GOO_TINTS.slime) {
     for (let i = 0; i < n; i++) {
       const a = rand(Math.PI * 2), sp = rand(0.3, 1) * power;
       const vx = dir ? dir.x * power + Math.cos(a) * sp * 0.4 : Math.cos(a) * sp;
       const vz = dir ? dir.z * power + Math.sin(a) * sp * 0.4 : Math.sin(a) * sp;
       this.goop.emit(pos.x, pos.y, pos.z,
         vx, rand(0.2, 1) * power * 0.8 + (dir ? dir.y * power : 0), vz,
-        { life: rand(0.6, 1), size: rand(1.4, 2.6), color: 0x9fe23a, color2: 0x3c7410,
+        { life: rand(0.6, 1), size: rand(1.4, 2.6), color: tint.trail, color2: tint.trail2,
           alpha: 0.96, gravity: 18, drag: 0.6, grow: 0.5, spin: 1.2, fadeIn: 0.06 });
     }
     // stringy drips falling out of the mass
     for (let i = 0; i < Math.ceil(n / 3); i++) {
       this.goop.emit(pos.x + rand(-0.6, 0.6), pos.y + rand(-0.3, 0.3), pos.z + rand(-0.6, 0.6),
         rand(-1, 1), rand(-2, 0), rand(-1, 1),
-        { life: rand(0.5, 0.8), size: rand(0.5, 0.9), color: 0x6cb022, color2: 0x2c5210,
+        { life: rand(0.5, 0.8), size: rand(0.5, 0.9), color: tint.drip, color2: tint.drip2,
           alpha: 0.96, gravity: 22, spin: 0.8, fadeIn: 0.05 });
     }
     if (power >= 6) {
-      this.rings.spawn(pos.clone().setY(Math.max(0.02, pos.y - 1)), { from: 0.3, to: power * 0.45, dur: 0.35, color: 0x6fae1e, y: 0.08 });
+      this.rings.spawn(pos.clone().setY(Math.max(0.02, pos.y - 1)), { from: 0.3, to: power * 0.45, dur: 0.35, color: tint.ring, y: 0.08 });
     }
   }
 
@@ -860,7 +878,9 @@ export class Effects {
   }
 
   // ---- ground decals: slime puddles and wet splash patches ----
-  puddle(pos, { slime = false, size = null, life = null } = {}) {
+  // `color` overrides the puddle tint (a black bilge splat uses the same
+  // goop-cell decal as green slime, just in tar) — see GOO_TINTS.
+  puddle(pos, { slime = false, size = null, life = null, color = null } = {}) {
     let m = this._puddlePool.pop();
     if (!m) {
       m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({
@@ -878,7 +898,7 @@ export class Effects {
     }
     tex.needsUpdate = true;
     m.material.map = tex;
-    m.material.color.set(slime ? 0x63a81e : 0x39638c);
+    m.material.color.set(color ?? (slime ? 0x63a81e : 0x39638c));
     m.material.opacity = slime ? 0.88 : 0.42;
     m.material.needsUpdate = true;
     const s = size || (slime ? rand(2.2, 3.6) : rand(2.6, 3.6));

@@ -903,7 +903,8 @@ export class Fighter {
       // leaves the hand that just moved.
       const twin = mv.type === 'mortar' || mv.type === 'slime'
         || mv.type === 'lightning' || mv.type === 'blade' || mv.type === 'fist'
-        || mv.type === 'shell';   // RHINO: a hand cannon per fist
+        || mv.type === 'shell'    // RHINO: a hand cannon per fist
+        || mv.type === 'goo';     // JERRY: a cannon pod per side
       if (twin && this.mech.anchors.muzzleL) this._altSide = !this._altSide;
       // A thrown DAGGER is a physical object, so the side has to be one she
       // actually HAS: alternate by default, but throw from the more re-forged
@@ -925,7 +926,8 @@ export class Fighter {
         this._fistSide = this._altSide ? 'L' : 'R';   // read by WEAPONS.fist
       }
       const mirrored = (mv.type === 'slime' || mv.type === 'lightning'
-        || mv.type === 'blade' || mv.type === 'shell') && this._altSide;
+        || mv.type === 'blade' || mv.type === 'shell'
+        || mv.type === 'goo') && this._altSide;
       // a named ranged clip can still mirror: prefer rangedClipL on the off hand
       const clip = (this._altSide && this.def.rangedClipL) || this.def.rangedClip
         || (mv.type === 'mortar' ? (this._altSide ? 'braceL' : 'brace')

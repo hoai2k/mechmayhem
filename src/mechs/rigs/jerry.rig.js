@@ -42,8 +42,12 @@ export const JERRY_RIG = {
     { name: 'footR', parent: 'ankleR', pos: [-0.43, 0.04, -0.20], post: true },
     // ---- static struts: tail over the back + antennae/spare bits ----
     { name: 'tail', parent: 'torso', pos: [-0.10, 0.86, 0.00], bias: 0.7 },
-    { name: 'strutMidL', parent: 'hips', pos: [0.05, 0.42, 0.16] },
-    { name: 'strutMidR', parent: 'hips', pos: [0.05, 0.42, -0.16] },
+    // The two CANNON PODS. Moved off the mid-struts and up into the barrels
+    // themselves (?rigedit=jerry), so the cannon geometry skins to them and a
+    // glbanim post hook can swing each pod forward to spit its goo — and the
+    // muzzle anchors ride the bone that actually aims (manifest `muzzles`).
+    { name: 'strutMidL', parent: 'hips', pos: [0.08, 0.77, 0.32] },
+    { name: 'strutMidR', parent: 'hips', pos: [0.07, 0.76, -0.32] },
     { name: 'belly', parent: 'hips', pos: [0.00, 0.47, 0.00] },
   ],
 };

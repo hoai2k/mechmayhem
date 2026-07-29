@@ -652,7 +652,35 @@ export const GLB_ANIM = {
       shootL: GLB_CLIP_VARIANTS.froggerShootLGlb,
     },
   },
-  jerry: {},     // crustacean — antennae/struts are procedural-only joints
+  // JERRY — the CANNON PODS aim the Bilge Spit. His two pods are modelled
+  // splayed outward (the right barrel sits 35° off his facing at rest, the
+  // left 29° the other way), so a shot leaving them flew out sideways. The
+  // custom rig carries each pod as its own bone (rigs/jerry.rig.js:
+  // strutMidL/R, with the pod geometry skinned to them and the muzzle
+  // anchors riding them), and the RigAdapter never touches non-game bones —
+  // so swing the FIRING pod's bone by exactly its rest splay, which puts its
+  // barrel on his facing, and let it drift back after. World.fireRanged
+  // deflects the shot along the anchor's LIVE +Z (barrelDeflect), so the goo
+  // leaves down whatever line the pod has reached; the burst re-reads it
+  // every tick. He alternates sides shot to shot, so the clip tells us which
+  // pod is working: `shootL` is the left one, `shoot` the right.
+  jerry: {
+    post(anim, dt, ctx, tgt) {
+      const bones = anim.mech.rigBones;
+      if (!bones) return;                       // stock auto-rig: no pod bones
+      const n = anim.action && !anim.action.fadingOut ? anim.action.clip.name : '';
+      const firing = n === 'shoot' || n === 'shootL' || ctx.firing;
+      const side = n === 'shootL' ? 'L' : 'R';
+      for (const [key, name, aim] of [['R', 'strutMidR', -0.620], ['L', 'strutMidL', 0.515]]) {
+        const b = bones[name];
+        if (!b) continue;
+        const want = firing && side === key ? aim : 0;
+        // snap ONTO the line (the fire event lands a beat into the clip), ease
+        // off it — the pod should look like it recoils back, not springs
+        b.rotation.y += (want - b.rotation.y) * (1 - Math.exp(-(want ? 26 : 7) * dt));
+      }
+    },
+  },
   nullbot: {},   // humanoid — direct map (glitch strobe is material-only)
 
   // VULCAN — hand-authored custom rig (src/mechs/rigs/vulcan.rig.js): his bones

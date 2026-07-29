@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rand, clamp } from '../core/utils.js';
-import { glitchColor } from './effects.js';
+import { glitchColor, GOO_TINTS } from './effects.js';
 import { bodyHitSegment, SHOT_PAD } from './hurtbox.js';
 
 const _v = new THREE.Vector3();
@@ -19,19 +19,37 @@ const VISUALS = {
   rocket: { geo: () => new THREE.CylinderGeometry(0.16, 0.28, 1.4, 8), rot: true, trail: 'smoke' },
   missile: { geo: () => new THREE.CylinderGeometry(0.1, 0.16, 0.9, 6), rot: true, trail: 'smoke' },
   plasma: { geo: () => new THREE.SphereGeometry(0.55, 10, 8), pulse: true, trail: 'glow' },
-  glob: { // FROGGER: lumpy gel wad — normally blended MATTER, not a light ball
+  glob: { // FROGGER's gunk gun + JERRY's bilge spit: a short SLUG OF LIQUID,
+    // not a ball — a torn-off length of the same pressurized rope CRANKY
+    // hoses out (effects.jet), flying nose-first with a fat rounded head, a
+    // lumpy waist and a tail thinning to a droplet breaking off behind it.
+    // Modelled along +Y because `rot` points +Y down the flight line.
     geo: () => {
-      const g = new THREE.IcosahedronGeometry(0.52, 2);
-      const pos = g.attributes.position;
+      const parts = [];
+      const body = new THREE.CylinderGeometry(0.3, 0.09, 1.55, 9, 6, true);
+      const pos = body.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-        const n = 1 + 0.26 * Math.sin(x * 7.1 + 1) * Math.sin(y * 6.3 + 2) * Math.sin(z * 5.7 + 3);
-        pos.setXYZ(i, x * n, y * n, z * n);
+        // surface tension: the rope necks and bulges down its length rather
+        // than reading as a smooth cone
+        const t = y / 1.55 + 0.5;                       // 0 tail -> 1 head
+        const n = 1 + 0.2 * Math.sin(t * 12.5) + 0.12 * Math.sin(Math.atan2(z, x) * 3 + t * 9);
+        pos.setXYZ(i, x * n, y, z * n);
       }
-      g.computeVertexNormals();
-      return g;
+      parts.push(body.toNonIndexed());
+      const head = new THREE.SphereGeometry(0.29, 9, 7);
+      head.scale(1, 1.2, 1);
+      head.translate(0, 0.78, 0);
+      parts.push(head.toNonIndexed());
+      const bead = new THREE.SphereGeometry(0.12, 7, 5); // droplet trailing off the tail
+      bead.translate(0.05, -1.02, -0.03);
+      parts.push(bead.toNonIndexed());
+      const merged = BufferGeometryUtils.mergeGeometries(parts, false);
+      parts.forEach((g) => g.dispose());
+      merged.computeVertexNormals();
+      return merged;
     },
-    pulse: true, rot: true, normalBlend: true,
+    pulse: true, rot: true, normalBlend: true, doubleSide: true, lit: true, rough: 0.18,
   },
   dart: { geo: () => new THREE.ConeGeometry(0.09, 1.1, 6), rot: true },
   blade: { // VIPER: a thrown energy sword tumbling end-over-end
@@ -144,11 +162,20 @@ export class ProjectileSystem {
     let mesh = list.pop();
     if (!mesh) {
       const vis = VISUALS[type];
-      mesh = new THREE.Mesh(vis.geo(), new THREE.MeshBasicMaterial({
-        transparent: true, depthWrite: false,
-        // dark bodies (bats) need normal blending — additive dark = invisible
-        blending: vis.normalBlend ? THREE.NormalBlending : THREE.AdditiveBlending,
-      }));
+      // `lit` bodies are MATTER, not light: a wet glossy surface that takes
+      // the scene lighting, so a wad of goo reads as a rolling liquid slug
+      // instead of a flat silhouette (a near-black one on unlit basic
+      // material just reads as a hole punched in the arena).
+      mesh = new THREE.Mesh(vis.geo(), vis.lit
+        ? new THREE.MeshStandardMaterial({
+          transparent: true, depthWrite: false,
+          roughness: vis.rough ?? 0.22, metalness: 0.05,
+        })
+        : new THREE.MeshBasicMaterial({
+          transparent: true, depthWrite: false,
+          // dark bodies (bats) need normal blending — additive dark = invisible
+          blending: vis.normalBlend ? THREE.NormalBlending : THREE.AdditiveBlending,
+        }));
       mesh.userData.vis = vis;
       if (vis.doubleSide) mesh.material.side = THREE.DoubleSide;
       this.scene.add(mesh);
@@ -191,6 +218,10 @@ export class ProjectileSystem {
       trailColor: spec.trailColor || null, // dark bodies fly with a bright wake
       wobble: spec.wobble || 0,
       goop: !!spec.goop,
+      // which flavour of goo this wad is made of (GOO_TINTS): drives the
+      // drip trail, the blotch it sticks on a victim and the puddle it
+      // leaves. Defaults to FROGGER's green slime.
+      goopTint: spec.goopTint || GOO_TINTS.slime,
       soft: !!spec.soft,
       boomerang: !!spec.boomerang, // flies out, then homes back to its owner
       returning: false,
@@ -348,7 +379,7 @@ export class ProjectileSystem {
           // thick liquid: lumpy globs sag off the bolt and drip down
           world.effects.goop.emit(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z,
             rand(-0.6, 0.6), rand(-1.5, 0.2), rand(-0.6, 0.6),
-            { life: rand(0.35, 0.6), size: rand(0.8, 1.5), color: 0x9fe23a, color2: 0x3c7410,
+            { life: rand(0.35, 0.6), size: rand(0.8, 1.5), color: p.goopTint.trail, color2: p.goopTint.trail2,
               alpha: 0.95, gravity: 16, spin: 1.5, fadeIn: 0.05 });
         } else if (vis.trail === 'glitch') {
           // corrupted wake: square data-flecks hang in the air behind it,
@@ -387,8 +418,8 @@ export class ProjectileSystem {
             if (p.type === 'quill') this.stickQuill(f, p);
           }
           if (p.goop) { // gel wad BURSTS on them: blotch stuck on, spatter
-            world.effects.blotchOn(f);
-            world.effects.slime(p.mesh.position, 7, 5);
+            world.effects.blotchOn(f, p.goopTint.blotch);
+            world.effects.slime(p.mesh.position, 7, 5, null, p.goopTint);
           }
           if (!p.pierce) { dead = true; break; }
         }
@@ -455,8 +486,8 @@ export class ProjectileSystem {
 
       if (dead) {
         if (p.goop) { // goo goes SPLAT wherever it dies: a puddle that stays
-          world.effects.puddle(p.mesh.position, { slime: true });
-          world.effects.slime(p.mesh.position, 6, 5);
+          world.effects.puddle(p.mesh.position, { slime: true, color: p.goopTint.puddle });
+          world.effects.slime(p.mesh.position, 6, 5, null, p.goopTint);
         }
         if (p.boomerang && p.onReturn) { p.onReturn(); p.onReturn = null; }
         if (p.skin) { p.mesh.remove(p.skin); p.skin = null; }

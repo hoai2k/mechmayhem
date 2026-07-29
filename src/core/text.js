@@ -416,7 +416,7 @@ export const MESSAGES = {
   'mech.jerry.blurb': 'Dredged from a flooded aquaculture lab, JERRY is a colony pretending to be a mech. The cannons are full of something alive. He would like you to hold still.',
   'mech.jerry.quote.intro': '"They’re hungry. I’m generous."',
   'mech.jerry.quote.win': '"*wet clicking* ...the swarm is fed. For now."',
-  'mech.jerry.move.ranged': 'Flea Pod',
+  'mech.jerry.move.ranged': 'Bilge Spit',
   'mech.jerry.move.special': 'Brine Swarm',
   'mech.jerry.move.ult': 'FLEA CIRCUS',
 
