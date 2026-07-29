@@ -234,17 +234,31 @@ export async function runGaitWorkbench(config, params) {
 
   function dropGhost() { disposeModel(ghost); ghost = null; ghostAnim = null; }
 
-  // How tall this body actually renders. measureHeadTop reads the geometry the
-  // HEAD bone owns, which is the one measurement that survives a GLB's bind
-  // transform (Box3.setFromObject on a skinned mesh measures the bind pose
-  // through a node chain that can be metres away from what you see).
-  function bodyHeight() {
-    const top = config.variants.headTop?.(mech);
-    if (top && Number.isFinite(top) && top > 0.5) return top;
+  // How big this body actually is, measured off its POSED JOINTS. Box3 on a
+  // skinned mesh measures the bind pose through a node chain that can be metres
+  // from what you see, and head-top alone is no use on a quadruped whose skull
+  // is at knee height and whose body is three times as long as it is tall — so
+  // take the joint cloud, which is where the animation actually put the model,
+  // and pad it for the geometry hanging off it (blades, tails, cannons).
+  const _bp = new THREE.Vector3();
+  function bodySize() {
+    if (!mech) return { h: 6, len: 4 };
+    mech.group.updateWorldMatrix(true, true);
+    const base = mech.group.position.y;
+    let top = -Infinity, back = Infinity, front = -Infinity;
+    for (const j of JOINT_ORDER) {
+      const o = mech.joints[j];
+      if (!o) continue;
+      o.getWorldPosition(_bp);
+      top = Math.max(top, _bp.y - base);
+      back = Math.min(back, _bp.z);
+      front = Math.max(front, _bp.z);
+    }
     const d = mech.dims;
-    return (d.hipHeight + d.torsoH + d.headSize * 2) * 1.02;
+    if (!Number.isFinite(top) || top < 0.5) return { h: (d.hipHeight + d.torsoH + d.headSize * 2) * 1.02, len: d.hipHeight };
+    return { h: top * 1.25, len: Math.max((front - back) * 1.3, top * 0.6) };
   }
-  const ghostSpan = () => bodyHeight() * 0.9;
+  const ghostSpan = () => bodySize().len * 1.15;
 
   // FIT, don't guess. The panel is resizable and this tool gets shot at
   // filmstrip aspect ratios (tools/gaitsheet.mjs), so a fixed camera distance
@@ -252,8 +266,8 @@ export async function runGaitWorkbench(config, params) {
   // Solve the distance that fits the body height AND the width of the pair,
   // through the camera's real fov and aspect.
   function frameCamera() {
-    const h = bodyHeight();
-    const wide = (compare ? ghostSpan() : 0) + h * 0.85;
+    const { h, len } = bodySize();
+    const wide = (compare ? len * 1.15 : 0) + len;
     const vfov = camera.fov * Math.PI / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (camera.aspect || 1.6));
     const dist = Math.max(

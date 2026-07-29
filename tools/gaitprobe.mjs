@@ -15,6 +15,11 @@
 //   track      how far the feet sit off the centre line (the "legs far apart" read)
 //   lean       body pitch at the hips + torso, in degrees
 //   armSwing   peak shoulder pitch travel, degrees
+//   armPhase   the COUNTER-SWING check: correlation, over the cycle, between how
+//              far forward a foot is and how far forward the arm on the SAME
+//              side is. It must be NEGATIVE (left leg forward, left arm back) —
+//              a positive number means the arms are marching with the legs,
+//              which reads as a wind-up toy
 //
 // Everything is measured off the REAL posed model — same animator, same
 // retarget, same foot calibration the game runs — so a number here is a number
@@ -47,13 +52,14 @@ const out = await page.evaluate(async ({ n }) => {
     g.updateWorldMatrix(true, true);
     const V3 = g.position.constructor;              // THREE.Vector3, without importing three here
     const hip = m.joints.hips.getWorldPosition(new V3());
-    const feet = {};
+    const feet = {}, hands = {};
     for (const side of ['L', 'R']) {
       const p = m.joints['ankle' + side].getWorldPosition(new V3());
       feet[side] = { fore: p.z - hip.z, up: p.y - g.position.y, side: p.x - hip.x };
+      hands[side] = m.joints['hand' + side].getWorldPosition(new V3()).z - hip.z;
     }
     return {
-      feet,
+      feet, hands,
       hipY: hip.y - g.position.y,
       lean: (a.cur.hipsRot[0] + a.cur.torso[0]) * R2D,
       shoulder: a.cur.shoulderL[0] * R2D,
@@ -66,6 +72,8 @@ const out = await page.evaluate(async ({ n }) => {
     const acc = {
       reach: -1e9, trail: -1e9, lift: -1e9, sink: 1e9, track: 0,
       hipMin: 1e9, hipMax: -1e9, lean: 0, shMin: 1e9, shMax: -1e9, sole: 1e9, h,
+      // paired samples for the counter-swing correlation
+      pairs: [],
     };
     runs[key] = acc;
   }
@@ -85,6 +93,7 @@ const out = await page.evaluate(async ({ n }) => {
         acc.sink = Math.min(acc.sink, f.up);
         acc.track = Math.max(acc.track, Math.abs(f.side));
       }
+      for (const side of ['L', 'R']) acc.pairs.push([s.feet[side].fore, s.hands[side]]);
       acc.hipMin = Math.min(acc.hipMin, s.hipY);
       acc.hipMax = Math.max(acc.hipMax, s.hipY);
       acc.lean = Math.max(acc.lean, s.lean);
@@ -96,11 +105,22 @@ const out = await page.evaluate(async ({ n }) => {
       if (clr !== null && clr !== undefined) acc.sole = Math.min(acc.sole, clr);
     }
   }
+  // Pearson r over the cycle, which is indifferent to the rest pose's own
+  // fore/aft offset — only the SHAPE of the two swings is being compared
+  const corr = (pairs) => {
+    const n = pairs.length;
+    const mx = pairs.reduce((t, p) => t + p[0], 0) / n;
+    const my = pairs.reduce((t, p) => t + p[1], 0) / n;
+    let sxy = 0, sxx = 0, syy = 0;
+    for (const [x, y] of pairs) { const dx = x - mx, dy = y - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+    return sxx > 1e-9 && syy > 1e-9 ? sxy / Math.sqrt(sxx * syy) : 0;
+  };
   const norm = (a) => ({
     reach: a.reach / a.h, trail: a.trail / a.h, stride: (a.reach + a.trail) / a.h,
     lift: a.lift / a.h, sink: a.sink / a.h, track: a.track / a.h,
     bob: (a.hipMax - a.hipMin) / a.h, lean: a.lean, armSwing: a.shMax - a.shMin,
     sole: a.sole > 1e8 ? null : a.sole / a.h,
+    armPhase: corr(a.pairs),
   });
   return {
     mech: w.mech.def.id, gait: w.gaitId, vs: w.compareGait,
@@ -127,4 +147,8 @@ row('bob', out.mine.bob, out.other.bob);
 if (out.mine.sole !== null) row('sole min', out.mine.sole, out.other.sole);
 row('lean°', out.mine.lean, out.other.lean, (v) => v.toFixed(1));
 row('armSwing°', out.mine.armSwing, out.other.armSwing, (v) => v.toFixed(1));
+row('armPhase r', out.mine.armPhase, out.other.armPhase, (v) => v.toFixed(2));
+console.log(`\n  arms ${out.mine.armPhase < -0.3 ? 'COUNTER-swing the legs (correct)'
+  : out.mine.armPhase > 0.3 ? 'swing WITH the legs — WRONG, they should counter'
+  : 'barely swing / out of phase with the legs'}`);
 if (errs.length) console.log('\nPAGE ERRORS:\n' + errs.slice(0, 4).join('\n'));
