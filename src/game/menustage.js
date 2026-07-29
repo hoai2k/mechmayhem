@@ -16,6 +16,12 @@ import { loadPosterIndex, posterMeta, posterUrl, POSTER_YAW, SETTLE_MS } from '.
 
 const _pv = new THREE.Vector3(); // scratch for projecting poster boxes
 
+// How long a model may take to arrive before the preview admits it is
+// loading. Under this, showing nothing beats a spinner that blinks — a
+// cached GLB (a repaint, or a mech you have already seen) lands in a frame
+// or two, and the flash reads as a glitch rather than as progress.
+const SPINNER_DELAY = 700;
+
 // THE PREVIEW FRAMING, in one place. The poster generator (dev/postershot.js)
 // points an identical camera at an identical stage, which is the whole reason
 // a pre-rendered picture can stand in for the model without moving a pixel:
@@ -127,6 +133,39 @@ function glowTexture() {
   return new THREE.CanvasTexture(cv);
 }
 
+// SPARKLE — a quick shower of motes that bursts wherever a preview changes.
+// It is decoration first (switching robots should feel like something
+// happened) and cover second: a poster handing over to a model, or a repaint
+// swapping the textures, both change pixels in one frame, and a bright
+// scatter over the top is what stops that reading as a pop. One additive
+// points cloud, no texture, gone in under a second.
+function sparkleBurst(group, x, y, spread, color) {
+  const N = 90;
+  const pos = new Float32Array(N * 3);
+  const vel = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    // start scattered through the body's volume, drift outward and up
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * spread * 0.5;
+    pos[i * 3] = x + Math.cos(a) * r;
+    pos[i * 3 + 1] = y + (Math.random() - 0.5) * spread;
+    pos[i * 3 + 2] = Math.sin(a) * r;
+    vel[i * 3] = Math.cos(a) * (0.7 + Math.random() * 2.2);
+    vel[i * 3 + 1] = 1.2 + Math.random() * 3.4;
+    vel[i * 3 + 2] = Math.sin(a) * (0.7 + Math.random() * 2.2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({
+    color, size: 0.34, transparent: true, opacity: 0.95,
+    depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.userData.sparkle = { t: 0, dur: 0.85, vel };
+  group.add(pts);
+  return pts;
+}
+
 function disposeSpinner(g) {
   g.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
 }
@@ -172,7 +211,41 @@ export class MenuStage {
     this.posters = [];      // <img> overlays currently standing in for a model
     this._built = new Set();// mechs whose model exists — never posted again
     this._swayT0 = 0;       // idle-sway phase origin, reset on every handover
+    this.sparkles = [];     // live sparkle bursts (see sparkleBurst)
     loadPosterIndex();      // fire and forget; no poster = old behaviour
+  }
+
+  /** A sparkle burst over a preview mark — every time the robot standing
+   *  there changes, including a repaint. Sized to the mech so a colossus
+   *  gets a bigger shower than a viper. */
+  sparkleAt(x, slotIdx = 0, height = 7) {
+    this.sparkles.push(sparkleBurst(
+      this.group, x, height * 0.55, height * 0.85, PLAYER_COLORS[slotIdx % 4]));
+  }
+
+  updateSparkles(dt) {
+    for (const p of this.sparkles.slice()) {
+      const s = p.userData.sparkle;
+      s.t += dt;
+      const k = s.t / s.dur;
+      if (k >= 1) {
+        this.group.remove(p);
+        p.geometry.dispose();
+        p.material.dispose();
+        this.sparkles = this.sparkles.filter((o) => o !== p);
+        continue;
+      }
+      const arr = p.geometry.attributes.position.array;
+      for (let i = 0; i < arr.length; i += 3) {
+        arr[i] += s.vel[i] * dt;
+        arr[i + 1] += (s.vel[i + 1] - 5.2 * s.t) * dt;   // rise, then fall away
+        arr[i + 2] += s.vel[i + 2] * dt;
+      }
+      p.geometry.attributes.position.needsUpdate = true;
+      // bright, then out
+      p.material.opacity = 0.95 * (1 - k) * (1 - k);
+      p.material.size = 0.34 * (1 - 0.45 * k);
+    }
   }
 
   /** Poster metadata for a mech, or null when there is none (the generator
@@ -240,9 +313,9 @@ export class MenuStage {
     if (!p || p.promoted) return;
     p.promoted = true;
     const def = applyColorScheme(ROSTER_BY_ID[p.entry.id], p.entry.variant || 0);
-    const u = this.spawnUnit(def, new THREE.Vector3(p.x, 0, 0), POSTER_YAW,
-      { slotIdx: p.entry.slotIdx, stageX: p.x, yawOffset: 0, fx: null });
-    if (u) u._sig = `${p.entry.id}:${p.entry.variant || 0}`;
+    this.spawnUnit(def, new THREE.Vector3(p.x, 0, 0), POSTER_YAW,
+      { slotIdx: p.entry.slotIdx, stageX: p.x, yawOffset: 0, fx: null,
+        _sig: `${p.entry.id}:${p.entry.variant || 0}` });
     this._built.add(p.entry.id);
     // the model appears at the poster's own yaw and drifts off from there
     this._swayT0 = this.t;
@@ -274,26 +347,42 @@ export class MenuStage {
     const gen = this._gen;
     const tag = (u) => (meta ? Object.assign(u, meta) : u);
     if (is3dMode() && manifestHasGlb(def.id)) {
-      const spin = makeSpinner(def.colors?.glow ?? 0x8fd8ff);
-      spin.position.set(pos.x, pos.y + 4.2, pos.z);
-      const unit = tag({ group: spin, isSpinner: true });
-      this.group.add(spin);
+      // A PLACEHOLDER ONLY IF THE WAIT IS REAL. The GLB is usually already in
+      // the loader's cache — recolouring, or coming back to a mech you have
+      // already seen — and a spinner that flashes for two frames on every
+      // paint change reads as breakage, not as loading. So the unit starts
+      // EMPTY and the spinner is only mounted if the model has not arrived
+      // within SPINNER_DELAY.
+      const holder = new THREE.Group();
+      const unit = tag({ group: holder, isSpinner: true, loading: true });
+      this.group.add(holder);
       this.mechs.push(unit);
+      const timer = setTimeout(() => {
+        if (this._gen !== gen || !unit.loading) return;
+        const spin = makeSpinner(def.colors?.glow ?? 0x8fd8ff);
+        spin.position.set(0, 4.2, 0);
+        holder.add(spin);
+        unit.spinner = spin;
+      }, SPINNER_DELAY);
+      holder.position.copy(pos);
       createMech(def).then((glb) => {
+        clearTimeout(timer);
+        unit.loading = false;
         if (this._gen !== gen || !glb.isGLB) return;
         const idx = this.mechs.indexOf(unit);
         if (idx < 0) return;
         glb.animator = glb.premadeAnimator;
         glb.group.position.copy(pos);
         glb.group.rotation.y = rotY;
-        this.group.remove(spin);
-        disposeSpinner(spin);
+        this.group.remove(holder);
+        if (unit.spinner) disposeSpinner(unit.spinner);
         this.group.add(glb.group);
         // the placeholder may have been spun / locked while the GLB loaded —
         // carry that state over, or the flourish vanishes on swap
         this.mechs[idx] = Object.assign(tag(glb), {
           yawOffset: unit.yawOffset || 0, fx: unit.fx || null,
         });
+        this.onUnitReady?.(this.mechs[idx]);
       });
       return unit;
     }
@@ -303,6 +392,7 @@ export class MenuStage {
     mech.group.rotation.y = rotY;
     this.group.add(mech.group);
     this.mechs.push(mech);
+    this.onUnitReady?.(mech);
     return mech;
   }
 
@@ -384,9 +474,11 @@ export class MenuStage {
       // drop only what no longer matches its slot
       for (const m of this.mechs.slice()) {
         const w = want.get(m.slotIdx);
-        if (w && !m.isSpinner && w.sig === m._sig) { m.group.position.x = w.x; m.stageX = w.x; continue; }
+        // matching sig keeps the unit — including one still loading, or the
+        // change would restart a download that is already in flight
+        if (w && w.sig === m._sig) { m.group.position.x = w.x; m.stageX = w.x; continue; }
         this.group.remove(m.group);
-        if (m.isSpinner) disposeSpinner(m.group);
+        if (m.spinner) disposeSpinner(m.spinner);
         this.mechs = this.mechs.filter((o) => o !== m);
       }
       for (const p of this.posters.slice()) {
@@ -411,6 +503,12 @@ export class MenuStage {
     for (const { e, x, sig } of want.values()) {
       const held = this.mechs.some((m) => m.slotIdx === e.slotIdx) ||
                    this.posters.some((p) => p.userData.poster.entry.slotIdx === e.slotIdx);
+      // SPARKLE ON EVERY CHANGE. `held` means this slot already has the right
+      // body standing on it, so a burst fires exactly when the robot on this
+      // mark becomes a different one — a new pick, or the same pick in a new
+      // paint scheme. It is decoration first, and cover second: the frame in
+      // which the pixels swap is hidden under the scatter.
+      if (!held) this.sparkleAt(x, e.slotIdx, 7 * (ROSTER_BY_ID[e.id]?.body?.scale || 1));
       if (e.id === 'random') {
         // mystery unit: a hovering "?" instead of a mech
         const spr = this.questionSprite(e.variant || 0);
@@ -428,9 +526,13 @@ export class MenuStage {
         // spawnUnit shows the procedural body, or (in ?debug=3d) a spinner
         // that swaps to the GLB when it loads — the exact body the battle uses
         const def = applyColorScheme(ROSTER_BY_ID[e.id], e.variant || 0);
-        const u = this.spawnUnit(def, new THREE.Vector3(x, 0, 0), POSTER_YAW,
-          { slotIdx: e.slotIdx, stageX: x, yawOffset: 0, fx: null });
-        if (u) u._sig = sig;
+        // `_sig` rides in the META so it survives the spinner->GLB swap.
+        // Set on the returned object instead, it was lost the moment the
+        // real body replaced the placeholder, and every later refresh then
+        // saw an unrecognised unit and rebuilt it — which is why, with two
+        // players, moving ONE cursor put BOTH mechs back into loading.
+        this.spawnUnit(def, new THREE.Vector3(x, 0, 0), POSTER_YAW,
+          { slotIdx: e.slotIdx, stageX: x, yawOffset: 0, fx: null, _sig: sig });
         this._built.add(e.id);
       }
       if (n > 1) {
@@ -475,7 +577,7 @@ export class MenuStage {
     for (const mesh of this.posters.slice()) this.dropPoster(mesh);
     for (const m of this.mechs) {
       this.group.remove(m.group);
-      if (m.isSpinner) disposeSpinner(m.group);
+      if (m.spinner) disposeSpinner(m.spinner);
     }
     this.mechs = [];
     for (const r of this.rings) {
@@ -495,6 +597,7 @@ export class MenuStage {
 
   update(dt) {
     this.t += dt;
+    this.updateSparkles(dt);
     // a poster that has stood still long enough earns its real body
     this.layoutPosters();
     for (const mesh of this.posters.slice()) {
@@ -504,7 +607,8 @@ export class MenuStage {
     }
     for (const m of this.mechs) {
       if (m.isSpinner) {
-        const s = m.group.userData.spin;
+        const s = m.spinner?.userData.spin;
+        if (!s) continue;               // waiting, but not showing anything yet
         s.t += dt;
         s.r1.rotation.z += dt * 2.4; s.r1.rotation.x += dt * 1.2;
         s.r2.rotation.y += dt * 3.2;

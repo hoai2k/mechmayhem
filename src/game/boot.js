@@ -402,6 +402,28 @@ export async function bootGame() {
       onPlay: () => goMechSelect(),
       onFullscreen: toggleFullscreen,
     }));
+    // The title screen's own content is up; the next thing anyone will look
+    // at is the select screen, so pull its art down NOW — every poster and
+    // every roster badge, ahead of anything the fight will need. They are
+    // small, there are a lot of them, and they are all on screen the instant
+    // that screen opens.
+    predictor.warmMenuArt(playableRoster().map((m) => m.id));
+  }
+
+  // The mechs either side of each cursor, in roster order — what the next
+  // press of LEFT or RIGHT will land on.
+  function neighbourIds(entries) {
+    const roster = playableRoster();
+    const out = new Set();
+    for (const e of entries || []) {
+      const i = roster.findIndex((m) => m.id === e.id);
+      if (i < 0) continue;
+      for (const d of [-2, -1, 1, 2]) {
+        const m = roster[(i + d + roster.length * 2) % roster.length];
+        if (m) out.add(m.id);
+      }
+    }
+    return [...out];
   }
 
   function goMechSelect() {
@@ -410,7 +432,13 @@ export async function bootGame() {
     predictor.start(S.picks || []);
     setScreen(new MechSelectScreen(uiRoot, {
       input, audio, hotButtons, prev: S.slots,
-      onPreview: (entries) => S.stage?.showPreviews(entries),
+      onPreview: (entries) => {
+        S.stage?.showPreviews(entries);
+        // ...and warm what a cursor is most likely to land on next. Players
+        // flip, so the neighbours either side of each cursor are the best
+        // guess going, and they queue ahead of the fight's own assets.
+        predictor.warmNeighbours(neighbourIds(entries));
+      },
       onLockFx: (slotIdx) => S.stage?.lockFx(slotIdx),
       onYaw: (slotIdx, d) => S.stage?.setYaw(slotIdx, d),
       onDone: (picks, variants, slots) => { S.picks = picks; S.variants = variants; S.slots = slots; goArenaSelect(); },
