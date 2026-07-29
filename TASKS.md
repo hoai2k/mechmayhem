@@ -12,7 +12,26 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** GAITS ARE DATA NOW, AND THE FAST MECHS RUN — the walk/run cycle
+- **Latest:** ARMS COUNTER-SWING THE LEGS (they were marching WITH them) —
+  every mech in the game walked and ran with its left arm going forward
+  alongside its left leg. The shared engine's line was `shoulderL += armSwing *
+  sinR` while the leg was `thighL += -swing * sinL`, and since shoulder pitch
+  runs the same way as thigh pitch (negative = forward), `sinR = -sinL` put the
+  arm in phase with its OWN leg instead of opposite it — a wind-up toy, not a
+  runner. The arms now ride their own side's sine, so left leg forward means
+  left arm back, which is what cancels the leg's angular momentum about the
+  spine. Measured on viper at full throttle (hand vs foot fore/aft, relative to
+  the hips): left foot +1.07 with left hand +2.12 before, +1.07 with **-0.60**
+  after. `node tools/gaitprobe.mjs` now reports `armPhase r`, the correlation
+  between a foot's fore/aft travel and the SAME side's hand over a whole cycle:
+  -0.96 (it must be negative), so this cannot silently come back. The elbow
+  pump and the arm-cross yaw were reading the opposite arm's phase for the same
+  reason and now name it (`armFwdL/R`) rather than relying on the double
+  negative. Nothing else moved: same amplitudes, same cadence, same legs. The
+  gait workbench also frames a body off its POSED JOINTS now, so a quadruped
+  (fenrir, whose skull is at knee height and whose body is three times as long
+  as it is tall) is framed by its length instead of cropped.
+- **Previous:** GAITS ARE DATA NOW, AND THE FAST MECHS RUN — the walk/run cycle
   left animator.js and became a named, shared TABLE (`src/mechs/gaits.js`): a
   roster def says `gait: 'sprint'`, several mechs share one, and tuning it moves
   all of them. `standard` reproduces the old block EXACTLY (proved term by term
@@ -4757,8 +4776,18 @@ and stance-foot slip, so the giant-form contact law survived the move.
 - edits persist (localStorage) until Revert, and **Output gait** downloads a
   paste-ready `GAITS` block with every changed dial listed `from → to`.
 
+**One thing the move did change, on purpose.** The arms. The old line read
+`shoulderL += armSwing * sinR` against a leg of `thighL += -swing * sinL`;
+shoulder pitch and thigh pitch share a sense (negative is forward), so that put
+each arm in phase with its own leg — every mech in the game swung its left arm
+forward with its left leg. Arms now ride their own side's sine and counter the
+legs, which is what cancels the leg's angular momentum about the spine.
+`gaitprobe` reports the check as `armPhase r` (foot fore/aft against the same
+side's hand, over a cycle): it must be NEGATIVE, and is -0.96.
+
 **Judging it from the command line.** `node tools/gaitprobe.mjs <mech>
 [throttle] [vsGait]` measures reach / trail / stride / lift / track / bob /
-sole clearance / lean / arm swing off the real posed model and diffs two gaits;
+sole clearance / lean / arm swing / arm phase off the real posed model and
+diffs two gaits;
 `node tools/gaitsheet.mjs <mech> out.png [throttle] [frames] [vsGait]` renders
 the cycle as a filmstrip with the comparison ghost in every frame.

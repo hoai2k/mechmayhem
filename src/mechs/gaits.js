@@ -25,7 +25,9 @@
 // how a gait can walk politely and sprint hard without a second table.
 //
 // CONVENTIONS (the animator's virtual rig, see rigadapter JOINT_ORDER):
-//   thigh/shoulder pitch  NEGATIVE = forward, positive = back
+//   thigh/shoulder pitch  NEGATIVE = forward, positive = back — the SAME sense
+//                          for an arm as for a leg, which is the trap that had
+//                          the arms swinging with the legs (see applyGait)
 //   knee pitch            POSITIVE = folded
 //   thigh roll (z)        POSITIVE pulls the LEFT leg toward the midline
 //                          (the right leg mirrors), so `adduct` narrows the track
@@ -152,8 +154,10 @@ export function gaitParamList() {
 // THE GAITS
 // ---------------------------------------------------------------------------
 export const GAITS = {
-  // The shipped walk, unchanged: the numbers that lived in animator.js. Every
+  // The shipped walk: the numbers that lived in animator.js, unchanged. Every
   // mech that names no gait runs this, so editing it moves the whole roster.
+  // (The one thing that DID change with the move is not a number — the arms
+  // counter-swing the legs now instead of marching with them; see applyGait.)
   standard: {
     name: 'Standard',
     note: 'The all-purpose walk→run. Upright carriage, moderate stride, arms hanging.',
@@ -326,20 +330,33 @@ export function applyGait(tgt, gait, env) {
   tgt.ankleL[0] += ankleGain * (swing * A.roll * sinL + A.tilt * ratio - push * pushL);
   tgt.ankleR[0] += ankleGain * (swing * A.roll * sinR + A.tilt * ratio - push * pushR);
 
-  // ===== arms: the counter-swing =====
+  // ===== arms: the COUNTER-swing =====
+  // An arm swings OPPOSITE its own leg: left leg forward, left arm back. That
+  // is not decoration — it is what cancels the leg's angular momentum about the
+  // spine, and getting it backwards reads instantly as a wind-up toy.
+  //
+  // The sign trap: shoulder pitch runs the same way as thigh pitch (NEGATIVE is
+  // forward), so an arm driven by `sinL` lands opposite the leg driven by
+  // `-swing * sinL`, and one driven by `sinR` (= -sinL) marches WITH it. The
+  // original engine used sinR here, which is why every mech's arms went along
+  // for the ride instead of counterbalancing.
   const armSwing = swing * (R.swing + R.swingRun * ratio);
-  tgt.shoulderL[0] += armSwing * sinR + R.lift * ratio;
-  tgt.shoulderR[0] += armSwing * sinL + R.lift * ratio;
+  tgt.shoulderL[0] += armSwing * sinL + R.lift * ratio;
+  tgt.shoulderR[0] += armSwing * sinR + R.lift * ratio;
+  // how far FORWARD each arm is right now, 0..1 — the pump and the cross both
+  // want the arm at the front of its swing, and with the counter-swing above
+  // that is the moment its OWN leg is at the back
+  const armFwdL = backL, armFwdR = backR;
   const elbow = R.elbow + R.elbowRun * ratio;
-  tgt.elbowL[0] += -elbow - R.elbowPump * ratio * fwdR;
-  tgt.elbowR[0] += -elbow - R.elbowPump * ratio * fwdL;
+  tgt.elbowL[0] += -elbow - R.elbowPump * ratio * armFwdL;
+  tgt.elbowR[0] += -elbow - R.elbowPump * ratio * armFwdR;
   if (R.tuck) {
     const t = R.tuck * ratio;               // positive rolls both arms inward
     tgt.shoulderL[2] += t; tgt.shoulderR[2] -= t;
   }
   if (R.cross) {
     const c = R.cross * ratio;              // the forward arm swings across the chest
-    tgt.shoulderL[1] += c * fwdR; tgt.shoulderR[1] += -c * fwdL;
+    tgt.shoulderL[1] += c * armFwdL; tgt.shoulderR[1] += -c * armFwdR;
   }
 
   // ===== body dynamics — bob rides the push-off beat =====
