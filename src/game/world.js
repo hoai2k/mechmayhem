@@ -498,7 +498,7 @@ export class World {
     // in bursts) — same _shotSide stamp, so the stream leaves the gun the
     // animation has punched forward.
     const muzzle = (mv.type === 'fist' && f._fistSide === 'L' && anchors.muzzleL)
-      || (mv.type === 'shell' && f._shotSide && anchors.muzzleL)
+      || ((mv.type === 'shell' || mv.type === 'glitch') && f._shotSide && anchors.muzzleL)
       || (f.def.channelClipL && f._shotSide && anchors.muzzleL)
       || anchors[f.def.primaryMuzzle] || anchors.muzzleR;
     const from = muzzle.getWorldPosition(new THREE.Vector3());
