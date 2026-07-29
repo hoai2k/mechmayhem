@@ -111,6 +111,19 @@ export async function runSkinWorkbench(config, params) {
   // the deformation model (edges whose ends are weighted differently), built on
   // demand for "Debug output" and dropped whenever the mesh changes
   let stretchPrep = null;
+  // ---- seam-cut preview ----
+  // A READ-ONLY view of what the GAME renders. This workbench authors weights
+  // on the raw file, where a seam cut has not happened yet, so a wiggle here
+  // reports welds the game has already separated. Toggling this on swaps a CUT
+  // copy of the current geometry (live ops included) in for the editable one,
+  // which is the only way to answer "does any torso geometry move when I move
+  // an arm" in the tool where you are asking it. Editing is blocked while it is
+  // on: the cut adds vertices, so island ids and vertex ids no longer mean what
+  // an op selector means.
+  let cutView = false;
+  let editGeo = null;        // the editable geometry, parked while previewing
+  let cutInfo = null;        // what the cut did, for the status line
+  let seamCuts = [];         // this entry's rules
   // ---- bind-geometry panel: per-bone weights for the selected island ----
   let bindOpen = false;      // is the weight editor showing?
   // undo/redo of the ops list (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y)
@@ -145,6 +158,9 @@ export async function runSkinWorkbench(config, params) {
   const boneColor = (bi) => new THREE.Color().setHSL(((bi * 137.508) % 360) / 360, 0.8, 0.42);
 
   function rebuildColors() {
+    // the seam-cut preview owns its own colours (colorByBone): the analysis
+    // behind these is sized for the editable mesh, not the cut one
+    if (cutView) return;
     const n = mesh.geometry.attributes.position.count;
     if (!colorAttr) colorAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
     // ensure the geometry is showing the 3-comp bone colors (paint mode swaps
@@ -195,6 +211,7 @@ export async function runSkinWorkbench(config, params) {
     redoStack.length = 0;
   }
   function undo() {
+    if (blockedByCutView()) return;
     if (!undoStack.length) { setStatus('Nothing to undo.'); return; }
     redoStack.push(snapshotOps());
     ops = undoStack.pop();
@@ -204,6 +221,7 @@ export async function runSkinWorkbench(config, params) {
     setStatus(`Undo · ${ops.length} op(s).`);
   }
   function redo() {
+    if (blockedByCutView()) return;
     if (!redoStack.length) { setStatus('Nothing to redo.'); return; }
     undoStack.push(snapshotOps());
     ops = redoStack.pop();
@@ -291,6 +309,10 @@ export async function runSkinWorkbench(config, params) {
       }
     } catch (e) { console.warn('skintool: animation driver unavailable —', e); }
     const cuts = raw.entry.seamCuts || [];
+    seamCuts = cuts;
+    cutView = false; editGeo = null; cutInfo = null;
+    cutChk.checked = false;
+    cutRow.style.display = cuts.length ? 'flex' : 'none';
     seamNote.style.display = cuts.length ? 'block' : 'none';
     if (cuts.length) {
       seamNote.textContent = `${cuts.length} seam cut${cuts.length > 1 ? 's' : ''} NOT applied here: `
@@ -301,6 +323,7 @@ export async function runSkinWorkbench(config, params) {
     // preload the mech's committed ops so Export is a full replacement
     ops = (raw.entry.skinOps || []).map((o) => ({ ...o }));
     applyAllOps();
+    updateCutUI();
     buildBoneList();
     setStatus(`${id.toUpperCase()} — ${liveAnalysis.comps.length} islands, ${bones.length} bones.` +
       `\nClick a wrong-colored patch to select it.`);
@@ -423,6 +446,12 @@ export async function runSkinWorkbench(config, params) {
     const d = renderer.domElement._down;
     if (!d || Math.hypot(ev.clientX - d.x, ev.clientY - d.y) > 6) return; // it was a drag
     if (!mesh) return;
+    if (cutView) {
+      // picking addresses islands of the EDITABLE mesh; the preview's vertices
+      // are a different set, so a click here would select the wrong geometry
+      setStatus('Read-only preview — click is off. Wiggle (W) and "What moves?" (M) still work.');
+      return;
+    }
     const hit = pick(ev);
     if (!hit) return;
     if (mode === 'picktarget') {
@@ -472,6 +501,7 @@ export async function runSkinWorkbench(config, params) {
   }
 
   function addOp(comp, toBone) {
+    if (blockedByCutView()) return;
     if (alreadyRigidOn(comp.verts, toBone)) {
       setStatus(`Already 100% on ${toBone} — nothing to change.`);
       return;
@@ -544,6 +574,7 @@ export async function runSkinWorkbench(config, params) {
   // hands the surrounding bone the patch, iterating until nothing moves (one
   // dissolved enclave can expose another).
   function absorbEnclaves() {
+    if (blockedByCutView()) return;
     if (!mesh) return;
     const { ops: found, report } = enclaveScan(mesh, analysis);
     if (!found.length) {
@@ -606,7 +637,7 @@ export async function runSkinWorkbench(config, params) {
     bindOpen = false; bindComp = null; bindRows = [];
     renderBindPanel();
   }
-  function toggleBindPanel() { bindOpen ? closeBindPanel() : openBindPanel(); }
+  function toggleBindPanel() { if (blockedByCutView()) return; bindOpen ? closeBindPanel() : openBindPanel(); }
 
   // Commit the edited rows as an op. One bone → the compact rigid form.
   function applyBind() {
@@ -646,6 +677,7 @@ export async function runSkinWorkbench(config, params) {
       : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
   }
   function enterPaintMode() {
+    if (blockedByCutView()) return;
     paintMode = true; paintPhase = 'pickBone';
     paintBone = null; paintRegion = null; regionSet = null; regionWorld = null;
     paintOp = null; paintSet = null;
@@ -937,7 +969,11 @@ export async function runSkinWorkbench(config, params) {
       }
       return;
     }
-    if (ev.key === 'p' || ev.key === 'P') { paintMode ? exitPaintMode() : enterPaintMode(); return; }
+    if (ev.key === 'm' || ev.key === 'M') { reportMoves(); return; }
+    if (ev.key === 'p' || ev.key === 'P') {
+      if (blockedByCutView()) return;
+      paintMode ? exitPaintMode() : enterPaintMode(); return;
+    }
     // in paint mode, swallow the other single-key tools (they'd fight the paint
     // material / selection); undo/redo/space/P above still work
     if (paintMode) { if (ev.key === 'Escape') exitPaintMode(); return; }
@@ -998,6 +1034,16 @@ export async function runSkinWorkbench(config, params) {
   seamNote.style.cssText = `display:none;margin:2px 0 6px;padding:6px 8px;border-radius:5px;
     background:#241d10;border:1px solid #5a4a2a;color:#ffcc66;font-size:10.5px;line-height:1.45`;
   panel.appendChild(seamNote);
+  // the preview toggle lives with the warning it answers
+  const cutRow = document.createElement('label');
+  cutRow.style.cssText = 'display:none;gap:6px;align-items:center;margin:0 0 6px;font-size:11px;cursor:pointer';
+  const cutChk = document.createElement('input');
+  cutChk.type = 'checkbox';
+  cutChk.onchange = () => setCutView(cutChk.checked);
+  cutRow.append(cutChk, document.createTextNode(' View with seam cuts (read-only)'));
+  cutRow.title = 'Swap in the geometry the GAME builds — welds already cut, weights unblended. '
+    + 'Editing is off while this is on, because the cut renumbers vertices and islands.';
+  panel.appendChild(cutRow);
   function refreshAltRow() {
     altSlot.textContent = '';
     const row = altCheckbox(altChoice(manifest, curId, altOn), reloadWithVariant);
@@ -1014,6 +1060,36 @@ export async function runSkinWorkbench(config, params) {
   }, true);
   btnRow.appendChild(rebindBtn);
   panel.appendChild(btnRow);
+  // Everything that WRITES is off while the preview is up. Not cosmetic: the
+  // cut geometry has extra vertices, so a selection, a paint stroke or a rebind
+  // would be addressing vertices that do not exist in the file being edited.
+  const EDIT_BTN = /Rebind|Paint geometry|Bind Geometry|Absorb enclaves|Undo|Redo/;
+  function updateCutUI() {
+    for (const b of panel.querySelectorAll('button')) {
+      if (!EDIT_BTN.test(b.textContent)) continue;
+      b.disabled = cutView;
+      b.style.opacity = cutView ? '0.4' : '1';
+      b.style.cursor = cutView ? 'not-allowed' : 'pointer';
+    }
+    seamNote.style.borderColor = cutView ? '#2f6d3a' : '#5a4a2a';
+    seamNote.style.background = cutView ? '#10210f' : '#241d10';
+    seamNote.style.color = cutView ? '#7fdca0' : '#ffcc66';
+    if (cutView) {
+      seamNote.textContent = 'PREVIEWING the game build: seam cuts applied, editing off. '
+        + 'Wiggle a bone (W) and press "What moves?" (M) to see exactly which bones\' geometry follows it.';
+    } else if (seamCuts.length) {
+      seamNote.textContent = `${seamCuts.length} seam cut${seamCuts.length > 1 ? 's' : ''} NOT applied here: `
+        + seamCuts.map((c) => `${(c.a || []).join('/')} ↔ ${(c.b || []).join('/')}`).join(', ')
+        + '. Tick the box above to preview the geometry the game actually builds.';
+    }
+  }
+  // a write attempted while previewing: say why rather than doing nothing
+  function blockedByCutView() {
+    if (!cutView) return false;
+    setStatus('Read-only: the seam-cut preview is on. Untick "View with seam cuts" to edit.');
+    return true;
+  }
+
   function updateModeUI() {
     rebindBtn.style.background = mode === 'picktarget' ? '#b0702b' : '#1f7a4d';
     rebindBtn.textContent = mode === 'picktarget' ? 'Click the CORRECT part…' : 'Rebind → click target (Q)';
@@ -1025,6 +1101,7 @@ export async function runSkinWorkbench(config, params) {
     showTex = !showTex;
     if (mesh) mesh.material = showTex ? texturedMat : boneMat;
   }));
+  texRow.appendChild(actionBtn('What moves? (M)', reportMoves));
   texRow.appendChild(actionBtn('Wiggle bone (W)', () => {
     if (wiggle) stopWiggle();
     else if (selBone) startWiggle(selBone);
@@ -1292,6 +1369,118 @@ export async function runSkinWorkbench(config, params) {
     });
   }
 
+  // ================= SEAM-CUT PREVIEW =================
+  // Colour ANY geometry by dominant bone, with the same hue per bone the
+  // editable view uses — the cut geometry has its own vertex count, so it
+  // cannot borrow the analysis-driven colours.
+  function colorByBone(geo) {
+    const n = geo.attributes.position.count;
+    const si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight;
+    const arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      let bw = -1, bi = 0;
+      for (let k = 0; k < 4; k++) { const x = sw.getComponent(i, k); if (x > bw) { bw = x; bi = si.getComponent(i, k); } }
+      const c = boneColor(bi);
+      arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  }
+
+  function setCutView(on) {
+    if (!mesh) return;
+    if (on && !seamCuts.length) { setStatus('This mech has no seam cuts to preview.'); cutChk.checked = false; return; }
+    if (on === cutView) return;
+    if (on) {
+      // cut a COPY of what is on screen, so the preview includes this session's
+      // unsaved ops — you are seeing your own edits as the game would build them
+      editGeo = mesh.geometry;
+      const cut = editGeo.clone();
+      cut.userData = { ...cut.userData };
+      delete cut.userData.seamCut;
+      mesh.geometry = cut;
+      cutInfo = config.skin.applySeamCuts(mesh, seamCuts);
+      colorByBone(cut);
+      cutView = true;
+      stretchPrep = null;                 // the measurement must follow the geometry
+      const r = cutInfo?.rules?.[0];
+      setStatus(`SEAM-CUT PREVIEW — read-only.\n`
+        + (r ? `${r.bridgeTris} welded triangle(s) split, ${r.duplicated} vertex copies, ${r.capTris} lid triangle(s).\n` : 'no welded triangles to split.\n')
+        + `Wiggle a bone and watch: geometry the cut separated no longer follows it.`);
+    } else {
+      mesh.geometry.dispose();
+      mesh.geometry = editGeo;
+      editGeo = null; cutView = false; cutInfo = null;
+      stretchPrep = null;
+      rebuildColors();
+      setStatus('Back to the editable raw mesh (seam cuts not applied).');
+    }
+    updateCutUI();
+  }
+
+  // WHAT ACTUALLY MOVES. The question behind the whole preview: when this bone
+  // turns, which geometry follows it? Measured, not squinted at — every vertex
+  // is skinned at the current pose and compared with its bind position, then
+  // tallied by the bone it is bound to. "torso 0/6593" is the answer you want
+  // after cutting an arm free of the body.
+  function whatMoves() {
+    if (!mesh) return null;
+    holder?.updateMatrixWorld(true);
+    mesh.skeleton.update();
+    const geo = mesh.geometry;
+    const pos = geo.attributes.position, si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight;
+    const n = pos.count;
+    geo.computeBoundingBox();
+    const h = Math.max(1e-6, geo.boundingBox.max.y - geo.boundingBox.min.y);
+    const eps = h * 0.001;                // a thousandth of body height: sub-pixel
+    const v = new THREE.Vector3(), r = new THREE.Vector3();
+    const moved = new Map(), total = new Map();
+    for (let i = 0; i < n; i++) {
+      let bw = -1, bi = 0;
+      for (let k = 0; k < 4; k++) { const x = sw.getComponent(i, k); if (x > bw) { bw = x; bi = si.getComponent(i, k); } }
+      const name = bones[bi]?.name || '?';
+      total.set(name, (total.get(name) || 0) + 1);
+      mesh.getVertexPosition(i, v);
+      r.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+      if (v.distanceTo(r) > eps) moved.set(name, (moved.get(name) || 0) + 1);
+    }
+    return {
+      eps: +eps.toFixed(5),
+      cutView,
+      moving: [...moved.entries()].sort((a, b) => b[1] - a[1])
+        .map(([name, c]) => ({ bone: name, moved: c, of: total.get(name) })),
+      still: [...total.keys()].filter((k) => !moved.has(k)).sort(),
+    };
+  }
+
+  // Two questions, and they are NOT the same one — which is the whole reason a
+  // weld is confusing:
+  //
+  //   WHAT MOVES   which bones' vertices travel. A welded torso vertex does
+  //                NOT move: it is rigid on the torso and stays exactly put.
+  //   WHAT IS PULLED APART   which triangles span moving and stationary
+  //                geometry and are therefore being stretched between them.
+  //                THIS is what a weld looks like, and what the smear is.
+  //
+  // So both are reported. "torso is still" alone would have said the arm was
+  // clean while the shell was being dragged across the arena between them.
+  function reportMoves() {
+    const m = whatMoves();
+    if (!m) return;
+    const st = stretchNow(0);
+    const pulled = (st?.byBonePair || []).filter((p) => p.edges > 0);
+    if (!m.moving.length && !pulled.length) {
+      setStatus('Nothing is moving — wiggle a bone first (W), and pause with SPACE at full deflection.');
+      return;
+    }
+    setStatus(`AT THIS POSE — ${cutView ? 'SEAM-CUT PREVIEW (what the game builds)' : 'raw view (cuts NOT applied)'}\n`
+      + `moving: ${m.moving.map((x) => `${x.bone} ${x.moved}/${x.of}`).join(' · ') || 'nothing'}\n`
+      + `still:  ${m.still.join(' ') || '—'}\n`
+      + (pulled.length
+        ? `PULLED APART (geometry stretched between two bones):\n`
+          + pulled.map((p) => `  ${p.pair}  ${p.edges} edge(s), worst ${p.worst}x`).join('\n')
+        : 'PULLED APART: nothing — no triangle spans two bones that separate. ✓'));
+  }
+
   // ================= DEBUG OUTPUT =================
   // One file that answers "what am I looking at, and why is it doing that".
   //
@@ -1382,7 +1571,7 @@ export async function runSkinWorkbench(config, params) {
       // game has separated is still welded here and still stretches here.
       seamCuts: {
         inManifest: live?.seamCuts || null,
-        appliedInThisView: false,
+        appliedInThisView: cutView,
         note: live?.seamCuts?.length
           ? 'This mech HAS seam cuts, and this workbench does NOT apply them — it '
             + 'edits the raw file. Geometry the game has already split is still '
@@ -1410,6 +1599,9 @@ export async function runSkinWorkbench(config, params) {
         position: camera.position.toArray().map((v) => +v.toFixed(3)),
         target: orbit.target.toArray().map((v) => +v.toFixed(3)),
       },
+      view: cutView ? 'SEAM-CUT PREVIEW (what the game builds)' : 'raw editable mesh (skinOps only)',
+      seamCutPreview: cutView ? (cutInfo?.rules || null) : null,
+      whatMovesAtThisPose: whatMoves(),
       stretchAtThisMoment: stretchNow(),
     };
   }
@@ -1591,6 +1783,7 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
   const status = document.createElement('div');
   status.style.cssText = 'margin-top:8px;color:#9fb2c8;font-size:11px;min-height:3.6em;white-space:pre-line';
   panel.appendChild(status);
+  status.id = 'rw-skin-status';   // scripted checks read this
   function setStatus(s) { status.textContent = s; }
 
   const help = document.createElement('div');
@@ -1697,6 +1890,10 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
     addOpByComp: (cid, to) => { const c = analysis.comps[cid]; if (c) addOp(c, to); },
     selectComp: (cid) => { const c = analysis.comps[cid]; if (c) { selComp = c; rebuildColors(); } },
     bindSelfHard: rebindSelfHard, undo, redo, load, applyAllOps,
+    // seam-cut preview + the "what follows this bone" measurement, for scripted
+    // checks (tools/*.mjs) as well as the panel
+    cutView: setCutView, get cutState() { return { on: cutView, rules: seamCuts, applied: cutInfo }; },
+    moves: whatMoves, debugOutput,
     // blend-patch + enclave hooks (scripting / automated checks)
     patchAt: (vi, foreign) => selectBlendPatch(vi, foreign),
     absorbEnclaves,
