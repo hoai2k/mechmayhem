@@ -66,6 +66,12 @@ export function runDevMode(params) {
     import('./bake.js').then(({ runBake }) => runBake(params.get('bake')));
   } else if (params.has('rigtest')) {
     import('./rigtest.js').then(({ runRigTest }) => runRigTest());
+  } else if (params.has('menupose')) {
+    // the real select stage, driven by hand — tools/postercheck.mjs
+    import('./menupose.js').then(({ runMenuPose }) => runMenuPose(params.get('menupose')));
+  } else if (params.has('poster')) {
+    // one mech, alone on a transparent canvas — what tools/posters.mjs shoots
+    import('./postershot.js').then(({ startPosterShot }) => startPosterShot(params));
   } else {
     return false; // not a dev mode — boot the game
   }

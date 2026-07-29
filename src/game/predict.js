@@ -37,6 +37,9 @@ const idle = typeof requestIdleCallback === 'function'
   : (fn) => setTimeout(() => fn({ timeRemaining: () => 8 }), 220);
 const unidle = typeof cancelIdleCallback === 'function' ? cancelIdleCallback : clearTimeout;
 
+// How still the player has to be before background prefetching resumes.
+export const RESUME_IDLE = 1500;
+
 export class Predictor {
   constructor({ music } = {}) {
     this.music = music || null;
@@ -45,6 +48,8 @@ export class Predictor {
     this.running = false;
     this._handle = null;
     this._queue = [];      // pending work: [{ key, run }]
+    this._busy = false;    // true while the player is working the menu
+    this._idleT = null;
     this._done = new Set();
     this.reroll();
   }
@@ -114,8 +119,37 @@ export class Predictor {
     this._pump();
   }
 
+  /**
+   * HANDS OFF WHILE THEY'RE MOVING. Every job here is optional, and none of
+   * it is worth a hitch in the menu it is hiding behind — but a GLB parse or
+   * a texture decode lands on the main thread whenever it lands, and
+   * requestIdleCallback's idea of idle is not the player's. So any menu input
+   * suspends the queue, and it only resumes once the player has been still
+   * for RESUME_IDLE. Flipping through the roster therefore runs against a
+   * quiet machine; pausing to read starts the work back up.
+   *
+   * Cheap enough to call on every input event: it's a timestamp and, at most,
+   * one timer re-arm.
+   */
+  nudge() {
+    if (!this.enabled) return;
+    this._busy = true;
+    if (this._idleT != null) clearTimeout(this._idleT);
+    this._idleT = setTimeout(() => {
+      this._idleT = null;
+      this._busy = false;
+      this._pump();          // back to work — they've settled
+    }, RESUME_IDLE);
+  }
+
   /** Battle time — the fight gets the machine to itself from here. */
   stop() {
+    if (this._idleT != null) { clearTimeout(this._idleT); this._idleT = null; }
+    this._busy = false;
+    this._stop();
+  }
+
+  _stop() {
     this.running = false;
     if (this._handle != null) { unidle(this._handle); this._handle = null; }
     this._queue.length = 0;
@@ -127,7 +161,8 @@ export class Predictor {
   }
 
   _pump() {
-    if (!this.running || this._handle != null || !this._queue.length) return;
+    // `_busy` is the player's finger on the controls (see nudge)
+    if (!this.running || this._busy || this._handle != null || !this._queue.length) return;
     this._handle = idle(() => {
       this._handle = null;
       const job = this._queue.shift();

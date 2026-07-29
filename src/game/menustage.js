@@ -12,6 +12,29 @@ import { PLAYER_COLORS } from '../core/colors.js';
 import { createMech, is3dMode, manifestHasGlb } from '../mechs/gltf.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial } from '../core/texload.js';
+import { loadPosterIndex, posterMeta, posterUrl, POSTER_YAW, SETTLE_MS, POSTER_ASPECT } from '../ui/posters.js';
+
+// THE PREVIEW FRAMING, in one place. The poster generator (dev/postershot.js)
+// points an identical camera at an identical stage, which is the whole reason
+// a pre-rendered picture can stand in for the model without moving a pixel:
+// both go through this function, so neither can drift from the other.
+//
+// UI chrome flanks the stage (roster grid left, info card right); the clear
+// band between them is centered a little right of mid-screen, so the camera
+// aims to drop the mechs there (~56% across → +0.12 NDC). Note that offset is
+// applied in NDC, so where a mech lands on screen does NOT move with the
+// window's aspect — only its lateral world offset does, by a few degrees of
+// profile, which is why one reference render covers every window size.
+export const PREVIEW_X = 6.5;   // stage x of a single preview mech
+export function aimPreviewCamera(cam, n, cx) {
+  const dist = n === 1 ? 20 : 18 + n * 5;
+  const halfW = Math.tan((cam.fov * Math.PI) / 360) * dist * cam.aspect;
+  const tx = cx - halfW * 0.12;
+  cam.position.set(n === 1 ? tx - 1 : tx, n > 2 ? 8 : 6.5, dist);
+  cam.lookAt(tx, 5, 0);
+  cam.updateMatrixWorld();
+  return cam;
+}
 
 // Loading spinner shown in place of a mech while its GLB downloads (only in
 // ?debug=3d, where we suppress the procedural stand-in). Two counter-rotating
@@ -126,6 +149,96 @@ export class MenuStage {
     this._previewKey = null;
     this._gen = 0; // bumped on clearMechs; stale GLB swaps check against it
     this.t = 0;
+    // ---- poster flipping (see ui/posters.js) ----
+    this.posters = [];      // <img> overlays currently standing in for a model
+    this._built = new Set();// mechs whose model exists — never posted again
+    this._swayT0 = 0;       // idle-sway phase origin, reset on every handover
+    loadPosterIndex();      // fire and forget; no poster = old behaviour
+  }
+
+  /** Poster metadata for a mech, or null when there is none (the generator
+   *  hasn't run, or this mech is new). Every caller falls back to building. */
+  posterFor(id) { return posterMeta(id); }
+
+  /** The mech's poster, laid over the canvas at the NDC rect the generator
+   *  recorded — a DOM <img>, not a scene object, because the picture already
+   *  contains the stage camera's perspective and only needs to land on the
+   *  right pixels. Cheap to show, cheap to drop, and it cannot cost a frame
+   *  the way building a body does. */
+  showPoster(entry, x) {
+    const meta = this.posterFor(entry.id);
+    if (!meta || !meta.ndc) return null;
+    const img = document.createElement('img');
+    img.src = posterUrl(entry.id);
+    img.alt = '';
+    img.decoding = 'sync';
+    img.style.cssText = 'position:absolute;pointer-events:none;image-rendering:auto;' +
+      'will-change:transform;z-index:1';
+    img.dataset.poster = entry.id;
+    (this.posterRoot || document.getElementById('ui-root') || document.body).appendChild(img);
+    const mesh = { img, userData: { poster: { id: entry.id, entry, x, settle: SETTLE_MS / 1000 } } };
+    this.posters.push(mesh);
+    this.layoutPosters();
+    return mesh;
+  }
+
+  /** Place every live poster against the canvas's current size. Called on
+   *  show and every frame — the canvas can be resized at any time, and the
+   *  NDC rect is resolution-independent by construction. */
+  layoutPosters() {
+    if (!this.posters.length) return;
+    const cv = this.engine.renderer?.domElement;
+    if (!cv) return;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    for (const p of this.posters) {
+      const meta = this.posterFor(p.userData.poster.id);
+      if (!meta?.ndc) continue;
+      const n = meta.ndc;
+      // VERTICAL is aspect-free: the camera's fov is vertical, so NDC y maps
+      // straight onto the canvas height. NDC y is up, CSS y is down.
+      const top = ((1 - n.y1) / 2) * h;
+      const bottom = ((1 - n.y0) / 2) * h;
+      // HORIZONTAL needs care. The stage aims by an NDC offset, so where the
+      // mech sits across the screen does not move with aspect — but its NDC
+      // WIDTH does (a wider window means a wider frustum for the same body).
+      // Its width in PIXELS, however, is invariant against canvas HEIGHT, so
+      // convert through the reference aspect rather than the live width.
+      const cxNdc = (n.x0 + n.x1) / 2;
+      const halfPx = ((n.x1 - n.x0) / 2) * (h * POSTER_ASPECT) / 2;
+      const cxPx = ((cxNdc + 1) / 2) * w;
+      const left = cxPx - halfPx;
+      const right = cxPx + halfPx;
+      p.img.style.left = `${left.toFixed(1)}px`;
+      p.img.style.top = `${top.toFixed(1)}px`;
+      p.img.style.width = `${(right - left).toFixed(1)}px`;
+      p.img.style.height = `${(bottom - top).toFixed(1)}px`;
+    }
+  }
+
+  /** Build the real body for a poster and drop the picture. Called when the
+   *  choice has settled, or right away on a lock-in. */
+  promotePoster(mesh) {
+    const p = mesh.userData.poster;
+    if (!p || p.promoted) return;
+    p.promoted = true;
+    const def = applyColorScheme(ROSTER_BY_ID[p.entry.id], p.entry.variant || 0);
+    this.spawnUnit(def, new THREE.Vector3(p.x, 0, 0), POSTER_YAW,
+      { slotIdx: p.entry.slotIdx, stageX: p.x, yawOffset: 0, fx: null });
+    this._built.add(p.entry.id);
+    // the model appears at the poster's own yaw and drifts off from there
+    this._swayT0 = this.t;
+    this.dropPoster(mesh);
+  }
+
+  dropPoster(mesh) {
+    mesh.img?.remove();
+    this.posters = this.posters.filter((m) => m !== mesh);
+  }
+
+  /** Lock-in (or anything else that needs the body now) can't wait out the
+   *  settle timer. Safe to call when there is no poster. */
+  promoteAll() {
+    for (const m of this.posters.slice()) this.promotePoster(m);
   }
 
   // spawn one display unit at pos with base yaw rotY. In ?debug=3d with a GLB
@@ -238,12 +351,19 @@ export class MenuStage {
         this.group.add(spr);
         this.extras = this.extras || [];
         this.extras.push(spr);
+      } else if (this.posterFor(e.id) && !this._built.has(e.id)) {
+        // FLIPPING: show the pre-rendered picture and build nothing. The real
+        // body is created once this choice has sat still for SETTLE_MS (see
+        // update), or immediately when it is locked in — and a mech already
+        // built never comes back here.
+        this.showPoster(e, x);
       } else {
         // spawnUnit shows the procedural body, or (in ?debug=3d) a spinner
         // that swaps to the GLB when it loads — the exact body the battle uses
         const def = applyColorScheme(ROSTER_BY_ID[e.id], e.variant || 0);
         this.spawnUnit(def, new THREE.Vector3(x, 0, 0), 0,
           { slotIdx: e.slotIdx, stageX: x, yawOffset: 0, fx: null });
+        this._built.add(e.id);
       }
       if (n > 1) {
         const ring = ringMesh(this.engine.renderer, 2.7, 0.5, PLAYER_COLORS[e.slotIdx % 4], 0.85);
@@ -252,15 +372,7 @@ export class MenuStage {
         this.rings.push(ring);
       }
     });
-    const dist = n === 1 ? 20 : 18 + n * 5;
-    // UI chrome flanks the stage (roster grid left, info card right); the
-    // clear band between them is centered a little right of mid-screen, so
-    // aim the camera to drop the mechs there (~56% across → +0.12 NDC)
-    const cam = this.engine.camera;
-    const halfW = Math.tan((cam.fov * Math.PI) / 360) * dist * cam.aspect;
-    const tx = cx - halfW * 0.12;
-    cam.position.set(n === 1 ? tx - 1 : tx, n > 2 ? 8 : 6.5, dist);
-    cam.lookAt(tx, 5, 0);
+    aimPreviewCamera(this.engine.camera, n, cx);
   }
 
   unitFor(slotIdx) { return this.mechs.find((m) => m.slotIdx === slotIdx) || null; }
@@ -268,6 +380,7 @@ export class MenuStage {
   // LOCK-IN FLOURISH: the mech whips around twice while a glow blooms behind
   // it, so a lock reads instantly across a four-player table.
   lockFx(slotIdx) {
+    this.promoteAll();   // a lock-in wants the real body now, not in 0.7s
     const m = this.unitFor(slotIdx);
     if (!m) return;
     m.fx = { t: 0, dur: 0.72 };
@@ -291,6 +404,7 @@ export class MenuStage {
 
   clearMechs() {
     this._gen++; // invalidate any in-flight GLB swaps from a prior screen
+    for (const mesh of this.posters.slice()) this.dropPoster(mesh);
     for (const m of this.mechs) {
       this.group.remove(m.group);
       if (m.isSpinner) disposeSpinner(m.group);
@@ -313,6 +427,13 @@ export class MenuStage {
 
   update(dt) {
     this.t += dt;
+    // a poster that has stood still long enough earns its real body
+    this.layoutPosters();
+    for (const mesh of this.posters.slice()) {
+      const p = mesh.userData.poster;
+      p.settle -= dt;
+      if (p.settle <= 0) this.promotePoster(mesh);
+    }
     for (const m of this.mechs) {
       if (m.isSpinner) {
         const s = m.group.userData.spin;
@@ -344,7 +465,9 @@ export class MenuStage {
       } else if (m.yawOffset) {
         m.group.rotation.y = m.yawOffset; // player is steering this one
       } else if (this.previewId) {
-        m.group.rotation.y = Math.sin(this.t * 0.4) * 0.55 + 0.15;
+        // sway measured from the handover, so a model that just replaced a
+        // poster starts at exactly the yaw the poster was rendered at
+        m.group.rotation.y = Math.sin((this.t - this._swayT0) * 0.4) * 0.55 + POSTER_YAW;
       }
       // lineup & select previews always show the combat-ready carriage
       m.animator.update(dt, { speed: 0, grounded: true, alwaysReady: true });
