@@ -166,6 +166,17 @@ export async function fetchRawManifest() {
   return fetchManifestJson();
 }
 
+// Drop every parsed GLB, so the next build re-reads the file and re-applies the
+// manifest from scratch. For the workbenches' "load from manifest" button: the
+// manifest json is re-read on every buildGlbForTool, but skinOps are baked into
+// the SHARED cached geometry exactly once (applySkinOpsToGltf's idempotence
+// guard), so a rebuild alone would keep showing the skinning that was current
+// when the page loaded. The game never calls this — nothing in a match edits
+// the manifest underneath itself.
+export function clearGlbCache() {
+  gltfCache.clear();
+}
+
 // Load a mech's RAW gltf scene at bind pose — no rig, no retarget, no
 // skinOps — with PRIVATE geometry so callers may mutate skin weights freely
 // (SkeletonUtils.clone shares geometry; the game cache must stay pristine).

@@ -23,6 +23,7 @@ import { buildMech } from '../../../src/mechs/factory.js';
 import { profileFor } from '../../../src/mechs/glbanim.js';
 import {
   buildGlbForTool, fetchRawManifest, loadRawGlbScene, skinnedBox, measureHeadTop, setAssetBase,
+  clearGlbCache,
 } from '../../../src/mechs/gltf.js';
 import { rigFor, rigIds } from '../../../src/mechs/rigs/index.js';
 import { applyCustomRig, setWeights, rebindRest, buildRigPosts } from '../../../src/mechs/reskin.js';
@@ -72,6 +73,20 @@ const CONFIG = defineWorkbenchConfig({
   // the raw asset manifest, for the few tools that reason about entries
   // directly (which builds exist, is the rig on the primary or the alt)
   manifest: () => manifest,
+
+  // RE-READ THE AUTHORING SOURCES without a page reload — the "load from
+  // manifest" button. A workbench that judges the shipped skinning has to be
+  // able to pick up a save made in ANOTHER workbench (or by hand) while it is
+  // open; two things stand in the way and both are cleared here. The manifest
+  // json is re-fetched (it is never cached), and the parsed GLB cache is
+  // dropped, because skinOps are baked into the shared cached geometry once.
+  // Rig FILES are javascript modules — the dev server's HMR reloads the page
+  // for those, so they need nothing here.
+  reload: async () => {
+    clearGlbCache();
+    manifest = await fetchRawManifest();
+    return manifest;
+  },
 
   catalogue: {
     // ROSTER order is the game's own; `hidden` marks work-in-progress mechs

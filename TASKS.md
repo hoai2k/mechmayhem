@@ -4570,3 +4570,60 @@ wrapped to two lines in the fallback face (it is nowrap and a size smaller now),
 and the locked player card's colour strip ran off the end — at eleven schemes
 the scheme NAME no longer fits after the swatches, so it moved onto the ◀ ▶ row,
 which is where it belongs anyway.
+
+## SKIN DEBUG: an AUDIT workbench for stretched, pinched and torn skin (user request, 2026-07-29)
+
+`/workbench/?edit=skindebug&mech=<id>` — the seventh workbench, and the first
+that writes nothing. It plays every clip a mech can play (its rest stance
+included, as a clip of its own), CPU-skins the model at each sampled frame, and
+ranks the places where the geometry is being pulled into a shape it cannot
+survive:
+
+  stretch  an edge dragged past its built length — the rubber forearm
+  pinch    an edge collapsed to nothing — linear blend skinning's candy wrapper
+  tear     a weld seam pulled APART, which opens a crack through the model
+
+WHAT MAKES IT CHEAP. Two vertices joined by an edge keep their distance exactly
+when they share skin weights, so only edges whose ends are weighted differently
+can fail — on jerry that is 2196 candidate edges out of 34565 vertices, and a
+21-clip scan takes 2.3 seconds in the browser. Weld pairs (duplicated vertices
+at one position, a UV seam) are candidates too: nothing but matching weights
+holds them together, and when they part the model splits open.
+
+A FINDING IS A PLACE ON THE MODEL, NOT A PLACE IN A CLIP. The first pass
+reported 4787 findings for jerry, which is the same handful of stray weights
+written out once per clip — useless as a work list. Spots that TOUCH on the mesh
+(shared vertices, or one mesh edge / weld mate apart, so a run split by a single
+rigid vertex still counts as one place) are merged into one finding carrying
+every clip it fails in, worst first. Jerry: 16. Cranky: 14. The clip dropdown
+walks the occurrences; the arrows walk the findings.
+
+The reference is the BIND pose rather than the rest stance, so skin that is
+already broken standing still cannot hide — it is reported as its own finding
+and every clip finding says `also broken at REST` when it overlaps one.
+
+WALKING IT. ◀ ▶ (or the arrow keys) step the list; each stop loads that clip,
+parks on the frame the deformation peaks and paints the failing edges and
+vertices over the model — skinned live, so the highlight stays glued to the
+geometry while the clip plays (SPACE, 0.1–1×). H toggles the highlight, F frames
+the spot (with the mech kept in shot: the worst findings smear their geometry so
+far that a naive centroid framing shows nothing recognisable). Findings can be
+marked fixed/ignored, remembered per mech.
+
+AND THEN FIXING IT, next door, in a new tab: **Edit skin** opens the skin
+workbench with the failing island ALREADY SELECTED (`&vert=`, new) and the clip
+in its wiggle picker (`&clip=`, new); **Edit rig** on the mech; **Edit pose** on
+that clip at that frame. **Load from manifest** re-reads models/manifest.json AND
+drops the parsed-GLB cache — skinOps are baked into the shared geometry exactly
+once, so without that a rebuild would keep showing the skinning that was current
+when the page loaded — then re-scans and keeps your place in the list.
+
+Headless twin for diffing an audit across a fix: `node tools/skindebug.mjs
+<mech> [--json out.json]`. The measurement is `workbench/tools/stretchscan.js`
+(no game imports, no DOM); the narrower CLI probes that came before it
+(skinstretch / cliptear / stretchaudit) are untouched.
+
+FIRST RESULTS. Jerry's two worst are handfuls of vertices bound to `handL` /
+`handR` that sit on the TORSO, so they stretch ~240× and ~180× in 19 and 20
+clips respectively — the smeared spikes are visible in the thumbnail. Cranky's
+worst is `legMLknee` geometry riding the `head` bone (217×, 21 clips).

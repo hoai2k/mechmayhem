@@ -7,6 +7,7 @@ config object.
 /workbench/?edit=animation&mech=colossus   GLB vs procedural, trigger moves, anchors
 /workbench/?edit=pose&mech=colossus        pose joints, edit clip keyframes
 /workbench/?edit=skin&mech=colossus        bone-island skin repair
+/workbench/?edit=skindebug&mech=jerry      audit every clip for torn/stretched skin
 /workbench/?edit=rig&mech=colossus         hand-place a skeleton
 /workbench/?edit=collider&mech=colossus    what combat actually hits
 /workbench/?edit=props&prop=toriiGate      arena props: original vs optimized
@@ -34,7 +35,8 @@ workbench/
     actionchars.js    robotworld's move descriptions
     anchoruses.js     robotworld's "what does this anchor drive"
     mechclips.js      robotworld's per-mech clip list
-  tools/              the six workbenches — no game imports at all
+  tools/              the seven workbenches — no game imports at all
+    stretchscan.js    the skin-deformation maths ?edit=skindebug measures with
   ui/                 shared chrome: panel, subject picker, variant picker, save
 ```
 
@@ -83,6 +85,17 @@ anchors, no anchor editor.
 3. Anything the contract cannot express yet is a gap in the contract — add it
    there, with a comment saying what it means, rather than reaching into a
    tool.
+
+**A workbench can JUDGE as well as EDIT.** `?edit=skindebug` writes nothing: it
+poses a mech through every clip it can play, measures each triangle edge whose
+ends are weighted differently, and ranks the places where the skin stretches,
+collapses or tears open. A finding is a PLACE ON THE MODEL, not a place in a
+clip — the same stray weights fail in every animation that moves that bone, so
+spots that touch on the mesh are merged and each finding carries the list of
+clips it fails in. The fix belongs next door, so the panel links straight into
+the skin workbench (with the failing island selected), the rig editor, or the
+pose workbench (on that clip, at that frame). `config.reload()` — the "load from
+manifest" button — is what lets it pick up a save made in the other tab.
 
 ## Saving
 

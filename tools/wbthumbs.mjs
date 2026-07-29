@@ -11,6 +11,7 @@ const shots = [
   ['animation', 'http://localhost:5173/workbench/?edit=animation&mech=colossus', 16000],
   ['pose',      'http://localhost:5173/workbench/?edit=pose&mech=titanus&clip=heavy', 16000],
   ['skin',      'http://localhost:5173/workbench/?edit=skin&mech=viper', 16000],
+  ['skindebug', 'http://localhost:5173/workbench/?edit=skindebug&mech=jerry', 60000],
   ['rig',       'http://localhost:5173/workbench/?edit=rig&mech=inferno', 16000],
   ['collider',  'http://localhost:5173/workbench/?edit=collider&mech=titanus&clip=heavy&at=hit', 16000],
   ['props',     'http://localhost:5173/workbench/?edit=props&prop=toriiGate&spin=0', 14000],
