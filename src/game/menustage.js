@@ -133,37 +133,81 @@ function glowTexture() {
   return new THREE.CanvasTexture(cv);
 }
 
-// SPARKLE — a quick shower of motes that bursts wherever a preview changes.
-// It is decoration first (switching robots should feel like something
-// happened) and cover second: a poster handing over to a model, or a repaint
-// swapping the textures, both change pixels in one frame, and a bright
-// scatter over the top is what stops that reading as a pop. One additive
-// points cloud, no texture, gone in under a second.
-function sparkleBurst(group, x, y, spread, color) {
-  const N = 90;
+// THE CHANGE FLOURISH — what plays whenever the robot on a mark becomes a
+// different one. Two layers, and the ORDER of loudness matters: the flash
+// carries the moment, the motes only season it.
+//
+//   FLASH  a soft round glow that blooms out of the body's middle and fades,
+//          plus a thin ring chasing it outward — a beam-in, not an explosion.
+//          This is the part that reads, and it is what covers the frame where
+//          a poster hands over to a model or a repaint swaps textures.
+//   MOTES  a light scatter of sparks riding on top. Deliberately faint: an
+//          earlier pass threw 90 fat bright points and read as a firework
+//          going off in the menu.
+//
+// THE WHOLE THING IS AN INDICATOR, NOT AN EVENT. It exists to say "that
+// changed" and to hide the swap frame; if you can describe it as an effect
+// while playing, it is too loud. Two passes have already been turned down —
+// keep the peaks here under ~0.45 and let the mech stay the brightest thing
+// on the mark.
+function sparkleMotes(group, x, y, spread, color) {
+  const N = 22;
   const pos = new Float32Array(N * 3);
   const vel = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
-    // start scattered through the body's volume, drift outward and up
     const a = Math.random() * Math.PI * 2;
-    const r = Math.sqrt(Math.random()) * spread * 0.5;
+    const r = Math.sqrt(Math.random()) * spread * 0.45;
     pos[i * 3] = x + Math.cos(a) * r;
-    pos[i * 3 + 1] = y + (Math.random() - 0.5) * spread;
+    pos[i * 3 + 1] = y + (Math.random() - 0.5) * spread * 0.8;
     pos[i * 3 + 2] = Math.sin(a) * r;
-    vel[i * 3] = Math.cos(a) * (0.7 + Math.random() * 2.2);
-    vel[i * 3 + 1] = 1.2 + Math.random() * 3.4;
-    vel[i * 3 + 2] = Math.sin(a) * (0.7 + Math.random() * 2.2);
+    vel[i * 3] = Math.cos(a) * (0.2 + Math.random() * 0.8);
+    vel[i * 3 + 1] = 0.45 + Math.random() * 1.2;
+    vel[i * 3 + 2] = Math.sin(a) * (0.2 + Math.random() * 0.8);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.PointsMaterial({
-    color, size: 0.34, transparent: true, opacity: 0.95,
+    color, size: 0.1, transparent: true, opacity: 0.26,
     depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
   });
   const pts = new THREE.Points(geo, mat);
-  pts.userData.sparkle = { t: 0, dur: 0.85, vel };
+  pts.userData.fx = { kind: 'motes', t: 0, dur: 0.6, vel, peak: 0.26 };
   group.add(pts);
   return pts;
+}
+
+// One soft round sprite that blooms and dies. `ring` makes it a thin
+// expanding halo instead of a filled core, so two of these stacked give the
+// bloom-plus-shockwave read a teleport wants.
+function beamGlow(group, x, y, size, color, ring) {
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: ring ? ringTexture() : glowTexture(),
+    transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, color, opacity: 0,
+  }));
+  spr.position.set(x, y, ring ? -0.4 : 0);
+  spr.scale.setScalar(size * (ring ? 0.5 : 0.35));
+  spr.userData.fx = {
+    kind: 'glow', t: 0, dur: ring ? 0.5 : 0.42,
+    from: size * (ring ? 0.5 : 0.35), to: size * (ring ? 1.5 : 1.0),
+    peak: ring ? 0.12 : 0.26,
+  };
+  group.add(spr);
+  return spr;
+}
+
+// a hollow soft-edged ring, for the flash's outgoing halo
+function ringTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 40, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.55)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(cv);
 }
 
 function disposeSpinner(g) {
@@ -215,36 +259,48 @@ export class MenuStage {
     loadPosterIndex();      // fire and forget; no poster = old behaviour
   }
 
-  /** A sparkle burst over a preview mark — every time the robot standing
-   *  there changes, including a repaint. Sized to the mech so a colossus
-   *  gets a bigger shower than a viper. */
+  /** The change flourish over a preview mark: a beam-in flash out of the
+   *  body's middle, a chasing ring, and a light scatter of motes. Sized to
+   *  the mech, tinted to the player. */
   sparkleAt(x, slotIdx = 0, height = 7) {
-    this.sparkles.push(sparkleBurst(
-      this.group, x, height * 0.55, height * 0.85, PLAYER_COLORS[slotIdx % 4]));
+    const c = PLAYER_COLORS[slotIdx % 4];
+    const mid = height * 0.52;
+    this.sparkles.push(
+      beamGlow(this.group, x, mid, height, 0xdff2ff, false),
+      beamGlow(this.group, x, mid, height, c, true),
+      sparkleMotes(this.group, x, mid, height * 0.8, c)
+    );
   }
 
   updateSparkles(dt) {
     for (const p of this.sparkles.slice()) {
-      const s = p.userData.sparkle;
-      s.t += dt;
-      const k = s.t / s.dur;
+      const f = p.userData.fx;
+      f.t += dt;
+      const k = f.t / f.dur;
       if (k >= 1) {
         this.group.remove(p);
-        p.geometry.dispose();
+        p.geometry?.dispose();
+        p.material.map?.dispose();
         p.material.dispose();
         this.sparkles = this.sparkles.filter((o) => o !== p);
         continue;
       }
-      const arr = p.geometry.attributes.position.array;
-      for (let i = 0; i < arr.length; i += 3) {
-        arr[i] += s.vel[i] * dt;
-        arr[i + 1] += (s.vel[i + 1] - 5.2 * s.t) * dt;   // rise, then fall away
-        arr[i + 2] += s.vel[i + 2] * dt;
+      // in fast, out slow — a flash, not a pulse
+      const env = k < 0.18 ? k / 0.18 : 1 - (k - 0.18) / 0.82;
+      if (f.kind === 'glow') {
+        const e = 1 - (1 - k) * (1 - k) * (1 - k);      // easeOutCubic
+        p.scale.setScalar(f.from + (f.to - f.from) * e);
+        p.material.opacity = f.peak * env * env;
+      } else {
+        const arr = p.geometry.attributes.position.array;
+        for (let i = 0; i < arr.length; i += 3) {
+          arr[i] += f.vel[i] * dt;
+          arr[i + 1] += (f.vel[i + 1] - 2.4 * f.t) * dt;
+          arr[i + 2] += f.vel[i + 2] * dt;
+        }
+        p.geometry.attributes.position.needsUpdate = true;
+        p.material.opacity = f.peak * (1 - k) * (1 - k);
       }
-      p.geometry.attributes.position.needsUpdate = true;
-      // bright, then out
-      p.material.opacity = 0.95 * (1 - k) * (1 - k);
-      p.material.size = 0.34 * (1 - 0.45 * k);
     }
   }
 
@@ -503,12 +559,18 @@ export class MenuStage {
     for (const { e, x, sig } of want.values()) {
       const held = this.mechs.some((m) => m.slotIdx === e.slotIdx) ||
                    this.posters.some((p) => p.userData.poster.entry.slotIdx === e.slotIdx);
-      // SPARKLE ON EVERY CHANGE. `held` means this slot already has the right
-      // body standing on it, so a burst fires exactly when the robot on this
-      // mark becomes a different one — a new pick, or the same pick in a new
-      // paint scheme. It is decoration first, and cover second: the frame in
-      // which the pixels swap is hidden under the scatter.
-      if (!held) this.sparkleAt(x, e.slotIdx, 7 * (ROSTER_BY_ID[e.id]?.body?.scale || 1));
+      // FLOURISH ON EVERY CHANGE OF ROBOT. `held` means this slot already has
+      // the right body standing on it, so it fires exactly when the robot on
+      // this mark becomes a different one — a new pick, or the same pick in a
+      // new paint scheme. It is an indicator first and cover second: the frame
+      // in which the pixels swap happens under the flash.
+      // RANDOM IS NOT A ROBOT. Flipping onto or off the mystery "?" mark isn't
+      // a robot change, so it gets no flourish either way — beaming in a
+      // question mark reads as a bug.
+      const wasRandom = this._lastId?.get(e.slotIdx) === 'random';
+      if (!held && e.id !== 'random' && !wasRandom) {
+        this.sparkleAt(x, e.slotIdx, 7 * (ROSTER_BY_ID[e.id]?.body?.scale || 1));
+      }
       if (e.id === 'random') {
         // mystery unit: a hovering "?" instead of a mech
         const spr = this.questionSprite(e.variant || 0);
@@ -542,6 +604,9 @@ export class MenuStage {
         this.rings.push(ring);
       }
     }
+    // what each mark is showing NOW, so the next refresh can tell a robot
+    // change from a flip on or off the RANDOM "?" (which gets no flourish)
+    this._lastId = new Map(entries.map((e) => [e.slotIdx, e.id]));
     aimPreviewCamera(this.engine.camera, n, cx);
   }
 
