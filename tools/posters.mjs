@@ -51,9 +51,9 @@ for (const id of want) {
   }
   const el = await page.$('#poster-canvas');
   await el.screenshot({ path: `${OUT}/${id}.png`, omitBackground: true });
-  mechs[id] = { ndc: meta.ndc, w: meta.w, h: meta.h, yaw: meta.yaw };
-  const n = meta.ndc;
-  console.log(`  ${id}: ${meta.w}x${meta.h}px  ndc x[${n.x0.toFixed(3)},${n.x1.toFixed(3)}] y[${n.y0.toFixed(3)},${n.y1.toFixed(3)}]`);
+  mechs[id] = { box: meta.box, w: meta.w, h: meta.h, yaw: meta.yaw };
+  const n = meta.box;
+  console.log(`  ${id}: ${meta.w}x${meta.h}px  world x[${n.u0.toFixed(2)},${n.u1.toFixed(2)}] y[${n.v0.toFixed(2)},${n.v1.toFixed(2)}]`);
   await page.close();
 }
 

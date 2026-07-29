@@ -12,7 +12,9 @@ import { PLAYER_COLORS } from '../core/colors.js';
 import { createMech, is3dMode, manifestHasGlb } from '../mechs/gltf.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial } from '../core/texload.js';
-import { loadPosterIndex, posterMeta, posterUrl, POSTER_YAW, SETTLE_MS, POSTER_ASPECT } from '../ui/posters.js';
+import { loadPosterIndex, posterMeta, posterUrl, POSTER_YAW, SETTLE_MS } from '../ui/posters.js';
+
+const _pv = new THREE.Vector3(); // scratch for projecting poster boxes
 
 // THE PREVIEW FRAMING, in one place. The poster generator (dev/postershot.js)
 // points an identical camera at an identical stage, which is the whole reason
@@ -147,6 +149,7 @@ export class MenuStage {
     this.rings = [];
     this.previewId = null;
     this._previewKey = null;
+    this._previewN = 0;
     this._gen = 0; // bumped on clearMechs; stale GLB swaps check against it
     this.t = 0;
     // ---- poster flipping (see ui/posters.js) ----
@@ -167,7 +170,7 @@ export class MenuStage {
    *  the way building a body does. */
   showPoster(entry, x) {
     const meta = this.posterFor(entry.id);
-    if (!meta || !meta.ndc) return null;
+    if (!meta || !meta.box) return null;
     const img = document.createElement('img');
     img.src = posterUrl(entry.id);
     img.alt = '';
@@ -182,36 +185,35 @@ export class MenuStage {
     return mesh;
   }
 
-  /** Place every live poster against the canvas's current size. Called on
-   *  show and every frame — the canvas can be resized at any time, and the
-   *  NDC rect is resolution-independent by construction. */
+  /** Place every live poster for the CURRENT camera. The stored box is in
+   *  world units off the mech's feet, so this projects it through whatever
+   *  framing the stage is using — which is what makes one reference render
+   *  serve 1, 2, 3 and 4 pickers, each standing on its own mark. Runs every
+   *  frame: the camera re-aims and the canvas resizes whenever it likes. */
   layoutPosters() {
     if (!this.posters.length) return;
     const cv = this.engine.renderer?.domElement;
-    if (!cv) return;
+    const cam = this.engine.camera;
+    if (!cv || !cam) return;
     const w = cv.clientWidth, h = cv.clientHeight;
+    cam.updateMatrixWorld();
     for (const p of this.posters) {
       const meta = this.posterFor(p.userData.poster.id);
-      if (!meta?.ndc) continue;
-      const n = meta.ndc;
-      // VERTICAL is aspect-free: the camera's fov is vertical, so NDC y maps
-      // straight onto the canvas height. NDC y is up, CSS y is down.
-      const top = ((1 - n.y1) / 2) * h;
-      const bottom = ((1 - n.y0) / 2) * h;
-      // HORIZONTAL needs care. The stage aims by an NDC offset, so where the
-      // mech sits across the screen does not move with aspect — but its NDC
-      // WIDTH does (a wider window means a wider frustum for the same body).
-      // Its width in PIXELS, however, is invariant against canvas HEIGHT, so
-      // convert through the reference aspect rather than the live width.
-      const cxNdc = (n.x0 + n.x1) / 2;
-      const halfPx = ((n.x1 - n.x0) / 2) * (h * POSTER_ASPECT) / 2;
-      const cxPx = ((cxNdc + 1) / 2) * w;
-      const left = cxPx - halfPx;
-      const right = cxPx + halfPx;
+      if (!meta?.box) continue;
+      const x = p.userData.poster.x;
+      // project the mech's own feet, and one world unit each way from them
+      const A = _pv.set(x, 0, 0).project(cam).clone();
+      const perX = _pv.set(x + 1, 0, 0).project(cam).x - A.x;
+      const perY = _pv.set(x, 1, 0).project(cam).y - A.y;
+      const b = meta.box;
+      const nx0 = A.x + b.u0 * perX, nx1 = A.x + b.u1 * perX;
+      const ny0 = A.y + b.v0 * perY, ny1 = A.y + b.v1 * perY;
+      const left = ((nx0 + 1) / 2) * w, right = ((nx1 + 1) / 2) * w;
+      const top = ((1 - ny1) / 2) * h, bottom = ((1 - ny0) / 2) * h;  // NDC y is up
       p.img.style.left = `${left.toFixed(1)}px`;
       p.img.style.top = `${top.toFixed(1)}px`;
-      p.img.style.width = `${(right - left).toFixed(1)}px`;
-      p.img.style.height = `${(bottom - top).toFixed(1)}px`;
+      p.img.style.width = `${Math.max(0, right - left).toFixed(1)}px`;
+      p.img.style.height = `${Math.max(0, bottom - top).toFixed(1)}px`;
     }
   }
 
@@ -222,8 +224,9 @@ export class MenuStage {
     if (!p || p.promoted) return;
     p.promoted = true;
     const def = applyColorScheme(ROSTER_BY_ID[p.entry.id], p.entry.variant || 0);
-    this.spawnUnit(def, new THREE.Vector3(p.x, 0, 0), POSTER_YAW,
+    const u = this.spawnUnit(def, new THREE.Vector3(p.x, 0, 0), POSTER_YAW,
       { slotIdx: p.entry.slotIdx, stageX: p.x, yawOffset: 0, fx: null });
+    if (u) u._sig = `${p.entry.id}:${p.entry.variant || 0}`;
     this._built.add(p.entry.id);
     // the model appears at the poster's own yaw and drifts off from there
     this._swayT0 = this.t;
@@ -235,8 +238,15 @@ export class MenuStage {
     this.posters = this.posters.filter((m) => m !== mesh);
   }
 
-  /** Lock-in (or anything else that needs the body now) can't wait out the
-   *  settle timer. Safe to call when there is no poster. */
+  /** Lock-in can't wait out the settle timer — but it only speeds up the
+   *  slot that locked. With four pickers, one player confirming must not
+   *  yank the other three's posters out from under them. */
+  promoteSlot(slotIdx) {
+    for (const m of this.posters.slice()) {
+      if (m.userData.poster.entry.slotIdx === slotIdx) this.promotePoster(m);
+    }
+  }
+
   promoteAll() {
     for (const m of this.posters.slice()) this.promotePoster(m);
   }
@@ -336,14 +346,55 @@ export class MenuStage {
     if (!entries || !entries.length) return;
     const key = entries.map((e) => `${e.id}:${e.slotIdx}:${e.variant || 0}`).join('|');
     if (this._previewKey === key) return;
-    this._previewKey = key;
-    this.previewId = key;
-    this.clearMechs();
     const n = entries.length;
     const cx = n === 1 ? 6.5 : 2.5;
     const spacing = 6.5;
-    entries.forEach((e, i) => {
-      const x = cx + (i - (n - 1) / 2) * spacing;
+    // The stage RE-FRAMES with the number of pickers (camera pulls back, marks
+    // spread), so a change in that count invalidates every placement. Within a
+    // fixed count, though, only the slots that actually CHANGED are torn down:
+    // with four players, one of them flipping used to rebuild the other three's
+    // bodies on every keypress, which is the exact cost this whole poster
+    // mechanism exists to avoid.
+    const reframed = this._previewN !== n;
+    this._previewN = n;
+    this._previewKey = key;
+    this.previewId = key;
+    const want = new Map(entries.map((e, i) => [e.slotIdx, {
+      e, i, x: cx + (i - (n - 1) / 2) * spacing,
+      sig: `${e.id}:${e.variant || 0}`,
+    }]));
+    if (reframed) this.clearMechs();
+    else {
+      // drop only what no longer matches its slot
+      for (const m of this.mechs.slice()) {
+        const w = want.get(m.slotIdx);
+        if (w && !m.isSpinner && w.sig === m._sig) { m.group.position.x = w.x; m.stageX = w.x; continue; }
+        this.group.remove(m.group);
+        if (m.isSpinner) disposeSpinner(m.group);
+        this.mechs = this.mechs.filter((o) => o !== m);
+      }
+      for (const p of this.posters.slice()) {
+        const w = want.get(p.userData.poster.entry.slotIdx);
+        if (w && w.sig === `${p.userData.poster.id}:${p.userData.poster.entry.variant || 0}`) {
+          p.userData.poster.x = w.x;                 // same mech, maybe a new mark
+          continue;
+        }
+        this.dropPoster(p);
+      }
+      for (const r of this.rings) {
+        this.group.remove(r);
+        r.geometry.dispose(); r.material.map?.dispose(); r.material.dispose();
+      }
+      this.rings = [];
+      for (const sp of this.extras || []) {
+        this.group.remove(sp);
+        sp.material.map?.dispose(); sp.material.dispose();
+      }
+      this.extras = [];
+    }
+    for (const { e, x, sig } of want.values()) {
+      const held = this.mechs.some((m) => m.slotIdx === e.slotIdx) ||
+                   this.posters.some((p) => p.userData.poster.entry.slotIdx === e.slotIdx);
       if (e.id === 'random') {
         // mystery unit: a hovering "?" instead of a mech
         const spr = this.questionSprite(e.variant || 0);
@@ -351,18 +402,19 @@ export class MenuStage {
         this.group.add(spr);
         this.extras = this.extras || [];
         this.extras.push(spr);
-      } else if (this.posterFor(e.id) && !this._built.has(e.id)) {
+      } else if (!held && this.posterFor(e.id) && !this._built.has(e.id)) {
         // FLIPPING: show the pre-rendered picture and build nothing. The real
         // body is created once this choice has sat still for SETTLE_MS (see
-        // update), or immediately when it is locked in — and a mech already
-        // built never comes back here.
+        // update), or immediately when this player locks in — and a mech
+        // already built never comes back here.
         this.showPoster(e, x);
-      } else {
+      } else if (!held) {
         // spawnUnit shows the procedural body, or (in ?debug=3d) a spinner
         // that swaps to the GLB when it loads — the exact body the battle uses
         const def = applyColorScheme(ROSTER_BY_ID[e.id], e.variant || 0);
-        this.spawnUnit(def, new THREE.Vector3(x, 0, 0), 0,
+        const u = this.spawnUnit(def, new THREE.Vector3(x, 0, 0), POSTER_YAW,
           { slotIdx: e.slotIdx, stageX: x, yawOffset: 0, fx: null });
+        if (u) u._sig = sig;
         this._built.add(e.id);
       }
       if (n > 1) {
@@ -371,7 +423,7 @@ export class MenuStage {
         this.group.add(ring);
         this.rings.push(ring);
       }
-    });
+    }
     aimPreviewCamera(this.engine.camera, n, cx);
   }
 
@@ -380,7 +432,7 @@ export class MenuStage {
   // LOCK-IN FLOURISH: the mech whips around twice while a glow blooms behind
   // it, so a lock reads instantly across a four-player table.
   lockFx(slotIdx) {
-    this.promoteAll();   // a lock-in wants the real body now, not in 0.7s
+    this.promoteSlot(slotIdx);   // this player's body now, not in 0.7s
     const m = this.unitFor(slotIdx);
     if (!m) return;
     m.fx = { t: 0, dur: 0.72 };
