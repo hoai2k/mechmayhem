@@ -1,6 +1,7 @@
 // WORKBENCH THUMBNAILS — the screenshots on the /workbench/ landing page.
 //
-//   node tools/wbthumbs.mjs        (dev server on :5173)
+//   node tools/wbthumbs.mjs              (dev server on :5173 — all of them)
+//   node tools/wbthumbs.mjs gait pose    (just these, leaving the rest alone)
 //
 // One representative shot per tool, resized to 640x360 into workbench/thumbs/.
 // Re-run when a tool's look changes; the landing page (workbench/landing.js)
@@ -12,11 +13,16 @@ const shots = [
   ['pose',      'http://localhost:5173/workbench/?edit=pose&mech=titanus&clip=heavy', 16000],
   ['skin',      'http://localhost:5173/workbench/?edit=skin&mech=viper', 16000],
   ['rig',       'http://localhost:5173/workbench/?edit=rig&mech=inferno', 16000],
+  ['gait',      'http://localhost:5173/workbench/?edit=gait&mech=viper&throttle=1', 16000],
   ['collider',  'http://localhost:5173/workbench/?edit=collider&mech=titanus&clip=heavy&at=hit', 16000],
   ['props',     'http://localhost:5173/workbench/?edit=props&prop=toriiGate&spin=0', 14000],
 ];
+// a name filter keeps one tool's re-shoot from disturbing the others
+const only = process.argv.slice(2);
+const list = only.length ? shots.filter(([name]) => only.includes(name)) : shots;
+if (!list.length) { console.log('no such tool:', only.join(', ')); process.exit(1); }
 const b = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium', args:['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
-for (const [name, url, wait] of shots) {
+for (const [name, url, wait] of list) {
   const p = await b.newPage({ viewport:{width:1280,height:720} });
   await p.goto(url, {waitUntil:'domcontentloaded'}).catch(e=>console.log(name, String(e).slice(0,80)));
   await p.waitForTimeout(wait);

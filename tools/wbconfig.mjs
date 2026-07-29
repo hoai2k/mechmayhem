@@ -28,6 +28,7 @@ const out = await page.evaluate(async () => {
   const { JOINT_ORDER } = await import('/src/mechs/rigadapter.js');
   const { rigIds } = await import('/src/mechs/rigs/index.js');
   const { PROPS } = await import('/src/arena/props.js');
+  const { GAITS, gaitIdFor } = await import('/src/mechs/gaits.js');
   const propMan = await (await fetch('/models/props/manifest.json')).json();
   const manifest = cfg.manifest();
 
@@ -54,6 +55,18 @@ const out = await page.evaluate(async () => {
   check('prop models', Object.keys(propMan).filter((k) => propMan[k]?.file),
     props.filter((p) => p.hasModel).map((p) => p.id));
 
+  // the gait table and every mech's gait assignment come from the game, so a
+  // gait added to GAITS (or a def re-pointed at one) shows up in ?edit=gait
+  // with no edit to the adapter
+  check('gaits', Object.keys(GAITS), cfg.gait?.ids() || []);
+  const badGaits = [];
+  for (const c of cat) {
+    const game = gaitIdFor(ROSTER.find((m) => m.id === c.id));
+    const conf = cfg.gait?.idFor(c.id);
+    if (game !== conf) badGaits.push(`${c.id}: game says ${game}, config says ${conf}`);
+    if (!(cfg.gait?.users(game) || []).includes(c.id)) badGaits.push(`${c.id}: missing from users('${game}')`);
+  }
+
   // per-subject clip lists must be non-empty and drawn from the clip table
   const clipNames = new Set(Object.keys(CLIPS));
   const badClips = [];
@@ -63,7 +76,7 @@ const out = await page.evaluate(async () => {
     const stray = list.map((x) => x.name).filter((n) => !clipNames.has(n));
     if (stray.length) badClips.push(`${c.id}: unknown ${stray.slice(0, 3).join(', ')}`);
   }
-  return { rows, badClips, vocab: cfg.vocab, game: cfg.game };
+  return { rows, badClips, badGaits, vocab: cfg.vocab, game: cfg.game };
 });
 await browser.close();
 
@@ -76,6 +89,7 @@ for (const r of out.rows) {
     ok ? 'ok' : `MISSING ${r.missing.join(',') || '—'} · EXTRA ${r.extra.join(',') || '—'}`}`);
 }
 for (const b of out.badClips) { bad++; console.log(`  clip list    ${b}`); }
+for (const b of out.badGaits || []) { bad++; console.log(`  gait         ${b}`); }
 if (errs.length) console.log('\npage errors:\n' + errs.slice(0, 4).join('\n'));
 console.log(bad ? `\nFAIL — ${bad} mismatch(es): the adapter is not deriving something it should\n`
   : '\nPASS — every workbench list is derived from the game, nothing hand-copied\n');

@@ -19,6 +19,12 @@ import { ROSTER, ROSTER_BY_ID, playableRoster } from '../../../src/mechs/roster.
 import { JOINT_ORDER } from '../../../src/mechs/rigadapter.js';
 import { CLIPS, compileClip, defClipVariants } from '../../../src/mechs/animations.js';
 import { Animator } from '../../../src/mechs/animator.js';
+import {
+  GAITS, GAIT_SCHEMA, gaitIds, gaitIdFor, cloneGait, gaitDiff, formatGait,
+  applyGait, applyQuadGait, gaitPhaseRate,
+} from '../../../src/mechs/gaits.js';
+import { TUNING } from '../../../src/core/tuning.js';
+import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
 import { buildMech } from '../../../src/mechs/factory.js';
 import { profileFor } from '../../../src/mechs/glbanim.js';
 import {
@@ -144,6 +150,47 @@ const CONFIG = defineWorkbenchConfig({
     profile: (id) => profileFor(id),
     // a mech's authored rest stance (digitigrade legs etc.)
     restPose: (id) => ROSTER_BY_ID[id]?.restPose || null,
+  },
+
+  // LOCOMOTION. A gait is a named bundle of walk/run numbers in
+  // src/mechs/gaits.js; a roster def names one and several mechs share it. All
+  // derived: add a gait to GAITS or point a mech at one and the gait workbench
+  // sees it on the next reload.
+  gait: {
+    ids: () => gaitIds(),
+    schema: () => GAIT_SCHEMA,
+    shipped: (gaitId) => GAITS[gaitId] || null,
+    idFor: (id) => gaitIdFor(ROSTER_BY_ID[id]),
+    users: (gaitId) => ROSTER.filter((m) => gaitIdFor(m) === gaitId).map((m) => m.id),
+    clone: cloneGait,
+    diff: gaitDiff,
+    format: formatGait,
+    phaseRate: gaitPhaseRate,
+    // hand an EDITED gait to a live animator — held by reference, so the very
+    // next frame runs it (this is also how the game shares one gait between
+    // mechs: everyone points at the same object)
+    install: (animator, gait) => { if (animator) animator.gait = gait; },
+    // What the gait ALONE does to a pose, on a zeroed rest target: the tool
+    // calls it twice (once with a dial nudged) to turn "you dragged this limb
+    // N radians" into "that dial moves by X".
+    evaluate: (gait, env) => {
+      const tgt = { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0] };
+      const rest = {};
+      for (const j of JOINT_ORDER) { if (j !== 'hips') { tgt[j] = [0, 0, 0]; rest[j] = [0, 0, 0]; } }
+      applyGait(tgt, gait, { ...env, rest });
+      if (gait.quad) applyQuadGait(tgt, gait, env);
+      return tgt;
+    },
+    // The game's OWN top locomotion speed for this mech (fighter.moveSpeed),
+    // so the preview's speed slider is in real units and the stride cadence
+    // matches a real match at that ROBOT SPEED setting.
+    topSpeed: (id, { game = GAME_CONFIG.robotSpeed, sprint = false } = {}) => {
+      const def = ROSTER_BY_ID[id];
+      if (!def) return 0;
+      return def.stats.speed * TUNING.movement.walkMult * TUNING.movement.speedBase * game
+        * (sprint ? TUNING.movement.sprintMult : 1);
+    },
+    gameSpeed: () => GAME_CONFIG.robotSpeed,
   },
 
   anchors: {

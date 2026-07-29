@@ -12,7 +12,28 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** NULLBOT SHOOTS FORWARD, OFF EITHER CLAW — his Null Pointer was
+- **Latest:** GAITS ARE DATA NOW, AND THE FAST MECHS RUN — the walk/run cycle
+  left animator.js and became a named, shared TABLE (`src/mechs/gaits.js`): a
+  roster def says `gait: 'sprint'`, several mechs share one, and tuning it moves
+  all of them. `standard` reproduces the old block EXACTLY (proved term by term
+  against the previous code over a phase/ratio sweep — zero difference), so
+  every mech that names no gait is untouched; FENRIR's gallop is the same table
+  with a `quad` block. The new `sprint` gait (VIPER, TEMPEST, WRAITH, NOVA) is
+  what the fast tier was missing: an asymmetric stride that REACHES ahead and
+  finishes behind, feet tracking near the midline instead of straddling a
+  shoulder-width base, higher knee drive, harder toe-off, bent arms driving
+  from tucked-in shoulders, and the frame pitched into it. Measured with the new
+  `node tools/gaitprobe.mjs <mech> [throttle] [vsGait]` (foot travel off the
+  real posed model, as a fraction of body height): viper stride 60.2% → 71.2%,
+  foot reach 21.3% → 29.1%, lift 35.2% → 43.7%, track 10.2% → 7.2%, lean
+  22.9° → 33.2°, arm swing 70° → 82°, and the sole sits no deeper against the
+  floor than before. And it is all editable in a new **GAIT WORKBENCH**
+  (`/workbench/?edit=gait`): run any mech on the spot at any throttle, ROBOT
+  SPEED and slow-motion, freeze and scrub the cycle, drag a limb to tune the
+  dial behind it, ghost the shipped gait (or any other gait) phase-locked
+  beside it, then "Output gait" for a paste-ready block. See the section at the
+  end of this file.
+- **Previous:** NULLBOT SHOOTS FORWARD, OFF EITHER CLAW — his Null Pointer was
   leaving the barrel at ~75° of PITCH (straight up, 105° off the target):
   the muzzle anchors ride the hand joints, whose own +Z sits ~73° up in his
   shoot pose, and their authored `rot` of [12,0,0] barely touched it. Both
@@ -4570,3 +4591,69 @@ wrapped to two lines in the fallback face (it is nowrap and a size smaller now),
 and the locked player card's colour strip ran off the end — at eleven schemes
 the scheme NAME no longer fits after the swatches, so it moved onto the ◀ ▶ row,
 which is where it belongs anyway.
+
+---
+
+## GAITS AS DATA — the gait table and the gait workbench
+
+**The problem.** Locomotion was one hard-coded block of sines in `animator.js`.
+Every mech in the game ran it: a 6.5-speed COLOSSUS and a 13.5-speed VIPER got
+the same stride, differing only by `ratio = speed / maxSpeed`. So at full
+throttle the fast mechs weren't running — they were walking quickly, legs
+straddling a wide base, feet never reaching ahead of the body, arms barely
+moving, torso upright.
+
+**The table.** `src/mechs/gaits.js` holds the cycle as data:
+
+```
+GAITS.standard   the old block, number for number
+GAITS.sprint     the fast tier — viper, tempest, wraith, nova
+GAITS.quad       fenrir: the same biped layer plus a `quad` gallop block
+```
+
+A gait has four sections (`legs`, `ankle`, `arms`, `body`) plus the optional
+`quad`, and every dial has a `*Run` twin: `base + run * ratio`, which is how one
+gait can walk politely and sprint hard without a second table. `applyGait()` is
+the whole cycle and it is a PURE function of (pose target, gait, environment) —
+the animator calls it, and so does the workbench, which is what makes tuning
+honest. `gaitPhaseRate()` keeps the foot-plant cadence (and the grown-body
+`sizeMul` law) where it was.
+
+Two dials are new, and they are the two the fast mechs needed most:
+`legs.reach`/`legs.extend` (asymmetric swing — a run reaches ahead and finishes
+behind, where a pendulum just swings), and `legs.adduct` (hip roll toward the
+midline: a runner's feet fall nearly single-file, and a wide base is the loudest
+"stiff" tell there is). Then `arms.elbowRun`/`arms.tuck`/`arms.cross` for a
+driving arm instead of a hanging one.
+
+**The proof it changed nothing else.** `standard` and `quad` were checked
+against the previous animator code over a sweep of phases, speed ratios and
+foot calibrations: bit-identical, so the other thirteen mechs move exactly as
+they did. `node tools/footprobe.mjs colossus 4` still reports the same cadence
+and stance-foot slip, so the giant-form contact law survived the move.
+
+**The workbench** — `/workbench/?edit=gait&mech=<id>`:
+
+- the mech dropdown names each mech's gait (`VIPER — sprint`), and the panel
+  heads with the gait's name, note and every other mech that runs it, each a
+  button that loads that body WITH YOUR EDITS INTACT — because the edits belong
+  to the gait, not the mech, exactly as they do in the game;
+- THREE different speed knobs, kept apart on purpose: THROTTLE (how fast the
+  mech is moving, which is what `ratio` and the cadence read), GAME SPEED (the
+  player-facing ROBOT SPEED setting, 50–200%), ANIMATION SPEED (slow-motion for
+  reading a fast cycle — a debug dial that changes nothing about the gait);
+- pause + a phase scrubber (`[` / `]` to step) freeze one moment of the stride;
+- a phase-locked GHOST of the shipped gait beside the mech — or of any OTHER
+  gait, which is how a mech gets moved between gaits with eyes open;
+- click a limb and the panel lists the dials that drive it; DRAG the limb and
+  the tool measures `d(joint)/d(dial)` at that phase, works out which way that
+  pushes the limb on screen, and projects your drag onto it — you pull the leg
+  where you want it and a number moves;
+- edits persist (localStorage) until Revert, and **Output gait** downloads a
+  paste-ready `GAITS` block with every changed dial listed `from → to`.
+
+**Judging it from the command line.** `node tools/gaitprobe.mjs <mech>
+[throttle] [vsGait]` measures reach / trail / stride / lift / track / bob /
+sole clearance / lean / arm swing off the real posed model and diffs two gaits;
+`node tools/gaitsheet.mjs <mech> out.png [throttle] [frames] [vsGait]` renders
+the cycle as a filmstrip with the comparison ghost in every frame.

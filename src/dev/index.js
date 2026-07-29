@@ -15,13 +15,21 @@ const WORKBENCH_REDIRECTS = {
   'debug=pose': 'pose',
   'debug=skin': 'skin',
   'debug=collider': 'collider',
+  'debug=gait': 'gait',
   'rigedit': 'rig',
 };
+// The workbench page also answers ?edit=<tool>, and the LEVEL BUILDER (the one
+// editor that stays on the game page, because it needs a real arena) answers
+// ?edit=level. Anything else asking for ?edit= on the game page means a
+// workbench tool — send it next door rather than silently booting the game.
+const GAME_PAGE_EDITORS = ['level'];
 
 function workbenchRedirect(params) {
   const debug = params.get('debug');
   let tool = debug ? WORKBENCH_REDIRECTS['debug=' + debug] : null;
   if (!tool && params.has('rigedit')) tool = 'rig';
+  const edit = params.get('edit');
+  if (!tool && edit && !GAME_PAGE_EDITORS.includes(edit)) tool = edit;
   if (!tool) return false;
   const next = new URLSearchParams();
   next.set('edit', tool);
@@ -31,7 +39,8 @@ function workbenchRedirect(params) {
     || (rig && rig !== '1' && rig !== 'true' ? rig : null);
   if (mech) next.set('mech', mech);
   // per-tool params that still mean the same thing on the other side
-  for (const k of ['alt', 'variant', 'model', 'clip', 'left', 'at', 'dummy', 'ball']) {
+  for (const k of ['alt', 'variant', 'model', 'clip', 'left', 'at', 'dummy', 'ball',
+    'prop', 'throttle', 'game', 'anim', 'compare']) {
     if (params.has(k)) next.set(k, params.get(k));
   }
   const base = location.pathname.replace(/[^/]*$/, '');

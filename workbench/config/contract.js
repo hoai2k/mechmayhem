@@ -62,6 +62,25 @@
  *   animator(model)   -> an animator for a built model
  *   poses(id)         -> named starting poses
  *
+ * @property {Object} gait            LOCOMOTION as tunable data — the walk/run
+ *                                    cycle a subject runs, named and SHARED
+ *                                    (several subjects run the same gait, so a
+ *                                    tuned gait moves all of them). Omit the
+ *                                    section and ?edit=gait isn't offered.
+ *   ids()             -> every gait name
+ *   idFor(id)         -> the gait THIS subject runs
+ *   users(gaitId)     -> the subjects that run it
+ *   shipped(gaitId)   -> the gait as it ships (the diff/revert baseline)
+ *   schema()          -> [{ id, label, params: [{ key, label, min, max, step,
+ *                        joints[], help }] }] — the dials, so the tool builds
+ *                        its own UI and can tell which dial moves a dragged limb
+ *   clone / diff / format(gaitId, gait) -> copy · differences · source text
+ *   install(animator, gait) -> run this (edited) gait on a live subject
+ *   evaluate(gait, env)     -> the gait's own contribution to a pose, used to
+ *                        solve "this limb moved N radians" back into a dial
+ *   phaseRate(gait, {…}) -> gait phase advance per second, for a frozen preview
+ *   topSpeed(id, {game, sprint}) -> the game's real top locomotion speed
+ *
  * @property {Object} actions         the "trigger this move" buttons
  *   list()            -> [{ id, label, hold }]
  *   fire(stage, id)   -> make it happen on the stage's subject
