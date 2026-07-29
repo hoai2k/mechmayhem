@@ -22,6 +22,13 @@ const _pv = new THREE.Vector3(); // scratch for projecting poster boxes
 // or two, and the flash reads as a glitch rather than as progress.
 const SPINNER_DELAY = 700;
 
+// THE IDLE SWAY every preview model shares: yaw = sin(phase) * SWAY_AMP +
+// POSTER_YAW, one wave for the whole stage. It is deliberately GLOBAL — with
+// two to four pickers the marks stand side by side, and models drifting on
+// private phases read as four separate toys rather than one line-up.
+const SWAY_RATE = 0.4;   // radians of phase per second
+const SWAY_AMP = 0.55;   // peak yaw either side of POSTER_YAW
+
 // THE PREVIEW FRAMING, in one place. The poster generator (dev/postershot.js)
 // points an identical camera at an identical stage, which is the whole reason
 // a pre-rendered picture can stand in for the model without moving a pixel:
@@ -254,7 +261,8 @@ export class MenuStage {
     // ---- poster flipping (see ui/posters.js) ----
     this.posters = [];      // <img> overlays currently standing in for a model
     this._built = new Set();// mechs whose model exists — never posted again
-    this._swayT0 = 0;       // idle-sway phase origin, reset on every handover
+    this._swayT0 = 0;       // idle-sway phase origin (see armSway)
+    this._swayHold = new Set(); // slots parked at POSTER_YAW waiting to join it
     this.sparkles = [];     // live sparkle bursts (see sparkleBurst)
     loadPosterIndex();      // fire and forget; no poster = old behaviour
   }
@@ -373,8 +381,6 @@ export class MenuStage {
       { slotIdx: p.entry.slotIdx, stageX: p.x, yawOffset: 0, fx: null,
         _sig: `${p.entry.id}:${p.entry.variant || 0}` });
     this._built.add(p.entry.id);
-    // the model appears at the poster's own yaw and drifts off from there
-    this._swayT0 = this.t;
     this.dropPoster(mesh);
   }
 
@@ -399,8 +405,32 @@ export class MenuStage {
   // spawn one display unit at pos with base yaw rotY. In ?debug=3d with a GLB
   // available, shows a spinner and swaps the GLB in when it loads (never the
   // procedural stand-in); otherwise builds the procedural mech immediately.
+  /** A NEW MODEL JOINS THE SWAY, IT DOES NOT RESTART IT.
+   *
+   *  The sway used to be measured from the last handover, so every model that
+   *  finished loading yanked the phase back to zero — with two or more pickers,
+   *  one player flipping a robot visibly snapped the OTHER players' mechs back
+   *  to their start yaw. The mechs that were already standing there are the
+   *  scene; the arrival is the guest.
+   *
+   *  So an arriving model waits at POSTER_YAW — the exact yaw its poster was
+   *  rendered at, so the handover is still frame-perfect — until the running
+   *  wave next passes through POSTER_YAW (a zero crossing of the sine, at most
+   *  half a period away), and joins there. From that instant it IS the shared
+   *  wave, in step with its neighbours forever after.
+   *
+   *  With nobody else on stage there is no one to stay in step with, so the
+   *  wave is simply restarted under the newcomer and it drifts off at once. */
+  armSway(slot) {
+    if (this.mechs.some((m) => m.slotIdx !== slot)) this._swayHold.add(slot);
+    else { this._swayT0 = this.t; this._swayHold.delete(slot); }
+  }
+
   spawnUnit(def, pos, rotY = 0, meta = null) {
     const gen = this._gen;
+    // hold/join is decided HERE, before the unit is pushed, and keyed by SLOT
+    // rather than stored on the unit — the GLB swap below replaces the object.
+    if (this.previewId && meta) this.armSway(meta.slotIdx);
     const tag = (u) => (meta ? Object.assign(u, meta) : u);
     if (is3dMode() && manifestHasGlb(def.id)) {
       // A PLACEHOLDER ONLY IF THE WAIT IS REAL. The GLB is usually already in
@@ -618,7 +648,7 @@ export class MenuStage {
     this.promoteSlot(slotIdx);   // this player's body now, not in 0.7s
     const m = this.unitFor(slotIdx);
     if (!m) return;
-    m.fx = { t: 0, dur: 0.72 };
+    m.fx = { t: 0, dur: 0.72, base: m.group.rotation.y };
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowTexture(), transparent: true, depthWrite: false,
       blending: THREE.AdditiveBlending, color: PLAYER_COLORS[slotIdx % 4], opacity: 0,
@@ -639,6 +669,7 @@ export class MenuStage {
 
   clearMechs() {
     this._gen++; // invalidate any in-flight GLB swaps from a prior screen
+    this._swayHold.clear(); // nothing left to stay in step with
     for (const mesh of this.posters.slice()) this.dropPoster(mesh);
     for (const m of this.mechs) {
       this.group.remove(m.group);
@@ -670,6 +701,14 @@ export class MenuStage {
       p.settle -= dt;
       if (p.settle <= 0) this.promotePoster(mesh);
     }
+    // THE SHARED SWAY (see armSway). Waiting models are let in as the wave
+    // passes through their parked yaw — sin() = 0, i.e. a whole multiple of PI
+    // of phase — which is the one instant joining it is invisible.
+    const sway = (this.t - this._swayT0) * SWAY_RATE;
+    if (this._swayHold.size &&
+        Math.floor(sway / Math.PI) !== Math.floor((sway - dt * SWAY_RATE) / Math.PI)) {
+      this._swayHold.clear();
+    }
     for (const m of this.mechs) {
       if (m.isSpinner) {
         const s = m.spinner?.userData.spin;
@@ -680,12 +719,25 @@ export class MenuStage {
         s.core.scale.setScalar(0.85 + Math.sin(s.t * 4) * 0.15);
         continue;
       }
+      // WHERE THIS MECH STANDS WHEN NOTHING IS HAPPENING TO IT. The lock-in
+      // spin below has to land on this exact value, and it is a MOVING target
+      // — the idle sway does not stop for the flourish — so it is read fresh
+      // every frame rather than sampled when the spin starts.
+      const rest = m.yawOffset ? m.yawOffset
+        : this.previewId
+          ? (this._swayHold.has(m.slotIdx) ? POSTER_YAW : Math.sin(sway) * SWAY_AMP + POSTER_YAW)
+          // off the select screen there is no sway; hold the yaw it had when
+          // the spin began (reading rotation.y live would feed back on itself)
+          : (m.fx ? m.fx.base : m.group.rotation.y);
       if (m.fx) {
-        // two fast turns, easing out; the glow blooms and fades with them
+        // two fast turns, easing out; the glow blooms and fades with them.
+        // Counted BACKWARDS from where it must end up: the spin used to add
+        // 4PI to yawOffset and stop there, ignoring the sway, so the frame it
+        // finished the mech visibly snapped across to the swaying yaw.
         m.fx.t += dt;
         const p = Math.min(1, m.fx.t / m.fx.dur);
         const e = 1 - (1 - p) * (1 - p) * (1 - p);
-        m.group.rotation.y = (m.yawOffset || 0) + e * Math.PI * 4;
+        m.group.rotation.y = rest - (1 - e) * Math.PI * 4;
         if (m.fx.glow) {
           m.fx.glow.material.opacity = Math.sin(p * Math.PI) * 0.85;
           m.fx.glow.scale.setScalar(6 + e * 5);
@@ -699,12 +751,8 @@ export class MenuStage {
           }
           m.fx = null;
         }
-      } else if (m.yawOffset) {
-        m.group.rotation.y = m.yawOffset; // player is steering this one
-      } else if (this.previewId) {
-        // sway measured from the handover, so a model that just replaced a
-        // poster starts at exactly the yaw the poster was rendered at
-        m.group.rotation.y = Math.sin((this.t - this._swayT0) * 0.4) * 0.55 + POSTER_YAW;
+      } else if (m.yawOffset || this.previewId) {
+        m.group.rotation.y = rest;   // steered, parked, or riding the sway
       }
       // lineup & select previews always show the combat-ready carriage
       m.animator.update(dt, { speed: 0, grounded: true, alwaysReady: true });
