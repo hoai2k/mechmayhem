@@ -159,6 +159,12 @@ audio). Progress history: `TASKS.md`.
   for a hidden membrane spanning an air gap (rhino), wrong for visible shell.
   The skin audit knows a deliberate split from a crack (`seamId`/`seamSide` on
   the geometry) and skips it, reporting the count instead.
+  Find them with `node tools/weldmap.mjs <mech> --list` (every bone pair that
+  shares a triangle despite being far apart in the skeleton — a real armour
+  joint is 1 link, an elbow welded to a thigh is 4) and `node tools/weldmap.mjs
+  <mech> --pairs a~b` to render one: the welded triangles highlighted at bind
+  pose beside the frame that abuses them most. Pairs already separated by a
+  seamCut drop off the list, so it doubles as the check that a cut worked.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
