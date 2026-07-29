@@ -5,7 +5,8 @@ config object.
 
 ```
 /workbench/?edit=animation&mech=colossus   GLB vs procedural, trigger moves, anchors
-/workbench/?edit=pose&mech=colossus        pose joints, edit clip keyframes
+/workbench/?edit=pose&mech=colossus        pose joints, edit clip keyframes,
+                                           scrub the generated walk/run
 /workbench/?edit=skin&mech=colossus        bone-island skin repair
 /workbench/?edit=rig&mech=colossus         hand-place a skeleton
 /workbench/?edit=collider&mech=colossus    what combat actually hits

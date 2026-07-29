@@ -61,6 +61,19 @@
  *   compile(clip)     -> runtime form
  *   animator(model)   -> an animator for a built model
  *   poses(id)         -> named starting poses
+ *   locomotion        OPTIONAL — the walk/run cycle, for games that GENERATE it
+ *     rather than key it. It is not a clip and has no keyframes: the animator
+ *     builds it every frame from a gait PHASE that advances at whatever cadence
+ *     the current ground speed needs. So it is offered as a scrubbable CYCLE —
+ *     a phase, a period, and the per-frame ctx that drives it — which the pose
+ *     tool lists beside the clips and freezes frame by frame, read-only. Leave
+ *     the block out and the tool simply lists clips.
+ *       list(id)                  -> [{ id, label, speed }] the gaits to offer
+ *       ctx(id, modeId)           -> the update ctx that drives that gait
+ *       period()                  -> radians in one full cycle
+ *       phase(animator)           -> where the cycle is now
+ *       step(animator, ctx, ph, dt) -> pose the model at EXACTLY phase ph
+ *       run(animator, ctx, dt)    -> advance one real frame, returns the phase
  *
  * @property {Object} actions         the "trigger this move" buttons
  *   list()            -> [{ id, label, hold }]

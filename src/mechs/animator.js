@@ -31,6 +31,19 @@ const LEG_SMOOTH = new Set(['thighL', 'thighR', 'kneeL', 'kneeR', 'ankleL', 'ank
 // sizeMul 1; at 4× it becomes 3 rad/s, which is what stops a stomp from
 // teleporting a foot across half an arena block.
 const LEG_W_REF = 6;
+// How fast the pelvis chases the measured sole (1/s), before the √sizeMul
+// divide. This loop removes a mech's STANDING sole offset, which is constant,
+// so it only has to be faster than a mech changes speed — not faster than a
+// stride. It shipped at 20 (a 0.05 s time constant), which chased the leg
+// chain's own per-step ripple and, lagging it by a quarter cycle, drove the
+// body instead of tracking it: measured hip travel was 9.6-9.8% of body height
+// on Glacier and 5.0-7.1% on Titanus, once per step. That is what reads as a
+// heavy mech BOUNCING. At 2.5 the same mechs walk on 3.1-3.5% and 0.8-1.3%,
+// while the average sole clearance the loop exists to null stays dead on zero
+// (Glacier -0.004 vs +0.010 at rate 20, against +0.109 with the loop off) —
+// the anti-float fix is untouched, only the bounce is gone. Faster than ~4
+// starts putting the ripple back; much slower than ~1.5 buys nothing more.
+const SOLE_FOLLOW_RATE = 2.5;
 
 
 function sampleTrack(track, t) {
@@ -636,6 +649,15 @@ export class Animator {
     // and knockdowns move the body on purpose and get the bias eased back out.
     // The correction is 1:1 — hips down by x lowers the sole by x — so a single
     // damped step converges without a gain to tune.
+    //
+    // IT MUST BE SLOW (see SOLE_FOLLOW_RATE). What this loop is FOR is the
+    // standing offset: a rigged boot whose sole sits somewhere the gait never
+    // assumed leaves the whole body parked too high, and the walk reads as
+    // pushing off air. That error is a CONSTANT. The per-step wobble around it
+    // is not an error at all — it is the leg chain's own geometry, a rotate-only
+    // leg is shorter when the thigh is swung out than when it is under the hip —
+    // and chasing it frame by frame lifts and drops the entire mech once per
+    // step. Correct the average, leave the ripple to the legs.
     if (this.soles) {
       const wantFollow = grounded && speed > 0.4 && !this.action && !ctx.duck && !ctx.dashT;
       if (wantFollow) {
@@ -652,7 +674,7 @@ export class Animator {
           ? null : this._soleClr / this.sizeMul;
         if (clr !== null) {
           this._footBias = damp(this._footBias || 0, (this._footBias || 0) - clr,
-            20 / Math.sqrt(this.sizeMul), dt);
+            SOLE_FOLLOW_RATE / Math.sqrt(this.sizeMul), dt);
           // never lift the body more than a foot's depth: a bad measurement
           // must not launch the mech off the floor
           this._footBias = clamp(this._footBias, -this.footDepth, this.footDepth);

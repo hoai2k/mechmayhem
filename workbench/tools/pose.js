@@ -64,6 +64,21 @@
 // over and the clip can be updated wholesale, with no guessing about which key
 // was on screen. With no clip loaded it still exports a bare rest-relative pose.
 //
+// LOCOMOTION (the `locomotion — generated, no keyframes` group at the bottom of
+// the dropdown) is the walk and the run, and they are NOT clips: the animator
+// builds them every frame from a gait phase whose cadence is matched to the
+// mech's actual ground speed, which is what plants a foot on one spot instead
+// of skating it. There is nothing keyed, so there is nothing to list under the
+// clips and nothing to edit — which is why they were missing here. What they DO
+// support is everything else this tool is for: the scrubber spans one full gait
+// CYCLE (phase 0..2π rather than seconds), every phase freezes to a real posed
+// frame at the mech's real top speed, PLAY runs the gait at 1× through the
+// actual animator, and "Copy pose" exports the frozen frame. The key track,
+// the key steppers and Revert stay hidden, and a gizmo drag poses the body for
+// a look but is never written back — there is nowhere in a generated walk to
+// write it. `&clip=loco:walk` / `&clip=loco:run` deep-link one, with `&t=` as
+// the opening phase.
+//
 // UNDO / REDO — Ctrl/⌘+Z, Ctrl/⌘+Shift+Z or Ctrl+Y, and the HISTORY buttons.
 // Covers every edit, both resets, Revert, and swapping clips (so losing a
 // session's work to the dropdown is undoable). See the history section below for
@@ -164,6 +179,13 @@ export async function runPoseWorkbench(config, params) {
   let nextKeyId = 0;            // id source for hand-added keys (see buildEditClip)
   let scrubT = 0;               // where the scrubber is
   let loadedPose = null;        // the key's pose BEFORE any drag — the edit baseline
+  // LOCOMOTION MODE. The walk and the run are not clips — the animator builds
+  // them every frame from a gait phase — so there is no key list to edit and
+  // `editClip` stays null, which is exactly what already disables every
+  // key-editing path in this file. What the mode adds is a second thing the
+  // scrubber can mean: gait PHASE instead of clip time. Null = clips as before.
+  let locoMode = null;          // { id, label, ctx, period } while a gait is loaded
+  const LOCO = config.anim.locomotion || null;
   const boneGroup = new THREE.Group(); scene.add(boneGroup);
   const _wa = new THREE.Vector3(), _wb = new THREE.Vector3();
 
@@ -303,8 +325,26 @@ export async function runPoseWorkbench(config, params) {
       o.textContent = `${c.name}${c.role ? '  ·  ' + c.role : ''}`;
       clipSel.appendChild(o);
     }
+    // the gaits go in their own group, labelled for what they are: generated
+    // per frame, so they scrub and play but hold no keys to edit
+    if (LOCO) {
+      const g = document.createElement('optgroup');
+      g.label = 'locomotion — generated, no keyframes';
+      for (const m of LOCO.list(curId)) {
+        const o = document.createElement('option');
+        o.value = `loco:${m.id}`;
+        o.textContent = `${m.label}  ·  ${m.speed.toFixed(1)} u/s`;
+        g.appendChild(o);
+      }
+      clipSel.appendChild(g);
+    }
     const want = params.get('clip');
-    if (want && list.some((c) => c.name === want)) {
+    const wantLoco = want && want.startsWith('loco:') && LOCO
+      && LOCO.list(curId).some((m) => m.id === want.slice(5));
+    if (wantLoco) {
+      clipSel.value = want;
+      applyLoco(want.slice(5), params.has('t') ? { t: +params.get('t') } : undefined);
+    } else if (want && list.some((c) => c.name === want)) {
       clipSel.value = want;
       // &key=<index> / &t=<seconds> deep-link ONE key — the strike key of a
       // one-shot clip rather than the recovery pose it ends on. `t` snaps to the
@@ -322,7 +362,7 @@ export async function runPoseWorkbench(config, params) {
   // a key. Called on reset and whenever a rebuild invalidates the old clip.
   function clearClipContext() {
     stopPlay(false);
-    editClip = null; origKeys = null; liveClip = null;
+    editClip = null; origKeys = null; liveClip = null; locoMode = null;
     curKeyIdx = -1; loadedPose = null; scrubT = 0;
     timeRow.style.display = 'none';
     keyRow.style.display = 'none';
@@ -417,6 +457,55 @@ export async function runPoseWorkbench(config, params) {
     refreshJointButtons();
   }
 
+  // ================= locomotion =================
+  // A gait is loaded the way a clip is, but what the scrubber spans is one full
+  // CYCLE of gait phase, not clip time. Everything key-shaped stays hidden
+  // because `editClip` is null: no key track, no steppers, no Revert, and
+  // commitEdit refuses — dragging a joint here poses the body for a look and an
+  // export, it cannot be written back, because there is nowhere in a generated
+  // walk to write it.
+  function applyLoco(id, at) {
+    if (!LOCO) return;
+    stopPlay(false);
+    clearClipContext();
+    const m = LOCO.list(curId).find((x) => x.id === id) || LOCO.list(curId)[0];
+    if (!m) return;
+    locoMode = { id: m.id, label: m.label, speed: m.speed,
+      ctx: LOCO.ctx(curId, m.id), period: LOCO.period() };
+    clipSel.value = `loco:${m.id}`;
+    timeRow.style.display = 'flex';
+    previewLoco(at && at.t !== undefined ? at.t : 0);
+    pushHistory();
+  }
+  // Freeze the gait at one phase. The mode's own ctx drives it, so this is the
+  // real walk at the mech's real top speed — the pose the game would draw.
+  function sampleLoco(ph) {
+    animator.action = null;
+    animator.impulses.length = 0;
+    animator.poseStatic();
+    // coarse steps: enough of them for the pose smoother and the pelvis/sole
+    // follower to settle on THIS frame instead of dragging in the last one
+    for (let i = 0; i < 10; i++) LOCO.step(animator, locoMode.ctx, ph, 0.15);
+    if (selJoint && mech.joints[selJoint]) gizmo.attach(mech.joints[selJoint]);
+    refreshJointButtons();
+  }
+  function previewLoco(ph) {
+    scrubT = Math.max(0, Math.min(locoMode.period, ph));
+    sampleLoco(scrubT);
+    loadedPose = null;
+    loadedFrom = `${locoMode.label.toLowerCase()} @ phase ${scrubT.toFixed(2)} of ${locoMode.period.toFixed(2)}`;
+    syncLocoUI();
+    note.textContent = `${locoMode.label} — generated per frame, no keys to edit`;
+  }
+  function syncLocoUI() {
+    timeSlider.max = String(locoMode.period);
+    timeSlider.step = String(locoMode.period / 240);
+    timeSlider.value = String(scrubT);
+    keyMarks.textContent = `${locoMode.label} · ${locoMode.speed.toFixed(1)} u/s · phase `
+      + `${scrubT.toFixed(2)} / ${locoMode.period.toFixed(2)} — generated, no keyframes`;
+    revertBtn.style.display = 'none';
+  }
+
   // ================= playback =================
   // The scrubber is hand-driven and the key stepper jumps; neither tells you
   // whether the motion READS. Play runs the edited clip at 1× through the real
@@ -430,9 +519,10 @@ export async function runPoseWorkbench(config, params) {
   // editable state, and hands the gizmo back.
   let playing = false, playT = 0;
   function startPlay() {
-    if (!editClip || playing) return;
+    if ((!editClip && !locoMode) || playing) return;
     playing = true;
-    playT = scrubT >= editClip.dur - 1e-3 ? 0 : scrubT;
+    const span = locoMode ? locoMode.period : editClip.dur;
+    playT = scrubT >= span - 1e-3 ? 0 : scrubT;
     animator.action = null;
     gizmo.detach();
     syncPlayUI();
@@ -443,14 +533,25 @@ export async function runPoseWorkbench(config, params) {
     if (!playing) return;
     playing = false;
     animator.action = null;
-    if (snap && editClip) gotoKey(nearestKeyIdx(scrubT));
+    // a gait has no keys to snap to — park it on the phase it stopped at
+    if (snap && locoMode) previewLoco(scrubT);
+    else if (snap && editClip) gotoKey(nearestKeyIdx(scrubT));
     syncPlayUI();
   }
   function togglePlay() {
-    if (!editClip) { note.textContent = 'Load a clip to play it'; return; }
+    if (!editClip && !locoMode) { note.textContent = 'Load a clip or a gait to play it'; return; }
     if (playing) stopPlay(); else startPlay();
   }
   function tickPlay(dt) {
+    // A gait plays by simply RUNNING — one update per frame at the frame's own
+    // dt, cadence and all, which is the only honest preview of a walk whose
+    // stride length is matched to ground speed. The scrubber follows the phase.
+    if (playing && locoMode) {
+      scrubT = LOCO.run(animator, locoMode.ctx, dt) % locoMode.period;
+      loadedPose = null;
+      syncLocoUI();
+      return;
+    }
     if (!playing || !editClip || !liveClip) return;
     playT += dt;
     if (playT > editClip.dur) playT -= editClip.dur;      // loop the preview
@@ -719,6 +820,9 @@ export async function runPoseWorkbench(config, params) {
   function histSnapshot() {
     return {
       clipName: editClip ? editClip.name : null,
+      // a gait has no keys, so its state IS the posed body (the `joints` branch
+      // below) plus which gait was loaded, so undo puts the panel back too
+      loco: locoMode ? locoMode.id : null,
       keys: editClip ? JSON.parse(JSON.stringify(editClip.keys)) : null,
       joints: editClip ? null : rawJoints(),
       keyIdx: curKeyIdx, scrubT, label: loadedFrom,
@@ -726,7 +830,7 @@ export async function runPoseWorkbench(config, params) {
   }
   // the DATA of a state — deliberately excludes keyIdx/scrubT, which are camera,
   // not content
-  function histSig(s) { return JSON.stringify([s.clipName, s.keys, s.joints]); }
+  function histSig(s) { return JSON.stringify([s.clipName, s.loco, s.keys, s.joints]); }
   function pushHistory() {
     if (restoring || !mech) return;
     const s = histSnapshot();
@@ -745,6 +849,12 @@ export async function runPoseWorkbench(config, params) {
     stopPlay(false);
     restoring = true;
     try {
+      // gait first: applyLoco clears any clip context, and its own pushHistory
+      // no-ops while `restoring` is set
+      if ((s.loco || null) !== (locoMode ? locoMode.id : null)) {
+        if (s.loco) applyLoco(s.loco);
+        else { clearClipContext(); clipSel.value = ''; }
+      }
       if (s.clipName !== (editClip ? editClip.name : null)) {
         if (!s.clipName) {
           clearClipContext();
@@ -806,6 +916,7 @@ export async function runPoseWorkbench(config, params) {
   function applyClipPose(name, at) {
     stopPlay(false);
     if (!name) { resetAll(); return; }
+    if (name.startsWith('loco:')) { applyLoco(name.slice(5), at); return; }
     const built = buildEditClip(name);
     if (!built) return;
     editClip = built;
@@ -1230,8 +1341,14 @@ export async function runPoseWorkbench(config, params) {
   const timeRow = el('div', 'display:none;margin-top:5px');
   const timeSlider = el('input', 'width:100%;display:block;margin:0');
   timeSlider.type = 'range'; timeSlider.min = '0';
-  timeSlider.oninput = () => { if (editClip) { stopPlay(false); previewAt(+timeSlider.value); } };
-  timeSlider.onchange = () => { if (editClip) gotoKey(nearestKeyIdx(+timeSlider.value)); };
+  // In locomotion mode the scrubber spans one gait CYCLE instead of clip time,
+  // and there is nothing to snap to on release — every phase is as real as
+  // every other, because none of them is a key.
+  timeSlider.oninput = () => {
+    if (locoMode) { stopPlay(false); previewLoco(+timeSlider.value); return; }
+    if (editClip) { stopPlay(false); previewAt(+timeSlider.value); }
+  };
+  timeSlider.onchange = () => { if (!locoMode && editClip) gotoKey(nearestKeyIdx(+timeSlider.value)); };
   timeRow.append(timeSlider);
   panel.appendChild(timeRow);
   // ---- the KEY TRACK: the keys as objects you can grab ----

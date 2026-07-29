@@ -37,7 +37,7 @@ import { THEMES, themePropNames } from '../../../src/arena/themes.js';
 import { Engine } from '../../../src/core/engine.js';
 import { World } from '../../../src/game/world.js';
 import { Input } from '../../../src/game/input.js';
-import { Fighter } from '../../../src/combat/fighter.js';
+import { Fighter, moveSpeedFor } from '../../../src/combat/fighter.js';
 import { ease } from '../../../src/core/utils.js';
 import { mechClipList } from '../mechclips.js';
 import { anchorUses } from '../anchoruses.js';
@@ -144,6 +144,43 @@ const CONFIG = defineWorkbenchConfig({
     profile: (id) => profileFor(id),
     // a mech's authored rest stance (digitigrade legs etc.)
     restPose: (id) => ROSTER_BY_ID[id]?.restPose || null,
+
+    // LOCOMOTION — the walk and the run. Not clips: animator.update() builds
+    // them every frame off a gait PHASE whose cadence is matched to the actual
+    // ground speed (that is what plants a foot on one spot instead of skating),
+    // so there is nothing keyed to list under `clips`. Handed over as the cycle
+    // it is, at the mech's REAL top speed (moveSpeedFor — the same number the
+    // fighter caps itself at, so the workbench strides exactly like a match).
+    locomotion: {
+      // The run blend is normalised by speed/maxSpeed, so the fraction IS the
+      // gait: 0.45 is the loose-limbed walk, 1 the full-amplitude run.
+      list: (id) => {
+        const top = moveSpeedFor(ROSTER_BY_ID[id]);
+        return [{ id: 'walk', label: 'Walk', speed: top * 0.45 },
+          { id: 'run', label: 'Run', speed: top }];
+      },
+      ctx: (id, modeId) => {
+        const top = moveSpeedFor(ROSTER_BY_ID[id]);
+        return { speed: modeId === 'walk' ? top * 0.45 : top, maxSpeed: top,
+          grounded: true, vy: 0, alwaysReady: true };
+      },
+      period: () => Math.PI * 2,
+      phase: (animator) => animator.phase,
+      // Pose the body at EXACTLY phase `ph`. update() advances the phase itself
+      // before it reads it, so a single pinned call lands the POSE one cadence
+      // step past `ph`; measure that step and pre-subtract it. Called repeatedly
+      // at a coarse dt, this also lets the pose smoother (and the pelvis/sole
+      // follower, which has its own memory) settle onto the frame being judged.
+      step: (animator, ctx, ph, dt) => {
+        animator.phase = ph;
+        animator.update(dt, ctx);
+        const adv = animator.phase - ph;
+        animator.phase = ph - adv;
+        animator.update(dt, ctx);
+      },
+      // free-run one real frame — the gait at its own cadence, as in a match
+      run: (animator, ctx, dt) => { animator.update(dt, ctx); return animator.phase; },
+    },
   },
 
   anchors: {

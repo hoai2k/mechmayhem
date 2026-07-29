@@ -88,6 +88,13 @@ const BLOCK_ARC_COS = Math.cos(TUNING.guard.arc);
 const GUARD_ARC = TUNING.guard.arc;
 // What ROBOT SPEED's 100% means, over WALK_MULT and the roster's own speeds.
 const SPEED_BASE = TUNING.movement.speedBase;
+// The same number off a roster def alone, with no fighter to ask. The pose
+// workbench drives the gait at a mech's real top speed, and the animator's run
+// blend is normalised by it — deriving it there instead of importing this would
+// be a second copy free to drift.
+export function moveSpeedFor(def) {
+  return def.stats.speed * WALK_MULT * SPEED_BASE * CONFIG.robotSpeed;
+}
 const PUNCH_HOLD_CAP = TUNING.melee.punchHoldCap;
 const HEAVY_HOLD_CAP = TUNING.melee.heavyHoldCap;
 // Minimum wind-up on a charge attack. Every other melee clip in the game opens
@@ -460,7 +467,7 @@ export class Fighter {
   // no help: animator.js drives the stride off ACTUAL ground speed, so faster
   // travel strides faster instead of skating.
   moveSpeed() {
-    return this.def.stats.speed * WALK_MULT * SPEED_BASE * CONFIG.robotSpeed;
+    return moveSpeedFor(this.def);
   }
 
   speedMult() {

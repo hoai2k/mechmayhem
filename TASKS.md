@@ -4570,3 +4570,49 @@ wrapped to two lines in the fallback face (it is nowrap and a size smaller now),
 and the locked player card's colour strip ran off the end — at eleven schemes
 the scheme NAME no longer fits after the swatches, so it moved onto the ◀ ▶ row,
 which is where it belongs anyway.
+## Heavy mechs stop bouncing; the pose workbench gets the walk (user request, 2026-07-25)
+
+- **THE BOUNCE.** Measured, not guessed: hip travel over a walk cycle was
+  **9.6-9.8% of body height on Glacier and 5.0-7.1% on Titanus**, once per step.
+  Turning the pelvis-follows-feet loop off dropped it to 1.8-2.5% — so ~95% of
+  the vertical body motion was that loop, not the authored gait bob (which the
+  loop cancels anyway, since lowering the hips lowers the soles with them).
+- The loop was chasing the wrong signal. What it exists to remove is a mech's
+  STANDING sole offset (a rigged boot whose sole sits somewhere the gait never
+  assumed parks the whole body too high — the old "floating walk"), and that
+  error is a CONSTANT. The per-step ripple around it is not an error at all: a
+  rotate-only leg is genuinely shorter when the thigh is swung out than when it
+  is under the hip. At rate 20 (a 0.05 s time constant) the loop tracked that
+  ripple and, lagging it a quarter cycle, DROVE the body instead of following
+  it — a per-frame trace showed clearance and bias in exact quadrature.
+- Fix is one measured constant: `SOLE_FOLLOW_RATE = 2.5` (animator.js). Glacier
+  now walks on 3.1-3.5%, Titanus on 0.8-1.3%, and the whole roster sits in
+  1-5%. The anti-float job is untouched — MEAN sole clearance stays dead on zero
+  (Glacier -0.004 at rate 2.5 vs +0.010 at rate 20, against +0.109 with the loop
+  off), and average per-frame sole error is no worse (0.235 vs 0.201 at speed 10:
+  the fast loop bought 0.03 units of foot accuracy for 0.6 units of body bounce).
+  Swept 20 / 8 / 4 / 2.5 / 1.5 / 0.8 — faster than ~4 puts the ripple back, below
+  ~1.5 buys nothing.
+- Verified the feet still land: parked both mechs on their WORST contact frame
+  and looked from ground level — the planted boot is on the plane, the -0.34
+  /-0.38 residual is a toe corner biting in.
+- **WALK IN THE POSE WORKBENCH.** It was missing because the walk is not a
+  clip: `clipsFor()` lists keyframe clips, and locomotion is generated every
+  frame by `animator.update()` from a gait phase whose cadence is matched to
+  actual ground speed. Nothing keyed, nothing to list. (The ANIMATION workbench
+  already had a hold-to-walk button, but no way to freeze a frame of it.)
+- Added it as what it is — a scrubbable CYCLE, not a fake clip. New optional
+  `anim.locomotion` block in the workbench contract (list / ctx / period /
+  phase / step / run); the robotworld adapter drives both gaits at the mech's
+  REAL top speed via a newly exported `moveSpeedFor(def)` (fighter.js now calls
+  it too, so there is one number, not a copy). In the pose tool they appear in
+  their own `locomotion — generated, no keyframes` dropdown group: the scrubber
+  spans phase 0..2π, every phase freezes to a settled real frame, PLAY runs the
+  gait at 1× through the actual animator, "Copy pose" exports the frozen frame,
+  and the key track / steppers / Revert stay hidden because there is nowhere in
+  a generated walk to write an edit. `&clip=loco:walk|loco:run` + `&t=<phase>`
+  deep-link one.
+- Verified: 6 distinct posed frames across one cycle (thighL sweeps -29.9° to
+  +29.9°), key track hidden for a gait and back for `shootL`, deep-links load,
+  `node tools/wbconfig.mjs` PASS (no drift), ace soaks crash-free
+  colossus/glacier and titanus/viper, `vite build` green.
