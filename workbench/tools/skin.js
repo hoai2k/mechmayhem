@@ -1403,6 +1403,33 @@ export async function runSkinWorkbench(config, params) {
     font:12px ui-monospace,monospace;text-shadow:0 1px 2px #000;pointer-events:none`;
   document.body.appendChild(hoverEl);
 
+  // Select an island by one of its VERTICES (the ?edit=skindebug hand-off).
+  // The live analysis is the right one to address: it is what a click would
+  // have selected, so the arriving link behaves exactly like clicking the spot.
+  function selectVert(vi) {
+    if (!mesh || !liveAnalysis) return false;
+    const cid = liveAnalysis.compId[vi];
+    const comp = liveAnalysis.comps[cid];
+    if (!comp) return false;
+    selComp = comp;
+    setSelBone(bones[comp.boneIndex]);
+    stopWiggle();
+    rebuildColors();
+    if (bindOpen) openBindPanel();
+    return true;
+  }
+  function selectFromUrl() {
+    const p = new URLSearchParams(location.search);
+    const wantClip = p.get('clip');
+    if (wantClip) preferredClip = wantClip;
+    const vi = p.has('vert') ? +p.get('vert') : NaN;
+    if (!Number.isFinite(vi) || !selectVert(vi)) { if (wantClip) renderClipOptions(); return; }
+    renderClipOptions();
+    setStatus(`Selected island #${selComp.id} of ${selComp.boneName} — vertex ${vi} from the skin audit.`
+      + `\n${selComp.count} verts`
+      + (wantClip ? `\nWiggle animation set to "${wantClip}".` : ''));
+  }
+
   function label(t) { const d = document.createElement('div'); d.textContent = t;
     d.style.cssText = 'color:#7d8ea3;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin:6px 0 2px'; return d; }
   function actionBtn(text, fn, primary) { const b = document.createElement('button');
@@ -1412,6 +1439,12 @@ export async function runSkinWorkbench(config, params) {
     b.onclick = fn; return b; }
 
   await load(curId);
+  // ---- deep link from the SKIN DEBUG workbench ----
+  // `&vert=<geometry index>` selects the island that vertex belongs to, and
+  // `&clip=<name>` preloads the wiggle picker with the animation that showed the
+  // problem: an audit finding hands over the exact piece of geometry that tore,
+  // so arriving here should not mean hunting for it again by eye.
+  selectFromUrl();
   updateModeUI();
   engine.onUpdate = (dt) => {
     orbit.update();

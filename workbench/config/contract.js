@@ -96,6 +96,11 @@
  *   url(name, which)  -> where that file lives, for size/probing
  *   entry(name)       -> its manifest entry
  *
+ * @property {Function} [reload]      re-read the authoring sources (manifest,
+ *   cached assets) and return the fresh manifest — what a "load from manifest"
+ *   button calls so a save made in another tool shows up without a reload. An
+ *   adapter whose data is never edited out from under it may leave it out.
+ *
  * @property {Object} skin            skin-repair engine (islands, ops, patches)
  * @property {Object} hurtbox         hit-volume measurement
  * @property {Object} stage           a live 3D scene with the game's own loop

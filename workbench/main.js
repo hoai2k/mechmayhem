@@ -7,6 +7,7 @@
 //   /workbench/?edit=animation&mech=colossus     GLB vs procedural, actions, anchors
 //   /workbench/?edit=pose&mech=colossus          pose + keyframe a clip
 //   /workbench/?edit=skin&mech=colossus          bone-island skin repair
+//   /workbench/?edit=skindebug&mech=jerry        audit every clip for torn skin
 //   /workbench/?edit=rig&mech=colossus           hand-place a skeleton
 //   /workbench/?edit=collider&mech=colossus      what combat actually hits
 //   /workbench/?edit=props&prop=toriiGate        arena props: original vs optimized
@@ -19,6 +20,7 @@ const TOOLS = {
   animation: () => import('./tools/animation.js').then((m) => m.runAnimationWorkbench),
   pose: () => import('./tools/pose.js').then((m) => m.runPoseWorkbench),
   skin: () => import('./tools/skin.js').then((m) => m.runSkinWorkbench),
+  skindebug: () => import('./tools/skindebug.js').then((m) => m.runSkinDebugWorkbench),
   rig: () => import('./tools/rig.js').then((m) => m.runRigWorkbench),
   collider: () => import('./tools/collider.js').then((m) => m.runColliderWorkbench),
   props: () => import('./tools/props.js').then((m) => m.runPropsWorkbench),

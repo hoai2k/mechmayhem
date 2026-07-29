@@ -6,8 +6,8 @@
 //  · A TITLE, IN THE TOOL'S OWN COLOUR — five workbenches share one dark
 //    panel in one corner, and at a glance (or in a screenshot) they look
 //    identical. Each now names itself at the top in a colour that is its
-//    own: pose green, skin orange, animation purple, rig blue, collider
-//    cyan. The subtitle line carries the live "what am I looking at"
+//    own: pose green, skin orange, skin-debug pink, animation purple, rig
+//    blue, collider cyan. The subtitle line carries the live "what am I looking at"
 //    (mech id · ALT), so the header answers both questions at once.
 //
 //  · SCROLLBARS THAT BELONG — the browser default is a bright system bar
@@ -44,6 +44,7 @@ const MAX_W = 900;   // also clamped to the viewport at drag time
 export const WORKBENCHES = {
   pose: { tool: 'pose', title: 'Pose Workbench', color: '#4fdc8b' },
   skin: { tool: 'skin', title: 'Skin Workbench', color: '#f5a33c' },
+  skindebug: { tool: 'skindebug', title: 'Skin Debug', color: '#ff6b8a' },
   models: { tool: 'animation', title: 'Animation Workbench', color: '#b98cff' },
   rigedit: { tool: 'rig', title: 'Rig Editor', color: '#4aa8ff' },
   collider: { tool: 'collider', title: 'Hurtbox Workbench', color: '#7fd8ff' },
@@ -52,7 +53,7 @@ export const WORKBENCHES = {
 
 // Order the switcher offers them in: the order you actually move through a
 // model — shape it, rig it, weight it, pose it, then check what it hits.
-const SWITCH_ORDER = ['models', 'rig', 'skin', 'pose', 'collider', 'props']
+const SWITCH_ORDER = ['models', 'rig', 'skin', 'skindebug', 'pose', 'collider', 'props']
   .map((k) => (WORKBENCHES[k] ? k : 'rigedit'));
 
 /**

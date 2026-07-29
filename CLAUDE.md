@@ -18,7 +18,8 @@ audio). Progress history: `TASKS.md`.
   ALL ROBOTS on for the session)
 - WORKBENCHES LIVE ON THEIR OWN PAGE: `/workbench/?edit=<tool>&mech=<id>` —
   `animation` (procedural-vs-GLB action comparison + anchor editor),
-  `pose` (joints + clip keyframes), `skin` (bone-island repair), `rig`
+  `pose` (joints + clip keyframes), `skin` (bone-island repair),
+  `skindebug` (the SKIN AUDIT — see below), `rig`
   (hand-placed skeletons), `collider` (what combat hits), `props`
   (the IMPORTED ARENA PROP MODELS, original vs optimized in twin viewports
   sharing one camera — `?edit=props&prop=<name>`, no `&mech=`). A bare
@@ -36,6 +37,32 @@ audio). Progress history: `TASKS.md`.
   mech or a clip and the workbenches pick it up with no edit there.
   `node tools/wbconfig.mjs` proves nothing has been hand-copied. Tools under
   `workbench/tools/` import no game code at all. See `workbench/README.md`.
+- SKIN DEBUG (`/workbench/?edit=skindebug&mech=<id>`) is the AUDIT workbench: it
+  plays every clip a mech can play (plus its rest stance), CPU-skins the model at
+  each sampled frame, and ranks every place the skin fails — `stretch` (an edge
+  dragged past its built length), `pinch` (an edge collapsed — the LBS candy
+  wrapper), `tear` (a weld seam pulled apart, which opens a crack through the
+  model). Only edges whose two ends carry DIFFERENT weights are sampled, since
+  nothing else can change length; the reference is the BIND pose, and the rest
+  stance is scanned as its own clip so skin that is already broken standing
+  still is one finding rather than a mark on all forty. A FINDING IS A PLACE ON
+  THE MODEL, not a place in a clip: spots that touch on the mesh are merged and
+  each finding lists the clips it fails in (dropdown), because one bad weight
+  fails in every animation that moves that bone and forty rows all fixed by one
+  rebind is not a list anyone can work. ◀ ▶ (or arrow keys) walk the findings,
+  SPACE plays the clip at 0.1-1x with the failing edges highlighted live on the
+  deforming geometry, H toggles the highlight, F frames the spot; findings can be
+  marked fixed/ignored (localStorage). The three buttons hand the fix to the tool
+  that owns it, in a new tab — **Edit skin** with the failing island already
+  selected (`&vert=`) and the clip in its wiggle picker, **Edit rig**, **Edit
+  pose** on that clip at that frame (`&clip=&t=`). **Load from manifest**
+  re-reads `models/manifest.json` and drops the cached GLBs (skinOps are baked
+  into the shared geometry once), so a save from the skin workbench next door is
+  picked up and re-scanned without losing your place. Headless twin:
+  `node tools/skindebug.mjs <mech> [--json out.json]`. The maths lives in
+  `workbench/tools/stretchscan.js`; the narrower CLI probes
+  (`tools/skinstretch.mjs`, `tools/cliptear.mjs`, `tools/stretchaudit.mjs`)
+  still answer their own questions.
 - Every workbench side panel (skin/models/pose/collider/rigedit + the level
   editor's two) is RESIZABLE: drag its outer edge, double-click the handle to
   reset, width remembered per tool (`src/dev/panelui.js`, which also styles

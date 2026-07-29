@@ -38,6 +38,13 @@ const TOOLS = [
       + 'manifest.',
   },
   {
+    id: 'skindebug', title: 'Skin Debug', color: '#ff6b8a',
+    tag: 'audit · stretched skin',
+    desc: 'Plays every clip a mech has and lists the places the skin tears, '
+      + 'stretches or collapses — walk the findings, watch each one deform, '
+      + 'and jump to the tool that fixes it.',
+  },
+  {
     id: 'pose', title: 'Pose Workbench', color: '#4fdc8b',
     tag: 'clips · keyframes',
     desc: 'Pose a mech joint by joint and edit the clip itself: scrub keys, '
