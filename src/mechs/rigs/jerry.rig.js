@@ -46,8 +46,13 @@ export const JERRY_RIG = {
     // themselves (?rigedit=jerry), so the cannon geometry skins to them and a
     // glbanim post hook can swing each pod forward to spit its goo — and the
     // muzzle anchors ride the bone that actually aims (manifest `muzzles`).
-    { name: 'strutMidL', parent: 'hips', pos: [0.08, 0.77, 0.32] },
-    { name: 'strutMidR', parent: 'hips', pos: [0.07, 0.76, -0.32] },
+    // Parented to TORSO, not hips: the pods are bolted to the shell, and on
+    // the hips they stayed put while the shell pitched and rolled through a
+    // walk — the seam around each pod base was the model's worst remaining
+    // stretch (torso|strutMidL 284 torn edges a cycle, strutMidR 201, and
+    // tail|strutMidL 133; all three gone on the torso, per tools/skinstretch).
+    { name: 'strutMidL', parent: 'torso', pos: [0.08, 0.77, 0.32] },
+    { name: 'strutMidR', parent: 'torso', pos: [0.07, 0.76, -0.32] },
     { name: 'belly', parent: 'hips', pos: [0.00, 0.47, 0.00] },
   ],
 };

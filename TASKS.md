@@ -12,7 +12,17 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** JERRY'S BILGE SPIT — his ranged weapon is now a short burst of
+- **Latest:** JERRY'S SKINNING UN-SHIFTED — his back/legs were smearing in
+  motion because manifest `{"comp":N}` skinOps are numbered against the rig's
+  own proximity islands, and moving `strutMidL/R` into the cannon pods
+  repartitioned them (126 -> 142 islands): every old id then selected DIFFERENT
+  geometry (the op meant to bind his back to `tail` was grabbing 471 verts of
+  his left FOOT). Each comp op is now stored as the explicit vertex list it
+  meant, so no future bone move can shift it. Worst per-vertex stretch in a
+  walk 162x -> 29x, heavy 420x -> 36x (`node tools/skinstretch.mjs <mech>
+  [clip]`, new). The pods also moved from `hips` to `torso` — bolted to the
+  shell, they no longer tear their own seam as the shell pitches.
+- **Previous:** JERRY'S BILGE SPIT — his ranged weapon is now a short burst of
   BLACK STICKY GOO out of the cannon pods (CRANKY's pressurized stream in tar,
   thrown much further; gunks like FROGGER's slime on impact, in black). The
   pods are their own rig bones now (`strutMidL/R` moved into the barrels, with
@@ -21,12 +31,12 @@ controllers via Gamepad API), AI opponents.
   off it, alternating sides shot to shot. Goo wads (his and FROGGER's) are no
   longer spheres: a lit, glossy liquid SLUG flying head-first with a droplet
   tearing off the tail.
-- **Previous:** JERRY TUCKS, NEVER SPINS — roster defs can flag `tuckOnly` to
+- **Earlier:** JERRY TUCKS, NEVER SPINS — roster defs can flag `tuckOnly` to
   join the heavies' no-spin somersault regardless of combat weight; JERRY
   (storey-tall shrimp shell on a 0.45 stat line, and a GLB whose leg bones
   under-fold so a spin never read as a ball on him) is the first user.
   rollpivot: spin 0, headR=footR 0.52. Soak clean.
-- **Earlier:** ROLL-STABLE CAMERA — during the air somersault the pivot
+- **Older:** ROLL-STABLE CAMERA — during the air somersault the pivot
   slide makes the fighter's own `pos` (the group origin) orbit the ball's
   centre at the spin rate, and every camera that framed `pos` inherited
   that orbit as jiggle. `Fighter.focusPos()` exposes the un-slid base the
