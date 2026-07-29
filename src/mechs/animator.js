@@ -2,6 +2,7 @@
 // + additive impulses (recoil/flinch) + per-mech signature joint motion.
 import * as THREE from 'three';
 import { CLIPS, UPPER_JOINTS, defClipVariants } from './animations.js';
+import { gaitFor, gaitIdFor, applyGait, applyQuadGait, gaitPhaseRate } from './gaits.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
@@ -118,6 +119,13 @@ export class Animator {
     //     slower (DYNAMIC SIMILARITY: 1/√sizeMul, the same √L that makes a
     //     giant's stride look heavy instead of frantic).
     this.sizeMul = 1;
+    // THE GAIT this body walks with — a named entry in the gait table
+    // (gaits.js), shared by every mech whose def names it. Held as a live
+    // reference rather than copied, so the gait workbench can retune one gait
+    // and see every mech that runs it move. `gaitId` is what the workbench and
+    // the pickers display.
+    this.gaitId = gaitIdFor(mech.def);
+    this.gait = gaitFor(mech.def);
     this.cur = this.makeRestTarget();   // smoothed applied pose
     this.phase = Math.random() * TAU;   // gait phase
     this.t = Math.random() * 100;       // global time (desyncs idles)
@@ -169,7 +177,7 @@ export class Animator {
     const mech = this.mech;
     // Bipeds only: the quadruped gallop authors its own hock/paw motion for a
     // body whose "ankle" is nothing like a boot (fenrir).
-    if (!mech.isGLB || !mech.boneMap || mech.def.gait === 'quad') return this.ankleGain;
+    if (!mech.isGLB || !mech.boneMap || this.gait.quad) return this.ankleGain;
     const body = bodySkinnedMesh(mech.group);
     if (!body) return this.ankleGain;
     this.poseStatic();
@@ -310,69 +318,19 @@ export class Animator {
     }
 
     if (grounded && speed > 0.4) {
-      const swing = (0.42 + 0.4 * ratio);
-      // FOOT-PLANT CADENCE: the stance foot's backward sweep speed is
-      // legReach * swing * dφ/dt at mid-stance — advance the gait phase so
-      // that equals the actual ground speed. Feet plant and push off one
-      // spot per step instead of skating under a canned walk cycle.
-      // legReach is in the model's LOCAL units; a grown body's legs really are
-      // sizeMul times longer, so the same ground speed is that many times fewer
-      // steps. Miss this and a 4× colossus takes four strides per stride's
-      // worth of ground — the skating the giant form was full of. The cadence
-      // ceiling scales with it for the same reason.
-      const legReach = (this.D.thighLen + this.D.shinLen) * 0.92 * this.sizeMul;
-      this.phase += Math.min(14 / this.sizeMul, speed / Math.max(0.2, legReach * swing)) * dt;
-      const ph = this.phase;
-      const sinL = Math.sin(ph), sinR = Math.sin(ph + Math.PI);
-
-      tgt.thighL[0] += -swing * sinL;
-      tgt.thighR[0] += -swing * sinR;
-      // springy legs, not stilts: a soft stance bend that never locks the
-      // knee, a bigger swing-phase lift, and a plantar-flex TOE-OFF as the
-      // trailing leg leaves the ground — the mech pushes itself forward
-      const stanceBend = 0.14 + 0.14 * ratio;
-      tgt.kneeL[0] += stanceBend + (0.7 + 0.65 * ratio) * Math.max(0, Math.sin(ph + 1.05));
-      tgt.kneeR[0] += stanceBend + (0.7 + 0.65 * ratio) * Math.max(0, Math.sin(ph + Math.PI + 1.05));
-      const pushL = Math.max(0, -Math.sin(ph - 0.45));          // trailing-leg push
-      const pushR = Math.max(0, -Math.sin(ph + Math.PI - 0.45));
-      // ANKLE: authored roll + toe-off, scaled to the foot's real depth
-      // (ankleGain) and laid over a FLAT-SOLE base for long-footed models
-      // (footFlat) — see calibrateFeet. Without both, a deep, long boot pitches
-      // about a joint far above and behind its sole and buries a corner ~0.7
-      // units in the floor for most of the cycle: the leg reaches down past the
-      // ground and the walk reads as pushing off air rather than pavement.
-      const ag = this.ankleGain;
-      const rollL = ag * (swing * 0.5 * sinL - 0.1 * ratio - (0.4 + 0.4 * ratio) * pushL);
-      const rollR = ag * (swing * 0.5 * sinR - 0.1 * ratio - (0.4 + 0.4 * ratio) * pushR);
-      tgt.ankleL[0] += rollL;
-      tgt.ankleR[0] += rollR;
-      // counter-swing arms
-      const armSwing = swing * 0.75;
-      tgt.shoulderL[0] += armSwing * sinR;
-      tgt.shoulderR[0] += armSwing * sinL;
-      tgt.elbowL[0] += -0.25 - 0.3 * ratio * Math.max(0, sinR);
-      tgt.elbowR[0] += -0.25 - 0.3 * ratio * Math.max(0, sinL);
-      // body dynamics — bob rides the push-off beat
-      tgt.hipsPos[1] += -Math.abs(Math.cos(ph)) * 0.19 * ratio * this.s;
-      tgt.hipsRot[0] += 0.10 * ratio;             // whole body pitches into the run
-      tgt.hipsRot[1] += Math.sin(ph) * 0.09 * ratio;
-      tgt.hipsRot[2] += Math.cos(ph) * 0.05 * ratio;
-      tgt.torso[0] += 0.30 * ratio;               // stronger forward lean
-      tgt.torso[1] += -Math.sin(ph) * 0.11 * ratio; // counter-rotate
-      tgt.head[0] += -0.22 * ratio;               // eyes stay on the horizon
-      // FLAT SOLE (long-footed models): level the foot against everything the
-      // chain above it just pitched into it — run here, after hipsRot is set, so
-      // the body's forward pitch is included. The authored roll above then rides
-      // on top of a level plate instead of on top of the leg's own tilt.
-      if (this.footFlat > 0.01) {
-        const ff = this.footFlat;
-        // level when hips + (thigh - rest) + (knee - rest) + (ankle - rest) = 0
-        for (const side of ['L', 'R']) {
-          tgt['ankle' + side][0] -= ff * (tgt.hipsRot[0]
-            + (tgt['thigh' + side][0] - this.rest['thigh' + side][0])
-            + (tgt['knee' + side][0] - this.rest['knee' + side][0]));
-        }
-      }
+      // THE GAIT. Every number of the walk/run cycle lives in the gait table
+      // (src/mechs/gaits.js) — this mech's `def.gait` names one, several mechs
+      // share one, and `/workbench/?edit=gait` tunes them against the live
+      // model. The cycle itself is applyGait(); all that happens here is
+      // advancing the phase at the cadence the gait asks for and handing over
+      // the per-body calibration the table can't know (foot depth, scale).
+      const gait = this.gait;
+      const legLen = this.D.thighLen + this.D.shinLen;
+      this.phase += gaitPhaseRate(gait, { speed, ratio, legLen, sizeMul: this.sizeMul }) * dt;
+      applyGait(tgt, gait, {
+        ph: this.phase, ratio, s: this.s,
+        ankleGain: this.ankleGain, footFlat: this.footFlat, rest: this.rest,
+      });
     } else if (grounded) {
       // idle: breathing + weight shift + personality sway
       const b = Math.sin(this.t * 1.7);
@@ -415,47 +373,13 @@ export class Animator {
       }
     }
 
-    // ===== quadruped gallop (gait: 'quad' — FENRIR the wolf) =====
-    // A sprinting-wolf rotary gallop: the two HINDS drive as a pair EXACTLY
-    // half a cycle against the two FRONTS (a slight rotary lag inside each
-    // pair), the spine ARCHES as the hinds swing under the body and
-    // EXTENDS flat as they fire, and the whole frame rides low with a
-    // suspension rise on the flight phase.
-    if (grounded && speed > 0.4 && this.mech.def.gait === 'quad') {
-      const q = clamp01((ratio - 0.4) / 0.35);
-      if (q > 0.01) {
-        const g = this.phase * 0.85;                 // longer gallop stride
-        const hind = Math.sin(g), hind2 = Math.sin(g + 0.3);
-        const front = Math.sin(g + Math.PI), front2 = Math.sin(g + Math.PI + 0.3);
-        const arch = Math.max(0, -hind);             // spine curls on the gather
-        const ext = Math.max(0, hind);               // and stretches on the drive
-        // long, low, LEVEL frame: the back stays near-horizontal through the
-        // whole cycle — only a subtle arch/heave rides the bound
-        tgt.hipsRot[0] += (0.6 + arch * 0.09) * q;
-        tgt.hipsPos[1] += (-this.D.hipHeight * 0.32 + ext * 0.15 * this.s) * q;
-        tgt.torso[0] += (0.1 + arch * 0.2) * q;      // curl under on the gather
-        tgt.head[0] += (-0.7 - arch * 0.16) * q;     // muzzle level, eyes forward
-        // FRONTS: stretch far out flat on the reach, fold and rake through
-        const reachL = -1.25 - Math.max(0, front) * 0.65 + Math.min(0, front) * 0.45;
-        const reachR = -1.25 - Math.max(0, front2) * 0.65 + Math.min(0, front2) * 0.45;
-        tgt.shoulderL[0] = lerp(tgt.shoulderL[0], reachL, q);
-        tgt.shoulderR[0] = lerp(tgt.shoulderR[0], reachR, q);
-        tgt.shoulderL[2] = lerp(tgt.shoulderL[2], -0.1, q);
-        tgt.shoulderR[2] = lerp(tgt.shoulderR[2], 0.1, q);
-        // elbow ARROW-STRAIGHT on the reach, folded tight on the recovery
-        tgt.elbowL[0] = lerp(tgt.elbowL[0], -0.1 - Math.max(0, -front) * 1.2, q);
-        tgt.elbowR[0] = lerp(tgt.elbowR[0], -0.1 - Math.max(0, -front2) * 1.2, q);
-        tgt.handL[0] = lerp(tgt.handL[0], 0.5, q);
-        tgt.handR[0] = lerp(tgt.handR[0], 0.5, q);
-        // HINDS: the engine — huge sweep, knees folding right up under the
-        // chest on the gather, then a full-stretch fire with an ankle snap
-        tgt.thighL[0] += (-0.12 + hind * 0.62) * q;
-        tgt.thighR[0] += (-0.12 + hind2 * 0.62) * q;
-        tgt.kneeL[0] += (0.3 + Math.max(0, hind) * 1.0) * q;
-        tgt.kneeR[0] += (0.3 + Math.max(0, hind2) * 1.0) * q;
-        tgt.ankleL[0] += (-0.28 - Math.max(0, -hind) * 0.75) * q;
-        tgt.ankleR[0] += (-0.28 - Math.max(0, -hind2) * 0.75) * q;
-      }
+    // ===== quadruped gallop (a gait with a `quad` block — FENRIR the wolf) =====
+    // Rides OVER the biped stride above (which is what it lerps out of at
+    // walking pace); the numbers are the gait's `quad` section — see gaits.js.
+    if (grounded && speed > 0.4 && this.gait.quad) {
+      applyQuadGait(tgt, this.gait, {
+        ph: this.phase, ratio, s: this.s, hipHeight: this.D.hipHeight,
+      });
     }
 
     // ===== dash: coil, gather, LUNGE =====

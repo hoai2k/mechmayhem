@@ -1,6 +1,6 @@
 // Workbench entry — /workbench/?edit=<tool>&mech=<id>
 //
-// One page, one router, five tools. Everything game-specific arrives through
+// One page, one router, seven tools. Everything game-specific arrives through
 // the adapter (workbench/adapters/robotworld), which fills the contract in
 // workbench/config/contract.js; the tools themselves import no game code.
 //
@@ -10,6 +10,7 @@
 //   /workbench/?edit=skindebug&mech=jerry        audit every clip for torn skin
 //   /workbench/?edit=rig&mech=colossus           hand-place a skeleton
 //   /workbench/?edit=collider&mech=colossus      what combat actually hits
+//   /workbench/?edit=gait&mech=viper             tune the walk/run cycle itself
 //   /workbench/?edit=props&prop=toriiGate        arena props: original vs optimized
 //
 // `&variant=alt|proc` picks which build a tool opens; the legacy `&alt=1` is
@@ -23,6 +24,7 @@ const TOOLS = {
   skindebug: () => import('./tools/skindebug.js').then((m) => m.runSkinDebugWorkbench),
   rig: () => import('./tools/rig.js').then((m) => m.runRigWorkbench),
   collider: () => import('./tools/collider.js').then((m) => m.runColliderWorkbench),
+  gait: () => import('./tools/gait.js').then((m) => m.runGaitWorkbench),
   props: () => import('./tools/props.js').then((m) => m.runPropsWorkbench),
 };
 

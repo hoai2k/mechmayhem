@@ -3,12 +3,13 @@
 //
 // Things every one of them wants and none of them had:
 //
-//  · A TITLE, IN THE TOOL'S OWN COLOUR — five workbenches share one dark
+//  · A TITLE, IN THE TOOL'S OWN COLOUR — eight workbenches share one dark
 //    panel in one corner, and at a glance (or in a screenshot) they look
 //    identical. Each now names itself at the top in a colour that is its
 //    own: pose green, skin orange, skin-debug pink, animation purple, rig
-//    blue, collider cyan. The subtitle line carries the live "what am I looking at"
-//    (mech id · ALT), so the header answers both questions at once.
+//    blue, collider cyan, gait amber. The subtitle line carries the live
+//    "what am I looking at" (mech id · ALT), so the header answers both
+//    questions at once.
 //
 //  · SCROLLBARS THAT BELONG — the browser default is a bright system bar
 //    stapled onto a dark panel, and on the nested lists (ops, bones, clips)
@@ -49,11 +50,12 @@ export const WORKBENCHES = {
   rigedit: { tool: 'rig', title: 'Rig Editor', color: '#4aa8ff' },
   collider: { tool: 'collider', title: 'Hurtbox Workbench', color: '#7fd8ff' },
   props: { tool: 'props', title: 'Props Workbench', color: '#ffd23c' },
+  gait: { tool: 'gait', title: 'Gait Workbench', color: '#ff9f43' },
 };
 
 // Order the switcher offers them in: the order you actually move through a
 // model — shape it, rig it, weight it, pose it, then check what it hits.
-const SWITCH_ORDER = ['models', 'rig', 'skin', 'skindebug', 'pose', 'collider', 'props']
+const SWITCH_ORDER = ['models', 'rig', 'skin', 'skindebug', 'pose', 'gait', 'collider', 'props']
   .map((k) => (WORKBENCHES[k] ? k : 'rigedit'));
 
 /**
