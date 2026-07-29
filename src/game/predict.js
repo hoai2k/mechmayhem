@@ -29,6 +29,20 @@ import { arenaTexEntries } from '../arena/arena.js';
 import { prefetchTex } from '../core/texload.js';
 import { playableRoster } from '../mechs/roster.js';
 import { preloadMechModels } from '../mechs/gltf.js';
+import { loadPosterIndex, posterUrl } from '../ui/posters.js';
+import { thumbUrl } from '../ui/icons.js';
+
+// Pull an image into the browser's cache. decode() so the DECODE cost is paid
+// here too — a cached-but-undecoded PNG still hitches the first time it is
+// painted, which is exactly the frame we are trying to protect.
+function fetchImage(url) {
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => (img.decode ? img.decode().catch(() => {}).then(res) : res());
+    img.onerror = () => res();
+    img.src = url;
+  });
+}
 
 // browsers without requestIdleCallback (Safari < 16): a timeout is a fine
 // stand-in — this work is all "sometime soon, never urgent"
@@ -109,7 +123,7 @@ export class Predictor {
     this.running = true;
     const want = [];
     for (const id of picks) if (id && id !== 'random') want.push(id);
-    if (want.length) this._push('mechs:' + want.join(','), () => preloadMechModels(want));
+    if (want.length) this._push('mechs:' + want.join(','), () => preloadMechModels(want), 2);
     // the song the fight will open on — biggest single file, so it goes early
     if (this.music?.available) this._push('song', () => this.music.prime());
     // the arena we expect: its sky panorama, ground and facades
@@ -155,9 +169,63 @@ export class Predictor {
     this._queue.length = 0;
   }
 
-  _push(key, run) {
-    if (this._done.has(key) || this._queue.some((j) => j.key === key)) return;
-    this._queue.push({ key, run });
+  /**
+   * Queue one job. `prio` orders it against what is already waiting —
+   * higher runs first, and a job pushed at a higher priority JUMPS work
+   * already queued. The scale that matters:
+   *
+   *   3  what the player is about to LOOK at (the select screen's posters
+   *      and badges, the models adjacent to a cursor)
+   *   2  the models already picked
+   *   1  the fight's other assets — arena textures, the opening song
+   *
+   * The rule is "soonest seen, soonest fetched": a poster the player will
+   * scroll past in two seconds beats an arena texture they will not see for
+   * another minute, even though the arena is the bigger download.
+   */
+  _push(key, run, prio = 1) {
+    if (this._done.has(key)) return;
+    const at = this._queue.findIndex((j) => j.key === key);
+    if (at >= 0) {
+      if (prio <= this._queue[at].prio) return;
+      this._queue.splice(at, 1);        // re-queue it higher
+    }
+    const job = { key, run, prio };
+    const before = this._queue.findIndex((j) => j.prio < prio);
+    if (before < 0) this._queue.push(job);
+    else this._queue.splice(before, 0, job);
+  }
+
+  /**
+   * MENU CHROME: the select screen's posters and mech badges. Small files,
+   * many of them, and every one is on screen the moment that screen opens —
+   * so they outrank everything the fight will need. Called from the title
+   * screen once its own content is up.
+   */
+  warmMenuArt(ids = []) {
+    if (!this.enabled) return;
+    this.running = true;
+    this._push('posters', () => loadPosterIndex().then((idx) => Promise.allSettled(
+      Object.keys(idx).map((id) => fetchImage(posterUrl(id))))), 3);
+    if (ids.length) {
+      this._push('thumbs:' + ids.join(','),
+        () => Promise.allSettled(ids.map((id) => fetchImage(thumbUrl(id)))), 3);
+    }
+    this._pump();
+  }
+
+  /**
+   * SELECT SCREEN: the models a cursor is most likely to land on next. The
+   * player flips, so the mechs either side of each cursor are the best guess
+   * available, and they go in at the same priority as the menu art — they are
+   * the next thing that has to appear, and appearing is what the poster is
+   * covering for.
+   */
+  warmNeighbours(ids = []) {
+    if (!this.enabled || !ids.length) return;
+    this.running = true;
+    this._push('near:' + ids.join(','), () => preloadMechModels(ids), 3);
+    this._pump();
   }
 
   _pump() {
