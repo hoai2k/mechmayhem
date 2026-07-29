@@ -164,6 +164,20 @@ audio). Progress history: `TASKS.md`.
   **rig** ghosts it over the raw model at the model's own height as an X-RAY with
   every joint NAMED on screen (`config.reference.mannequin/labels`), which is how
   "the ankle is above and forward of the heel" stops being a guess.
+  It is also A SUBJECT IN ITS OWN RIGHT — **MANNEQUIN** sits at the bottom of
+  every workbench's mech dropdown, under the rule with the work-in-progress
+  mechs, so it can be opened on its own. It is NOT game content: `MANNEQUIN_DEF`
+  lives in mannequin.js, never in ROSTER, so mech select, RANDOM picks, CPU picks
+  and the title line-up have never heard of it. The adapter declares it
+  (`catalogue.reference()`), which is how `tools/wbconfig.mjs` still proves the
+  catalogue matches ROSTER, how the ACTION workbench leaves it out (it drives real
+  Fighters, and a reference body has no moves), and how skin/rig refuse to save
+  over it. In the rig editor its own canonical skeleton IS the rig — 15 bones
+  already where they belong, as the answer key for the mech you are rigging.
+  Combat's hurtbox measures it too: `measureHurtbox` picks the SKIN path off the
+  model's shape (`boneMap` + `skeleton`) rather than off "is it a GLB", so the
+  reference body reports its 15 capsules — no shipped mech's numbers move
+  (`node tools/hurtboxfit.mjs` is byte-identical before and after).
 - WELDED PARTS — when no reskinning can fix it: an auto-mesher returns ONE
   shell, so two parts that sit close at bind pose (jerry's claw-arm wrists
   against his shell) get triangles running between them. Rebinding cannot help,

@@ -554,6 +554,9 @@ export async function runAnimationWorkbench(config, params) {
   // under a rule at the end); `label` keeps this tool's bare-id text.
   const mechSel = subjectSelect({
     config,
+    // this workbench drives the game's real fighter state machine, so it offers
+    // only real mechs — the reference body has no moves to trigger
+    ids: config.catalogue.list().filter((c) => !c.reference).map((c) => c.id),
     ids: glbIds,
     value: curId,
     label: (id) => id,

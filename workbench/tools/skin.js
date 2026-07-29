@@ -84,6 +84,10 @@ export async function runSkinWorkbench(config, params) {
   // at the joints, a narrow blend band across each one, no enclaves and no
   // strays. Read-only (there is no manifest entry to save to).
   let mannOn = new URLSearchParams(location.search).get('ref') === 'mannequin';
+  // …and the mannequin can be the SUBJECT too (it sits at the bottom of the mech
+  // list). Either way this view is read-only: there is no manifest entry behind it.
+  const refSubject = () => (config.catalogue.reference?.() || []).includes(curId);
+  const onReference = () => mannOn || refSubject();
 
   // ---- state ----
   let holder = null;         // scaled group containing the raw scene
@@ -248,7 +252,7 @@ export async function runSkinWorkbench(config, params) {
     curId = id;
     altOn = wantAlt && !!manifest[id]?.alt?.url;
     refreshAltRow();
-    panelUI.setSubtitle(mannOn ? 'MANNEQUIN reference (read-only)' : `${id}${altOn ? ' · ALT' : ''}`);
+    panelUI.setSubtitle(onReference() ? 'MANNEQUIN reference (read-only)' : `${id}${altOn ? ' · ALT' : ''}`);
     // keep the URL's ?mech= in sync so a reload / shared link reopens this mech.
     // replaceState (not pushState) avoids cluttering back-button history.
     try {
@@ -269,7 +273,7 @@ export async function runSkinWorkbench(config, params) {
     paintOp = null; paintSet = null; paintColorAttr = null;
     bindOpen = false; bindComp = null; bindRows = [];
     setOrbitPaintMode(false); updatePaintUI();
-    const raw = await config.variants.raw(id, { variant: mannOn ? 'mannequin' : altOn ? 'alt' : 'glb' });
+    const raw = await config.variants.raw(id, { variant: (mannOn || refSubject()) ? 'mannequin' : altOn ? 'alt' : 'glb' });
     if (!raw) { setStatus('no GLB for ' + id); return; }
     mesh = null;
     raw.scene.traverse((o) => {
@@ -307,7 +311,7 @@ export async function runSkinWorkbench(config, params) {
     // scene. Built with skinOps stripped so it can't touch the shared cached
     // geometry the raw scene was cloned from (it only ever supplies poses).
     try {
-      if (mannOn) throw new Error('mannequin reference: static');
+      if (onReference()) throw new Error('mannequin reference: static');
       const built = await config.variants.build(id, { variant: altOn ? 'alt' : 'glb', overrides: { skinOps: [] } });
       if (built?.isGLB && built.boneMap && built.premadeAnimator) {
         animMech = built;
@@ -335,11 +339,11 @@ export async function runSkinWorkbench(config, params) {
     updateCutUI();
     buildBoneList();
     refreshMannRow();
-    if (mannOn) {
+    if (onReference()) {
       setStatus(`MANNEQUIN REFERENCE — ${liveAnalysis.comps.length} islands, ${bones.length} bones.`
         + '\nThis is the target: ONE island per bone, seams at the joints, a narrow'
         + '\nblend band across each. Nothing here can be saved — untick to go back'
-        + `\nto ${id.toUpperCase()}.`);
+        + (mannOn ? `\nto ${id.toUpperCase()}.` : '\nPick a mech above to go back to real geometry.'));
     } else {
       setStatus(`${id.toUpperCase()} — ${liveAnalysis.comps.length} islands, ${bones.length} bones.` +
         `\nClick a wrong-colored patch to select it.`);
@@ -1084,10 +1088,12 @@ export async function runSkinWorkbench(config, params) {
   const writeBtns = [];
   function refreshMannRow() {
     mannChk.checked = mannOn;
+    mannRow.style.display = refSubject() ? 'none' : 'flex';   // already ON it
+    const ro = onReference();
     for (const b of writeBtns) {
-      b.disabled = mannOn;
-      b.style.opacity = mannOn ? 0.45 : 1;
-      b.title = mannOn ? 'The mannequin is a reference — there is no manifest entry to save to.' : '';
+      b.disabled = ro;
+      b.style.opacity = ro ? 0.45 : 1;
+      b.title = ro ? 'The mannequin is a reference — there is no manifest entry to save to.' : '';
     }
   }
   function refreshAltRow() {

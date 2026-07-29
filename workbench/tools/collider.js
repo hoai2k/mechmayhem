@@ -177,8 +177,10 @@ export async function runColliderWorkbench(config, params) {
       b.style.background = on ? '#2b6cb0' : '#1a2433';
       b.style.color = on ? '#fff' : '#9fb2c8';
     }
-    glbNote.textContent = (useGlb && !built.hasGlb) ? 'no GLB for this mech — procedural shown' : '';
-    panelUI.setSubtitle(`${id}${altOn ? ' · ALT' : ''} · ${built.hasGlb && useGlb ? 'GLB' : 'procedural'}`);
+    glbNote.textContent = (useGlb && !built.hasGlb && !mech.isMannequin)
+      ? 'no GLB for this mech — procedural shown' : '';
+    panelUI.setSubtitle(`${id}${altOn ? ' · ALT' : ''} · ${
+      mech.isMannequin ? 'MANNEQUIN' : (built.hasGlb && useGlb) ? 'GLB' : 'procedural'}`);
     fit = fitReport(mech, hurtbox);
     frame();
     report();

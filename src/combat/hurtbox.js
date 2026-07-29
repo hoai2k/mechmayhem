@@ -389,8 +389,16 @@ function bucketsFromRig(mech) {
  */
 function measureHurtbox(mech) {
   mech.group.updateWorldMatrix(true, true);
-  const node = (j) => (mech.isGLB ? (mech.boneMap?.[j] || null) : (mech.joints?.[j] || null));
-  const buckets = mech.isGLB ? bucketsFromSkin(mech) : bucketsFromRig(mech);
+  // WHICH GEOMETRY IS THE BODY. A GLB's shell is one skinned mesh bound to
+  // bones, so its regions are found by walking the SKIN weights; a procedural
+  // mech is a pile of meshes parented to rig joints, so its regions are found by
+  // walking the RIG. The test is the shape of the model, not the file it came
+  // from — the reference mannequin (mechs/mannequin.js) is skinned to the same
+  // 15 bones without being a GLB, and measures like one. No shipped mech changes
+  // hands: `boneMap` only exists on the GLB path.
+  const skinned = mech.isGLB || !!(mech.boneMap && mech.skeleton);
+  const node = (j) => (skinned ? (mech.boneMap?.[j] || null) : (mech.joints?.[j] || null));
+  const buckets = skinned ? bucketsFromSkin(mech) : bucketsFromRig(mech);
   const spec = [];
   for (const [name, aName, bName] of PART_TABLE) {
     const a = node(aName);
@@ -435,7 +443,8 @@ function specKey(mech) {
   // gltf.js's glbKey covers every manifest field that moves a bone, so the
   // primary and `alt` builds of one mech never share measurements even when
   // they are the same GLB file wearing different rigs.
-  return mech.def.id + (mech.isGLB ? ':glb:' + (mech.glbKey || '') : ':proc');
+  return mech.def.id + (mech.isGLB ? ':glb:' + (mech.glbKey || '')
+    : mech.isMannequin ? ':mannequin' : ':proc');
 }
 
 /**
@@ -465,7 +474,8 @@ export class Hurtbox {
     this.parts = [];
     this.byName = new Map();
     for (const s of spec) {
-      const node = mech.isGLB ? mech.boneMap?.[s.bone] : mech.joints?.[s.bone];
+      const node = (mech.isGLB || (mech.boneMap && mech.skeleton))
+        ? mech.boneMap?.[s.bone] : mech.joints?.[s.bone];
       if (!node) continue;
       const part = {
         name: s.name, node,

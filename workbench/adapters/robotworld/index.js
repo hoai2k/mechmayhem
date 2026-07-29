@@ -27,7 +27,8 @@ import { TUNING } from '../../../src/core/tuning.js';
 import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
 import { buildMech, computeDims } from '../../../src/mechs/factory.js';
 import {
-  buildMannequin, buildReferenceMannequin, canonicalDims, mannequinLabels, BONE_TINTS,
+  buildMannequin, buildReferenceMannequin, canonicalDims, mannequinLabels, mannequinRig,
+  BONE_TINTS, MANNEQUIN_ID, MANNEQUIN_DEF,
 } from '../../../src/mechs/mannequin.js';
 import { profileFor } from '../../../src/mechs/glbanim.js';
 import {
@@ -69,6 +70,25 @@ export async function loadRobotworldConfig() {
 
 const entryOf = (id, alt) => (alt ? manifest?.[id]?.alt : manifest?.[id]) || null;
 
+// SUBJECTS THAT ARE NOT GAME CONTENT. The reference body is pickable in every
+// workbench (bottom of the list, under the rule, like the work-in-progress
+// mechs) but it is not in ROSTER and never will be: it has no balance, no
+// finisher and no place in mech select. One list, so every answer below —
+// def lookup, variants, rigs, saving — agrees about which ids those are, and
+// tools/wbconfig.mjs subtracts them before it compares the catalogue to ROSTER.
+const REFERENCE_DEFS = { [MANNEQUIN_ID]: MANNEQUIN_DEF };
+const isReference = (id) => !!REFERENCE_DEFS[id];
+// every subject's def, roster or reference — the one lookup the rest uses
+const defOf = (id) => ROSTER_BY_ID[id] || REFERENCE_DEFS[id] || null;
+// The reference body, built fresh. Two heights, for the two ways a tool takes
+// it: ~7 units for the ones that put a MODEL on a stage (the roster clusters
+// around 7, so the mannequin stands eye to eye with a mech), and ~1 unit for the
+// ones that take a RAW ASSET — an imported GLB arrives about that big and those
+// tools scale it themselves (skin normalises to 7, the rig editor multiplies by
+// its own VIEW), so handing them a 7-unit body would put the camera inside its
+// shin.
+const referenceBody = (height = 7) => buildMannequin({ dims: canonicalDims(height), def: MANNEQUIN_DEF });
+
 const CONFIG = defineWorkbenchConfig({
   game: 'robotworld',
 
@@ -102,17 +122,28 @@ const CONFIG = defineWorkbenchConfig({
     // ROSTER order is the game's own; `hidden` marks work-in-progress mechs
     // that the game hides until SETTINGS → SHOW ALL ROBOTS, but the
     // workbenches always show — iteration is the whole point of a workbench.
-    list: () => ROSTER.map((m) => ({
-      id: m.id,
-      name: m.name,
-      hidden: !!m.hidden,
-      hasModel: !!manifest?.[m.id]?.url,
-      hasAlt: !!manifest?.[m.id]?.alt?.url,
-      hasRig: !!(manifest?.[m.id]?.rig || manifest?.[m.id]?.alt?.rig || rigFor(m.id)),
-    })),
-    get: (id) => ROSTER_BY_ID[id] || null,
+    list: () => [
+      ...ROSTER.map((m) => ({
+        id: m.id,
+        name: m.name,
+        hidden: !!m.hidden,
+        hasModel: !!manifest?.[m.id]?.url,
+        hasAlt: !!manifest?.[m.id]?.alt?.url,
+        hasRig: !!(manifest?.[m.id]?.rig || manifest?.[m.id]?.alt?.rig || rigFor(m.id)),
+      })),
+      // the reference body, pickable like a mech: `hidden` puts it under the
+      // rule at the end of every picker, `reference` tells the tools that need
+      // a real fighter (the action workbench) to leave it out
+      ...Object.values(REFERENCE_DEFS).map((d) => ({
+        id: d.id, name: d.name, hidden: true, reference: true,
+        hasModel: false, hasAlt: false, hasRig: true,
+      })),
+    ],
+    get: (id) => defOf(id),
+    reference: () => Object.keys(REFERENCE_DEFS),
     playable: () => playableRoster().map((m) => m.id),
-    note: (id) => (rigIds().includes(id) ? '' : '  — no custom rig'),
+    note: (id) => (isReference(id) ? '  — reference body'
+      : rigIds().includes(id) ? '' : '  — no custom rig'),
   },
 
   variants: {
@@ -121,13 +152,18 @@ const CONFIG = defineWorkbenchConfig({
     // 'mannequin' the REFERENCE humanoid (mechs/mannequin.js) — not a build of
     // this mech at all, but the same 15 joints at this mech's measurements, so
     // a tool can show what the rig is being ASKED to do on a body you can read
-    list: (id) => [
-      { key: 'glb', label: 'GLB', available: !!manifest?.[id]?.url },
-      { key: 'proc', label: 'Procedural Robot', available: true },
-      { key: 'alt', label: 'Alternate GLB', available: !!manifest?.[id]?.alt?.url },
-      { key: 'mannequin', label: 'Mannequin', available: true },
-    ],
+    list: (id) => (isReference(id)
+      // the reference body has exactly one build — itself
+      ? [{ key: 'mannequin', label: 'Mannequin', available: true }]
+      : [
+        { key: 'glb', label: 'GLB', available: !!manifest?.[id]?.url },
+        { key: 'proc', label: 'Procedural Robot', available: true },
+        { key: 'alt', label: 'Alternate GLB', available: !!manifest?.[id]?.alt?.url },
+        { key: 'mannequin', label: 'Mannequin', available: true },
+      ]),
     async build(id, { variant = 'glb', overrides = null } = {}) {
+      // asked for the reference body BY ID, every variant means the same thing
+      if (isReference(id)) return referenceBody();
       const def = ROSTER_BY_ID[id];
       if (!def) return null;
       if (variant === 'mannequin') return buildMannequin({ dims: computeDims(def), def });
@@ -141,8 +177,8 @@ const CONFIG = defineWorkbenchConfig({
     // rig tools open the reference body with the code they already have; there
     // is no manifest entry behind it, and both tools disable saving on that.
     raw: (id, { variant = 'glb' } = {}) => {
-      if (variant === 'mannequin') {
-        const m = buildMannequin({ dims: canonicalDims(7) });
+      if (variant === 'mannequin' || isReference(id)) {
+        const m = referenceBody(1);      // raw-asset scale; the tools re-fit it
         return { scene: m.group, entry: null, mannequin: m };
       }
       return loadRawGlbScene(id, { alt: variant === 'alt' });
@@ -159,30 +195,35 @@ const CONFIG = defineWorkbenchConfig({
     joints: JOINT_ORDER,
     isJoint: (name) => JOINT_ORDER.includes(name),
     custom: {
-      get: (id) => rigFor(id),
-      ids: () => rigIds(),
+      // the reference body's skeleton is generated from the body itself, so the
+      // rig editor can open it as the answer key: every bone already where it
+      // belongs, in mesh-local space, exactly like a rigs/<id>.rig.js file
+      get: (id) => (isReference(id) ? mannequinRig(referenceBody(1)) : rigFor(id)),
+      ids: () => [...rigIds(), ...Object.keys(REFERENCE_DEFS)],
       apply: applyCustomRig,
       setWeights,
       rebindRest,
       buildPosts: buildRigPosts,
     },
-    save: (id, bones) => saveRigBones(id, bones),
+    save: (id, bones) => (isReference(id)
+      ? Promise.resolve({ ok: false, error: 'the mannequin is a reference body — there is no rig file to save' })
+      : saveRigBones(id, bones)),
   },
 
   anim: {
     clips: () => Object.keys(CLIPS),
     // the clips THIS mech can actually play, read off the real play sites —
     // vulcan's list carries his ult's hurricaneSpin and nobody else's
-    clipsFor: (id, model) => mechClipList(ROSTER_BY_ID[id], model?.animProfile || profileFor(id)),
+    clipsFor: (id, model) => mechClipList(defOf(id), model?.animProfile || profileFor(id)),
     // same resolution order as Animator.play: profile override, then the
     // roster def's body-type variant (ballPose), then the shared clip
     clip: (name, model) => model?.animProfile?.clipOverrides?.[name] ||
       (model?.def && defClipVariants(model.def)?.[name]) || CLIPS[name],
     compile: compileClip,
-    animator: (model, id) => model.premadeAnimator || new Animator(model, ROSTER_BY_ID[id]),
+    animator: (model, id) => model.premadeAnimator || new Animator(model, defOf(id)),
     profile: (id) => profileFor(id),
     // a mech's authored rest stance (digitigrade legs etc.)
-    restPose: (id) => ROSTER_BY_ID[id]?.restPose || null,
+    restPose: (id) => defOf(id)?.restPose || null,
 
     // LOCOMOTION — the walk and the run. Not clips: animator.update() builds
     // them every frame off a gait PHASE whose cadence is matched to the actual
@@ -194,12 +235,12 @@ const CONFIG = defineWorkbenchConfig({
       // The run blend is normalised by speed/maxSpeed, so the fraction IS the
       // gait: 0.45 is the loose-limbed walk, 1 the full-amplitude run.
       list: (id) => {
-        const top = moveSpeedFor(ROSTER_BY_ID[id]);
+        const top = moveSpeedFor(defOf(id));
         return [{ id: 'walk', label: 'Walk', speed: top * 0.45 },
           { id: 'run', label: 'Run', speed: top }];
       },
       ctx: (id, modeId) => {
-        const top = moveSpeedFor(ROSTER_BY_ID[id]);
+        const top = moveSpeedFor(defOf(id));
         return { speed: modeId === 'walk' ? top * 0.45 : top, maxSpeed: top,
           grounded: true, vy: 0, alwaysReady: true };
       },
@@ -230,8 +271,9 @@ const CONFIG = defineWorkbenchConfig({
     ids: () => gaitIds(),
     schema: () => GAIT_SCHEMA,
     shipped: (gaitId) => GAITS[gaitId] || null,
-    idFor: (id) => gaitIdFor(ROSTER_BY_ID[id]),
-    users: (gaitId) => ROSTER.filter((m) => gaitIdFor(m) === gaitId).map((m) => m.id),
+    idFor: (id) => gaitIdFor(defOf(id)),
+    users: (gaitId) => [...ROSTER, ...Object.values(REFERENCE_DEFS)]
+      .filter((m) => gaitIdFor(m) === gaitId).map((m) => m.id),
     clone: cloneGait,
     diff: gaitDiff,
     format: formatGait,
@@ -257,7 +299,7 @@ const CONFIG = defineWorkbenchConfig({
     // SPEED setting; the workbench previews ANY setting, so scale off it rather
     // than writing the formula out a second time and letting the two drift.
     topSpeed: (id, { game = GAME_CONFIG.robotSpeed, sprint = false } = {}) => {
-      const def = ROSTER_BY_ID[id];
+      const def = defOf(id);
       if (!def) return 0;
       return moveSpeedFor(def) * (game / GAME_CONFIG.robotSpeed)
         * (sprint ? TUNING.movement.sprintMult : 1);
@@ -277,7 +319,7 @@ const CONFIG = defineWorkbenchConfig({
   },
 
   anchors: {
-    uses: (id, name, available) => anchorUses(ROSTER_BY_ID[id], name, available),
+    uses: (id, name, available) => anchorUses(defOf(id), name, available),
     units: (model) => model.muzzleUnits || { joint: model.dims?.scale, bone: model.dims?.scale },
     // muzzles ride joints or bones; this is where the game keeps them
     save: (id, muzzles, { variant = 'glb' } = {}) => saveManifestPatch(
@@ -350,6 +392,8 @@ const CONFIG = defineWorkbenchConfig({
     world: (engine) => new World(engine, null),
     input: () => new Input(),
     // one posed, controllable subject on the stage
+    // a real fighter needs real game content — the reference body has no
+    // balance, no moves and no business in a state machine
     actor: (world, id, opts) => new Fighter(world, ROSTER_BY_ID[id], opts),
   },
 

@@ -216,13 +216,18 @@ export async function runGaitWorkbench(config, params) {
     if (compare) await buildGhost();
 
     mechSel.value = curId;
-    const shown = build === 'mann' ? 'mann' : (build === 'glb' && built.hasGlb) ? 'glb' : 'proc';
+    // the MANNEQUIN can also be the subject itself (it sits at the bottom of the
+    // mech list) — then it is the only build there is, and the other two say so
+    const isRef = !!mech.isMannequin && build !== 'mann';
+    const shown = (build === 'mann' || mech.isMannequin) ? 'mann' : (build === 'glb' && built.hasGlb) ? 'glb' : 'proc';
     for (const [b, key] of [[bGlb, 'glb'], [bProc, 'proc'], [bMann, 'mann']]) {
       const on = shown === key;
+      b.disabled = isRef && key !== 'mann';
       b.style.background = on ? '#2b6cb0' : '#1a2433';
-      b.style.color = on ? '#fff' : '#9fb2c8';
+      b.style.color = on ? '#fff' : (b.disabled ? '#55647a' : '#9fb2c8');
     }
-    glbNote.textContent = (build === 'glb' && !built.hasGlb) ? 'no GLB for this mech — procedural shown' : '';
+    glbNote.textContent = (build === 'glb' && !built.hasGlb && !mech.isMannequin)
+      ? 'no GLB for this mech — procedural shown' : '';
     refreshAltRow();
     panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${
       mech.isMannequin ? 'MANNEQUIN' : mech.isGLB ? 'GLB' : 'procedural'} · gait: ${gaitId}`);

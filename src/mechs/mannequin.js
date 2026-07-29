@@ -28,6 +28,7 @@
 // each limb darkens as it goes outboard (upper arm → forearm → hand). The
 // centre line (pelvis, chest, head) is neutral grey. Nothing here is per-mech.
 import * as THREE from 'three';
+import { DEFAULT_GAIT } from './gaits.js';
 
 // One tint per bone. Warm = left, cool = right; darker = further out the limb.
 // Legs get their own hue pair so a leg is never mistaken for an arm in a
@@ -374,6 +375,62 @@ export function buildMannequin({ dims, def = null } = {}) {
     isMannequin: true,
     height,
   };
+}
+
+// ---------------------------------------------------------------------------
+// THE MANNEQUIN AS A SUBJECT
+//
+// The workbenches pick a MECH from a list, and the reference body is worth
+// picking on its own — "show me the ideal, on nothing in particular" — so it
+// carries a roster-shaped def and answers to an id like any other subject. It is
+// NOT game content: `hidden` keeps it under the rule at the end of every picker
+// and it never enters playableRoster(), mech select, CPU picks or the title
+// line-up (those go through roster.js, which has never heard of it).
+//
+// The def is deliberately plain: a light frame, one light attack so the clip
+// pickers have something to offer, no special, no ult, no finisher. What comes
+// out of a clip list here is the SHARED animation vocabulary and nothing bespoke,
+// which is exactly what a reference should show.
+// ---------------------------------------------------------------------------
+export const MANNEQUIN_ID = 'mannequin';
+
+export const MANNEQUIN_DEF = {
+  id: MANNEQUIN_ID,
+  name: 'MANNEQUIN',
+  title: 'The Reference Body',
+  hidden: true,
+  reference: true,
+  seed: 0,
+  blurb: 'Not a fighter. The animation system\'s own 15 joints wearing a body you '
+    + 'can read: one colour per bone, warm on the left, cool on the right, a foot with '
+    + 'a heel behind the ankle and a toe box in front.',
+  colors: { primary: 0xc3c9d4, accent: 0x9aa2ae, glow: 0x8fd8ff, stripes: false },
+  body: { scale: 1, torsoW: 1, torsoH: 1, headSize: 1, armLen: 1, legLen: 1, hipW: 1, bulk: 1 },
+  stats: { hp: 1000, speed: 10, jump: 14, weight: 0.5, armor: 0, blockMult: 0.2 },
+  ui: { power: 5, speed: 5, defense: 5 },
+  gait: DEFAULT_GAIT,
+  moves: {
+    light: { name: 'Jab', dmg: 10, range: 3.2 },
+    heavy: { name: 'Smash', dmg: 20, range: 3.6 },
+  },
+};
+
+/**
+ * The mannequin's skeleton in the shape the RIG EDITOR reads: bones with a
+ * parent and a MESH-LOCAL position, exactly like src/mechs/rigs/<id>.rig.js.
+ * Handing this over is what lets that tool open the reference body with its bones
+ * already where they belong, as the answer key for a mech being rigged.
+ */
+export function mannequinRig(m) {
+  const bones = [];
+  for (const name of BONE_ORDER) {
+    const bone = m.bones[name];
+    if (!bone) continue;
+    const p = bone.getWorldPosition(new THREE.Vector3());   // mannequin-local = mesh-local
+    const parent = bone.parent && bone.parent.isBone ? bone.parent.name : null;
+    bones.push({ name, parent, pos: [+p.x.toFixed(4), +p.y.toFixed(4), +p.z.toFixed(4)] });
+  }
+  return { bones, reference: true };
 }
 
 /** A standalone reference body of a given total height, canonically proportioned. */

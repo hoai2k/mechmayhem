@@ -244,15 +244,20 @@ export async function runPoseWorkbench(config, params) {
     }
     loadedFrom = 'rest';
     mechSel.value = curId;
-    const shown = build === 'mann' ? 'mann' : (build === 'glb' && hasGlb) ? 'glb' : 'proc';
+    // the MANNEQUIN can also be the subject itself (bottom of the mech list) —
+    // then it is the only build there is, and the other two grey out
+    const isRef = !!mech.isMannequin && build !== 'mann';
+    const shown = (build === 'mann' || mech.isMannequin) ? 'mann' : (build === 'glb' && hasGlb) ? 'glb' : 'proc';
     for (const [b, key] of [[bGlb, 'glb'], [bProc, 'proc'], [bMann, 'mann']]) {
       const on = shown === key;
+      b.disabled = isRef && key !== 'mann';
       b.style.background = on ? '#2b6cb0' : '#1a2433';
-      b.style.color = on ? '#fff' : '#9fb2c8';
+      b.style.color = on ? '#fff' : (b.disabled ? '#55647a' : '#9fb2c8');
     }
     // the row always shows now: the mannequin is offered for every mech, GLB or not
     modelRow.style.display = 'flex';
-    glbNote.textContent = (build === 'glb' && !hasGlb) ? 'no GLB for this mech — procedural shown' : '';
+    glbNote.textContent = (build === 'glb' && !hasGlb && !mech.isMannequin)
+      ? 'no GLB for this mech — procedural shown' : '';
     refreshAltRow();
     panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${
       mech.isMannequin ? 'MANNEQUIN' : mech.isGLB ? 'GLB' : 'procedural'}`);
@@ -1313,7 +1318,10 @@ export async function runPoseWorkbench(config, params) {
   panel.appendChild(label('Mech'));
   const mechSel = subjectSelect({ config,
     value: curId,
-    note: (id) => (manifest[id]?.url ? '' : '  (procedural only)'),
+    // a reference subject has no GLB by definition — say what it IS, not what
+    // it is missing
+    note: (id, def) => (def?.reference ? '  — reference body'
+      : manifest[id]?.url ? '' : '  (procedural only)'),
     onPick: (id) => load(id),
   });
   panel.appendChild(mechSel);

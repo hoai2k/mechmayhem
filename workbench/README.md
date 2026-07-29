@@ -26,7 +26,9 @@ optionally naming just the tools to re-shoot).
 `&model=mannequin` (gait, pose) or `&ref=mannequin` (skin) opens the REFERENCE
 HUMANOID instead — same 15 joints, one colour per bone, a foot you can read.
 The rig editor ghosts the same body over the model it is rigging, with every
-joint labelled, from its `Mannequin reference` box. The old URLs
+joint labelled, from its `Mannequin reference` box. `&mech=mannequin` opens the
+reference body as the SUBJECT — it is listed at the bottom of every picker,
+under the rule with the work-in-progress mechs. The old URLs
 (`?debug=skin`, `?rigedit=<id>`, …) redirect here with their params carried
 over, so existing links, bookmarks and the `tools/*.mjs` scripts keep working.
 
@@ -48,6 +50,13 @@ workbench/
 ```
 
 ## The deal
+
+**A subject need not be game content.** `catalogue.list()` includes the
+mannequin, flagged `hidden` (bottom of the picker) and `reference` (not a mech).
+`catalogue.reference()` declares which ids those are, so `tools/wbconfig.mjs`
+can still prove the catalogue matches the game's roster, the action workbench can
+leave it out (it drives the real fighter state machine) and the writing tools can
+refuse to save over it. Nothing in `src/game/` knows it exists.
 
 **A reference is a capability too.** `config.reference.mannequin(height)` hands
 back a canonically proportioned humanoid on the same rig, and
