@@ -12,7 +12,23 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** A MANNEQUIN TO CHECK THE ANIMATION AGAINST, AND FOOTPRINTS ON THE
+- **Latest:** THE MANNEQUIN IS ALSO A SUBJECT — it now sits at the bottom of
+  every workbench's mech dropdown, under the rule with the work-in-progress
+  mechs, so the reference body can be opened on its own rather than only as a
+  build of some mech. It is emphatically NOT game content: `MANNEQUIN_DEF` lives
+  in mannequin.js and never enters ROSTER, so mech select, RANDOM, CPU picks and
+  the title line-up cannot see it. The adapter DECLARES it
+  (`catalogue.reference()`) instead of smuggling it in, which is what lets
+  `tools/wbconfig.mjs` keep proving the catalogue matches ROSTER (it subtracts
+  declared reference ids and prints them), lets the ACTION workbench leave it out
+  (it drives real Fighters and a reference body has no moves), and lets skin/rig
+  refuse to save over it. In the RIG EDITOR its own canonical skeleton is the rig
+  — 15 bones already where they belong, the answer key for whatever mech you are
+  rigging. One shared-code change came with it: `measureHurtbox` now picks the
+  SKIN path off the MODEL'S SHAPE (`boneMap` + `skeleton`) rather than off "is it
+  a GLB", so the mannequin reports its 15 capsules; `node tools/hurtboxfit.mjs`
+  is byte-identical across the whole roster before and after, and a soak is clean.
+- **Previous:** A MANNEQUIN TO CHECK THE ANIMATION AGAINST, AND FOOTPRINTS ON THE
   GROUND — two answers to "what is this SUPPOSED to look like". (1) The
   MANNEQUIN (`src/mechs/mannequin.js`): a reference humanoid on the game's own 15
   joints, same hierarchy and same measurements as the mech it stands in for,
@@ -4927,6 +4943,22 @@ The contract gained a `reference` section (`mannequin(height)` / `labels(model)`
 / `tints()`) for the beside-it case, and `variant: 'mannequin'` in
 `variants.build` / `variants.raw` for the instead-of-it case. A game with no
 reference body leaves both out and the boxes simply aren't offered.
+
+**And it is a SUBJECT.** MANNEQUIN is listed at the bottom of every workbench's
+mech dropdown (`hidden`, so it sits under the rule with the work-in-progress
+mechs) and opens on its own: the gait workbench runs the `standard` gait on it,
+the pose workbench poses the shared clips, the skin workbench shows the reference
+bind, the rig editor loads its canonical 15-bone skeleton as the rig, and the
+hurtbox workbench measures its 15 capsules. Two heights are handed out, because
+the tools take it two ways: ~7 units for the ones that stand a MODEL on a stage
+(the roster clusters around 7), ~1 unit for the ones that take a RAW ASSET and
+scale it themselves (an imported GLB arrives about that big; the rig editor
+multiplies by its own VIEW, and a 7-unit body put the camera inside its shin).
+
+It is declared, not smuggled: `catalogue.reference()` names the ids that are not
+game content, `wbconfig` subtracts them before comparing the catalogue to ROSTER
+and prints what it subtracted, the action workbench filters them out of its
+picker, and `rig.save` / the skin tool's Save + Export ops refuse on them.
 
 **The footprint treadmill** — the gait workbench.
 

@@ -33,20 +33,25 @@ const out = await page.evaluate(async () => {
   const manifest = cfg.manifest();
 
   const cat = cfg.catalogue.list();
+  // The adapter may add REFERENCE subjects that are deliberately not game
+  // content (robotworld's mannequin). They are declared, so they are subtracted
+  // here rather than silently tolerated — an undeclared extra still fails.
+  const refIds = cfg.catalogue.reference?.() || [];
+  const realCat = cat.filter((c) => !refIds.includes(c.id));
   const rows = [];
   const check = (what, a, b) => rows.push({
     what, game: a.length, config: b.length,
     missing: a.filter((x) => !b.includes(x)),
     extra: b.filter((x) => !a.includes(x)),
   });
-  check('subjects', ROSTER.map((m) => m.id), cat.map((c) => c.id));
+  check('subjects', ROSTER.map((m) => m.id), realCat.map((c) => c.id));
   check('clips', Object.keys(CLIPS), cfg.anim.clips());
   check('joints', JOINT_ORDER, cfg.rig.joints);
-  check('custom rigs', rigIds(), cfg.catalogue.list().filter((c) => cfg.rig.custom.get(c.id)).map((c) => c.id));
+  check('custom rigs', rigIds(), realCat.filter((c) => cfg.rig.custom.get(c.id)).map((c) => c.id));
   check('models', Object.keys(manifest).filter((k) => manifest[k]?.url),
-    cat.filter((c) => c.hasModel).map((c) => c.id));
+    realCat.filter((c) => c.hasModel).map((c) => c.id));
   check('alternates', Object.keys(manifest).filter((k) => manifest[k]?.alt?.url),
-    cat.filter((c) => c.hasAlt).map((c) => c.id));
+    realCat.filter((c) => c.hasAlt).map((c) => c.id));
 
   // the props workbench's catalogue is the game's prop table, and its "has an
   // imported model" flag is the prop manifest — neither hand-listed
@@ -60,7 +65,7 @@ const out = await page.evaluate(async () => {
   // with no edit to the adapter
   check('gaits', Object.keys(GAITS), cfg.gait?.ids() || []);
   const badGaits = [];
-  for (const c of cat) {
+  for (const c of realCat) {
     const game = gaitIdFor(ROSTER.find((m) => m.id === c.id));
     const conf = cfg.gait?.idFor(c.id);
     if (game !== conf) badGaits.push(`${c.id}: game says ${game}, config says ${conf}`);
@@ -70,18 +75,21 @@ const out = await page.evaluate(async () => {
   // per-subject clip lists must be non-empty and drawn from the clip table
   const clipNames = new Set(Object.keys(CLIPS));
   const badClips = [];
-  for (const c of cat) {
+  for (const c of realCat) {
     const list = cfg.anim.clipsFor(c.id) || [];
     if (!list.length) { badClips.push(`${c.id}: no clips`); continue; }
     const stray = list.map((x) => x.name).filter((n) => !clipNames.has(n));
     if (stray.length) badClips.push(`${c.id}: unknown ${stray.slice(0, 3).join(', ')}`);
   }
-  return { rows, badClips, badGaits, vocab: cfg.vocab, game: cfg.game };
+  return { rows, badClips, badGaits, refIds, vocab: cfg.vocab, game: cfg.game };
 });
 await browser.close();
 
 let bad = 0;
-console.log(`\nworkbench config — game "${out.game}", subjects called "${out.vocab.subjects}"\n`);
+console.log(`\nworkbench config — game "${out.game}", subjects called "${out.vocab.subjects}"`);
+console.log(out.refIds.length
+  ? `  (+ ${out.refIds.length} reference subject: ${out.refIds.join(', ')} — not game content)\n`
+  : '\n');
 for (const r of out.rows) {
   const ok = !r.missing.length && !r.extra.length;
   if (!ok) bad++;
