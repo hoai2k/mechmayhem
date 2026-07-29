@@ -111,6 +111,20 @@ export async function startPosterShot(params) {
     x0: (l / W) * 2 - 1, x1: (r / W) * 2 - 1,
     y0: (b / H) * 2 - 1, y1: (t / H) * 2 - 1,
   };
+  // ...and out of NDC into WORLD UNITS measured from the mech's own feet.
+  // NDC would only be reusable at the framing it was shot in, and the select
+  // stage re-frames for every player count (it pulls the camera back and
+  // spreads the mechs). World offsets are a property of the BODY, so the
+  // runtime can project them through whatever camera is live — one render
+  // covers 1, 2, 3 and 4 pickers.
+  const P = (x, y, z) => new THREE.Vector3(x, y, z).project(cam);
+  const A = P(PREVIEW_X, 0, 0);
+  const perX = P(PREVIEW_X + 1, 0, 0).x - A.x;
+  const perY = P(PREVIEW_X, 1, 0).y - A.y;
+  const box = {
+    u0: (ndc.x0 - A.x) / perX, u1: (ndc.x1 - A.x) / perX,
+    v0: (ndc.y0 - A.y) / perY, v1: (ndc.y1 - A.y) / perY,
+  };
   // re-render cropped to that rect, so the PNG is all mech and no margin
   const cropW = Math.round(r - l), cropH = Math.round(t - b);
   renderer.setViewport(-l, -b, W, H);
@@ -126,8 +140,8 @@ export async function startPosterShot(params) {
     id, ok: true,
     // the NDC rect the runtime lays this PNG over, and the pixel size it was
     // rendered at (for a sanity check on the generated file)
-    ndc: { x0: +ndc.x0.toFixed(5), x1: +ndc.x1.toFixed(5),
-           y0: +ndc.y0.toFixed(5), y1: +ndc.y1.toFixed(5) },
+    box: { u0: +box.u0.toFixed(4), u1: +box.u1.toFixed(4),
+           v0: +box.v0.toFixed(4), v1: +box.v1.toFixed(4) },
     w: cropW, h: cropH, yaw: POSTER_YAW,
   });
 }
