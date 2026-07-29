@@ -47,7 +47,13 @@ for (const list of process.argv.slice(2)) {
     await page.waitForTimeout(1600);
     const a = silhouette(await page.screenshot());
     await page.evaluate((s) => window.__menupose.promote(s), slot);
-    await page.waitForTimeout(3200);
+    // the GLB swaps in behind a spinner — wait for the real body, or the
+    // comparison is against a placeholder
+    for (let i = 0; i < 40; i++) {
+      await page.waitForTimeout(400);
+      if (await page.evaluate(() => window.__menupose.glbReady())) break;
+    }
+    await page.waitForTimeout(1200);
     const b = silhouette(await page.screenshot());
     if (a.empty || b.empty) { console.log(`  slot ${slot} ${ids[slot]}: EMPTY FRAME`); continue; }
     const d = { left: b.x0 - a.x0, right: b.x1 - a.x1, top: b.y0 - a.y0, bottom: b.y1 - a.y1 };

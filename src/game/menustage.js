@@ -38,6 +38,22 @@ export function aimPreviewCamera(cam, n, cx) {
   return cam;
 }
 
+// WHICH BODY THE PREVIEW SHOWS — the single source of truth, used by
+// spawnUnit below AND by the poster generator (dev/postershot.js).
+//
+// READ THIS BEFORE TOUCHING POSTERS. The select screen shows the GLB: the
+// manifest models are the DEFAULT for every mech (`?debug=fallback` is the
+// only way to get the procedural roster), so a poster is a stand-in FOR THE
+// GLB and must be rendered from one. createMech() is that decision — it
+// resolves the manifest, returns the GLB when there is one, and falls back to
+// the procedural body only when there genuinely isn't. Anything that
+// re-derives this with its own `is3dMode() && manifestHasGlb()` test can be
+// wrong in a way that is invisible until someone looks at the pictures:
+// manifestHasGlb() reads a manifest that may not be LOADED yet and quietly
+// answers false, which is exactly how a set of procedural posters got
+// generated for a screen that shows GLBs.
+export function previewBody(def) { return createMech(def); }
+
 // Loading spinner shown in place of a mech while its GLB downloads (only in
 // ?debug=3d, where we suppress the procedural stand-in). Two counter-rotating
 // rings + a soft core, tinted by the mech's glow color. Tagged isSpinner so
