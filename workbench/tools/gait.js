@@ -1007,8 +1007,28 @@ export async function runGaitWorkbench(config, params) {
         <b style="color:#ff9f43;font-size:14px">${gait.name || gaitId}</b>
         <code style="color:#7c8ba0;font-size:11px">gait: '${gaitId}'</code>
       </div>
-      <div style="color:#9fb2c8;margin-top:4px;font-size:11.5px">${gait.note || ''}</div>
-      <div style="color:#7c8ba0;margin-top:6px;font-size:11px">also run by</div>`;
+      <div style="color:#9fb2c8;margin-top:4px;font-size:11.5px">${gait.note || ''}</div>`;
+    // A GAIT MAY BE A VARIANT OF ANOTHER. That is not a footnote: every dial you
+    // move here that the base also has is moving a number the base owns, and the
+    // ones it does not have are this gait's alone. Say which relationship you
+    // are in before offering the sliders.
+    const baseId = G.baseOf?.(gaitId) || null;
+    const heirs = G.heirsOf?.(gaitId) || [];
+    const kin = (label, ids) => {
+      const wrap = el('div', 'margin-top:6px;font-size:11px;color:#7c8ba0');
+      wrap.appendChild(document.createTextNode(label + ' '));
+      for (const id of ids) {
+        const b = el('button', `${btnCss};padding:1px 5px;font-size:11px`, id);
+        b.title = `open ${id} — the gait itself, on a body that runs it`;
+        const first = G.users(id)[0];
+        b.onclick = () => { if (first && first !== curId) load(first); };
+        wrap.appendChild(b);
+      }
+      gaitBox.appendChild(wrap);
+    };
+    if (baseId) kin('a variant of', [baseId]);
+    if (heirs.length) kin('varied by', heirs);
+    gaitBox.appendChild(el('div', 'color:#7c8ba0;margin-top:6px;font-size:11px', 'also run by'));
     const who = el('div', 'display:flex;flex-wrap:wrap;gap:4px;margin-top:3px');
     for (const id of users) {
       const b = el('button', `${btnCss};padding:2px 6px;font-size:11px${id === curId ? ';border-color:#ff9f43;color:#ffd8a8' : ''}`, id);

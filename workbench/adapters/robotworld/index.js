@@ -22,6 +22,7 @@ import { Animator } from '../../../src/mechs/animator.js';
 import {
   GAITS, GAIT_SCHEMA, gaitIds, gaitIdFor, cloneGait, gaitDiff, formatGait,
   applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
+  gaitBaseOf, gaitHeirsOf,
 } from '../../../src/mechs/gaits.js';
 import { TUNING } from '../../../src/core/tuning.js';
 import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
@@ -281,6 +282,11 @@ const CONFIG = defineWorkbenchConfig({
     idFor: (id) => gaitIdFor(defOf(id)),
     users: (gaitId) => [...ROSTER, ...Object.values(REFERENCE_DEFS)]
       .filter((m) => gaitIdFor(m) === gaitId).map((m) => m.id),
+    // A gait may be a VARIANT of another (fenrir's quad is the sprint gait plus a
+    // gallop layer), which the panel has to say out loud: a dial the base also
+    // owns moves both, and one the variant added moves only it.
+    baseOf: (gaitId) => gaitBaseOf(gaitId),
+    heirsOf: (gaitId) => gaitHeirsOf(gaitId),
     clone: cloneGait,
     diff: gaitDiff,
     format: formatGait,

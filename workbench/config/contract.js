@@ -95,6 +95,12 @@
  *   schema()          -> [{ id, label, params: [{ key, label, min, max, step,
  *                        joints[], help }] }] — the dials, so the tool builds
  *                        its own UI and can tell which dial moves a dragged limb
+ *   baseOf(gaitId)    -> OPTIONAL — the gait this one is a VARIANT of, or null.
+ *                        A game may build one gait out of another (a body that
+ *                        jogs like a runner and gallops like a wolf is the
+ *                        runner's gait plus a layer), and the panel has to say
+ *                        so: a dial the base also owns moves both gaits.
+ *   heirsOf(gaitId)   -> …and the variants built on this one
  *   clone / diff / format(gaitId, gait) -> copy · differences · source text
  *   install(animator, gait) -> run this (edited) gait on a live subject
  *   evaluate(gait, env)     -> the gait's own contribution to a pose, used to

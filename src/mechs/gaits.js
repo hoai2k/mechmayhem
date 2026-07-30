@@ -220,8 +220,13 @@ export const GAIT_SCHEMA = [
   {
     id: 'quad', label: 'Quadruped gallop', optional: true,
     params: [
+      { key: 'onset', label: 'drops to four legs at', min: 0, max: 1, step: 0.01, joints: [],
+        help: 'the speed ratio where the gallop STARTS coming in. Below it the body runs its biped '
+          + 'gait untouched — for fenrir that is the sprint gait, so he jogs like a runner and only '
+          + 'goes quadruped when he opens up' },
       { key: 'blend', label: 'blend-in speed', min: 0.05, max: 1, step: 0.01, joints: [],
-        help: 'ratio span over which the gallop takes over from the biped stride' },
+        help: 'ratio span over which the gallop takes over from the biped stride, starting at the '
+          + 'onset above: onset + this = fully on four legs' },
       { key: 'stride', label: 'stride length', min: 0.4, max: 1.6, step: 0.01, joints: [] },
       { key: 'lag', label: 'rotary lag', min: 0, max: 1.2, step: 0.01, joints: [],
         help: 'phase offset inside each pair, so the two hinds do not land as one' },
@@ -233,6 +238,15 @@ export const GAIT_SCHEMA = [
       { key: 'frontSwing', label: 'front swing', min: 0, max: 1.6, step: 0.01, joints: ['shoulderL', 'shoulderR'] },
       { key: 'frontRake', label: 'front rake', min: 0, max: 1.6, step: 0.01, joints: ['shoulderL', 'shoulderR'] },
       { key: 'frontFold', label: 'front fold', min: 0, max: 2.4, step: 0.01, joints: ['elbowL', 'elbowR'] },
+      // The gallop's OWN stride shaping, so the biped layer underneath can stay a
+      // clean sprint. `legs.reach`/`legs.extend` are shared with every mech on the
+      // base gait and apply at every speed; these two only exist once the gallop
+      // is in, which is what lets one body jog like a runner and gallop like a wolf.
+      { key: 'hindReach', label: 'hind reach', min: -1, max: 2, step: 0.01, joints: ['thighL', 'thighR'],
+        help: 'extra forward reach on the hinds, ON TOP of the base gait, faded in with the gallop' },
+      { key: 'hindExtend', label: 'hind extension', min: -2.5, max: 1.5, step: 0.01, joints: ['thighL', 'thighR'],
+        help: 'extra rear extension on the hinds, on top of the base gait. NEGATIVE is right for a '
+          + 'body whose hips are carried horizontally — the same joint reads the other way round' },
       { key: 'hindSwing', label: 'hind swing', min: 0, max: 1.6, step: 0.01, joints: ['thighL', 'thighR'] },
       { key: 'hindFold', label: 'hind fold', min: 0, max: 2.4, step: 0.01, joints: ['kneeL', 'kneeR'] },
       { key: 'hockSnap', label: 'hock snap', min: 0, max: 1.6, step: 0.01, joints: ['ankleL', 'ankleR'] },
@@ -297,29 +311,71 @@ export const GAITS = {
     body: { bob: 0.21, pitch: 0.12, yaw: 0.10, roll: 0.05, lean: 0.46, twist: 0.15, head: -0.36 },
   },
 
-  // FENRIR. The biped layer below still runs (it is what the gallop lerps out
-  // of at low speed); the `quad` block is the rotary gallop that takes over.
+  // FENRIR — A SPRINTER WHO DROPS TO FOUR LEGS.
+  //
+  // `base: 'sprint'` is the whole of his slow end: below `quad.onset` the gallop
+  // contributes nothing, so what runs is the sprint gait verbatim — driving bent
+  // arms, narrow track, frame pitched into it. He JOGS like a runner. From onset
+  // to onset+blend the rotary gallop fades in over the top and takes the body
+  // quadruped, which is the transition you see when he opens up.
+  //
+  // That is why the block below is SHORT: everything not named here is sprint's,
+  // and tuning sprint moves fenrir's jog along with viper's run. Only the things
+  // that are true of a wolf and not of a runner are overridden, and the stride
+  // shaping the GALLOP needs lives in the `quad` block (hindReach/hindExtend) so
+  // it cannot leak back into the jog.
   quad: {
+    base: 'sprint',
     name: 'Quadruped',
-    note: 'Wolf lope: hinds drive as a pair against the fronts, spine arching on the gather.',
-    legs: {
-      swing: 0.42, swingRun: 0.40, reach: 1.2, extend: -1.5,
-      adduct: 0.085, adductRun: 0,
-      stanceBend: 0.14, stanceBendRun: 0.14,
-      kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
-      cadence: 0.92, cadenceCap: 14,
-    },
-    ankle: { roll: 0.5, tilt: -0.10, push: 0.45, pushRun: 0.35, level: 0, hang: 0 },
-    arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
-    body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
+    note: 'Sprinter\'s jog that drops into a wolf lope: hinds drive as a pair against the fronts, spine arching on the gather.',
+    // a galloping wolf does not run single-file the way a sprinter does
+    legs: { adduct: 0.085, adductRun: 0 },
+    // …and his paw finishes its push at ~45 degrees, not a sprinter's ~90
+    ankle: { push: 0.45, pushRun: 0.35 },
     quad: {
-      blend: 0.35, stride: 0.85, lag: 0.30,
+      onset: 0.40, blend: 0.35, stride: 0.85, lag: 0.30,
       bodyPitch: 0.60, bodyArch: 0.09, drop: 0.32, heave: 0.15,
       frontReach: 1.25, frontSwing: 0.65, frontRake: 0.45, frontFold: 1.20,
+      hindReach: 0.92, hindExtend: -1.66,
       hindSwing: 0.62, hindFold: 1.00, hockSnap: 0.75,
     },
   },
 };
+
+// ---------------------------------------------------------------------------
+// INHERITANCE. A gait may name a `base`, and then it IS that gait plus the keys
+// it overrides — group by group, key by key, so `legs: { adduct }` changes one
+// dial and keeps the other eleven.
+//
+// It is not sugar: it is the only way to say "this body's slow gait is that
+// body's gait". Copying sprint's numbers into quad would read the same on the
+// day it was written and drift the first time sprint was tuned, which is exactly
+// the bug the shared gait table exists to avoid.
+//
+// Resolved ONCE, in place, so everything downstream — the animator, the
+// workbench, every probe — sees one flat table and needs to know nothing about
+// bases. `baseOf` remembers who came from where, for the parts that want to say
+// so (the workbench header, formatGait).
+// ---------------------------------------------------------------------------
+const BASE_OF = {};
+export const gaitBaseOf = (id) => BASE_OF[id] || null;
+export const gaitHeirsOf = (id) => Object.keys(BASE_OF).filter((k) => BASE_OF[k] === id);
+
+(function resolveGaits() {
+  for (const [id, gait] of Object.entries(GAITS)) {
+    const baseId = gait.base;
+    if (!baseId) continue;
+    const base = GAITS[baseId];
+    if (!base) throw new Error(`gait '${id}' names an unknown base '${baseId}'`);
+    if (base.base) throw new Error(`gait bases do not chain: '${baseId}' has its own base`);
+    BASE_OF[id] = baseId;
+    delete gait.base;
+    for (const grp of GROUPS) {
+      if (!base[grp]) continue;
+      gait[grp] = { ...base[grp], ...(gait[grp] || {}) };
+    }
+  }
+})();
 
 export function gaitIds() { return Object.keys(GAITS); }
 
@@ -525,7 +581,10 @@ export function applyQuadGait(tgt, gait, env) {
   const Q = gait.quad;
   if (!Q) return;
   const { ph, ratio, s = 1, hipHeight = 1 } = env;
-  const q = clamp01((ratio - 0.4) / Q.blend);
+  // BELOW THE ONSET THIS PASS DOES NOTHING, which is the point: what is left is
+  // the base gait, untouched. Fenrir's base is `sprint`, so his jog is a
+  // runner's jog and the wolf only arrives as he opens up.
+  const q = clamp01((ratio - (Q.onset ?? 0.4)) / Q.blend);
   if (q <= 0.01) return;
   const g = ph * Q.stride;                       // longer gallop stride
   const hind = Math.sin(g), hind2 = Math.sin(g + Q.lag);
@@ -552,6 +611,19 @@ export function applyQuadGait(tgt, gait, env) {
   tgt.handR[0] = lerp(tgt.handR[0], 0.5, q);
   // HINDS: the engine — huge sweep, knees folding right up under the chest on
   // the gather, then a full-stretch fire with an ankle snap
+  // …including the gallop's OWN reach and rear extension, which the base gait
+  // must not carry: `legs.reach`/`legs.extend` apply at every speed and to every
+  // mech sharing that gait, so a wolf's stride shaping written there would land
+  // on his jog (and on viper). Same form as applyGait's pair — negative sin is
+  // the forward half — scaled by ratio so it composes with them exactly.
+  // the BIPED phase, not the gallop's own `g` — these reproduce terms that used
+  // to live in applyGait, so they have to keep applyGait's beat
+  const bs = Math.sin(ph);
+  const hFwdL = Math.max(0, bs), hBackL = Math.max(0, -bs);
+  const hFwdR = hBackL, hBackR = hFwdL;
+  const qr = q * ratio;
+  tgt.thighL[0] += (-(Q.hindReach || 0) * hFwdL + (Q.hindExtend || 0) * hBackL) * qr;
+  tgt.thighR[0] += (-(Q.hindReach || 0) * hFwdR + (Q.hindExtend || 0) * hBackR) * qr;
   tgt.thighL[0] += (-0.12 + hind * Q.hindSwing) * q;
   tgt.thighR[0] += (-0.12 + hind2 * Q.hindSwing) * q;
   tgt.kneeL[0] += (0.3 + Math.max(0, hind) * Q.hindFold) * q;
@@ -674,12 +746,23 @@ const num = (v) => {
 
 export function formatGait(id, gait) {
   const lines = [`  ${id}: {`];
+  // A GAIT WITH A BASE IS EMITTED AS ONE. Spelling every inherited number out
+  // would paste back as a gait that no longer follows its base — the block would
+  // look identical and silently stop tracking the gait it is supposed to be a
+  // variant of. So name the base and print only what actually differs from it.
+  const baseId = gaitBaseOf(id);
+  const base = baseId ? GAITS[baseId] : null;
+  if (baseId) lines.push(`    base: ${JSON.stringify(baseId)},`);
   lines.push(`    name: ${JSON.stringify(gait.name || id)},`);
   if (gait.note) lines.push(`    note: ${JSON.stringify(gait.note)},`);
   for (const grp of GROUPS) {
     const g = gait[grp];
     if (!g) continue;
-    const body = Object.entries(g).map(([k, v]) => `${k}: ${num(v)}`);
+    const inherited = base?.[grp];
+    const body = Object.entries(g)
+      .filter(([k, v]) => !inherited || !(k in inherited) || Math.abs(inherited[k] - v) > 1e-9)
+      .map(([k, v]) => `${k}: ${num(v)}`);
+    if (!body.length) continue;
     // legs and quad are long enough to want wrapping; the others fit one line
     if (body.join(', ').length <= 92) {
       lines.push(`    ${grp}: { ${body.join(', ')} },`);
