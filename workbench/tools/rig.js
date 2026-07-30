@@ -353,7 +353,7 @@ export async function runRigWorkbench(config, params) {
     updateColors();
     // new bone objects: the corrections' baseline has to be retaken, and the
     // corrections themselves re-applied on top
-    if (bones) { captureBase(); applyCorrections(); }
+    if (bones) applyPose();
   }
 
   // (re)wire the black posts from the current bone positions (they're parented
@@ -586,7 +586,14 @@ export async function runRigWorkbench(config, params) {
     return config.rig.corrections?.get(id, { variant: useAlt ? 'alt' : 'glb' }) || {};
   }
   const saveCorrDraft = () => localStorage.setItem(CORR_KEY(), JSON.stringify(corrections));
-  // remember the pose the corrections are layered onto, then layer them
+  // THE ONE RULE HERE: the base is the pose WITHOUT the offsets, so it may only
+  // ever be captured off bones that are not wearing them. Capturing it from bones
+  // that already are folds the offsets into the base, and the next apply lays
+  // them on a second time — which is why the legs crossed further on every
+  // toggle of the mode and why viper opened with his feet clamped together
+  // (startup applied them once in rebuild() and again straight after). Hence:
+  // captureBase/applyCorrections are PRIVATE and always run as one step from a
+  // known-clean pose, through applyPose() below. Nothing else calls them.
   function captureBase() {
     baseQ.clear();
     for (const b of bones) baseQ.set(b.name, b.quaternion.clone());
@@ -615,19 +622,37 @@ export async function runRigWorkbench(config, params) {
     saveCorrDraft();
     renderCorrections();
   }
-  // Put the view back after an edit: the pose that is on, then the corrections
-  // layered over it. Anything that clears rotations must end here.
-  function restorePose() {
-    if (tposeOn) applyTPose(); else resetPose();
+  // THE ONLY WAY THE VIEW IS POSED. Clears every rotation, puts the pose that is
+  // on back (bind or T), takes the base from THAT, and lays the offsets over it.
+  // Idempotent by construction: run it twice and nothing moves twice.
+  //
+  // WHERE THE OFFSETS ARE PREVIEWED: in JOINT OFFSET mode, and nowhere else.
+  // Two reasons, both learned the hard way. A joint offset is a real rotation and
+  // 10 degrees at a hip swings the ankle most of a foot's width, so previewing it
+  // in the plain MOVE view left the mech standing with his feet clamped together
+  // — in the one view whose job is placing bones against the geometry AS THE
+  // ASSET IS. And in the T pose it double-counts: the T already aims every limb
+  // straight, so laying "take the splay out of this thigh" on top of a thigh that
+  // has just been aimed straight down crosses the legs. The T pose therefore
+  // stays the honest "what can this rig do" view. Turn the mode on — with or
+  // without the T — and the offsets appear, which is the comparison that matters.
+  const previewCorrections = () => rotMode;
+  function applyPose() {
+    if (tposeOn) applyTPose(); else resetPose();   // both leave the bones offset-free
     captureBase();
-    applyCorrections();
+    if (previewCorrections()) applyCorrections();
+    else mesh.updateMatrixWorld(true);
   }
+  const restorePose = applyPose;   // what an edit calls when it has finished
   function setRotMode(on) {
     rotMode = on;
     gizmo.setMode(on ? 'rotate' : 'translate');
     gizmo.setSpace(on ? 'local' : 'world');
-    captureBase();
-    applyCorrections();
+    // Re-pose because the MODE decides whether the offsets are previewed. Safe to
+    // run on every toggle now: applyPose() always rebuilds from a clean pose, so
+    // it can never fold the offsets in twice (which is what walked the legs
+    // further across on each toggle before).
+    applyPose();
     refreshModeButtons();
     renderCorrections();
     setNote(on
@@ -712,7 +737,7 @@ export async function runRigWorkbench(config, params) {
     tposeOn = on;
     if (on) {
       if (swinging) { swinging = false; swChk.checked = false; }
-      applyTPose(); captureBase(); applyCorrections();
+      applyPose();
       setNote('T POSE — and it is EDITABLE. Drag a bone and you are moving its BIND '
         + 'position, seen through the pose: the mesh deforms live, the rig file gets the '
         + 'edit, and the body snaps back into the T when you let go. Judge the neutral '
@@ -720,7 +745,7 @@ export async function runRigWorkbench(config, params) {
     } else {
       resetPose();
       rebindRest(mesh, bones);
-      captureBase(); applyCorrections();
+      applyPose();
     }
     if (selName) selectBone(selName);
     matchMannequin();
@@ -1058,6 +1083,12 @@ export async function runRigWorkbench(config, params) {
     const names = Object.keys(corrections);
     if (!rotMode && !names.length) return;          // nothing to say yet
     corrBox.appendChild(lbl(`Joint offsets (boneCorrections)${names.length ? ` — ${names.length}` : ''}`));
+    if (names.length && !previewCorrections()) {
+      const off = el('div', 'color:#c8a05a;font-size:10.5px;line-height:1.5;margin-bottom:4px');
+      off.textContent = 'Not previewed here — this view shows the rig as the asset really is, '
+        + 'so bones can be placed against it. Turn on Joint offset to see them applied.';
+      corrBox.appendChild(off);
+    }
     if (!names.length) {
       const hint = el('div', 'color:#7d8ea3;font-size:10.5px;line-height:1.5;margin-bottom:4px');
       hint.textContent = 'Select a joint and turn it. The offset is what the game applies '
@@ -1080,7 +1111,7 @@ export async function runRigWorkbench(config, params) {
       clr.title = `clear ${n}`;
       clr.onclick = () => {
         delete corrections[n]; saveCorrDraft();
-        captureBase(); applyCorrections(); renderCorrections();
+        applyPose(); renderCorrections();
       };
       row.append(txt, clr);
       corrBox.appendChild(row);
@@ -1144,7 +1175,9 @@ export async function runRigWorkbench(config, params) {
     swinging = swChk.checked;
     // one pose at a time: the swing writes the same bone rotations the T does
     if (swinging && tposeOn) { tChk.checked = false; setTPose(false); }
-    if (!swinging) resetPose();
+    // the swing writes its own rotations every frame; when it stops, put the
+    // pose AND the joint offsets back rather than leaving the bones at zero
+    if (!swinging) applyPose();
   };
   swRow.append(swChk, document.createTextNode(' Swing claws/legs (loop)')); panel.appendChild(swRow);
 
@@ -1232,9 +1265,7 @@ export async function runRigWorkbench(config, params) {
   if (config.rig.corrections) corrections = loadCorrections();
   else bRot.style.display = 'none';
 
-  load();
-  captureBase();
-  applyCorrections();
+  load();          // ends in rebuild(), which poses the model through applyPose()
   renderCorrections();
 
   engine.onUpdate = (dt) => {
