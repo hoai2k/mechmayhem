@@ -115,9 +115,21 @@ audio). Progress history: `TASKS.md`.
   the new melee test against the old one on a real fight.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
   `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
-  nova) and `quad` (fenrir's gallop, a `quad` block over the same biped layer).
+  nova) and `quad` (fenrir).
   A roster def names one with `gait: '<id>'` and mechs SHARE them, so tuning a
-  gait moves every mech that runs it. `applyGait()` is the whole cycle and is
+  gait moves every mech that runs it.
+  A GAIT MAY BE A VARIANT OF ANOTHER: `base: '<id>'` makes it that gait plus the
+  keys it overrides (group by group, key by key), resolved once at load so
+  everything downstream sees one flat table (`gaitBaseOf`/`gaitHeirsOf` remember
+  who came from where; `formatGait` emits `base` plus only the differences, so
+  the workbench's paste-back loop keeps the inheritance instead of silently
+  freezing a copy). FENRIR IS THE CASE: `quad` is `base: 'sprint'` plus a gallop
+  layer, so below `quad.onset` (0.40 of top speed) the gallop contributes nothing
+  and he JOGS AS A SPRINTER — verbatim sprint, measured identical — then goes
+  quadruped over `onset … onset + quad.blend`. Stride shaping the GALLOP needs
+  lives in the `quad` block (`hindReach`/`hindExtend`) rather than in
+  `legs.reach`/`legs.extend`, which apply at every speed and to every mech on the
+  base gait: a wolf's stride written there would land on his jog and on viper. `applyGait()` is the whole cycle and is
   PURE — the animator runs it and so does the gait workbench, so what is tuned
   there is what ships. Each dial has a `*Run` twin (`base + run * ratio`), which
   is how one gait walks politely and sprints hard. Add a dial by adding it to

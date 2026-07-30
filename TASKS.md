@@ -5404,3 +5404,44 @@ Skin audit: 36 findings before and after (same list), total severity 1342 -> 118
 (-12%), worst finding 203 -> 160 (-21%); the two leg findings that named `footL`
 and `footR` now name `ankleL`/`ankleR`. Ops arrive PINNED (a vertex list per op,
 no `{comp:N}` ordinals), so nothing here depends on the rig's island numbering.
+
+FENRIR JOGS LIKE A SPRINTER AND GALLOPS LIKE A WOLF
+----------------------------------------------------
+The quad gait's biped half was its own private copy of standard-ish numbers, so
+at anything below a gallop fenrir moved like a heavy — the wrong body for a
+wolf. It is now `base: 'sprint'`: he IS the sprint gait until he opens up, and
+the rotary gallop fades in over the top of it.
+
+GAITS CAN INHERIT. `base: '<id>'` merges group by group, key by key, resolved
+once at load, so the animator, the workbench and every probe still see one flat
+table and know nothing about bases. It is not sugar — copying sprint's numbers
+into quad would read the same on the day it was written and drift the first time
+sprint was tuned, which is the exact bug a shared gait table exists to avoid.
+`formatGait` emits `base:` plus ONLY the keys that differ, so the workbench's
+"Output gait" → paste-into-gaits.js loop preserves the inheritance instead of
+silently freezing a copy of it.
+
+THE TRANSITION IS A DIAL. `quad.onset` (0.40) is where the gallop starts coming
+in and `quad.blend` (0.35) is how long it takes, so "when does he drop to four
+legs" is tunable and visible instead of a hard-coded 0.4 inside applyQuadGait.
+
+AND THE STRIDE SHAPING MOVED TO WHERE IT BELONGS. `legs.reach 1.2` /
+`legs.extend -1.5` were the wolf's gallop written into dials that apply at EVERY
+speed and to EVERY mech on the base gait — they would have landed on his jog,
+and on viper. They are now `quad.hindReach 0.92` / `quad.hindExtend -1.66`,
+added by the gallop layer and faded in with it. Ported so full throttle is
+unchanged: at ratio 1 the old pair contributed `-1.2*fwd - 1.5*back` and the new
+base+layer contributes `-(0.28+0.92)*fwd + (0.16-1.66)*back` — the same numbers.
+
+MEASURED (tools/gaitprobe.mjs fenrir <throttle> sprint):
+  · JOG, throttle 0.3 — quad vs sprint is a null diff: stride 55.3% vs 55.0%,
+    reach 25.3% vs 25.1%, lean 10.0° both, armSwing 65.7° both, armPhase -0.97
+    both. He runs the sprint gait, because he IS the sprint gait there.
+  · RUN, throttle 1 — the gallop survives the port: stride 69.4% (was 69.7%),
+    reach 38.5% (38.8%), trail 30.9% (30.9%), toeFwd -0.79 (-0.76). Sprint's
+    knees and carriage improve two things on the way through — knee lift 39.6% ->
+    46.0% and the airborne paw 36.1° -> 22.5° off its resting line (sprint's
+    `ankle.hang`) — and cost one: the deepest sole dip goes -15.8% -> -20.9% of
+    body height, since a higher lift and more bob deepen the trough. `quad.drop`
+    is the dial that buys it back and it is the owner's to spend; the readout
+    shows it live.
