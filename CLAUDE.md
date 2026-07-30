@@ -163,7 +163,13 @@ audio). Progress history: `TASKS.md`.
   contiguous island per bone, seam at each joint, a narrow blend band across it);
   **rig** ghosts it over the raw model at the model's own height as an X-RAY with
   every joint NAMED on screen (`config.reference.mannequin/labels`), which is how
-  "the ankle is above and forward of the heel" stops being a guess.
+  "the ankle is above and forward of the heel" stops being a guess — and there it
+  wears TWO HATS, switched by the `match this rig's bones` box under it: ticked
+  (the default) it stands in YOUR bone positions, the humanoid your skeleton
+  describes, following live as you drag; unticked it stands in its own canonical
+  stance, the answer key for where each joint belongs. Both halves of a joint are
+  matched — position lands on the bone, rotation aims the segment at the next
+  joint down, so it bends its knee instead of sliding its shin.
   It is also A SUBJECT IN ITS OWN RIGHT — **MANNEQUIN** sits at the bottom of
   every workbench's mech dropdown, under the rule with the work-in-progress
   mechs, so it can be opened on its own. It is NOT game content: `MANNEQUIN_DEF`
@@ -228,6 +234,30 @@ audio). Progress history: `TASKS.md`.
   dropdown: `mechSelect()` for tools that rebuild in place, `gotoMech()` for
   `?rigedit`, which builds its world around one id and so switches by
   navigating.
+- THE RIG EDITOR'S **T POSE** box (`/workbench/?edit=rig`) drives the whole
+  skeleton into a canonical T — arms straight out along the shoulder line, legs
+  straight down — which is the one-frame answer to "how accurately can this rig
+  pose the mech": an ankle on a hock or a thigh aimed outboard shows up
+  immediately, and the mannequin beside it (above) holds the same T as the shape
+  it was aiming at. It is a VIEW, not an edit — rotation only, positions (the
+  thing the editor saves) untouched, gizmo detached while it is on, bind pose
+  back when it is off. A body with no humanoid T (cranky's pincers, his leg
+  arches) will stretch, and that IS the reading.
+- BONE ROTATION: a rig file carries POSITIONS ONLY, and adding a rest rotation to
+  one would change nothing — `applyCustomRig` rebinds the skin at rest
+  (`rebindRest`) and `RigAdapter` captures a rest offset per bone
+  (`offset = jointWorld⁻¹ · boneWorld`), so both halves cancel it out exactly.
+  The rotation lever that DOES work is `boneCorrections` in the manifest: degrees
+  `[x,y,z]` per joint, post-multiplied in bone-LOCAL space after the retarget.
+  It applies to custom-rig mechs too (the one place RigAdapter is constructed
+  reads it). On a custom rig every bone rests unrotated, so bone-local x is the
+  mesh's forward axis and a rotation about it is exactly adduction — which is how
+  viper's running splay was fixed: `thighL [10,0,0]` / `thighR [-10,0,0]` took his
+  standing knee lean from 12.5° outboard to 2.5° and the knee-lift peak from 44°
+  to 21°/37°. Measure it with `node tools/legsplay.mjs <mech>` — and measure the
+  BONES, which is what that tool does: the retarget drives bone ORIENTATION from
+  the game's clean humanoid, but bone POSITIONS are the rig's own, so the virtual
+  joints can read 10° inboard while the rendered legs are 15° out.
 - SAVING FROM A WORKBENCH (dev server only): `?debug=skin` has **Save to
   manifest** and `?rigedit` has **Save rig to file** — they write
   `public/models/manifest.json` / `src/mechs/rigs/<id>.rig.js` on this machine
