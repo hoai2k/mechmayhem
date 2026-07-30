@@ -127,7 +127,7 @@ controllers via Gamepad API), AI opponents.
   frame on both routes; median miss angle 105° -> 9.8°. He also alternates
   claws shot to shot now (`glitch` joined the twin/mirrored weapon lists), so
   the bolt leaves the hand the mirrored clip just punched out.
-- **Previous:** JERRY'S SKINNING UN-SHIFTED — his back/legs were smearing in
+- **Earlier:** JERRY'S SKINNING UN-SHIFTED — his back/legs were smearing in
   motion because manifest `{"comp":N}` skinOps are numbered against the rig's
   own proximity islands, and moving `strutMidL/R` into the cannon pods
   repartitioned them (126 -> 142 islands): every old id then selected DIFFERENT
@@ -137,7 +137,7 @@ controllers via Gamepad API), AI opponents.
   walk 162x -> 29x, heavy 420x -> 36x (`node tools/skinstretch.mjs <mech>
   [clip]`, new). The pods also moved from `hips` to `torso` — bolted to the
   shell, they no longer tear their own seam as the shell pitches.
-- **Earlier:** JERRY'S BILGE SPIT — his ranged weapon is now a short burst of
+- **Older:** JERRY'S BILGE SPIT — his ranged weapon is now a short burst of
   BLACK STICKY GOO out of the cannon pods (CRANKY's pressurized stream in tar,
   thrown much further; gunks like FROGGER's slime on impact, in black). The
   pods are their own rig bones now (`strutMidL/R` moved into the barrels, with

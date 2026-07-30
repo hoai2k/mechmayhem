@@ -6,6 +6,7 @@
 //
 //   node tools/bake-glb.mjs <mechId>            # DRY RUN (default)
 //   node tools/bake-glb.mjs <mechId> --apply    # write the changes
+//   node tools/bake-glb.mjs <mechId> --restore [--apply]   # UN-bake (see below)
 //
 // Dry run bakes to public/models/mech_<id>.baked.glb, prints the fidelity report
 // + proposed manifest diff, and touches no committed file. --apply overwrites
@@ -20,6 +21,14 @@
 // field that was folded in, with its values, plus the custom rig file's text.
 // So the baked model stays explainable and re-derivable without digging through
 // git history, and a re-bake from source is one copy away.
+//
+// --restore IS THE INVERSE, off that same sidecar: it copies the untouched asset
+// back, merges the folded manifest fields into the entry, rewrites the rig file
+// and re-registers it. Use it when a baked mech has to go back under the
+// workbenches — ?edit=rig only edits a hand-authored rig file, so a baked mech
+// reads as "no custom rig to edit" until its rig comes back. Edit, then bake
+// again. No browser and no fidelity check: it is a file-for-file rollback of
+// exactly what the bake folded in.
 //
 // THE FIDELITY CHECK ONLY SEES JOINTS. It compares the 15 game joints across
 // three poses, which catches a broken skeleton and nothing else — it cannot see
@@ -54,7 +63,8 @@ const FID_EPS = 0.01; // world-unit tolerance (mech ~7u tall)
 
 const id = process.argv[2];
 const APPLY = process.argv.includes('--apply');
-if (!id) { console.error('usage: node tools/bake-glb.mjs <mechId> [--apply]'); process.exit(1); }
+const RESTORE = process.argv.includes('--restore');
+if (!id) { console.error('usage: node tools/bake-glb.mjs <mechId> [--apply] [--restore]'); process.exit(1); }
 
 // ---- manifest entry cleaning (surgical, preserves the file's formatting) ----
 const BAKED_FIELDS = ['rig', 'skinOps', 'seamCuts', 'reparent', 'stretch', 'bonePos', 'alt'];
@@ -225,6 +235,100 @@ function archiveSource(entry, removedFields, manifestText) {
   };
   fs.writeFileSync(path.join(dir, `${id}.edits.json`), JSON.stringify(sidecar, null, 2) + '\n');
   console.log(`     archived source${firstTime ? '' : ' (already present)'} + edit list -> public/models/source/`);
+}
+
+// ---- un-bake (--restore) ----------------------------------------------------
+// The exact inverse of what --apply folded in, read back off the sidecar the
+// bake wrote. A baked mech carries its skeleton and its corrected skin weights
+// INSIDE the .glb, which is what the game wants and what the workbenches
+// cannot edit: ?edit=rig only drags a hand-authored src/mechs/rigs/<id>.rig.js,
+// so a baked mech reports "no custom rig to edit". Restoring puts the editable
+// pipeline back (source asset + manifest fields + rig file); bake again after.
+function restoreEntry(text, mechId, fields) {
+  const m = JSON.parse(text);
+  const entry = m[mechId];
+  if (!entry) throw new Error(`no manifest entry "${mechId}"`);
+  // Present fields WIN: anything authored since the bake (a muzzle moved, a
+  // scale retuned) must survive a rollback of the baked ones.
+  const kept = [], back = [];
+  const merged = { ...entry };
+  for (const [k, v] of Object.entries(fields)) {
+    if (entry[k] !== undefined) { kept.push(k); continue; }
+    merged[k] = v; back.push(k);
+  }
+  const lines = text.split('\n');
+  const startIdx = lines.findIndex((l) => l.trimStart().startsWith(`"${mechId}":`));
+  if (startIdx < 0) throw new Error(`could not locate "${mechId}" block`);
+  let depth = 0, endIdx = -1;
+  for (let i = startIdx; i < lines.length; i++) {
+    depth += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+    if (i > startIdx && depth === 0) { endIdx = i; break; }
+  }
+  const trailingComma = lines[endIdx].trimEnd().endsWith(',');
+  const body = JSON.stringify({ [mechId]: merged }, null, 2)
+    .split('\n').slice(1, -1).map((l) => '  ' + l).join('\n');
+  return { out: [...lines.slice(0, startIdx), body + (trailingComma ? ',' : ''), ...lines.slice(endIdx + 1)].join('\n'), back, kept };
+}
+
+// Put the rig file back on disk AND in the registry (the bake dropped both).
+// Import + registry lines go back in alphabetical order, which is how the file
+// is kept, so the restore reads as if the rig had never left.
+function restoreRigFile(mechId, rigFile) {
+  const written = [];
+  const rigPath = path.join(ROOT, rigFile.path);
+  fs.writeFileSync(rigPath, rigFile.text);
+  written.push(rigPath);
+  const idxPath = path.join(ROOT, 'src/mechs/rigs/index.js');
+  const CONST = `${mechId.toUpperCase()}_RIG`;
+  let text = fs.readFileSync(idxPath, 'utf8');
+  if (!text.includes(CONST)) {
+    const lines = text.split('\n');
+    const importLine = `import { ${CONST} } from './${mechId}.rig.js';`;
+    const imports = lines.map((l, i) => [l, i]).filter(([l]) => l.startsWith('import {') && l.includes('.rig.js'));
+    const afterImports = imports.find(([l]) => l > importLine) || null;
+    lines.splice(afterImports ? afterImports[1] : imports[imports.length - 1][1] + 1, 0, importLine);
+    const regLine = `  ${mechId}: ${CONST},`;
+    const regs = lines.map((l, i) => [l, i]).filter(([l]) => /^ {2}\w+: \w+_RIG,$/.test(l));
+    const afterRegs = regs.find(([l]) => l > regLine) || null;
+    lines.splice(afterRegs ? afterRegs[1] : regs[regs.length - 1][1] + 1, 0, regLine);
+    fs.writeFileSync(idxPath, lines.join('\n'));
+    written.push(idxPath);
+  }
+  return written;
+}
+
+if (RESTORE) {
+  const dir = path.join(ROOT, 'public/models/source');
+  const sidePath = path.join(dir, `${id}.edits.json`);
+  if (!fs.existsSync(sidePath)) {
+    console.error(`no bake to restore: ${path.relative(ROOT, sidePath)} does not exist`);
+    process.exit(1);
+  }
+  const side = JSON.parse(fs.readFileSync(sidePath, 'utf8'));
+  const manifestText = fs.readFileSync(MANIFEST, 'utf8');
+  const entry = JSON.parse(manifestText)[id];
+  const base = path.basename(entry.url);
+  const srcGlb = path.join(dir, base);
+  const { out, back, kept } = restoreEntry(manifestText, id, side.manifestFieldsFolded || {});
+  console.log(`\n== un-bake ${id} ${APPLY ? '(APPLY)' : '(dry run)'} ==`);
+  console.log(`     baked at ${side.bakedAt}`);
+  console.log(`     asset:    public/${entry.url}  <-  ${path.relative(ROOT, srcGlb)}`
+    + ` (${(fs.statSync(srcGlb).size / 1e6).toFixed(2)} MB, currently ${(fs.statSync(path.join(ROOT, 'public', entry.url)).size / 1e6).toFixed(2)} MB)`);
+  console.log(`     manifest: restores ${back.length ? back.join(', ') : '(nothing)'}`
+    + `${kept.length ? `   [kept as-is, authored since the bake: ${kept.join(', ')}]` : ''}`);
+  console.log(`     rig file: ${side.rigFile ? side.rigFile.path + ' + registry' : '(none in sidecar)'}`);
+  if (!APPLY) {
+    console.log('\nDRY RUN — nothing written. Re-run with --apply.');
+    process.exit(0);
+  }
+  fs.copyFileSync(srcGlb, path.join(ROOT, 'public', entry.url));
+  fs.writeFileSync(MANIFEST, out);
+  const written = side.rigFile ? restoreRigFile(id, side.rigFile) : [];
+  console.log(`\nRESTORED. ${['public/' + entry.url, 'public/models/manifest.json',
+    ...written.map((p) => path.relative(ROOT, p))].join(', ')}`);
+  console.log(`${id} is editable again: /workbench/?edit=rig&mech=${id}`);
+  console.log(`Re-bake when done: node tools/bake-glb.mjs ${id} --apply`);
+  process.exit(0);
 }
 
 // ---- main ----
