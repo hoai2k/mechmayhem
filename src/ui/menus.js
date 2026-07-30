@@ -130,6 +130,25 @@ class MenuList {
 }
 
 // ---------------- TITLE ----------------
+
+// ONE PLACE THE SIGN'S LOUDNESS IS DECIDED. CONFIG.neonBuzzVolume is the dial;
+// how deep this particular drop-out goes (its tube opacity) leans on it a
+// little. Exported because `rw.buzz()` fires the same sound from the console —
+// a dial you can only hear when a random 66ms flicker happens to come round is
+// a dial you cannot tune, so the two must be the SAME call, not two copies of
+// the formula that drift.
+export function neonBuzzVol(opacity = 0.25) {
+  return CONFIG.neonBuzzVolume * (0.8 + (1 - opacity) * 0.45);
+}
+export function playNeonBuzz(audio, opacity = 0.25) {
+  const vol = neonBuzzVol(opacity);
+  // a real flicker out of the recording, or the synth one if it never arrived
+  if (!audio?.playSlice('neonBuzz', { vol, rate: 0.94 + Math.random() * 0.12 })) {
+    audio?.play('neonZap', { vol, pitch: 0.92 + Math.random() * 0.2 });
+  }
+  return vol;
+}
+
 export class TitleScreen {
   constructor(root, { onPlay, onFullscreen, audio, hotButtons }) {
     this.el = el('div', 'screen fade-in title-screen');
@@ -179,15 +198,7 @@ export class TitleScreen {
     for (let i = 0; i < this.tubes.length; i++) {
       const o = parseFloat(getComputedStyle(this.tubes[i]).opacity);
       const dim = o < 0.9;
-      if (dim && this.lit[i]) {
-        // CONFIG.neonBuzzVolume is the dial; the depth of this particular
-        // drop-out just leans on it a little
-        const vol = CONFIG.neonBuzzVolume * (0.8 + (1 - o) * 0.45);
-        // a real flicker, or the synth one if the recording never arrived
-        if (!this.audio?.playSlice('neonBuzz', { vol, rate: 0.94 + Math.random() * 0.12 })) {
-          this.audio?.play('neonZap', { vol, pitch: 0.92 + Math.random() * 0.2 });
-        }
-      }
+      if (dim && this.lit[i]) playNeonBuzz(this.audio, o);
       this.lit[i] = !dim;
     }
   }

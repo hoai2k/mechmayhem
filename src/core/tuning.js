@@ -96,8 +96,57 @@ export const TUNING = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// TRYING A NUMBER WITHOUT EDITING THIS FILE.
+//
+// Most values above are read ONCE, into a module-level const in fighter.js, the
+// instant it loads. That is deliberate (they are on the hot path) but it means
+// poking TUNING from the console after the fact changes nothing — a knob that
+// silently ignores you, which is worse than no knob. So the override lands
+// HERE, before anything has read a value:
+//
+//   ?tune=melee.hitstunLight:0.4,dash.cooldown:0.2      one session
+//   rw.tune('melee.hitstunLight', 0.4)                  same thing, then reloads
+//   rw.untune()                                         drop them all
+//
+// Overrides are session-scoped (sessionStorage) and never touch the file. When
+// a number is worth keeping, type it into the block above.
+// ---------------------------------------------------------------------------
+export const TUNE_OVERRIDES = {};
+
+function applyOverrides() {
+  const spec = [];
+  try {
+    const q = new URLSearchParams(location.search).get('tune');
+    if (q) spec.push(...q.split(','));
+    const held = sessionStorage.getItem('rw.tune');
+    if (held) spec.push(...JSON.parse(held).map(([k, v]) => `${k}:${v}`));
+  } catch (e) { /* no location/storage: nothing to override */ }
+  for (const item of spec) {
+    const at = String(item).lastIndexOf(':');
+    if (at < 1) continue;
+    const path = item.slice(0, at).trim();
+    const val = parseFloat(item.slice(at + 1));
+    if (!Number.isFinite(val)) continue;
+    const parts = path.split('.');
+    let o = TUNING;
+    for (let i = 0; i < parts.length - 1 && o; i++) o = o[parts[i]];
+    const key = parts[parts.length - 1];
+    if (!o || !(key in o) || typeof o[key] !== 'number') {
+      console.warn(`[rw] ?tune: no such tuning value "${path}"`);
+      continue;
+    }
+    TUNE_OVERRIDES[path] = { from: o[key], to: val };
+    o[key] = val;
+  }
+  const n = Object.keys(TUNE_OVERRIDES).length;
+  if (n) console.warn(`[rw] ${n} TUNING override(s) active:`, TUNE_OVERRIDES);
+}
+applyOverrides();
+
 // Derived rates — the code wants per-second numbers, the file above states
-// durations. Kept here so the two can never drift apart.
+// durations. Kept here so the two can never drift apart. Computed AFTER the
+// overrides, so ?tune=stamina.sprintSeconds:4 moves the drain rate with it.
 export const STAMINA_TANK = 1;
 export const SPRINT_DRAIN = STAMINA_TANK / TUNING.stamina.sprintSeconds;
 export const BLOCK_DRAIN = STAMINA_TANK / TUNING.stamina.blockSeconds;

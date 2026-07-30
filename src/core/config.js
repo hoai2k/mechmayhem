@@ -57,6 +57,14 @@ export const CONFIG = {
   // dial to turn if the sign is too chatty under the music — edit the number
   // here, or pass ?neonbuzz=<0..1> for a quick try. Each individual flicker is
   // scaled a little around this by how deep that drop-out goes.
+  //
+  // TO ACTUALLY JUDGE IT, use the console rather than this file: `rw.set(
+  // 'neonBuzzVolume', 0.05)` then `rw.buzz()` fires three flickers on demand.
+  // A drop-out is a 66ms click that comes round every couple of seconds at a
+  // random depth, so comparing two builds from memory is hopeless — which is
+  // exactly how this dial got a reputation for doing nothing. (Mind the
+  // spelling too: an unknown URL param is ignored, though boot now warns
+  // about one. See core/knobs.js.)
   neonBuzzVolume: readParam01('neonbuzz', 0.15),
 
   // SPLIT-SCREEN POST FX: local multiplayer runs the same post chain as the

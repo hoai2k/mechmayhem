@@ -391,7 +391,16 @@ that combat silently depends on. Never rebuild a design without it.
   — the file to edit for feel; costs are stated as SECONDS/fractions of a
   full bar and the per-second rates are derived), `config.js` = PLAYER
   settings the settings menu writes (robot speed, round time, music volume,
-  persisted to localStorage), `mechs/roster.js` = PER-MECH balance
+  persisted to localStorage), `mechs/roster.js` = PER-MECH balance.
+  PUPPET ANY OF IT LIVE from the console — `rw.help()`: `rw.set(<CONFIG
+  path>, v)` lands immediately (CONFIG is read at the point of use);
+  `rw.tune(<TUNING path>, v)` stores a session override and reloads, because
+  fighter.js snapshots nearly all of TUNING into module consts at load and a
+  live write there silently does nothing (`?tune=a.b:1,c.d:2` is the same
+  thing in a URL, `rw.tunes()`/`rw.untune()` list and drop them). An UNKNOWN
+  url param now warns with a did-you-mean instead of being ignored —
+  `core/knobs.js` owns the list and `node tools/params.mjs` fails if it drifts
+  from what the source actually reads.
 - `src/mechs/` — roster.js (ALL stats/palettes/skins/moves — balance lives
   here), designs/<id>.js (one file per mech; parallel-agent-safe), parts.js
   (sculpting vocabulary + Assembler), factory.js (rig + materials),

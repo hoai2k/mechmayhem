@@ -203,6 +203,27 @@ export class GameAudio {
         entry.slices = slices
           .map(([a, z]) => ({ t: Math.max(0, a * hop - pad), d: (z - a) * hop + pad * 2 }))
           .filter((sl) => sl.d >= minDur);
+        // LEVEL THE SLICES. Events cut out of one take are not equally loud —
+        // in neon_buzz.mp3 the peaks span 0.33..0.68, a 2:1 spread. Left as
+        // found, one flicker lands 6 dB above the next, which is the same size
+        // as HALVING the caller's `vol`: the volume dial becomes impossible to
+        // judge by ear because the noise in the material is as big as the
+        // signal you are trying to hear. Each slice gets a trim to the set's
+        // MEDIAN peak — the median, not 1.0, so the overall loudness (and any
+        // number already tuned against it) is unchanged and only the outliers
+        // move. `vol` is then the only thing that decides how loud a flicker is.
+        const peaks = entry.slices.map((sl) => {
+          const a = Math.max(0, Math.round(sl.t * sr));
+          const z = Math.min(ch.length, Math.round((sl.t + sl.d) * sr));
+          let pk = 0;
+          for (let i = a; i < z; i++) { const v = ch[i] < 0 ? -ch[i] : ch[i]; if (v > pk) pk = v; }
+          return pk;
+        });
+        const ref = [...peaks].sort((a, b) => a - b)[peaks.length >> 1] || 0;
+        entry.slices.forEach((sl, i) => {
+          // clamped: a near-silent slice must not be hoisted 20x into a roar
+          sl.trim = peaks[i] > 1e-4 ? Math.min(3, ref / peaks[i]) : 1;
+        });
         return entry.slices.length;
       } catch (e) {
         return 0;   // audio must never break the game
@@ -230,6 +251,7 @@ export class GameAudio {
       if (e.slices.length > 1 && i === e.last) i = (i + 1) % e.slices.length;
       e.last = i;
       const sl = e.slices[i];
+      vol *= sl.trim ?? 1;    // per-slice level trim (see loadSliced)
       const src = ctx.createBufferSource();
       src.buffer = e.buffer;
       src.playbackRate.value = rate;

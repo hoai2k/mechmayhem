@@ -10,7 +10,8 @@ import { Fighter } from '../combat/fighter.js';
 import { AIController } from './ai.js';
 import { Match } from './match.js';
 import { Hud, toast } from '../ui/hud.js';
-import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen } from '../ui/menus.js';
+import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen, playNeonBuzz } from '../ui/menus.js';
+import { installKnobs, warnUnknownParams } from '../core/knobs.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
   CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY,
@@ -790,4 +791,16 @@ export async function bootGame() {
   }));
 
   window.__game = { S, engine, audio, music, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
+  // A mistyped switch says so instead of looking like a dead knob, and every
+  // tuning value is reachable live as `rw` (see core/knobs.js).
+  warnUnknownParams();
+  installKnobs({
+    // fire the title sign's flicker on demand: judging a 66ms sound that comes
+    // round every couple of seconds at a random depth is not judging at all
+    buzz(n = 3) {
+      audio.loadSliced?.('neonBuzz', new URL('sound/neon_buzz.mp3', document.baseURI).href);
+      for (let i = 0; i < n; i++) setTimeout(() => playNeonBuzz(audio, 0.25), i * 420);
+      return `neonBuzzVolume ${CONFIG.neonBuzzVolume} -> vol ${playNeonBuzz(audio, 0.25).toFixed(4)}`;
+    },
+  });
 }
