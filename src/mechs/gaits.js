@@ -116,7 +116,7 @@ function footStates(tgt, rest, side, env) {
   const back = clamp01(((tgt['thigh' + side][0] - r('thigh' + side))
     + (tgt['knee' + side][0] - r('knee' + side))) / TRAIL_BAND);
   const push = (1 - air) * back;
-  return { air, push, stance: (1 - air) * (1 - back) };
+  return { air, back, push, stance: (1 - air) * (1 - back) };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +142,10 @@ export const GAIT_SCHEMA = [
         help: 'hip roll toward the midline: positive brings the feet under the body' },
       { key: 'adductRun', label: 'track narrow @run', min: -0.5, max: 0.6, step: 0.005, joints: ['thighL', 'thighR'],
         help: 'extra midline pull at full speed (a runner tracks nearly single-file)' },
+      { key: 'adductTrail', label: 'trailing flick inward', min: -0.5, max: 0.6, step: 0.005, joints: ['thighL', 'thighR'],
+        help: 'midline pull on the leg that is BEHIND AND OFF THE GROUND — the flick after '
+          + 'toe-off. Fades as the leg swings forward, so the foot lands at its normal width '
+          + 'and a PLANTED foot is never pulled sideways (that would be a skate)' },
       { key: 'stanceBend', label: 'knee stance bend', min: 0, max: 1.0, step: 0.01, joints: ['kneeL', 'kneeR'],
         help: 'springy knees that never lock' },
       { key: 'stanceBendRun', label: 'knee bend @run', min: 0, max: 1.0, step: 0.01, joints: ['kneeL', 'kneeR'] },
@@ -256,7 +260,7 @@ export const GAITS = {
     note: 'The all-purpose walk→run. Upright carriage, moderate stride, arms hanging.',
     legs: {
       swing: 0.42, swingRun: 0.40, reach: 0.51, extend: 0.47,
-      adduct: 0.08, adductRun: 0,
+      adduct: 0.08, adductRun: 0, adductTrail: 0.18,
       stanceBend: 0.14, stanceBendRun: 0.14,
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
@@ -283,7 +287,7 @@ export const GAITS = {
     note: 'Light, fast mechs at full tilt: long reaching stride, narrow track, driving bent arms, body pitched into it.',
     legs: {
       swing: 0.44, swingRun: 0.36, reach: 0.28, extend: 0.16,
-      adduct: 0.105, adductRun: 0.07,
+      adduct: 0.105, adductRun: 0, adductTrail: 0.10,
       stanceBend: 0.14, stanceBendRun: 0.16,
       kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.93,
       cadence: 0.95, cadenceCap: 16,
@@ -299,8 +303,8 @@ export const GAITS = {
     name: 'Quadruped',
     note: 'Wolf lope: hinds drive as a pair against the fronts, spine arching on the gather.',
     legs: {
-      swing: 0.42, swingRun: 0.40, reach: 1.2, extend: 0,
-      adduct: 0.085, adductRun: 0,
+      swing: 0.42, swingRun: 0.40, reach: 1.2, extend: -1.5,
+      adduct: 0.085, adductRun: 0, adductTrail: 0,
       stanceBend: 0.14, stanceBendRun: 0.14,
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
@@ -409,8 +413,32 @@ export function applyGait(tgt, gait, env) {
   // TRACK WIDTH: a runner's feet fall nearly single-file under the centre of
   // mass. Straddling a shoulder-width base at speed is the single loudest
   // "stiff" tell on the fast mechs.
+  // ...and its TRAILING-FOOT twin, which is a different thing and needs a
+  // different envelope. `adduct` is the same at every phase, so narrowing the
+  // track with it moves the WHOLE stride inboard — including the foot the mech is
+  // about to land on and stand on. `adductTrail` instead pulls a leg toward the
+  // midline only through the FLICK: the moment after toe-off when the foot is off
+  // the ground and still behind the body. It fades out as the leg swings forward,
+  // so the foot comes back down at its normal width, takes the weight, and drives
+  // the body over it — then flicks in again on the way back.
+  //
+  // GATED ON THE POSE, NOT ON THE PHASE: `air * back` from footStates(), the same
+  // two weights the foot rule uses, and `air` is the MEASURED sole clearance
+  // wherever the body has been calibrated. A PLANTED foot pulled sideways is a
+  // skate — the one failure this dial could cause — and multiplying by `air` is
+  // what makes that impossible rather than merely unlikely.
   const adduct = L.adduct + L.adductRun * ratio;
-  if (adduct) { tgt.thighL[2] += adduct; tgt.thighR[2] -= adduct; }
+  const trail = L.adductTrail || 0;
+  if (adduct || trail) {
+    let tL = 0, tR = 0;
+    if (trail && rest) {
+      const fL = footStates(tgt, rest, 'L', env), fR = footStates(tgt, rest, 'R', env);
+      tL = trail * fL.air * fL.back;
+      tR = trail * fR.air * fR.back;
+    }
+    tgt.thighL[2] += adduct + tL;
+    tgt.thighR[2] -= adduct + tR;
+  }
 
   // ===== ankles =====
   // authored roll + toe-off, scaled to the foot's real depth (ankleGain) and
