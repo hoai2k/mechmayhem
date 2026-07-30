@@ -144,7 +144,7 @@ export const GAIT_SCHEMA = [
         help: 'hip roll toward the midline: positive brings the feet under the body' },
       { key: 'adductRun', label: 'track narrow @run', min: -0.5, max: 0.6, step: 0.005, joints: ['thighL', 'thighR'],
         help: 'extra midline pull at full speed (a runner tracks nearly single-file)' },
-      { key: 'adductTrail', label: 'trailing flick inward', min: -0.5, max: 0.6, step: 0.005, joints: ['thighL', 'thighR'],
+      { key: 'adductTrail', label: 'trailing flick inward', min: -0.5, max: 0.6, step: 0.005, joints: ['kneeL', 'kneeR'],
         help: 'midline pull on the leg that is BEHIND AND OFF THE GROUND — the flick after '
           + 'toe-off. Fades as the leg swings forward, so the foot lands at its normal width '
           + 'and a PLANTED foot is never pulled sideways (that would be a skate)' },
@@ -251,9 +251,17 @@ export const GAIT_SCHEMA = [
       { key: 'hindExtend', label: 'hind extension', min: -2.5, max: 1.5, step: 0.01, joints: ['thighL', 'thighR'],
         help: 'extra rear extension on the hinds, on top of the base gait. NEGATIVE is right for a '
           + 'body whose hips are carried horizontally — the same joint reads the other way round' },
-      { key: 'hindSwing', label: 'hind swing', min: 0, max: 1.6, step: 0.01, joints: ['thighL', 'thighR'] },
-      { key: 'hindFold', label: 'hind fold', min: 0, max: 2.4, step: 0.01, joints: ['kneeL', 'kneeR'] },
+      { key: 'hindSwing', label: 'hind swing', min: 0, max: 2.0, step: 0.01, joints: ['thighL', 'thighR'],
+        help: 'the hind thigh\u2019s own sweep: peak-to-peak range is twice this, so 1.57 is a 180\u00b0 stride' },
+      { key: 'hindCarry', label: 'hind thigh carry', min: -1.5, max: 1.5, step: 0.01, joints: ['thighL', 'thighR'],
+        help: 'where the hind thigh SITS, before the swing — the middle of the stride' },
+      { key: 'hindFold', label: 'hind fold', min: -2.4, max: 2.4, step: 0.01, joints: ['kneeL', 'kneeR'] },
+      { key: 'hindKneeCarry', label: 'hind knee carry', min: -2.0, max: 2.0, step: 0.01, joints: ['kneeL', 'kneeR'],
+        help: 'where the hind knee SITS: this is what lifts the stifle up under the belly instead '
+          + 'of letting it drag along the floor' },
       { key: 'hockSnap', label: 'hock snap', min: 0, max: 1.6, step: 0.01, joints: ['ankleL', 'ankleR'] },
+      { key: 'hockCarry', label: 'hock carry', min: -2.0, max: 2.0, step: 0.01, joints: ['ankleL', 'ankleR'],
+        help: 'where the hock SITS — the paw\u2019s angle under the leg through the whole gallop' },
     ],
   },
 ];
@@ -278,7 +286,7 @@ export const GAITS = {
     note: 'The all-purpose walk→run. Upright carriage, moderate stride, arms hanging.',
     legs: {
       swing: 0.42, swingRun: 0.40, reach: 0.51, extend: 0.47,
-      adduct: 0.08, adductRun: 0, adductTrail: 0.18,
+      adduct: 0.08, adductRun: 0, adductTrail: 0.25,
       stanceBend: 0.14, stanceBendRun: 0.14,
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
@@ -305,7 +313,7 @@ export const GAITS = {
     note: 'Light, fast mechs at full tilt: long reaching stride, narrow track, driving bent arms, body pitched into it.',
     legs: {
       swing: 0.44, swingRun: 0.36, reach: 0.28, extend: 0.16,
-      adduct: 0.105, adductRun: 0, adductTrail: 0.10,
+      adduct: 0.105, adductRun: 0, adductTrail: 0.15,
       stanceBend: 0.14, stanceBendRun: 0.16,
       kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.93,
       cadence: 0.95, cadenceCap: 16,
@@ -329,21 +337,44 @@ export const GAITS = {
   // shaping the GALLOP needs lives in the `quad` block (hindReach/hindExtend) so
   // it cannot leak back into the jog.
   quad: {
-    base: 'sprint',
     name: 'Quadruped',
-    note: 'Sprinter\'s jog that drops into a wolf lope: hinds drive as a pair against the fronts, spine arching on the gather.',
-    // a galloping wolf does not run single-file the way a sprinter does
-    // (…and no trailing flick: `adductTrail` is a sprinter's tuck, and his hinds
-    //  are already shaped by the gallop's own hindReach/hindExtend)
-    legs: { adduct: 0.085, adductRun: 0, adductTrail: 0 },
-    // …and his paw finishes its push at ~45 degrees, not a sprinter's ~90
-    ankle: { push: 0.45, pushRun: 0.35 },
+    note: 'Wolf lope: hinds drive as a pair against the fronts, spine arching on the gather.',
+    // THE OWNER'S TUNING, restored. This block was briefly rewritten to inherit
+    // `base: 'sprint'` with the gallop's stride shaping moved into
+    // `quad.hindReach`/`hindExtend`; the result put fenrir on his belly with his
+    // paws through the floor (sole min -20.9% of body height), so the values he
+    // had tuned are back, self-contained, where they can be read in one place.
+    // `quad.onset` is kept from that work — it only governs the speed the gallop
+    // FADES IN at, not the shape of it, and it is what lets him jog on two legs
+    // before he opens up.
+    legs: {
+      swing: 0.42, swingRun: 0.40, reach: 1.2, extend: -1.5,
+      adduct: 0.085, adductRun: 0, adductTrail: 0,
+      stanceBend: 0.14, stanceBendRun: 0.14,
+      kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
+      cadence: 0.92, cadenceCap: 14,
+    },
+    ankle: { roll: 0.5, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0 },
+    arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
+    body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {
       onset: 0.40, blend: 0.35, stride: 0.85, lag: 0.30,
-      bodyPitch: 0.60, bodyArch: 0.09, drop: 0.32, heave: 0.15,
+      // drop 0.32 -> 0.30: the 180-degree hind stride below needs the room, and
+      // at 0.32 the paws swung 0.44 units UNDER the floor at full gallop
+      bodyPitch: 0.60, bodyArch: 0.09, drop: 0.30, heave: 0.15,
       frontReach: 1.25, frontSwing: 0.65, frontRake: 0.45, frontFold: 1.20,
-      hindReach: 0.92, hindExtend: -1.66,
-      hindSwing: 0.62, hindFold: 1.00, hockSnap: 0.75,
+      // the stride shaping lives in `legs.reach`/`legs.extend` above, as it did
+      // when this gallop was tuned — these two stay 0 so it is not applied twice
+      hindReach: 0, hindExtend: 0,
+      // A 180-DEGREE HIND STRIDE, as asked: the sweep is twice hindSwing, so 1.80
+      // measures 178 degrees peak-to-peak on the thigh (it was 93 at 0.62).
+      // hindCarry sits the middle of that stride a little forward so the wider
+      // arc does not drive the knee into the floor, and hindKneeCarry lifts the
+      // stifle for the same reason — measured: knee low point -0.00 -> 0.10,
+      // paw low point -0.41 -> 0.30, both now clear of the ground.
+      hindSwing: 1.80, hindCarry: -0.35,
+      hindFold: 1.00, hindKneeCarry: 0.90,
+      hockSnap: 0.75, hockCarry: -0.28,
     },
   },
 };
@@ -498,8 +529,14 @@ export function applyGait(tgt, gait, env) {
       tL = trail * fL.air * fL.back;
       tR = trail * fR.air * fR.back;
     }
-    tgt.thighL[2] += adduct + tL;
-    tgt.thighR[2] -= adduct + tR;
+    tgt.thighL[2] += adduct;
+    tgt.thighR[2] -= adduct;
+    // THE FLICK IS A KNEE ROLL, not a hip one: rolling the thigh swings the whole
+    // leg in from the hip, which moves the knee as much as the foot; rolling the
+    // KNEE tucks the shin and paw in under a hip that stays where it is, which is
+    // the shape a runner's trailing leg actually makes.
+    tgt.kneeL[2] += tL;
+    tgt.kneeR[2] -= tR;
   }
 
   // ===== ankles =====
@@ -654,12 +691,18 @@ export function applyQuadGait(tgt, gait, env) {
   const qr = q * ratio;
   tgt.thighL[0] += (-(Q.hindReach || 0) * hFwdL + (Q.hindExtend || 0) * hBackL) * qr;
   tgt.thighR[0] += (-(Q.hindReach || 0) * hFwdR + (Q.hindExtend || 0) * hBackR) * qr;
-  tgt.thighL[0] += (-0.12 + hind * Q.hindSwing) * q;
-  tgt.thighR[0] += (-0.12 + hind2 * Q.hindSwing) * q;
-  tgt.kneeL[0] += (0.3 + Math.max(0, hind) * Q.hindFold) * q;
-  tgt.kneeR[0] += (0.3 + Math.max(0, hind2) * Q.hindFold) * q;
-  tgt.ankleL[0] += (-0.28 - Math.max(0, -hind) * Q.hockSnap) * q;
-  tgt.ankleR[0] += (-0.28 - Math.max(0, -hind2) * Q.hockSnap) * q;
+  // THE THREE CARRIES — where each hind joint SITS through the gallop, before its
+  // swing/fold/snap is added. They were hard-coded constants (-0.12, 0.3, -0.28)
+  // tuned for one body; they are dials now because they are what decides whether
+  // a hind knee rides UP under the belly or drags along the floor, and that is
+  // the whole difference between a wolf and a lizard.
+  const hCarry = Q.hindCarry ?? -0.12, kCarry = Q.hindKneeCarry ?? 0.3, aCarry = Q.hockCarry ?? -0.28;
+  tgt.thighL[0] += (hCarry + hind * Q.hindSwing) * q;
+  tgt.thighR[0] += (hCarry + hind2 * Q.hindSwing) * q;
+  tgt.kneeL[0] += (kCarry + Math.max(0, hind) * Q.hindFold) * q;
+  tgt.kneeR[0] += (kCarry + Math.max(0, hind2) * Q.hindFold) * q;
+  tgt.ankleL[0] += (aCarry - Math.max(0, -hind) * Q.hockSnap) * q;
+  tgt.ankleR[0] += (aCarry - Math.max(0, -hind2) * Q.hockSnap) * q;
   // WHICH PAW IS UP — the gallop's own answer, which replaces the biped layer's
   // guess as the gallop blends in. A galloping quadruped lifts both hinds
   // TOGETHER on the gather, so comparing left against right (all applyGait can
