@@ -12,7 +12,29 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** VIPER'S ANKLES MOVED UP TO THE PIVOT (owner's rig, y 0.03 -> 0.08
+- **Latest:** THE FOOT IS THREE STATES, NOT A CURVE — reworked from the owner's
+  description of what a foot actually does. `applyToeHang` now blends between
+  **stance** (sole flat on the ground: the `footFlat`/`ankle.level` ask, the only
+  world-space rule of the three), **push-off** (planted but BEHIND — the toe stays
+  down while the leg straightens and the heel comes up, so the foot drives to
+  `ankle.push` + `pushRun` RELATIVE TO THE SHIN, ~90° at speed) and **air**
+  (nothing holds a foot at an angle to the world: it hangs at its RESTING angle to
+  the shin, plus `ankle.hang` — 15° for the sprint gait, 0 for a walk). The last
+  two are joint-space, so one number lands the same on titanus' boot, viper's
+  talon and fenrir's paw.
+  Two things this fixed that the previous version got wrong: the toe-off was fired
+  from a PHASE window (`pushPhase`, now gone) that was ~100° late — measured on
+  titanus, it peaked at 295° when his sole had left the ground at ~200° — and
+  "is this foot up" was inferred from leg geometry, which cannot tell a lifted
+  foot from a body squatting over a planted one. It is now MEASURED per foot
+  (`Animator.soleClearanceBySide`, new, handed to the gait as `env.footClr`)
+  wherever the model was calibrated, inferred only where it wasn't (procedural
+  bodies, and fenrir, whose gallop declares its own flight phase because both his
+  hinds leave the ground together). `node tools/gaitprobe.mjs` reports `ankleAir°`
+  (distance from the resting line while airborne — 0.0 on viper, 0.0 on titanus)
+  beside `toeFwd`. Also in: the owner's `sprint` kneePhase 1.15 → 1.93 and
+  `standard` roll 0.5 → 0.51.
+- **Previous:** VIPER'S ANKLES MOVED UP TO THE PIVOT (owner's rig, y 0.03 -> 0.08
   mesh-local on both ankles, spliced in through `tools/rigfmt.mjs` so the header,
   `skinSpan: 'child'` and the in-array comments survived). It is the anatomical
   placement for a digitigrade foot and it reads right; the honest cost is that

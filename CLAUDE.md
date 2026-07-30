@@ -123,18 +123,24 @@ audio). Progress history: `TASKS.md`.
   is how one gait walks politely and sprints hard. Add a dial by adding it to
   `GAIT_SCHEMA` + reading it in `applyGait` — the workbench's sliders, its
   "which dial moves this limb" logic and `tools/wbconfig.mjs` all derive from
-  the schema. THE ONE RULE THAT IS NOT A CURVE: a raised REAR foot must point its
-  toes back and down, never forward — a level sole in mid-air reads as walking on
-  a floor that isn't there. `applyToeHang` runs LAST (after the gallop layer) and
-  SOLVES for it: `ankle.hang` is the radians below horizontal the toes end up at
-  (π/2 = straight down, more = back), and the pass subtracts whatever the hips,
-  thigh and knee already contribute, so one number lands the same on a boot, a
-  talon and a paw. Its window is read off the POSE, not the phase — the leg
-  behind its rest direction AND the foot lifted off its standing height (both, or
-  a foot still pushing off gets its toe driven through the pavement) — which is
-  why it also works for fenrir, whose hinds are moved by two layers at different
-  rates. The same weight releases the flat-sole levelling, which used to cancel
-  the whole leg chain for the entire cycle. Judge a change with `node tools/gaitprobe.mjs <mech> [throttle]
+  the schema. THE FOOT IS NOT A CURVE — it is THREE STATES, and `applyToeHang`
+  (the last pass, after the gallop layer) blends between them from weights read
+  off the POSE, never off a phase window: **stance** (sole flat on the ground —
+  the `footFlat`/`ankle.level` ask, the only world-space rule), **push-off**
+  (planted but BEHIND: the toe stays down while the leg straightens and the heel
+  lifts, so the foot drives to `ankle.push` + `pushRun` relative to the shin, and
+  ~90° is what a real push-off reaches) and **air** (nothing holds a foot at an
+  angle to the world, so it hangs at its RESTING angle to the shin plus
+  `ankle.hang` — ~15° for a runner, 0 for a walk). The last two are JOINT-space,
+  stated against the shin, so one number lands the same on a boot, a talon and a
+  paw. "Is this foot down" is MEASURED where the body was calibrated
+  (`Animator.soleClearanceBySide`, handed over as `env.footClr`) and inferred from
+  the leg geometry otherwise — a deep-booted heavy stands with its ankle a fifth
+  of a body height up, so ankle height alone calls a planted foot raised. The
+  gallop overrides it again for fenrir, whose hinds both leave the ground at once.
+  Judge it with `node tools/gaitprobe.mjs` (`ankleAir°` ~0 = the airborne foot is
+  at its resting line; `toeFwd` is the bound on how far forward its toes still
+  point). Judge a change with `node tools/gaitprobe.mjs <mech> [throttle]
   [vsGait]` (foot reach/stride/lift/track/lean measured off the posed model,
   diffed against another gait) and `node tools/gaitsheet.mjs <mech> out.png
   [throttle] [frames] [vsGait]` (the cycle as a filmstrip, comparison ghost in

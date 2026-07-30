@@ -306,9 +306,12 @@ const CONFIG = defineWorkbenchConfig({
       const tgt = { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0] };
       const rest = {};
       for (const j of JOINT_ORDER) { if (j !== 'hips') { tgt[j] = [0, 0, 0]; rest[j] = [0, 0, 0]; } }
-      applyGait(tgt, gait, { ...env, rest });
-      if (gait.quad) applyQuadGait(tgt, gait, env);
-      applyToeHang(tgt, gait, { ...env, rest });
+      // ONE env: the passes hand each other conclusions through it (which foot
+      // is in the air), exactly as the animator runs them
+      const shared = { ...env, rest };
+      applyGait(tgt, gait, shared);
+      if (gait.quad) applyQuadGait(tgt, gait, shared);
+      applyToeHang(tgt, gait, shared);
       return tgt;
     },
     // The game's OWN top locomotion speed for this mech, so the preview's

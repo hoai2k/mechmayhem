@@ -15,12 +15,15 @@
 //   track      how far the feet sit off the centre line (the "legs far apart" read)
 //   lean       body pitch at the hips + torso, in degrees
 //   armSwing   peak shoulder pitch travel, degrees
-//   toeFwd     THE RAISED REAR FOOT check: how far FORWARD its toes still point
-//              (1 = dead ahead, 0 = straight down, negative = back, which is what
-//              a trailing foot really does). Measured only where the foot is both
-//              behind the hips and clear of the ground — a planted foot points its
-//              toes forward and should. Positive here is the "walking on a floor
-//              that isn't there" tell.
+//   ankleAir   THE AIRBORNE FOOT check, in degrees: how far the ankle sits from
+//              where it should while the foot is off the ground — its RESTING
+//              angle to the shin, plus whatever `ankle.hang` points past it. ~0 is
+//              the rule holding; a big number means something is still bending the
+//              foot around in mid-air.
+//   toeFwd     …and where that leaves the toes on a RAISED REAR foot: 1 = dead
+//              ahead (the "walking on a floor that isn't there" tell), 0 = straight
+//              down, negative = back. Perpendicular to a shin that is angled back
+//              lands somewhere in 0.0-0.4, so this is a bound, not a target.
 //   armPhase   the COUNTER-SWING check: correlation, over the cycle, between how
 //              far forward a foot is and how far forward the arm on the SAME
 //              side is. It must be NEGATIVE (left leg forward, left arm back) —
@@ -59,13 +62,21 @@ const out = await page.evaluate(async ({ n }) => {
     const V3 = g.position.constructor;              // THREE.Vector3, without importing three here
     const hip = m.joints.hips.getWorldPosition(new V3());
     const Q = g.quaternion.constructor;
+    // WHICH FOOT IS UP, from the measured sole where the body has been calibrated
+    // (a deep-booted heavy stands with its ankle a fifth of a body height up, so
+    // ankle height alone calls a planted foot "raised" and the check misfires)
+    const clr = a.soleClearanceBySide?.() || null;
+    const legLen = m.dims.thighLen + m.dims.shinLen;
     const feet = {}, hands = {};
     for (const side of ['L', 'R']) {
       const o = m.joints['ankle' + side];
       const p = o.getWorldPosition(new V3());
       // where the toes point: the foot's own forward axis, in world
       const toe = new V3(0, 0, 1).applyQuaternion(o.getWorldQuaternion(new Q()));
-      feet[side] = { fore: p.z - hip.z, up: p.y - g.position.y, side: p.x - hip.x, toe: toe.z };
+      const air = clr && typeof clr[side] === 'number'
+        ? clr[side] > 0.15 * legLen                 // measured: sole off the pavement
+        : (p.y - g.position.y) > 0.20 * (m.dims.hipHeight + m.dims.torsoH + m.dims.headSize * 2);
+      feet[side] = { fore: p.z - hip.z, up: p.y - g.position.y, side: p.x - hip.x, toe: toe.z, air };
       hands[side] = m.joints['hand' + side].getWorldPosition(new V3()).z - hip.z;
     }
     return {
@@ -73,6 +84,9 @@ const out = await page.evaluate(async ({ n }) => {
       hipY: hip.y - g.position.y,
       lean: (a.cur.hipsRot[0] + a.cur.torso[0]) * R2D,
       shoulder: a.cur.shoulderL[0] * R2D,
+      // how far each ankle is from its resting line, for the airborne check
+      ankleOff: { L: (a.cur.ankleL[0] - a.rest.ankleL[0]) * R2D, R: (a.cur.ankleR[0] - a.rest.ankleR[0]) * R2D },
+      hang: (a.gait?.ankle?.hang || 0) * R2D,
     };
   }
 
@@ -82,6 +96,7 @@ const out = await page.evaluate(async ({ n }) => {
     const acc = {
       reach: -1e9, trail: -1e9, lift: -1e9, sink: 1e9, track: 0,
       hipMin: 1e9, hipMax: -1e9, lean: 0, shMin: 1e9, shMax: -1e9, sole: 1e9, toeFwd: -9, h,
+      airOff: 0, airN: 0,
       // paired samples for the counter-swing correlation
       pairs: [],
     };
@@ -112,7 +127,9 @@ const out = await page.evaluate(async ({ n }) => {
         acc.track = Math.max(acc.track, Math.abs(f.side));
         // BEHIND the hips and OFF the ground: the window where a foot must not
         // still be pointing its toes forward
-        if (f.fore < -0.20 * acc.h && f.up > 0.20 * acc.h) acc.toeFwd = Math.max(acc.toeFwd, f.toe);
+        if (f.fore < -0.20 * acc.h && f.air) acc.toeFwd = Math.max(acc.toeFwd, f.toe);
+        // in the air, the ankle belongs at its resting line (+ the gait's `hang`)
+        if (f.air) { acc.airOff += Math.abs(s.ankleOff[side] - s.hang); acc.airN++; }
       }
       for (const side of ['L', 'R']) acc.pairs.push([s.feet[side].fore, s.hands[side]]);
       acc.hipMin = Math.min(acc.hipMin, s.hipY);
@@ -142,6 +159,7 @@ const out = await page.evaluate(async ({ n }) => {
     bob: (a.hipMax - a.hipMin) / a.h, lean: a.lean, armSwing: a.shMax - a.shMin,
     sole: a.sole > 1e8 ? null : a.sole / a.h,
     toeFwd: a.toeFwd < -8 ? null : a.toeFwd,
+    ankleAir: a.airN ? a.airOff / a.airN : null,
     armPhase: corr(a.pairs),
   });
   return {
@@ -170,10 +188,14 @@ if (out.mine.sole !== null) row('sole min', out.mine.sole, out.other.sole);
 row('lean°', out.mine.lean, out.other.lean, (v) => v.toFixed(1));
 row('armSwing°', out.mine.armSwing, out.other.armSwing, (v) => v.toFixed(1));
 row('armPhase r', out.mine.armPhase, out.other.armPhase, (v) => v.toFixed(2));
+if (out.mine.ankleAir !== null) row('ankleAir°', out.mine.ankleAir, out.other.ankleAir ?? 0, (v) => v.toFixed(1));
 if (out.mine.toeFwd !== null) row('toeFwd', out.mine.toeFwd, out.other.toeFwd ?? 0, (v) => v.toFixed(2));
-console.log(`\n  raised rear foot: ${out.mine.toeFwd === null ? 'never both behind and lifted — nothing to judge'
-  : out.mine.toeFwd < 0.1 ? 'toes point DOWN/BACK (correct)'
-  : 'toes still point FORWARD — it reads as walking on a floor that is not there'}`);
+console.log(`\n  airborne foot: ${out.mine.ankleAir === null ? 'never leaves the ground in this sample'
+  : out.mine.ankleAir < 8 ? 'hangs at its resting line (correct)'
+  : `${out.mine.ankleAir.toFixed(0)}° away from its resting line — something is still bending it in mid-air`}`
+  + (out.mine.toeFwd === null ? ''
+    : out.mine.toeFwd > 0.6 ? `, and its toes still point FORWARD (${out.mine.toeFwd.toFixed(2)})`
+    : `, toes ${out.mine.toeFwd < 0 ? 'back' : 'down'} (${out.mine.toeFwd.toFixed(2)})`));
 console.log(`\n  arms ${out.mine.armPhase < -0.3 ? 'COUNTER-swing the legs (correct)'
   : out.mine.armPhase > 0.3 ? 'swing WITH the legs — WRONG, they should counter'
   : 'barely swing / out of phase with the legs'}`);
