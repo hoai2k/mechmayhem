@@ -210,7 +210,7 @@ export async function runRigWorkbench(config, params) {
     else { gizmo.detach(); selName = null; }
     if (soloRoot && !rigObj.bones.some((b) => b.name === soloRoot)) soloRoot = null;
     updateSolo();
-    saveRig();
+    saveDraft();
   }
   function undo() {
     if (!undoStack.length) return;
@@ -305,7 +305,15 @@ export async function runRigWorkbench(config, params) {
     pos.needsUpdate = true;
   }
 
-  function saveRig() { localStorage.setItem(LS_KEY(), JSON.stringify(rigObj)); }
+  // Draft persistence: every edit lands in localStorage so a reload keeps your
+  // work. NOT the same act as writing the rig FILE — that is the Save button's
+  // saveRigToFile() below, and it stayed a separate, deliberate step until this
+  // function and that one were both called `saveRig`. Two function declarations
+  // with one name in one scope: the later WINS, so every drag, undo, add and
+  // delete was POSTing src/mechs/rigs/<id>.rig.js to the dev server instead of
+  // saving a draft — which also fired Vite's HMR and reloaded the tool from
+  // under the edit. Keep the names distinct.
+  function saveDraft() { localStorage.setItem(LS_KEY(), JSON.stringify(rigObj)); }
 
   // `raw` / `startRig` came from the preflight above — both are known good.
   function load() {
@@ -437,11 +445,24 @@ export async function runRigWorkbench(config, params) {
         c.position.copy(_smp);
       }
     }
-    // moving the bind: keep the mesh at REST (don't deform while editing)
-    if (!swinging) rebindRest(mesh, bones);
+    // moving the bind: keep the mesh at REST (don't deform while editing).
+    // NOT while a pose is on — rebinding under the T pose would bake the T INTO
+    // the bind, which is the one thing this must never do. Under a pose the mesh
+    // deforms as you drag instead, which is the live feedback that makes editing
+    // in the T pose worth doing at all.
+    if (!swinging && !tposeOn) rebindRest(mesh, bones);
   }
   function onEditCommit() {
     if (!selName || swinging) return;
+    // A DRAG UNDER THE T POSE IS STILL A BIND EDIT. The gizmo writes
+    // bone.position, which IS the bind offset from the parent (the T pose only
+    // ever sets rotations) — but it writes it in the parent's POSED frame, which
+    // is exactly what makes editing here feel right: you push the arm where you
+    // want it while looking at the arm. To read the numbers back out, drop every
+    // rotation first so the skeleton stands at its bind pose again, take the
+    // positions, re-bind the skin there, and only then put the pose back on.
+    const reposeAfter = tposeOn;
+    if (reposeAfter) resetPose();
     syncRigFromBones();
     // record the pre-drag snapshot on the undo stack only if the drag actually
     // moved something
@@ -452,10 +473,12 @@ export async function runRigWorkbench(config, params) {
     }
     dragSnap = null;
     setWeights(mesh, rigObj);   // reassign vertices to the nearest new bone
-    rebindRest(mesh, bones);
+    rebindRest(mesh, bones);    // at the BIND pose — see above
     regenPosts();               // posts follow the moved bones
     updateColors();
-    saveRig();
+    saveDraft();
+    posReadout();               // the numbers the drag just changed
+    if (reposeAfter) applyTPose();   // and snap back to the T you were judging in
   }
 
   function selectBone(name) {
@@ -552,23 +575,23 @@ export async function runRigWorkbench(config, params) {
     ['thighL', 'kneeL'], ['kneeL', 'ankleL'],
     ['thighR', 'kneeR'], ['kneeR', 'ankleR'],
   ];
+  // WHICH WAY IS LEFT, and therefore which way is forward. Read off the rig's
+  // own BIND positions (rigObj, not the live bones) so it is a property of the
+  // skeleton and never of the pose it happens to be in.
+  function rigLateral() {
+    const posOf = (n) => rigObj.bones.find((b) => b.name === n)?.pos;
+    for (const [l, r] of [['shoulderL', 'shoulderR'], ['thighL', 'thighR']]) {
+      const a = posOf(l), b = posOf(r);
+      if (!a || !b) continue;
+      const v = new THREE.Vector3(a[0] - b[0], 0, a[2] - b[2]);
+      if (v.lengthSq() > 1e-8) return v.normalize();
+    }
+    return new THREE.Vector3(0, 0, 1);       // the rig files' own convention: +z is left
+  }
   function tposeAxes() {
-    const sL = byName.shoulderL, sR = byName.shoulderR;
-    const up = new THREE.Vector3(0, 1, 0);
-    let lat = null;
-    if (sL && sR) {
-      lat = sL.getWorldPosition(_ta).clone().sub(sR.getWorldPosition(_tb));
-      lat.y = 0;
-      if (lat.lengthSq() > 1e-8) lat.normalize(); else lat = null;
-    }
-    // no shoulders (or both on the centre line): fall back to the hip line, then
-    // to +z, which is the rig files' own "left"
-    if (!lat && byName.thighL && byName.thighR) {
-      lat = byName.thighL.getWorldPosition(_ta).clone().sub(byName.thighR.getWorldPosition(_tb));
-      lat.y = 0;
-      if (lat.lengthSq() > 1e-8) lat.normalize(); else lat = null;
-    }
-    return { up, lat: lat || new THREE.Vector3(0, 0, 1) };
+    // the bones live under `container`, which is scaled but not rotated, so a
+    // bind-space lateral is a world lateral here
+    return { up: new THREE.Vector3(0, 1, 0), lat: rigLateral() };
   }
   // aim `bone` so the segment down to `child` points along world direction `dir`
   function aimBone(bone, child, dir) {
@@ -599,15 +622,16 @@ export async function runRigWorkbench(config, params) {
     tposeOn = on;
     if (on) {
       if (swinging) { swinging = false; swChk.checked = false; }
-      gizmo.detach();
       applyTPose();
-      setNote('T POSE — a reference view, so the bones are not editable while it is on. '
-        + 'Uncheck to go back to the bind pose and carry on editing.');
+      setNote('T POSE — and it is EDITABLE. Drag a bone and you are moving its BIND '
+        + 'position, seen through the pose: the mesh deforms live, the rig file gets the '
+        + 'edit, and the body snaps back into the T when you let go. Judge the neutral '
+        + 'pose and fix it in the same place.');
     } else {
       resetPose();
-      if (selName) selectBone(selName);
+      rebindRest(mesh, bones);
     }
-    for (const h of handles) h.mesh.visible = !on;
+    if (selName) selectBone(selName);
     matchMannequin();
   }
 
@@ -645,7 +669,7 @@ export async function runRigWorkbench(config, params) {
   // Only the bone array is replaced: the file's header comment and its
   // skinSpan/softSkin/cutWelds/cutPairs survive (tools/rigfmt.mjs), which is
   // the whole reason this is a splice and not a file write.
-  async function saveRig() {
+  async function saveRigToFile() {
     const bones = rigBonesPayload();
     saveBtn.disabled = true;
     setNote(`Saving ${bones.length} bones to ${id}.rig.js…`);
@@ -787,9 +811,10 @@ export async function runRigWorkbench(config, params) {
     container.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(mesh);
     mannGroup.position.set((box.min.x + box.max.x) * 0.5, box.min.y, (box.min.z + box.max.z) * 0.5);
+    mannRef = ref;              // before alignMannequinFacing(), which reads it
+    alignMannequinFacing();
     scene.add(mannGroup);
     mannLabels = config.reference?.labels?.(ref, { size: modelHeight() * 0.045 });
-    mannRef = ref;
     // each reference bone's own bind offset from its parent, kept because
     // matchMannequin() rotates bones by aiming that offset somewhere new and
     // needs the original to aim FROM
@@ -797,6 +822,39 @@ export async function runRigWorkbench(config, params) {
     for (const [n, b] of Object.entries(ref.bones || {})) mannBind[n] = b.position.clone();
     note.textContent = `reference: ${ref.height.toFixed(2)} tall vs model ${modelHeight().toFixed(2)}`;
     matchMannequin();
+  }
+
+  // WHICH WAY THE REFERENCE FACES. The mannequin is built in the GAME's frame —
+  // factory.buildRig's convention, faces +z with left at -x — while a rig file
+  // is authored in the RAW GLB's bind space, which for every mech here faces +x
+  // with left at +z (the manifest's `yawOffset` is what reconciles the two at
+  // runtime, and this editor shows the raw asset, before it applies). Ghosted in
+  // unturned, the reference therefore stood at 90 degrees to the model: facing
+  // sideways on its own, and with its feet and head pointing across the mech
+  // while matching, since those bones keep their bind orientation.
+  //
+  // Derived, not read off `yawOffset`: both bodies are asked which way THEIR
+  // OWN left is (up x left = forward) and the group is yawed by the difference.
+  // That also gets the MANNEQUIN-as-subject case right, where the two frames
+  // already agree and the answer is zero.
+  function alignMannequinFacing() {
+    if (!mannRef || !mannGroup) return;
+    const up = new THREE.Vector3(0, 1, 0);
+    const fwdOf = (lat) => up.clone().cross(lat).normalize();
+    const modelFwd = fwdOf(rigLateral());
+    mannGroup.rotation.y = 0;
+    mannGroup.updateMatrixWorld(true);
+    const sL = mannRef.bones?.shoulderL, sR = mannRef.bones?.shoulderR;
+    if (!sL || !sR) return;
+    const mLat = sL.getWorldPosition(new THREE.Vector3()).sub(sR.getWorldPosition(new THREE.Vector3()));
+    mLat.y = 0;
+    if (mLat.lengthSq() < 1e-8) return;
+    const mFwd = fwdOf(mLat.normalize());
+    // signed angle about +y from the reference's forward to the model's
+    mannGroup.rotation.y = Math.atan2(
+      mFwd.z * modelFwd.x - mFwd.x * modelFwd.z,
+      mFwd.x * modelFwd.x + mFwd.z * modelFwd.z);
+    mannGroup.updateMatrixWorld(true);
   }
 
   // ---- MANNEQUIN FOLLOWS THE RIG ------------------------------------------
@@ -902,10 +960,12 @@ export async function runRigWorkbench(config, params) {
   tChk.onchange = () => setTPose(tChk.checked);
   const tLab = document.createElement('label');
   tLab.style.cssText = 'display:flex;gap:5px;align-items:center;font-size:11px;cursor:pointer;color:#dfe8f5';
-  tLab.append(tChk, document.createTextNode(' T pose (reference \u2014 not editable)'));
+  tLab.append(tChk, document.createTextNode(' T pose (editable \u2014 drags edit the bind)'));
   tLab.title = 'Drive the whole skeleton into a canonical T — arms straight out along the shoulder '
-    + 'line, legs straight down — to see how accurately this rig can pose the mech. Rotation only: '
-    + 'nothing this editor saves is touched, and unchecking restores the bind pose.';
+    + 'line, legs straight down — to see how accurately this rig can pose the mech, and FIX IT THERE: '
+    + 'dragging a bone moves its bind position (seen through the pose), the mesh deforms as you go, '
+    + 'and it snaps back into the T on release. The pose itself is never saved — only bone positions '
+    + 'are, exactly as in the bind view.';
   tRow.appendChild(tLab);
   panel.appendChild(tRow);
 
@@ -939,7 +999,7 @@ export async function runRigWorkbench(config, params) {
   };
   swRow.append(swChk, document.createTextNode(' Swing claws/legs (loop)')); panel.appendChild(swRow);
 
-  const saveBtn = btn('Save rig to file ▶', saveRig, true);
+  const saveBtn = btn('Save rig to file ▶', saveRigToFile, true);
   panel.appendChild(saveBtn);
   const exportChangesBtn = btn('Export uncommitted saves', () => {});
   panel.appendChild(exportChangesBtn);
@@ -1000,7 +1060,7 @@ export async function runRigWorkbench(config, params) {
     const pp = rigObj.bones.find((b) => b.name === parent)?.pos || [0, 0.3, 0];
     rigObj.bones.push({ name, parent, pos: [pp[0], pp[1] + 0.05, pp[2]] });
     addName.value = '';
-    rebuild(true); buildBoneUI(); selectBone(name); updateSolo(); saveRig();
+    rebuild(true); buildBoneUI(); selectBone(name); updateSolo(); saveDraft();
   }
   function delBone() {
     if (!selName || selName === 'hips') return;
@@ -1008,7 +1068,7 @@ export async function runRigWorkbench(config, params) {
     if (soloRoot === selName) soloRoot = null;
     rigObj.bones = rigObj.bones.filter((b) => b.name !== selName && b.parent !== selName);
     gizmo.detach(); selName = null;
-    rebuild(true); buildBoneUI(); updateSolo(); saveRig();
+    rebuild(true); buildBoneUI(); updateSolo(); saveDraft();
   }
 
   function el(t, css) { const e = document.createElement(t); e.style.cssText = css; return e; }
@@ -1034,6 +1094,35 @@ export async function runRigWorkbench(config, params) {
   engine.start();
   window.__rigedit = { get rig() { return rigObj; }, byName: () => byName,
     solo: toggleSolo, undo, redo, select: selectBone,
+    // test hook: a DRAG, exactly as the gizmo delivers one — the bone's local
+    // offset moves (that is all TransformControls writes) and then the editor's
+    // own move/commit path runs. Under the T pose that is the whole feature:
+    // the offset is written in the parent's POSED frame and comes back out as a
+    // bind edit.
+    _simDrag: (boneName, dx, dy, dz) => {
+      const b = byName[boneName];
+      if (!b) return null;
+      selectBone(boneName);
+      const before = JSON.parse(JSON.stringify(rigObj.bones.find((x) => x.name === boneName).pos));
+      b.position.x += dx; b.position.y += dy; b.position.z += dz;
+      onGizmoMove();
+      onEditCommit();
+      const after = rigObj.bones.find((x) => x.name === boneName).pos;
+      return { before, after, posed: [b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w] };
+    },
+    get tpose() { return tposeOn; },
+    setTPose: (v) => { tChk.checked = v; setTPose(v); },
+    mannFacing: () => {
+      if (!mannRef) return null;
+      const P = (n) => mannRef.bones[n].getWorldPosition(new THREE.Vector3());
+      const mLat = P('shoulderL').sub(P('shoulderR')); mLat.y = 0; mLat.normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+      return {
+        refFwd: up.clone().cross(mLat).toArray().map((v) => +v.toFixed(3)),
+        modelFwd: up.clone().cross(rigLateral()).toArray().map((v) => +v.toFixed(3)),
+        yaw: +(mannGroup.rotation.y * 180 / Math.PI).toFixed(1),
+      };
+    },
     // test hook: drive the real solo-move path (capture → move → counter-adjust)
     _simSoloMove: (boneName, dx, dy, dz) => {
       soloMove = true; selName = boneName; captureSoloMoveTargets();

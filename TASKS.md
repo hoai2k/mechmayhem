@@ -12,7 +12,35 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE RIG EDITOR CAN NOW SHOW YOU WHAT THE RIG DOES, not just where
+- **Latest:** THE T POSE IS EDITABLE, and two bugs behind it are fixed. Dragging a
+  bone under the T pose now edits its BIND position through the pose: the gizmo
+  only ever writes `bone.position` (which IS the bind offset — the pose sets
+  rotations and nothing else) in the parent's POSED frame, so you push the limb
+  where you want it while looking at the limb; on release the editor drops the
+  rotations, reads the positions back at the bind pose, re-binds the skin THERE,
+  and re-applies the T. The pose is never baked into the bind, and the mesh
+  deforming under the drag is feedback rather than a save. Verified end to end:
+  a drag of kneeL by -0.03 in z under the T pose lands as bind `0.12 -> 0.09`,
+  the tool stays in the T, and the rig FILE is untouched.
+  **THE REFERENCE WAS FACING SIDEWAYS** because the mannequin is built in the
+  GAME's frame (faces +z, left -x) while a rig file is authored in the raw GLB's
+  bind space (faces +x, left +z) — 90 degrees apart, which is exactly what the
+  manifest's `yawOffset` reconciles at runtime and the rig editor never applied.
+  Both bodies are now asked which way their own left is (`up x left = forward`)
+  and the group is yawed by the difference; the MANNEQUIN-as-subject case still
+  comes out 0. That fixed the feet pointing across the mech while matching too:
+  the bones with no child to aim at (ankles, hands, head) keep their bind
+  orientation, so they were wearing the reference's own 90-degree error.
+  **AND A REAL ONE UNDERNEATH:** the rig editor had TWO functions called
+  `saveRig` in one scope — the localStorage draft saver and the one that POSTs
+  `src/mechs/rigs/<id>.rig.js` to the dev server. The later declaration wins, so
+  EVERY drag, undo, add and delete had been writing the rig file, which then
+  fired Vite's HMR and reloaded the tool mid-edit (that is what kept resetting
+  the T pose), while the documented localStorage draft was never written at all.
+  Now `saveDraft` vs `saveRigToFile`: a drag persists a draft that survives a
+  reload, and only the button touches the file. Check your tree for rig files you
+  did not mean to change.
+- **Previous:** THE RIG EDITOR CAN NOW SHOW YOU WHAT THE RIG DOES, not just where
   its bones sit. Two boxes: **match this rig's bones** under the mannequin (on by
   default) stands the reference humanoid in YOUR bone positions instead of its own
   canonical stance — position lands on the bone, rotation aims each segment at the

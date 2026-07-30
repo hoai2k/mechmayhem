@@ -253,10 +253,33 @@ audio). Progress history: `TASKS.md`.
   straight down — which is the one-frame answer to "how accurately can this rig
   pose the mech": an ankle on a hock or a thigh aimed outboard shows up
   immediately, and the mannequin beside it (above) holds the same T as the shape
-  it was aiming at. It is a VIEW, not an edit — rotation only, positions (the
-  thing the editor saves) untouched, gizmo detached while it is on, bind pose
-  back when it is off. A body with no humanoid T (cranky's pincers, his leg
-  arches) will stretch, and that IS the reading.
+  it was aiming at. A body with no humanoid T (cranky's pincers, his leg arches)
+  will stretch, and that IS the reading.
+  IT IS EDITABLE, which is the point — judge the neutral pose and fix it in the
+  same place. A drag under the T pose is still a BIND edit: the gizmo only ever
+  writes `bone.position`, which IS the bind offset from the parent (the pose sets
+  rotations and nothing else), and it writes it in the parent's POSED frame, so
+  you push the limb where you want it while looking at the limb. On release the
+  editor drops every rotation, reads the positions back at the bind pose, re-binds
+  the skin THERE and re-applies the T — so the pose is never baked into the bind,
+  and the mesh deforming live under the drag is feedback, not a save. The lateral
+  axis comes from the rig's own shoulder (then hip) line, so it works whichever
+  way a mesh faces.
+- WHICH WAY THE REFERENCE FACES: the mannequin is built in the GAME's frame
+  (`factory.buildRig` — faces +z, left at -x) while a rig file is authored in the
+  RAW GLB's bind space, which faces +x with left at +z (the manifest `yawOffset`
+  reconciles them at runtime, and the rig editor shows the raw asset, before it
+  applies). Ghosted in unturned, the reference stood at 90 degrees to the mech —
+  facing sideways on its own, feet and head pointing across the body while
+  matching. `alignMannequinFacing` asks both bodies which way THEIR OWN left is
+  (`up x left = forward`) and yaws the group by the difference, which also gets
+  the MANNEQUIN-as-subject case right (the frames already agree; the answer is 0).
+- RIG EDITOR EDITS ARE DRAFTS. Every drag/undo/add/delete goes to localStorage
+  (`saveDraft`, key `rigedit:<id>`) and ONLY the **Save rig to file ▶** button
+  writes `src/mechs/rigs/<id>.rig.js` (`saveRigToFile`). They were both named
+  `saveRig` — two function declarations, one scope, later one wins — so for a
+  while every drag POSTed the rig file to the dev server, which then fired Vite's
+  HMR and reloaded the tool from under the edit. Keep the two names distinct.
 - BONE ROTATION: a rig file carries POSITIONS ONLY, and adding a rest rotation to
   one would change nothing — `applyCustomRig` rebinds the skin at rest
   (`rebindRest`) and `RigAdapter` captures a rest offset per bone
