@@ -152,7 +152,17 @@ audio). Progress history: `TASKS.md`.
   gallop overrides it again for fenrir, whose hinds both leave the ground at once.
   Judge it with `node tools/gaitprobe.mjs` (`ankleAir°` ~0 = the airborne foot is
   at its resting line; `toeFwd` is the bound on how far forward its toes still
-  point). Judge a change with `node tools/gaitprobe.mjs <mech> [throttle]
+  point).
+  THE TRAILING FLICK (`adductTrail`) is the one dial that is NOT a plain phase
+  function: it pulls a leg toward the midline only while that foot is BEHIND AND
+  OFF THE GROUND — the flick after toe-off — and fades as the leg swings forward,
+  so the foot lands at its normal width and takes the weight there. It is gated on
+  `air * back` from `footStates()`, the same two weights the foot rule uses, where
+  `air` is the MEASURED sole clearance (`Animator.soleClearanceBySide`) wherever
+  the body has been calibrated. That gate IS the design: pulling a PLANTED foot
+  sideways is a skate, and multiplying by `air` makes it impossible rather than
+  unlikely (footprobe's stance slip is unchanged at the shipped values).
+  Judge a change with `node tools/gaitprobe.mjs <mech> [throttle]
   [vsGait]` (foot reach/stride/lift/track/lean measured off the posed model,
   diffed against another gait) and `node tools/gaitsheet.mjs <mech> out.png
   [throttle] [frames] [vsGait]` (the cycle as a filmstrip, comparison ghost in

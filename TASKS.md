@@ -12,7 +12,38 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE RIG EDITOR'S VIEW IS NOW A PURE FUNCTION OF ITS DATA, which is
+- **Latest:** THE TRAILING LEG FLICKS IN NOW, on `standard` and `sprint`. A
+  running mech used to keep its rear leg out at hip width all the way through the
+  extension, which reads bow-legged; it now swings toward the midline as it comes
+  off the ground behind the body and returns to its normal width before it lands.
+  New dial `legs.adductTrail` (`standard` 0.18, `sprint` 0.10, quad left at 0),
+  and it is NOT a phase function like the rest of the table: it is gated on
+  **`air * back`** from `footStates()` — the same weights the foot rule uses,
+  where `air` is the MEASURED sole clearance. That gate is the whole design.
+  Pulling a PLANTED foot sideways is a skate, so the multiply by `air` makes it
+  impossible rather than unlikely: viper's stance slip 23.3 -> 21.7 and titanus'
+  10.2 -> 10.5 (both inside run-to-run noise), and a phase-by-phase readout shows
+  every planted sample identical to the last decimal while the airborne rear ones
+  come in — viper's trailing foot 0.57 -> 0.12 units off the centre line with the
+  landing foot unmoved at 0.38. Values were chosen per gait by measuring the most
+  sensitive body in each (glacier for standard, viper for sprint) so nobody's
+  trailing foot CROSSES the midline. Also in: the owner's gait export —
+  `sprint.adductRun` 0.07 -> 0 (the track narrowing viper no longer needs now his
+  legs are rigged straight). Its `quad.legs.extend` 0 -> -1.5 was NOT applied and
+  should not be: the same export's structure was superseded in parallel — `quad`
+  now inherits `base: 'sprint'` and the gallop's own stride shaping moved into
+  `quad.hindReach`/`hindExtend`, where that intent already ships as **-1.66**.
+  Applied to `legs.extend` in the new structure it would have hit fenrir's JOG,
+  which is deliberately sprint verbatim. Fenrir also keeps `adductTrail: 0`: the
+  flick is a sprinter's tuck and his hinds are already shaped by the gallop.
+  ONE ANSWER RECORDED WITH IT: an ankle cannot be moved by hand in the gait
+  workbench's keyframe mode and should not be — bone lengths are fixed, so a foot
+  moves by rotating the hip and knee. Keys are per-joint ROTATION corrections, the
+  gizmo does appear on `thighL`/`kneeL` when they are clicked in the viewport (the
+  ankle is refused, with an explanation, whenever the foot rule owns it), and a
+  key on the thigh's roll at one phase is the hand-authored version of exactly
+  what `adductTrail` now does for the whole gait.
+- **Previous:** THE RIG EDITOR'S VIEW IS NOW A PURE FUNCTION OF ITS DATA, which is
   the refactor those pose/offset bugs kept asking for. Two things describe a rig
   — `rigObj` (bind positions) and `corrections` (joint offsets) — and what you see
   is those two plus two VIEW flags: which pose, and whether offsets are previewed.
