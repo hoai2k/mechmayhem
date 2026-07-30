@@ -12,7 +12,36 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE MANNEQUIN IS ALSO A SUBJECT — it now sits at the bottom of
+- **Latest:** VIPER'S NEW RIG IS IN — and it is worth it for the animation: the
+  ankle bone moved from the high hock (y 0.135 mesh-local, 0.92 world above the
+  sole) down beside the sole (y 0.03, 0.21 world), so `calibrateFeet` now measures
+  footDepth 0.206 against 0.925 and hands the gait `ankleGain 1.0` where it used
+  to hand it **0.35**, with `footFlat` 1.0 → **0**. Viper's heel roll and toe-off
+  were being damped to a third of their authored amplitude and then levelled flat
+  again; they now run as written, and the sole still sits on the floor (-0.7% of
+  body height at its lowest). The skin audit likes the rig too:
+  `node tools/skindebug.mjs viper` total severity **1863.5 → 1500.9** (-19%) with
+  no new at-rest breakage. Anchors kept per the house rule — the muzzles ride
+  elbowR/handL, both bones moved, so the offsets were re-expressed to hold their
+  rest-pose world position: drift 0.145 / 0.128 units → **0.0005** (aim within
+  0.85°, which is the bone's own rest orientation and not something a manifest
+  number can express). The blade-trail anchors were left alone on purpose: they
+  ARE `bladeLtip`/`bladeRtip` at offset [0,0,0], so following the tip the author
+  moved is the intent. Poster re-rendered; `postercheck` puts viper at 15px of
+  silhouette drift (jerry already ships at 20). Hurtbox 15/15, contain 77%,
+  bloat 0.93x. Build green, soak clean.
+  **THE SKIN PATCH THAT CAME WITH IT WAS NOT SHIPPED**, with numbers: 9 of its 14
+  ops select islands by `{"comp":N}`, which is an ordinal into the partition the
+  OLD rig drew (69 islands; the new rig draws 47). Under the new rig those ids
+  land on his elbows and horn — comp 25, meant for `thighL`, selects geometry
+  0.049 from `elbowL` — and the audit total goes **1500.9 → 2872.5**. Translating
+  every comp back to the vertex list it meant under the old rig recovers most of
+  it (1794.8) but is still worse than the new rig with NO ops at all, which is
+  what shipped. `pinSkinOps` (skinops.js) now makes the workbench write vertex
+  lists instead of `comp` ordinals on Save/Export, so a future hand-off cannot
+  drift this way; `tools/gaitprobe.mjs` also got a warm-up pass (its swing ranges
+  were sampling the cold-start transient and swinging by up to 2x run to run).
+- **Previous:** THE MANNEQUIN IS ALSO A SUBJECT — it now sits at the bottom of
   every workbench's mech dropdown, under the rule with the work-in-progress
   mechs, so the reference body can be opened on its own rather than only as a
   build of some mech. It is emphatically NOT game content: `MANNEQUIN_DEF` lives

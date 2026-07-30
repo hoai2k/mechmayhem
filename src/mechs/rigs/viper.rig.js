@@ -41,37 +41,37 @@ export const VIPER_RIG = {
     //      up to the collar; bias<1 so neither loses its middle to a limb)
     { name: 'hips', parent: null, pos: [0.02, 0.60, 0.00], bias: 0.9 },
     { name: 'torso', parent: 'hips', pos: [0.00, 0.70, 0.00], bias: 0.85 },
-    { name: 'head', parent: 'torso', pos: [0.01, 0.84, 0.00], bias: 1.05 },
+    { name: 'head', parent: 'torso', pos: [0.02, 0.82, 0.00], bias: 1.05 },
     { name: 'crest', parent: 'head', pos: [0.02, 0.96, 0.00] },   // skull + horn spire
     { name: 'horn', parent: 'head', pos: [-0.10, 0.87, 0.00] },   // back-swept horns
     // ---- LEFT arm (+z) ---- pauldron on the shoulder, dagger off the forearm
-    { name: 'shoulderL', parent: 'torso', pos: [0.00, 0.790, 0.110], bias: 0.85 },
-    { name: 'elbowL', parent: 'shoulderL', pos: [0.00, 0.635, 0.185] },
-    { name: 'handL', parent: 'elbowL', pos: [0.02, 0.515, 0.245] },
-    { name: 'fingerL', parent: 'handL', pos: [0.05, 0.440, 0.270] },
+    { name: 'shoulderL', parent: 'torso', pos: [0.00, 0.78, 0.12], bias: 0.85 },
+    { name: 'elbowL', parent: 'shoulderL', pos: [-0.02, 0.64, 0.18] },
+    { name: 'handL', parent: 'elbowL', pos: [0.03, 0.51, 0.23] },
+    { name: 'fingerL', parent: 'handL', pos: [0.05, 0.44, 0.27] },
     // left dagger: root at the forearm emitter, tip at the point. bias<1 so the
     // blade wins its own verts outright over the forearm/hand spans beside it
-    { name: 'bladeL', parent: 'elbowL', pos: [0.03, 0.475, 0.275], bias: 0.75 },
-    { name: 'bladeLtip', parent: 'bladeL', pos: [0.125, 0.185, 0.375] },
+    { name: 'bladeL', parent: 'elbowL', pos: [0.03, 0.47, 0.28], bias: 0.75 },
+    { name: 'bladeLtip', parent: 'bladeL', pos: [0.13, 0.18, 0.38] },
     // ---- RIGHT arm (-z) ----
-    { name: 'shoulderR', parent: 'torso', pos: [0.00, 0.790, -0.110], bias: 0.85 },
-    { name: 'elbowR', parent: 'shoulderR', pos: [0.00, 0.635, -0.185] },
-    { name: 'handR', parent: 'elbowR', pos: [0.02, 0.505, -0.245] },
-    { name: 'fingerR', parent: 'handR', pos: [0.05, 0.430, -0.270] },
-    { name: 'bladeR', parent: 'elbowR', pos: [0.03, 0.475, -0.275], bias: 0.75 },
-    { name: 'bladeRtip', parent: 'bladeR', pos: [0.125, 0.185, -0.375] },
+    { name: 'shoulderR', parent: 'torso', pos: [0.00, 0.78, -0.12], bias: 0.85 },
+    { name: 'elbowR', parent: 'shoulderR', pos: [-0.02, 0.64, -0.18] },
+    { name: 'handR', parent: 'elbowR', pos: [0.02, 0.51, -0.25] },
+    { name: 'fingerR', parent: 'handR', pos: [0.05, 0.43, -0.27] },
+    { name: 'bladeR', parent: 'elbowR', pos: [0.03, 0.47, -0.28], bias: 0.75 },
+    { name: 'bladeRtip', parent: 'bladeR', pos: [0.13, 0.18, -0.37] },
     // ---- LEFT leg (+z) ---- digitigrade: the ankle sits high at the back of a
     //      long clawed foot, so toe/heel tips carry the talon and the spur
-    { name: 'thighL', parent: 'hips', pos: [0.01, 0.610, 0.090] },
-    { name: 'kneeL', parent: 'thighL', pos: [0.01, 0.385, 0.115] },
-    { name: 'ankleL', parent: 'kneeL', pos: [-0.01, 0.135, 0.175] },
-    { name: 'toeL', parent: 'ankleL', pos: [0.08, 0.020, 0.200] },
-    { name: 'heelL', parent: 'ankleL', pos: [-0.09, 0.030, 0.155] },
+    { name: 'thighL', parent: 'hips', pos: [0.02, 0.59, 0.07] },
+    { name: 'kneeL', parent: 'thighL', pos: [0.02, 0.36, 0.12] },
+    { name: 'ankleL', parent: 'kneeL', pos: [-0.03, 0.03, 0.17] },
+    { name: 'toeL', parent: 'ankleL', pos: [0.08, 0.02, 0.20] },
+    { name: 'heelL', parent: 'ankleL', pos: [-0.09, 0.03, 0.16] },
     // ---- RIGHT leg (-z) ----
-    { name: 'thighR', parent: 'hips', pos: [0.01, 0.610, -0.090] },
-    { name: 'kneeR', parent: 'thighR', pos: [0.01, 0.385, -0.115] },
-    { name: 'ankleR', parent: 'kneeR', pos: [-0.01, 0.130, -0.175] },
-    { name: 'toeR', parent: 'ankleR', pos: [0.08, 0.020, -0.200] },
-    { name: 'heelR', parent: 'ankleR', pos: [-0.09, 0.030, -0.155] },
+    { name: 'thighR', parent: 'hips', pos: [0.02, 0.59, -0.07] },
+    { name: 'kneeR', parent: 'thighR', pos: [0.02, 0.37, -0.12] },
+    { name: 'ankleR', parent: 'kneeR', pos: [-0.02, 0.03, -0.18] },
+    { name: 'toeR', parent: 'ankleR', pos: [0.08, 0.02, -0.20] },
+    { name: 'heelR', parent: 'ankleR', pos: [-0.09, 0.03, -0.16] },
   ],
 };

@@ -38,7 +38,7 @@ import {
 import { rigFor, rigIds } from '../../../src/mechs/rigs/index.js';
 import { applyCustomRig, setWeights, rebindRest, buildRigPosts } from '../../../src/mechs/reskin.js';
 import {
-  analyzeSkin, applySkinOps, compactSkinOps, skinOpsToJson,
+  analyzeSkin, applySkinOps, compactSkinOps, pinSkinOps, skinOpsToJson,
   blendPatch, weldedAdjacency, enclaveScan,
 } from '../../../src/mechs/skinops.js';
 import { applySeamCuts } from '../../../src/mechs/seamcut.js';
