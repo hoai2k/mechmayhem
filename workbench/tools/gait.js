@@ -274,6 +274,7 @@ export async function runGaitWorkbench(config, params) {
     buildGaitHeader();
     buildCompareOptions();
     buildDialRows();
+    scanEffects();
     refreshSelection();
     if (!same) frameCamera();
   }
@@ -318,6 +319,7 @@ export async function runGaitWorkbench(config, params) {
   // take the joint cloud, which is where the animation actually put the model,
   // and pad it for the geometry hanging off it (blades, tails, cannons).
   const _bp = new THREE.Vector3();
+  const _box = new THREE.Box3(), _bsz = new THREE.Vector3();
   function bodySize() {
     if (!mech) return { h: 6, len: 4 };
     mech.group.updateWorldMatrix(true, true);
@@ -330,6 +332,23 @@ export async function runGaitWorkbench(config, params) {
       top = Math.max(top, _bp.y - base);
       back = Math.min(back, _bp.z);
       front = Math.max(front, _bp.z);
+    }
+    // …AND THE GEOMETRY, which is what you are actually looking at. The 15 game
+    // joints are the animated skeleton, not the silhouette: fenrir's tail is six
+    // bones the joint list has never heard of and most of his length, so framing
+    // off the joints alone put the camera inside the wolf. Take the mesh's own
+    // bind-pose box as well (stable — it does not breathe with the cycle) and
+    // keep whichever is bigger.
+    const body = mech.group.getObjectByProperty('isSkinnedMesh', true)
+      || mech.group.getObjectByProperty('isMesh', true);
+    if (body) {
+      _box.setFromObject(body);
+      _box.getSize(_bsz);
+      if (Number.isFinite(_bsz.z) && _bsz.z > 0) {
+        top = Math.max(top, _box.max.y - base);
+        back = Math.min(back, _box.min.z);
+        front = Math.max(front, _box.max.z);
+      }
     }
     const d = mech.dims;
     if (!Number.isFinite(top) || top < 0.5) return { h: (d.hipHeight + d.torsoH + d.headSize * 2) * 1.02, len: d.hipHeight };
@@ -363,6 +382,7 @@ export async function runGaitWorkbench(config, params) {
 
   // ---------- the frame ----------
   const ctx = { speed: 0, maxSpeed: 10, grounded: true, vy: 0 };
+  const floorTrack = { lo: null, hi: null, loNow: 1e9, hiNow: -1e9, ph: 0 };
   let readoutT = 0;
   engine.onUpdate = (dt) => {
     if (!animator) return;
@@ -400,6 +420,7 @@ export async function runGaitWorkbench(config, params) {
       scrollGround(ctx.speed * step * animSpeed);
     }
     drawMarks();
+    trackFloor();
     readoutT += dt;
     if (readoutT > 0.1) {
       readoutT = 0; refreshReadout(rate);
@@ -653,7 +674,7 @@ export async function runGaitWorkbench(config, params) {
   // Which dials drive this joint? The schema says so (`joints`), which is why
   // adding a dial to gaits.js needs no edit here. `hips` covers both hips
   // channels, since that is one thing to grab on screen.
-  function dialsFor(joint) {
+  function dialsFor(joint, { live = true } = {}) {
     if (!joint) return [];
     const keys = joint === 'hips' ? ['hipsPos', 'hipsRot'] : [joint];
     const gait = gaitOf(gaitId);
@@ -661,7 +682,107 @@ export async function runGaitWorkbench(config, params) {
     // shoulders too, but a biped gait carries no `quad` block to tune
     return dials.filter((d) => gait[d.group] !== undefined
       && typeof gait[d.group][d.key] === 'number'
-      && d.joints?.some((j) => keys.includes(j)));
+      && d.joints?.some((j) => keys.includes(j))
+      // …and, by default, only the ones that MOVE THIS BODY AT THIS SPEED —
+      // offering a dead dial as the thing to drag is worse than offering none
+      && (!live || !inertDials.has(`${d.group}.${d.key}`)));
+  }
+
+  // -------------------------------------------------------------------------
+  // WHICH DIALS ACTUALLY DO ANYTHING HERE.
+  //
+  // The table is one shape for every mech that runs the gait, but a gait is not
+  // one pass: fenrir's gallop layer OVERWRITES both arms outright (`lerp(…, q)`
+  // with q = 1 above ~75% throttle), so every arm dial in the panel is dead
+  // weight on his body while the same rows are live on titanus'. The `*Run`
+  // twins are the same story from the other end — they are multiplied by the
+  // speed ratio, so at a standstill none of them can move anything.
+  //
+  // Rather than hand-maintain a "which dials apply to whom" table (which would
+  // rot the first time a layer changes), MEASURE it: run the whole gait
+  // pipeline at this mech's own numbers with the dial at the bottom, middle and
+  // top of its range, and see whether any joint anywhere in the cycle moved.
+  // Nothing moved -> the dial is inert HERE, and the panel says so instead of
+  // letting you drag a slider that does nothing.
+  // -------------------------------------------------------------------------
+  const EFFECT_PHASES = 12;
+  const INERT = 0.004;                 // radians (~0.23°) over the dial's whole range
+  const inertDials = new Set();        // "group.key" of everything with no effect
+  const dialReach = new Map();         // …and, for those, the throttle it comes alive at
+
+  function effectEnv(ratio) {
+    return {
+      ratio, s: mech.dims.scale || 1,
+      ankleGain: animator.ankleGain, footFlat: animator.footFlat,
+      hipHeight: mech.dims.hipHeight,
+      thighLen: mech.dims.thighLen, shinLen: mech.dims.shinLen,
+    };
+  }
+
+  // The biggest movement, in radians, that this dial can produce anywhere in the
+  // cycle at this throttle. hipsPos is a translation, so it is divided back into
+  // body scale to be comparable with an angle rather than dwarfing one.
+  function dialEffect(d, ratio, phases = EFFECT_PHASES) {
+    const gait = gaitOf(gaitId);
+    if (typeof gait[d.group]?.[d.key] !== 'number') return 0;
+    const was = gait[d.group][d.key];
+    const trials = [d.min, (d.min + d.max) / 2, d.max];
+    const s = Math.max(1e-6, mech.dims.scale || 1);
+    let worst = 0;
+    for (let i = 0; i < phases; i++) {
+      const env = effectEnv(ratio);
+      env.ph = (i / phases) * TAU;
+      const poses = trials.map((v) => { gait[d.group][d.key] = v; return G.evaluate(gait, env); });
+      for (const j of Object.keys(poses[0])) {
+        const k = j === 'hipsPos' ? 1 / s : 1;
+        for (let c = 0; c < 3; c++) {
+          let lo = Infinity, hi = -Infinity;
+          for (const p of poses) { const v = (p[j]?.[c] || 0) * k; if (v < lo) lo = v; if (v > hi) hi = v; }
+          if (hi - lo > worst) worst = hi - lo;
+        }
+      }
+    }
+    gait[d.group][d.key] = was;
+    return worst;
+  }
+
+  // …and, for a dial that is dead at this throttle, the throttle band where it
+  // is NOT — "works below 74%" is the useful half of "does nothing", and it is
+  // what tells you the gallop layer took the arms over rather than that the dial
+  // is broken.
+  function dialBand(d) {
+    let lo = null, hi = null;
+    for (let i = 0; i <= 10; i++) {
+      const r = i / 10;
+      if (dialEffect(d, r, 6) > INERT) { if (lo === null) lo = r; hi = r; }
+    }
+    return lo === null ? null : { lo, hi };
+  }
+
+  let effectsQueued = 0;
+  function scanEffects() {
+    if (!mech || !animator) return;
+    inertDials.clear(); dialReach.clear();
+    const gait = gaitOf(gaitId);
+    for (const d of dials) {
+      if (typeof gait[d.group]?.[d.key] !== 'number') continue;
+      // A dial that poses NO joint (`joints: []` — the cadence pair) is not
+      // inert, it is invisible to this measurement: it sets how fast the phase
+      // ADVANCES, and a pose sampled at a fixed phase cannot see that. Sweeping
+      // it would report 0 and hide the two dials that own the foot cadence.
+      if (!d.joints?.length) continue;
+      if (dialEffect(d, throttle) > INERT) continue;
+      inertDials.add(`${d.group}.${d.key}`);
+      dialReach.set(`${d.group}.${d.key}`, dialBand(d));
+    }
+    applyDialVisibility();
+    if (selJoint) refreshSelection();
+  }
+  // Every edit can change the answer (a dial gated to zero by another one comes
+  // alive when that one moves), so re-scan after edits — but not per keystroke.
+  function scheduleEffects() {
+    clearTimeout(effectsQueued);
+    effectsQueued = setTimeout(scanEffects, 220);
   }
 
   // d(pose)/d(dial) at the phase and speed on screen, measured by nudging the
@@ -753,6 +874,9 @@ export async function runGaitWorkbench(config, params) {
     refreshDialRow(dial);
     if (!fromDrag) refreshGaitStatus();
     else statusLine.textContent = `${dial.group}.${dial.key} = ${fmt(gait[dial.group][dial.key])}`;
+    // one dial can gate another (a `*Run` twin is dead while its base is), so
+    // what is live has to be re-measured after an edit
+    scheduleEffects();
   }
 
   // ---------- pointer ----------
@@ -913,6 +1037,11 @@ export async function runGaitWorkbench(config, params) {
   panel.appendChild(el('div', 'margin:10px 0 2px;color:#7c8ba0;letter-spacing:.08em;font-size:10.5px', 'MOTION'));
   const readout = el('div', `font:11px ui-monospace,monospace;color:#8fd8ff;background:#0d131b;
     border-radius:5px;padding:5px 7px;margin:4px 0;line-height:1.5`);
+  readout.title = 'SOLE is the measured clearance of the real boot/paw geometry over the cycle, as a '
+    + 'fraction of body height — not the ankle bone. Below zero is the foot drawn under the floor, and '
+    + 'it means the same in a match: the pelvis follow only corrects the AVERAGE clearance (chasing the '
+    + 'per-step ripple would lift the whole body once a step), so a big negative here is a leg reaching '
+    + 'through the pavement in game. Blank on a body the game never calibrated (procedural).';
   panel.appendChild(readout);
 
   function slider({ label, min, max, step, value, fmtVal, onInput, title }) {
@@ -935,13 +1064,13 @@ export async function runGaitWorkbench(config, params) {
     label: 'throttle — how fast it is moving', min: 0, max: 1, step: 0.01, value: throttle,
     fmtVal: (v) => `${Math.round(v * 100)}%`,
     title: 'Fraction of this mech\'s own top speed. Drives the animator\'s `ratio`, so every "@run" dial fades in with it.',
-    onInput: (v) => { throttle = v; },
+    onInput: (v) => { throttle = v; scheduleEffects(); },
   });
   panel.appendChild(thr.wrap);
   const preRow = row('');
   for (const [lbl, v] of [['idle', 0.05], ['walk', 0.3], ['jog', 0.6], ['run', 1]]) {
     const b = el('button', `${btnCss};padding:2px 8px;font-size:11px`, lbl);
-    b.onclick = () => { throttle = v; thr.set(v); };
+    b.onclick = () => { throttle = v; thr.set(v); scheduleEffects(); };
     preRow.appendChild(b);
   }
   const sprintChk = el('label', 'display:flex;gap:4px;align-items:center;font-size:11px;margin-left:auto;cursor:pointer');
@@ -1007,7 +1136,16 @@ export async function runGaitWorkbench(config, params) {
   // ---- edit mode + the key track ----
   const modeRow = row('<span style="width:38px;color:#8ba0b8">edit</span>');
   const bDials = el('button', btnCss, 'Dials');
-  const bKeys = el('button', btnCss, 'Keyframes');
+  const bKeys = el('button', btnCss, 'Joint rotations');
+  bDials.title = 'Tune the CYCLE: every dial in the gait table, live on the body on screen.';
+  // The answer to "are the dials just joint rotations in disguise?" — yes, and
+  // this is the same thing said the other way round: rotate the joint itself at
+  // one phase and the correction is stored on the gait as a key.
+  bKeys.title = 'Pose the JOINTS instead: park the cycle at a phase, click a joint, rotate the gizmo. '
+    + 'Every dial is ultimately a formula for a joint angle, and this is the same angle authored by '
+    + 'hand — stored on the gait as a phase key and added over whatever the cycle produced. It is the '
+    + 'escape hatch for anything no dial can say. The foot rules still win: they run after the keys, '
+    + 'so an ankle they own at that phase refuses the gizmo and says why.';
   modeRow.append(bDials, bKeys);
   const bAddKey = el('button', `${btnCss};margin-left:auto`, '+ key here');
   bAddKey.title = 'Add a correction at the phase on screen. A key is EMPTY until you drag a joint, '
@@ -1093,9 +1231,40 @@ export async function runGaitWorkbench(config, params) {
     installGhostGait();
   };
 
+  // ---- THROUGH THE FLOOR: the measurement the ground plane cannot make ----
+  // The mech runs on the spot over a flat plane, so a foot that goes BELOW it is
+  // drawn buried and reads as nothing in particular. In a match it reads as a
+  // leg reaching through the pavement, which is the same defect the pelvis
+  // follow was built for — and the follow only corrects the AVERAGE clearance on
+  // purpose (a per-step ripple is the leg chain's own geometry, and chasing it
+  // lifts the whole body once a step). So the ripple has to be READ, not fixed:
+  // track the measured sole clearance and say when it dips under the floor.
+  function trackFloor() {
+    const clr = animator.soleClearanceBySide?.();
+    if (!clr) { floorTrack.lo = floorTrack.hi = null; return; }
+    for (const s of ['L', 'R']) {
+      const v = clr[s];
+      if (typeof v !== 'number') continue;
+      if (v < floorTrack.loNow) floorTrack.loNow = v;
+      if (v > floorTrack.hiNow) floorTrack.hiNow = v;
+    }
+    // report per CYCLE, so the number holds still long enough to read
+    const ph = ((animator.phase % TAU) + TAU) % TAU;
+    if (ph < floorTrack.ph) {
+      floorTrack.lo = floorTrack.loNow; floorTrack.hi = floorTrack.hiNow;
+      floorTrack.loNow = 1e9; floorTrack.hiNow = -1e9;
+    }
+    floorTrack.ph = ph;
+  }
+
   function refreshReadout(rate) {
     const steps = rate / Math.PI;                 // a full cycle is two steps
     const strideLen = steps > 0.01 ? ctx.speed / steps : 0;
+    const h = mech.dims.hipHeight + mech.dims.torsoH + mech.dims.headSize * 2;
+    const floorLine = floorTrack.lo === null ? ''
+      : `sole   ${fmt(floorTrack.lo / h * 100, 1)}% … ${fmt(floorTrack.hi / h * 100, 1)}% of height`
+        + (floorTrack.lo < -0.005 * h
+          ? ` <b style="color:#ff7a5c">— through the floor</b>` : '') + '<br>';
     readout.innerHTML =
       `speed  ${fmt(ctx.speed, 1)} u/s  of ${fmt(ctx.maxSpeed, 1)}   ratio ${fmt(throttle, 2)}<br>` +
       `stride ${fmt(steps, 2)} steps/s · ${fmt(strideLen, 2)} u per step<br>` +
@@ -1104,7 +1273,7 @@ export async function runGaitWorkbench(config, params) {
         // prints actually left behind, and how far apart the two feet track
         ? `landed ${fmt(measured.stride / 2, 2)} u per step (${fmt(measured.stride, 2)} u same foot)`
           + ` · track ${fmt(measured.track, 2)} u<br>`
-        : '') +
+        : '') + floorLine +
       `phase  ${fmt(scrubPhase, 2)} rad${paused ? '  (frozen)' : ''}`;
     if (!paused) phaseInp.value = scrubPhase;
   }
@@ -1120,7 +1289,8 @@ export async function runGaitWorkbench(config, params) {
           + 'The correction is stored against that phase and blends around the loop. Feet the foot rule '
           + 'owns (a raised foot hangs off its shin) cannot be hand-rotated — the rule runs after.</span>'
         : '<span style="color:#7c8ba0">Click a limb in the viewport to see which gait dials '
-          + 'drive it — then drag that joint to tune the one you pick.</span>';
+          + 'drive it — then drag that joint to tune the one you pick. If none of them can move it '
+          + 'on this body, switch to JOINT ROTATIONS and key the angle by hand.</span>';
       return;
     }
     if (editMode === 'keys') {
@@ -1146,7 +1316,14 @@ export async function runGaitWorkbench(config, params) {
     const list = dialsFor(selJoint);
     selBox.innerHTML = `<b style="color:#ff9f43">${selJoint}</b>`;
     if (!list.length) {
-      selBox.appendChild(el('div', 'color:#7c8ba0;margin-top:4px', 'no gait dial drives this joint — it is posed by the rest/combat stance or a signature.'));
+      const all = dialsFor(selJoint, { live: false });
+      selBox.appendChild(el('div', 'color:#7c8ba0;margin-top:4px', all.length
+        // the dials exist, they just cannot reach this joint on this body — the
+        // case that sends you looking for a dial that isn't there (fenrir's arms)
+        ? `${all.length} dial${all.length === 1 ? '' : 's'} name this joint but none of them move it on `
+          + `${curId} at ${pct(throttle)} throttle — ${inertWhy(all[0])}. `
+          + 'Switch the panel to JOINT ROTATIONS and key the correction by hand instead.'
+        : 'no gait dial drives this joint — it is posed by the rest/combat stance or a signature.'));
       return;
     }
     if (!activeDial || !list.includes(activeDial)) {
@@ -1169,12 +1346,33 @@ export async function runGaitWorkbench(config, params) {
   }
 
   // ---- the dials ----
+  // RELEVANT ONLY, by default: a dial the measurement says cannot move THIS body
+  // at THIS throttle is hidden rather than offered (see scanEffects). Off, they
+  // come back greyed with the reason on them, because "does nothing above 74%
+  // throttle" is worth being able to read.
+  const liveRow = row('');
+  const liveChk = el('input');
+  liveChk.type = 'checkbox';
+  liveChk.checked = params.get('alldials') !== '1';
+  liveChk.onchange = () => { applyDialVisibility(); };
+  const liveLbl = el('label', 'font-size:11.5px;color:#9fb2c8;cursor:pointer', ' only dials that move this mech');
+  liveLbl.prepend(liveChk);
+  liveLbl.title = 'A gait is shared by several mechs but its layers are not: fenrir\'s gallop replaces '
+    + 'both arms outright at speed, so the arm dials cannot move him however far you drag them. Each '
+    + 'dial is MEASURED against the body on screen at the throttle on screen — the ones that change '
+    + 'nothing are hidden. Untick to see them all, greyed, with the speed band they do work in.';
+  liveRow.appendChild(liveLbl);
+  const inertNote = el('div', 'font-size:11px;color:#7c8ba0;margin:0 0 4px 2px');
+  panel.appendChild(inertNote);
+
   const dialWrap = el('div', 'margin-top:8px');
   panel.appendChild(dialWrap);
   const dialRows = new Map();
+  const dialGroups = new Map();
   function buildDialRows() {
     dialWrap.innerHTML = '';
     dialRows.clear();
+    dialGroups.clear();
     const gait = gaitOf(gaitId);
     for (const group of schema) {
       if (!gait[group.id]) continue;              // e.g. no quad block on a biped
@@ -1184,13 +1382,51 @@ export async function runGaitWorkbench(config, params) {
       det.appendChild(sum);
       const body = el('div', 'padding:2px 8px 8px');
       det.appendChild(body);
+      const mine = [];
       for (const p of group.params) {
         if (typeof gait[group.id][p.key] !== 'number') continue;
         const d = dials.find((x) => x.group === group.id && x.key === p.key);
         body.appendChild(makeDialRow(d));
+        mine.push(d);
       }
+      dialGroups.set(group.id, { det, sum, label: group.label, dials: mine });
       dialWrap.appendChild(det);
     }
+    applyDialVisibility();
+  }
+
+  const pct = (v) => `${Math.round(v * 100)}%`;
+  // Why a dial is greyed, in words: the speed band it DOES work in, measured.
+  function inertWhy(d) {
+    const band = dialReach.get(`${d.group}.${d.key}`);
+    if (!band) return 'nothing this dial touches survives to the final pose on this mech';
+    if (band.lo <= 0.001 && band.hi >= 0.999) return 'no effect at this throttle';
+    if (band.lo <= 0.001) return `only works below ${pct(band.hi + 0.05)} throttle — a later layer takes this joint over above that`;
+    if (band.hi >= 0.999) return `only works above ${pct(band.lo - 0.05)} throttle`;
+    return `only works between ${pct(band.lo - 0.05)} and ${pct(band.hi + 0.05)} throttle`;
+  }
+  function applyDialVisibility() {
+    const hideInert = liveChk.checked;
+    let hidden = 0;
+    for (const [key, r] of dialRows) {
+      const dead = inertDials.has(key);
+      if (dead) hidden++;
+      r.wrap.style.display = dead && hideInert ? 'none' : '';
+      r.wrap.style.opacity = dead ? 0.4 : 1;
+      r.name.textContent = dead ? `${r.d.label} — no effect` : r.d.label;
+      r.wrap.title = dead ? `${r.d.label}: ${inertWhy(r.d)}\n\n${r.d.help || ''}` : (r.d.help || '');
+    }
+    for (const [, g] of dialGroups) {
+      const dead = g.dials.length && g.dials.every((d) => inertDials.has(`${d.group}.${d.key}`));
+      g.det.style.display = dead && hideInert ? 'none' : '';
+      g.sum.textContent = dead ? `${g.label} — no effect on this mech` : g.label;
+      g.sum.style.color = dead ? '#6a7688' : '#cfe0f5';
+    }
+    inertNote.textContent = hidden
+      ? (hideInert
+        ? `${hidden} dial${hidden === 1 ? '' : 's'} hidden — measured to do nothing to ${curId} at ${pct(throttle)} throttle`
+        : `${hidden} dial${hidden === 1 ? '' : 's'} greyed — hover one for the speed band it does work in`)
+      : '';
   }
   function makeDialRow(d) {
     const wrap = el('div', 'margin:5px 0');
@@ -1252,6 +1488,7 @@ export async function runGaitWorkbench(config, params) {
     writeStore();
     refreshAllDialRows();
     refreshGaitStatus();
+    scheduleEffects();
     statusLine.textContent = `${gaitId} back to shipped`;
   };
   bRevertAll.onclick = () => {
@@ -1260,6 +1497,7 @@ export async function runGaitWorkbench(config, params) {
     writeStore();
     refreshAllDialRows();
     refreshGaitStatus();
+    scheduleEffects();
     statusLine.textContent = 'every gait back to shipped';
   };
 
@@ -1333,7 +1571,7 @@ export async function runGaitWorkbench(config, params) {
     get gaitId() { return gaitId; },
     get gait() { return gaitOf(gaitId); },
     load,
-    setThrottle: (v) => { throttle = clamp(v, 0, 1); thr.set(throttle); },
+    setThrottle: (v) => { throttle = clamp(v, 0, 1); thr.set(throttle); scanEffects(); },
     setGameSpeed: (v) => { gameSpeed = clamp(v, 0.5, 2); gs.set(gameSpeed); },
     setAnimSpeed: (v) => { animSpeed = clamp(v, 0.05, 2); as.set(animSpeed); },
     setPaused, setPhase,
@@ -1351,7 +1589,17 @@ export async function runGaitWorkbench(config, params) {
       const d = dials.find((x) => x.group === group && x.key === key);
       if (d) setDial(d, v);
     },
-    dials: () => dials.map((d) => ({ group: d.group, key: d.key, value: dialValue(d), shipped: shippedValue(d) })),
+    dials: () => dials.map((d) => ({
+      group: d.group, key: d.key, value: dialValue(d), shipped: shippedValue(d),
+      // …and whether it can move THIS mech at THIS throttle (scanEffects)
+      inert: inertDials.has(`${d.group}.${d.key}`),
+      band: dialReach.get(`${d.group}.${d.key}`) || null,
+    })).filter((d) => d.value !== undefined),
+    effect: (group, key, ratio = throttle) => {
+      const d = dials.find((x) => x.group === group && x.key === key);
+      return d ? dialEffect(d, ratio) : null;
+    },
+    scanEffects,
     output: buildOutput,
     revert: () => bRevert.onclick(),
     camera, orbit, pick: pickJoint,

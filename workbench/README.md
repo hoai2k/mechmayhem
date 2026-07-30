@@ -75,6 +75,15 @@ contract (ids / users / schema / evaluate / install / topSpeed); a game whose
 characters have no parameterised locomotion leaves it out and the tool is not
 offered.
 
+That sharing is also why the panel has to work out WHICH DIALS APPLY HERE. One
+table, several bodies, and layers that overwrite each other: the quadruped's
+gallop replaces both arms outright at speed, so the arm rows cannot move that
+mech at all while they are live on the next one. The tool never gets told —
+`evaluate` is pure and cheap, so it SWEEPS each dial across its range at this
+subject's own numbers and hides the ones that change no joint anywhere in the
+cycle. A new dial, a new layer or a new subject is picked up by the same
+measurement with nothing to update here.
+
 **Not every subject is a character.** `?edit=props` edits nothing — it JUDGES:
 the imported arena prop models were dieted (tools/propopt.mjs) and the tool
 stands each original beside its optimized model in twin viewports that share

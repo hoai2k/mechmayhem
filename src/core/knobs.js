@@ -142,7 +142,7 @@ export const KNOWN_PARAMS = [
   'at', 'compare', 'left', 'dummy', 'ball', 'spin', 'yaw', 'orbit', 'cam',
   'muzzle', 'mzbone', 'mzj', 'mzo', 'throttle', 'game',
   // skin / skindebug / gait workbenches
-  'ref', 'vert', 'vs', 'prints', 'scan', 'i',
+  'ref', 'vert', 'vs', 'prints', 'scan', 'i', 'alldials',
   // player / input harness switches
   'p', 'p1', 'p2', 'p3', 'p4', 'kb1', 'kb2', 'pad', 'input', 'touch',
   'notouch', 'desktop', 'layout',

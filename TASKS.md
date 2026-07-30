@@ -5307,3 +5307,100 @@ hand~torso still absent. Soak clean, build green, poster re-rendered (5px).
 
 The joint-only fidelity check is now documented as insufficient, and --apply
 prints the three checks that cover what it misses.
+
+FENRIR'S GALLOP, AND THE DIALS THAT COULDN'T MOVE HIM
+-----------------------------------------------------
+`legs.extend` now goes NEGATIVE (slider -2 … 1.2). It was floored at 0 on the
+assumption that "rear extension" can only add rearward swing, which is a biped's
+assumption: fenrir carries his hips HORIZONTALLY, so the same thigh channel
+reads the other way round and his rear extension is a negative number. Installed
+at -1.5, as tuned.
+
+THE BACK-EXTENSION FOOT ANGLE IS A DIAL, and now says so. `ankle.push` was
+labelled "toe-off angle" and documented as an amount, which is why none of the
+ankle dials seemed to answer "what angle does the paw finish at": it is an
+ABSOLUTE target relative to the shin, and it plus its @run twin is the whole
+answer. Relabelled "foot angle at full back extension" with the arithmetic in
+the help (1.57 = 90°, 0.79 = 45°). Quad set to push 0.45 + pushRun 0.35 = 0.80
+rad; measured on the model at full throttle, the paw now finishes at 42-44°
+instead of ~86°.
+
+ONLY THE DIALS THAT MOVE THIS BODY ARE SHOWN. A gait is one table shared by
+every mech that names it — but it is not one PASS, and that is what made the
+panel lie. Fenrir's gallop layer `lerp`s both shoulders and both elbows to its
+own targets with a blend that reaches 1 at ~75% throttle, so above that every
+`arms.*` row is a slider that cannot move him however far it is dragged.
+
+Rather than hand-maintain a "which dials apply to whom" table (which would rot
+the first time a layer changed), MEASURE it. `evaluate` is pure and cheap, so
+scanEffects runs the whole pipeline at this mech's own numbers with each dial at
+the bottom, middle and top of its range, over the cycle, and asks whether any
+joint moved. Under ~0.25° it is inert HERE and hidden; untick "only dials that
+move this mech" and they come back greyed, each carrying the throttle band it
+DOES work in — "only works below 75%" is the useful half of "does nothing", and
+it is what says a later layer took the joint over rather than that the dial is
+broken. Clicking a limb whose dials are all inert now says so and points at the
+joint-rotation mode instead of offering a dead slider to drag.
+
+Measured on fenrir at full throttle: 38 dials live, 10 inert — seven of the
+eight `arms.*` rows ("works below 75%"), plus `quad.hockSnap` (the foot rule
+overwrites the hock once the paw is airborne or pushing). The arm dials that DO
+reach him are `quad.frontReach/frontSwing/frontRake/frontFold` — which is the
+answer to "most of the current controls seem to not be the right ones": they
+were the right controls for the wrong layer, and the panel was showing both.
+
+ONE CLASS OF DIAL IS NOT INERT, IT IS INVISIBLE: `legs.cadence`/`cadenceCap`
+carry `joints: []` because they set how fast the phase ADVANCES, and a pose
+sampled at a fixed phase cannot see a timing change. They are skipped by the
+scan rather than measured, or the two dials that own the foot cadence would be
+hidden as doing nothing.
+
+Same measurement on the command line: `node tools/gaitdials.mjs <mech>
+[throttle]`.
+
+THE KEYFRAME MODE IS THE JOINT-ROTATION MODE, and is now named that. Every dial
+is ultimately a formula for a joint angle — `tgt.thighL[0] += -swing * sinL -
+reach * fwdL + extend * backL` is the whole of "rear extension" — and what a
+dial buys over a raw rotation is that it is an angle as a FUNCTION of phase and
+speed, shared by every mech on the gait. Three things in a gait are not that:
+the cadence pair (timing), `quad.blend` (it gates a layer) and the foot rules
+(they are statements about the FINISHED pose, applied last). The rest is joint
+rotations, and the same rotations can be authored by hand at a phase.
+
+THE QUADRUPED IS SOLE-SAMPLED AGAIN. calibrateFeet used to return before it
+measured fenrir's paws at all, which meant he was the one mech in the game with
+no ground contact measurement: no `soles`, so no pelvis follow, so nothing at
+all holding his body at the height his paws were drawn at. He now gets the
+sample points and returns before the DAMPING (ankleGain/footFlat), which is the
+part derived from a boot's depth under an ankle and is meaningless on a hock —
+levelling his paws had already been tried and produced 130-170° of dorsiflexion.
+
+FENRIR'S PAWS DO GO THROUGH THE FLOOR, and it is not a workbench artefact. His
+measured sole clearance over one cycle at full throttle runs from -14% to +49%
+of body height (the gait workbench now prints exactly this, red when it dips
+under). The pelvis follow cannot save him and is not meant to: it corrects the
+AVERAGE clearance only — chasing the per-step ripple would lift the whole body
+once a step — and his average is +4%, so it sits still while the paws swing 60
+points of body height around it. The same code poses him in a match, so the same
+legs reach through the pavement there.
+
+MEASURED, so the fix is a choice and not a guess: `legs.extend` 0 -> -1.5 (the
+tuning just installed) took the worst dip from -9% to -14%, and `quad.drop`
+0.32 -> 0.10 would take it to -6.5% at the cost of the wolf riding low. Both
+dials are the owner's to spend, so the gait is left as tuned and the readout is
+there to spend them against.
+
+FRAMING OFF THE JOINTS ALONE PUT THE CAMERA INSIDE THE WOLF. bodySize() walked
+the 15 game joints, which are the animated skeleton and not the silhouette:
+fenrir's tail is six bones the joint list has never heard of and most of his
+length, so the fit distance was solved for a body that stopped at his hips and
+the viewport showed tail. It now also takes the mesh's own bind-pose box (stable
+— it does not breathe with the cycle) and keeps whichever is bigger.
+
+FENRIR RESKINNED, and the paws moved from `footL/R` to `ankleL/R` — which is the
+bone the gait's foot rule drives, so the geometry that has to obey "hang off the
+shin in the air, drive to 45° on the push" is now bound to the bone doing it.
+Skin audit: 36 findings before and after (same list), total severity 1342 -> 1182
+(-12%), worst finding 203 -> 160 (-21%); the two leg findings that named `footL`
+and `footR` now name `ankleL`/`ankleR`. Ops arrive PINNED (a vertex list per op,
+no `{comp:N}` ordinals), so nothing here depends on the rig's island numbering.
