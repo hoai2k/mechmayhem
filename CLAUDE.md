@@ -154,8 +154,8 @@ audio). Progress history: `TASKS.md`.
   at its resting line; `toeFwd` is the bound on how far forward its toes still
   point).
   THE TRAILING FLICK (`adductTrail`) is the one dial that is NOT a plain phase
-  function: it pulls a leg toward the midline only while that foot is BEHIND AND
-  OFF THE GROUND — the flick after toe-off — and fades as the leg swings forward,
+  function: it rolls the KNEE (so the shin and paw tuck in under a hip that stays
+  put) toward the midline only while that foot is BEHIND AND OFF THE GROUND — the flick after toe-off — and fades as the leg swings forward,
   so the foot lands at its normal width and takes the weight there. It is gated on
   `air * back` from `footStates()`, the same two weights the foot rule uses, where
   `air` is the MEASURED sole clearance (`Animator.soleClearanceBySide`) wherever
@@ -216,6 +216,17 @@ audio). Progress history: `TASKS.md`.
   readout prints both, and they agreeing is the no-skate proof), the sideways
   offset is the track, and a stance foot sliding off its own print is a cadence
   that doesn't match the speed.
+- FENRIR'S GALLOP is a `quad` block over the biped layer, and its hind drive is
+  ADDITIVE on top of `applyGait` while the front drive REPLACES what the biped
+  layer did (`lerp(..., q)`). That asymmetry matters when tuning: the hinds carry
+  sprint's swing at the BIPED phase plus the gallop's at `ph * quad.stride`, so
+  the two beat against each other and a hind dial moves less than its number
+  suggests. The gallop's hind shape is six dials — `hindSwing`/`hindCarry` (the
+  thigh's sweep and where the middle of it sits), `hindFold`/`hindKneeCarry` (the
+  stifle), `hockSnap`/`hockCarry` (the paw) — where the three `*Carry` ones were
+  hard-coded constants until a wolf needed them. Judge with `tools/gaitprobe.mjs
+  fenrir 1` (watch `sole min`: his paws were 20.9% of body height UNDER the floor
+  when the hind stride outgrew the body drop) and the filmstrip.
 - THE MANNEQUIN (`src/mechs/mannequin.js`) is a REFERENCE HUMANOID on the game's
   own 15 joints — same hierarchy, same measurements as the mech it stands in for
   (`factory.buildRig`/`computeDims`), built as a genuine SkinnedMesh with real

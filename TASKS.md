@@ -12,7 +12,32 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE TRAILING LEG FLICKS IN NOW, on `standard` and `sprint`. A
+- **Latest:** FENRIR'S GALLOP, PUT BACK — and an apology owed with it. His tuned
+  quad block was rewritten in parallel to inherit `base: 'sprint'` with the stride
+  shaping moved into `quad.hindReach`/`hindExtend`, and the result put him on his
+  belly: paws **20.9% of body height under the floor** and the hind knee dragging
+  at y 0.00. His own values are back as a SELF-CONTAINED block (reach 1.2, extend
+  -1.5, the full legs/ankle/arms/body he had tuned), with `quad.onset` kept from
+  the rework since it only decides the speed the gallop fades in at, not its
+  shape. Then the two asks: **a 180-degree hind stride** (`hindSwing` 0.62 -> 1.80,
+  measured **93° -> 179°** peak-to-peak on the thigh) and the floor cleared
+  underneath it (`hindCarry` -0.35, `hindKneeCarry` 0.90, `drop` 0.32 -> 0.30 —
+  paw low point -0.41 -> +0.28, knee low point -0.00 -> +0.08, gaitprobe sole min
+  **-20.9% -> -1.2%**). The three hard-coded hind constants are DIALS now
+  (`hindCarry`, `hindKneeCarry`, `hockCarry`) and `hindFold` accepts negatives, so
+  the rest is tunable in the workbench instead of in the source.
+  NOT DONE, and stated rather than buried: the hind knee still reads BELOW the
+  hip-to-hock line (it is above the paw for 38% of the cycle), so "the back knee
+  flicks up" is not there yet. The measure that would confirm it is a shape
+  judgement, not a number, and the dials to reach it are now on screen —
+  `hindKneeCarry` lifts the stifle, `hindCarry` slides the middle of the stride.
+  Also: `adductTrail` now rolls the KNEE instead of the thigh, at the owner's ask
+  — the shin and paw tuck in under a hip that stays put, which is the shape a
+  runner's trailing leg makes. Re-measured and re-tuned for the weaker per-unit
+  effect (standard 0.18 -> 0.25, sprint 0.10 -> 0.15): viper's trailing paw comes
+  to 28% of his stance width with the knee unmoved at 0.398, and every planted
+  sample is still untouched.
+- **Previous:** THE TRAILING LEG FLICKS IN NOW, on `standard` and `sprint`. A
   running mech used to keep its rear leg out at hip width all the way through the
   extension, which reads bow-legged; it now swings toward the midline as it comes
   off the ground behind the body and returns to its normal width before it lands.
