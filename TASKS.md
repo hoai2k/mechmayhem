@@ -12,7 +12,36 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE JOINT OFFSET MODE HAD VIPER STANDING PIGEON-TOED, twice over,
+- **Latest:** THE RIG EDITOR'S VIEW IS NOW A PURE FUNCTION OF ITS DATA, which is
+  the refactor those pose/offset bugs kept asking for. Two things describe a rig
+  — `rigObj` (bind positions) and `corrections` (joint offsets) — and what you see
+  is those two plus two VIEW flags: which pose, and whether offsets are previewed.
+  `renderView()` rebuilds every bone rotation from scratch (identity -> pose ->
+  offsets) so it is idempotent, and NOTHING captures a pose into a variable any
+  more; the old captured "base" was the bug factory (taken off bones that already
+  wore the offsets, it folded them in, and every toggle laid them on again). The
+  rules the owner asked for now hold by construction, and there is a test that
+  walks all 8 states of (pose x offsets x mode) three times and asserts each one
+  reproduces to four decimals: **a view never changes the rig · pose and preview
+  toggles are always reversible · the MODE is not a view flag at all, so Move ↔
+  Joint offset cannot move a joint.** Two invariants keep it honest —
+  `atPlainBind()` wraps anything that reads positions or re-binds the skin (a
+  rotation up the chain would otherwise be measured into the rig file, and a
+  rebind under one bakes it into the skin for good, which is what was quietly
+  happening while offsets were previewed in Move mode), and a rotate drag turns
+  the preview on first, since a turn is measured from the pose and an unseen
+  offset would be replaced rather than added to. `showOffsets` is its own
+  checkbox, off by default: the default view is the rig as the asset really is.
+  **AND THE SAVE-TO-DISK PATH IS GONE FROM EVERY WORKBENCH**, at the owner's
+  request and to its benefit. `POST /__rw/manifest`, `/__rw/rig` and
+  `/__rw/changes` are removed from vite.config.js, `workbench/ui/save.js` is
+  deleted, and the adapter no longer carries a `save` for rigs, skin ops,
+  anchors or corrections. Every tool exports instead — **Export ops ▶**, **Export
+  rig ▶**, **Copy offsets ▶** — as text a human can read before it lands
+  anywhere, which is the point: a write you cannot see is a write you cannot
+  trust. `tools/manifestfmt.mjs` and `tools/rigfmt.mjs` stay: they are how a
+  pasted patch gets spliced in without reformatting the file around it.
+- **Previous:** THE JOINT OFFSET MODE HAD VIPER STANDING PIGEON-TOED, twice over,
   and both halves are fixed. (1) ACCUMULATION: `captureBase()` snapshots the pose
   the offsets are layered onto, and it was being called from bones that were
   already wearing them — so the base absorbed the offsets and the next apply laid

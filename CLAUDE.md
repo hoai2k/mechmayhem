@@ -288,38 +288,38 @@ audio). Progress history: `TASKS.md`.
   matching. `alignMannequinFacing` asks both bodies which way THEIR OWN left is
   (`up x left = forward`) and yaws the group by the difference, which also gets
   the MANNEQUIN-as-subject case right (the frames already agree; the answer is 0).
-- RIG EDITOR EDITS ARE DRAFTS. Every drag/undo/add/delete goes to localStorage
-  (`saveDraft`, key `rigedit:<id>`) and ONLY the **Save rig to file ▶** button
-  writes `src/mechs/rigs/<id>.rig.js` (`saveRigToFile`). They were both named
-  `saveRig` — two function declarations, one scope, later one wins — so for a
-  while every drag POSTed the rig file to the dev server, which then fired Vite's
-  HMR and reloaded the tool from under the edit. Keep the two names distinct.
+- RIG EDITOR EDITS ARE DRAFTS: every drag/undo/add/delete goes to localStorage
+  (`saveDraft`, key `rigedit:<id>`), and the rig leaves through **Export rig ▶**.
+  Nothing writes the rig file. (When it did, that writer and this one were both
+  called `saveRig` — two declarations, one scope, later one wins — so every drag
+  silently rewrote `src/mechs/rigs/<id>.rig.js` and fired Vite's HMR under the
+  edit.)
 - **JOINT OFFSET** mode in the rig editor (the button beside `Move`) authors
   `boneCorrections` by hand: the gizmo ROTATES instead of translating, and what
   you turn is stored as that joint's offset — degrees `[x,y,z]`, listed in the
-  panel with a ✕ per joint, saved to the MANIFEST (not the rig file) or copied as
-  a patch. It is how a rig says something bone positions cannot: "this thigh
-  RESTS splayed, take 10 degrees out of it before any clip plays". Edits persist
-  as a draft (`rigcorr:<id>`) until saved.
-  THEY ARE PREVIEWED IN THAT MODE AND NOWHERE ELSE, which is a deliberate
-  narrowing: 10 degrees at a hip swings an ankle most of a foot's width, so
-  previewing them in the plain MOVE view stood the mech with his feet clamped
-  together in the one view whose job is placing bones against the asset as it
-  really is (the panel says how many are waiting instead). In the T pose they
-  DOUBLE-COUNT — the T has already aimed every limb straight, so "take the splay
-  out of this thigh" on top of an already-straight thigh crosses the legs — so
-  the T stays the honest "what can this rig do" view. Turning the mode on with
-  the T pose on shows the offsets over it, which is the comparison that matters.
-  One more rule that falls out: the base a correction is measured from is the
-  pose WITHOUT the offsets, so it may only ever be captured off bones that are
-  not wearing them. `applyPose()` is the single entry point that guarantees it
-  (clear rotations -> pose -> capture -> apply) and is idempotent; capturing from
-  bones that already wear the offsets folds them into the base and lays them on
-  twice, which walked the legs further across on every toggle of the mode. CAVEAT worth knowing: the editor previews the
-  offset on the BIND pose while the game applies the same bone-local rotation on
-  top of the ANIMATED pose, so the operation is identical but the frame it starts
-  from differs by the animator's rest bias. Positions are never touched in this
-  mode, so a joint offset costs no re-skin.
+  panel with a ✕ per joint and copied out as a manifest patch. It is how a rig
+  says something bone positions cannot: "this thigh RESTS splayed, take 10
+  degrees out of it before any clip plays". Edits persist as a draft
+  (`rigcorr:<id>`).
+- THE RIG EDITOR'S VIEW IS A PURE FUNCTION OF ITS DATA, and this is the rule to
+  keep. Two things describe a rig — `rigObj` (bind bone positions, exported to
+  the rig file) and `corrections` (joint offsets, exported to the manifest) — and
+  everything on screen is those two plus two VIEW flags: which pose (`bind` /
+  `tpose`) and whether the offsets are previewed. `renderView()` rebuilds every
+  bone rotation from scratch each time (identity -> pose -> offsets), so it is
+  idempotent; nothing captures a pose into a variable, because that is exactly
+  what went wrong before — a captured "base" taken off bones that already wore
+  the offsets folded them in, and every toggle laid them on again until the legs
+  crossed. What falls out is what a user should be able to assume:
+  A VIEW NEVER CHANGES THE RIG · switching pose or preview is always reversible ·
+  the editing MODE is not a view flag at all, so Move ↔ Joint offset cannot move
+  a joint. Two invariants keep it true: anything that READS bone positions or
+  RE-BINDS the skin must run inside `atPlainBind()` (positions are read in world
+  space, so a rotation anywhere up the chain would be measured into the rig file,
+  and a rebind under a rotation bakes that rotation into the skin for good), and
+  the offsets preview must be ON before a rotate drag (a turn is measured from
+  the pose, so an unseen offset would be silently replaced rather than added to).
+  Both are enforced in code; keep them that way.
 - BONE ROTATION: a rig file carries POSITIONS ONLY, and adding a rest rotation to
   one would change nothing — `applyCustomRig` rebinds the skin at rest
   (`rebindRest`) and `RigAdapter` captures a rest offset per bone
@@ -335,21 +335,25 @@ audio). Progress history: `TASKS.md`.
   BONES, which is what that tool does: the retarget drives bone ORIENTATION from
   the game's clean humanoid, but bone POSITIONS are the rig's own, so the virtual
   joints can read 10° inboard while the rendered legs are 15° out.
-- SAVING FROM A WORKBENCH (dev server only): `?debug=skin` has **Save to
-  manifest** and `?rigedit` has **Save rig to file** — they write
-  `public/models/manifest.json` / `src/mechs/rigs/<id>.rig.js` on this machine
-  through `POST /__rw/manifest` / `/__rw/rig` (vite.config.js). Both SPLICE:
-  `tools/manifestfmt.mjs` replaces one value in the JSON text, `tools/rigfmt.mjs`
-  replaces only the `bones` array and keeps the header, `skinSpan`/`cutWelds`
-  and the in-array comments. Saving is local — **Export uncommitted saves**
-  (both tools, enabled only when the tree is dirty) downloads every uncommitted
-  change as ONE `git apply`-able patch to hand over for committing.
+- NO WORKBENCH WRITES TO THE REPO. Every tool EXPORTS its edit as text you can
+  read — `?edit=skin` **Export ops ▶** (a manifest patch), `?edit=rig` **Export
+  rig ▶** (the bones array) and **Copy offsets ▶** (a `boneCorrections` patch) —
+  and a human or an agent applies it. There was a save path once (the tools
+  POSTed to `/__rw/manifest` and `/__rw/rig`, which the dev server spliced into
+  `public/models/manifest.json` and `src/mechs/rigs/<id>.rig.js`); it was removed
+  because a write you cannot see is a write you cannot trust. The SPLICING
+  FORMATTERS remain and are how a pasted patch should be applied:
+  `tools/manifestfmt.mjs` replaces one value in the JSON text (so a one-op change
+  is a one-line diff, not an 80k-line reformat) and `tools/rigfmt.mjs` replaces
+  only the `bones` array, keeping the header, `skinSpan`/`cutWelds` and the
+  in-array comments. Edits still persist as localStorage DRAFTS while you work
+  (`rigedit:<id>`, `rigcorr:<id>`), so a reload keeps them.
   SKIN OPS LEAVE PINNED. `{"comp":N}` is an ordinal into the proximity partition
   the CURRENT rig draws, so a rig edit renumbers it onto other geometry without a
   word (jerry's back once landed on his foot this way; a viper skin patch
   authored on the previous rig came back selecting his elbows). The workbench
-  still WORKS in islands, but Save/Export run `pinSkinOps` (skinops.js) first and
-  write the vertex list each island meant — a vertex index is a property of the
+  still WORKS in islands, but Export runs `pinSkinOps` (skinops.js) first and
+  writes the vertex list each island meant — a vertex index is a property of the
   geometry, which no rig can renumber. Ops that arrive from elsewhere still
   carrying `comp` ids are only valid against the rig they were authored on: check
   them with `node tools/skindebug.mjs <mech>` before and after (the severity

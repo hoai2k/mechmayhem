@@ -53,7 +53,6 @@ import { Fighter, moveSpeedFor } from '../../../src/combat/fighter.js';
 import { ease } from '../../../src/core/utils.js';
 import { mechClipList } from '../mechclips.js';
 import { anchorUses } from '../anchoruses.js';
-import { saveManifestPatch, saveRigBones } from '../../ui/save.js';
 
 // the manifests are read once and shared; every catalogue answer needs them
 let manifest = null;
@@ -205,10 +204,6 @@ const CONFIG = defineWorkbenchConfig({
       rebindRest,
       buildPosts: buildRigPosts,
     },
-    save: (id, bones) => (isReference(id)
-      ? Promise.resolve({ ok: false, error: 'the mannequin is a reference body — there is no rig file to save' })
-      : saveRigBones(id, bones)),
-
     // JOINT ROTATION OFFSETS — `boneCorrections`, the game's one rotation knob
     // for a rig. Degrees [x,y,z] per game joint, post-multiplied in bone-LOCAL
     // space after the retarget (rigadapter.js, `corr`), so it is the standing
@@ -219,11 +214,6 @@ const CONFIG = defineWorkbenchConfig({
     // R lands on both sides. This is the pair a tool needs to author them.
     corrections: {
       get: (id, { variant = 'glb' } = {}) => ({ ...(entryOf(id, variant === 'alt')?.boneCorrections || {}) }),
-      save: (id, corrections, { variant = 'glb' } = {}) => (isReference(id)
-        ? Promise.resolve({ ok: false, error: 'the mannequin is a reference body — it has no manifest entry' })
-        : saveManifestPatch(variant === 'alt'
-          ? { [id]: { alt: { boneCorrections: corrections } } }
-          : { [id]: { boneCorrections: corrections } })),
     },
   },
 
@@ -343,9 +333,6 @@ const CONFIG = defineWorkbenchConfig({
   anchors: {
     uses: (id, name, available) => anchorUses(defOf(id), name, available),
     units: (model) => model.muzzleUnits || { joint: model.dims?.scale, bone: model.dims?.scale },
-    // muzzles ride joints or bones; this is where the game keeps them
-    save: (id, muzzles, { variant = 'glb' } = {}) => saveManifestPatch(
-      variant === 'alt' ? { [id]: { alt: { muzzles } } } : { [id]: { muzzles } }),
   },
 
   skin: {
@@ -354,7 +341,7 @@ const CONFIG = defineWorkbenchConfig({
     compact: compactSkinOps,
     // PIN — turn every `{comp:N}` island ordinal into the vertex list it means,
     // so a later rig edit can't renumber the partition under a saved op.
-    // Everything leaving the tool (save + export) goes through this.
+    // Everything leaving the tool (the export) goes through this.
     pin: pinSkinOps,
     toJson: skinOpsToJson,
     blendPatch,
@@ -367,8 +354,6 @@ const CONFIG = defineWorkbenchConfig({
     // nowhere to see what the game will actually render.
     seamCuts: (id, { variant = 'glb' } = {}) => (entryOf(id, variant === 'alt')?.seamCuts || []),
     applySeamCuts,
-    save: (id, ops, { variant = 'glb' } = {}) => saveManifestPatch(
-      variant === 'alt' ? { [id]: { alt: { skinOps: ops } } } : { [id]: { skinOps: ops } }),
   },
 
   hurtbox: { build: buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE },
@@ -423,9 +408,12 @@ const CONFIG = defineWorkbenchConfig({
     actor: (world, id, opts) => new Fighter(world, ROSTER_BY_ID[id], opts),
   },
 
+  // WHERE EDITS GO. Nowhere, on their own: every workbench EXPORTS its edit as
+  // text (a manifest patch, a rig bones array) for a human to read and apply.
+  // There was a save path once — the tools POSTed to the dev server, which wrote
+  // manifest.json and rigs/<id>.rig.js — and it was removed because a write you
+  // cannot see is a write you cannot trust.
   persist: {
-    manifest: saveManifestPatch,
-    rig: saveRigBones,
     // what the manifest calls this mech — tools show it in their subtitle
     describe: (id, variant) => `${id}${variant === 'alt' ? ' · ALT' : ''}`,
   },

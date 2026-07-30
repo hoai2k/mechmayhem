@@ -32,7 +32,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
-import { wireExportChanges } from '../ui/save.js';
 import { prepareMesh, poseMatrices, skinVertices, edgeLengths, scoreEdge, DEFAULTS } from './stretchscan.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
@@ -1732,46 +1731,15 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
       + `\nOpen it in a browser, or send the file on.`);
   }
 
-  // the patch this session's ops make, as an object — the one source both
-  // Export (text, for pasting) and Save (POST, for writing) format from
-  function opsPatch() {
-    const list = outgoingOps();
-    return altOn ? { [curId]: { alt: { skinOps: list } } } : { [curId]: { skinOps: list } };
-  }
-
-  // SAVE — write the ops into public/models/manifest.json on this machine via
-  // the dev server (vite.config.js), so a reload of the game or any workbench
-  // picks them up. Still local: committing is what publishes them.
+  // NO SAVE-TO-DISK. These ops used to POST straight into
+  // public/models/manifest.json through the dev server; convenient, and
+  // impossible to trust, because nothing on screen said what had landed. They
+  // leave through EXPORT now — text you can read, in a patch you can apply.
   // WHAT LEAVES THIS TOOL. Superseded ops dropped (compact), then every
   // whole-island selector pinned to the vertices it means (pin) — a `{comp:N}`
   // ordinal is only valid against the rig that drew the partition, and a rig
   // edit renumbers it onto other geometry without a word. See pinSkinOps.
   const outgoingOps = () => pinSkinOps(compactSkinOps(ops), analysis);
-
-  const saveBtn = actionBtn('Save to manifest ▶', async () => {
-    const list = outgoingOps();
-    saveBtn.disabled = true;
-    setStatus(`Saving ${list.length} op(s) to manifest.json under "${curId}${altOn ? '.alt' : ''}"…`);
-    const res = await config.skin.save(curId, list, { variant: altOn ? 'alt' : 'glb' });
-    saveBtn.disabled = false;
-    if (res.ok) {
-      setStatus(`SAVED — ${list.length} op(s) written to public/models/manifest.json (${res.written.join(', ')}).` +
-        `\nThis machine's canonical state; commit to publish it.`);
-      changes.refresh();
-    } else if (res.offline) {
-      setStatus(`No dev server to save through (${res.error}).` +
-        `\nRun \`npm run dev\` and reload, or use Export ops and paste it in.`);
-    } else {
-      setStatus(`Save FAILED: ${res.error}\nNothing was written — use Export ops as the fallback.`);
-    }
-  }, true);
-  panel.appendChild(saveBtn);
-  writeBtns.push(saveBtn);
-  refreshMannRow();          // the mannequin reference greys it out
-  // hand the whole batch of local saves to whoever commits them
-  const exportChangesBtn = actionBtn('Export uncommitted saves', () => {});
-  panel.appendChild(exportChangesBtn);
-  const changes = wireExportChanges(exportChangesBtn, { setStatus: (t) => setStatus(t) });
 
   const exportOpsBtn = actionBtn('Export ops ▶', () => {
     // export compacted (superseded ops dropped) + one-op-per-line so pasting
