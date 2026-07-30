@@ -190,7 +190,7 @@ export class Animator {
       const s = boneSoleSamples(body, bone);
       if (!s) continue;
       depth = Math.max(depth, bone.getWorldPosition(_wp).y - s.lowest);
-      soles.push({ bone, points: s.points });
+      soles.push({ side, bone, points: s.points });
     }
     // sole sample points, for the per-frame pelvis follow in update()
     this.soles = soles.length === 2 ? soles : null;
@@ -213,17 +213,32 @@ export class Animator {
   // not a re-walk of the skinned mesh), so it is cheap enough to run every frame.
   // Null when this mech was never calibrated (procedural bodies).
   soleClearance() {
+    const per = this.soleClearanceBySide();
+    if (!per) return null;
+    const low = Math.min(per.L ?? Infinity, per.R ?? Infinity);
+    return Number.isFinite(low) ? low : null;
+  }
+
+  // The same measurement PER FOOT, which is what tells the gait which foot is on
+  // the ground: the foot rules (gaits.js — level the sole while it is down, let it
+  // hang off the shin while it is up) need it per side, and a pose-only proxy
+  // cannot always tell a lifted foot from a body squatting over a planted one.
+  // Null when this mech was never calibrated (procedural bodies, and the
+  // quadruped, whose hock calibrateFeet deliberately skips).
+  soleClearanceBySide() {
     if (!this.soles) return null;
     const ground = this.J.root.getWorldPosition(_wp).y;
-    let low = Infinity;               // the lowest sole point of EITHER foot
+    const out = { L: null, R: null };
     for (const f of this.soles) {
       f.bone.updateMatrixWorld(true);
+      let low = Infinity;
       for (const p of f.points) {
         const y = _sp.copy(p).applyMatrix4(f.bone.matrixWorld).y;
         if (y < low) low = y;
       }
+      if (Number.isFinite(low)) out[f.side] = low - ground;
     }
-    return Number.isFinite(low) ? low - ground : null;
+    return out;
   }
 
   // ---------- action clips ----------
@@ -327,13 +342,25 @@ export class Animator {
       const gait = this.gait;
       const legLen = this.D.thighLen + this.D.shinLen;
       this.phase += gaitPhaseRate(gait, { speed, ratio, legLen, sizeMul: this.sizeMul }) * dt;
-      applyGait(tgt, gait, {
+      // ONE env for the whole locomotion pipeline: the passes hand each other
+      // conclusions through it (which foot is in the air — see applyGait), so
+      // they must not each get a fresh literal.
+      this._gaitEnv = {
         ph: this.phase, ratio, s: this.s,
         ankleGain: this.ankleGain, footFlat: this.footFlat, rest: this.rest,
-        // the leg's own lengths: the toe-back rule works out how high a foot is
-        // off its standing height from the pose alone (see trailWeight)
+        hipHeight: this.D.hipHeight,
+        // the leg's own lengths: the foot rules work out how high a foot hangs
+        // from the pose alone (see airWeight)
         thighLen: this.D.thighLen, shinLen: this.D.shinLen,
-      });
+        // …and the MEASURED per-foot sole clearance where there is one, which
+        // beats any pose proxy: it is the real distance from boot to pavement.
+        // One frame stale (it is last frame's draw) and in local units, since a
+        // grown body's group scale multiplies everything the gait writes.
+        footClr: this._soleClrSide && this.sizeMul
+          ? { L: this._soleClrSide.L / this.sizeMul, R: this._soleClrSide.R / this.sizeMul }
+          : null,
+      };
+      applyGait(tgt, gait, this._gaitEnv);
     } else if (grounded) {
       // idle: breathing + weight shift + personality sway
       const b = Math.sin(this.t * 1.7);
@@ -380,17 +407,11 @@ export class Animator {
     // Rides OVER the biped stride above (which is what it lerps out of at
     // walking pace); the numbers are the gait's `quad` section — see gaits.js.
     if (grounded && speed > 0.4 && this.gait.quad) {
-      applyQuadGait(tgt, this.gait, {
-        ph: this.phase, ratio, s: this.s, hipHeight: this.D.hipHeight,
-      });
+      applyQuadGait(tgt, this.gait, this._gaitEnv);
     }
     // THE TOE-BACK RULE, last: a raised REAR foot points its toes back and down,
     // whichever layer put the leg back there (see applyToeHang).
-    if (grounded && speed > 0.4) {
-      applyToeHang(tgt, this.gait, {
-        rest: this.rest, thighLen: this.D.thighLen, shinLen: this.D.shinLen,
-      });
-    }
+    if (grounded && speed > 0.4) applyToeHang(tgt, this.gait, this._gaitEnv);
 
     // ===== dash: coil, gather, LUNGE =====
     // A dash used to be a 2-line torso lean over a big velocity change, so it
@@ -652,7 +673,10 @@ export class Animator {
     this.applyPose(this.cur);
     this.mech.postAnimate?.(); // GLB rigs: retarget virtual joints onto bones
     // where the sole ended up this frame — the input to the pelvis follow above
-    if (this.soles) this._soleClr = this.soleClearance();
+    if (this.soles) {
+      this._soleClrSide = this.soleClearanceBySide();
+      this._soleClr = this.soleClearance();
+    }
   }
 
   // rest-pose bias: digitigrade legs (and a predator's spine hunch) keep

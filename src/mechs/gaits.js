@@ -36,42 +36,87 @@ import { lerp, clamp01 } from '../core/utils.js';
 
 export const DEFAULT_GAIT = 'standard';
 
-// HOW FAR BEHIND ITS REST DIRECTION the leg has to point before its foot counts
-// as fully TRAILING (radians of thigh + knee, i.e. of the shin's own swing). At
-// ~29 degrees the weight saturates, so the foot is treated as trailing through
-// the whole back half of the stride instead of only at its extreme, and is 0
-// again wherever the leg is under or ahead of the hips.
+// HOW MUCH HIGHER THAN THE OTHER FOOT this one has to be before it counts as
+// fully AIRBORNE, as a fraction of the leg's length. This is the switch between
+// the foot's two jobs — flat on the pavement below it, hanging off the shin above
+// it — and it is deliberately a soft one: a foot crosses it as it lands, so the
+// sole rolls level into the plant instead of snapping flat.
+const LIFT_BAND = 0.045;
+
+// …and how far the leg has to swing BEHIND its rest direction (radians of thigh +
+// knee) before a foot still on the ground counts as fully PUSHING OFF rather than
+// standing. ~29 degrees, so the push builds through the back half of stance.
 const TRAIL_BAND = 0.5;
 
-// …and how far OFF ITS STANDING HEIGHT the foot has to be lifted before the same
-// applies, as a fraction of the leg's length. Both conditions are needed: a foot
-// that is behind the body but still ON it is mid-push and must keep its sole on
-// the pavement, which is the difference between a toe-off and a toe driven
-// through the floor.
-const LIFT_BAND = 0.10;
+/**
+ * How much this foot is IN THE AIR: 0 standing on it, 1 clear of the ground.
+ *
+ * FIRST CHOICE is the measurement: a calibrated body knows the real distance from
+ * each boot to the pavement (Animator.soleClearanceBySide, handed over as
+ * `env.footClr`), and nothing beats that — a deep-booted heavy can have its ankle
+ * a quarter of a body height up with the sole still planted.
+ *
+ * WITHOUT ONE (procedural bodies, and the quadruped, whose hock calibrateFeet
+ * skips) it falls back to how much HIGHER this foot hangs than the other one,
+ * from the leg's own geometry: thigh and shin projected on vertical, both from the same hips.
+ * The comparison is what makes it work without knowing where the ground is — a
+ * walking body always has a foot down, so the LOWER foot is the one standing and
+ * the other is up by the difference. (Absolute leg length cannot answer it: a leg
+ * that shortens in stance is the body squatting over a planted foot, not the foot
+ * rising, and reading it that way had every foot "airborne" all cycle.)
+ *
+ * Two reasons it is done from the pose rather than from the gait phase or a world
+ * measurement:
+ *
+ *  · it is a fact about the FINISHED stride, so it does not care WHICH layer bent
+ *    the leg. Fenrir's hinds are moved by the biped layer AND by a gallop running
+ *    at its own rate (`quad.stride`); no single phase window describes where his
+ *    paws are, and any gait added later would need its own.
+ *  · it stays a pure function of the pose, so the gait workbench measures exactly
+ *    what the game runs.
+ */
+function airWeight(tgt, rest, side, env = {}) {
+  const thighL = env.thighLen || 1, shinL = env.shinLen || 1;
+  // MEASURED, where the body has been calibrated: the real gap between this
+  // boot and the pavement, from last frame's draw (Animator.soleClearanceBySide).
+  const clr = env.footClr?.[side];
+  if (typeof clr === 'number' && Number.isFinite(clr)) {
+    return clamp01(clr / (LIFT_BAND * (thighL + shinL)));
+  }
+  const r = (j) => (rest?.[j]?.[0] || 0);
+  const reach = (sd) => {
+    const t = tgt['thigh' + sd][0], k = tgt['knee' + sd][0];
+    return thighL * Math.cos(t) + shinL * Math.cos(t + k);
+  };
+  const other = side === 'L' ? 'R' : 'L';
+  if (!tgt['thigh' + other] || !tgt['knee' + other]) return 0;
+  const lift = (reach(other) - reach(side)) / (thighL + shinL);
+  return clamp01(lift / LIFT_BAND);
+}
 
 /**
- * How much this foot is TRAILING IN THE AIR: 0 planted, pushing, or reaching
- * ahead — 1 swung out behind the body and clear of the ground.
+ * A FOOT IS ALWAYS IN ONE OF THREE STATES, and each one wants something different:
  *
- * Read off the leg's own angles, not off the gait phase, because both facts are
- * facts about the FINISHED stride: fenrir's hinds are moved by the biped layer
- * AND by a gallop running at its own rate (`quad.stride`), so no single phase
- * window describes where his paws are, and any gait added later would need its
- * own window. The height is the same planar geometry the pose already implies —
- * thigh and shin projected on vertical — so this stays a pure function of the
- * pose and the workbench measures exactly what the game runs.
+ *   stance   flat on the ground, whatever the leg above it is doing
+ *   push     planted but BEHIND the body: the toe stays down while the leg
+ *            straightens and the heel lifts, so the foot pivots over the toe and
+ *            ends up angled hard down relative to the shin — the most plantar-flexed
+ *            moment of the whole cycle
+ *   air      off the ground: nothing holds it at any angle to the WORLD, so it hangs
+ *            at its resting angle to the shin
+ *
+ * The weights come from the pose, never from a phase window: `air` is measured
+ * (Animator.soleClearanceBySide) or inferred, and `back` is how far the leg has
+ * swung behind its rest direction. They sum to 1, so a foot is always fully
+ * described and the transitions are crossfades rather than switches.
  */
-function trailWeight(tgt, rest, side, env = {}) {
+function footStates(tgt, rest, side, env) {
   const r = (j) => (rest?.[j]?.[0] || 0);
-  const t0 = r('thigh' + side), k0 = r('knee' + side);
-  const t = tgt['thigh' + side][0], k = tgt['knee' + side][0];
-  const back = (t - t0) + (k - k0);
-  if (back <= 0) return 0;
-  const thighLen = env.thighLen || 1, shinLen = env.shinLen || 1;
-  const reach = (a, b) => thighLen * Math.cos(a) + shinLen * Math.cos(a + b);
-  const lift = (reach(t0, k0) - reach(t, k)) / (thighLen + shinLen);
-  return clamp01(back / TRAIL_BAND) * clamp01(lift / LIFT_BAND);
+  const air = env.air ? env.air[side] : airWeight(tgt, rest, side, env);
+  const back = clamp01(((tgt['thigh' + side][0] - r('thigh' + side))
+    + (tgt['knee' + side][0] - r('knee' + side))) / TRAIL_BAND);
+  const push = (1 - air) * back;
+  return { air, push, stance: (1 - air) * (1 - back) };
 }
 
 // ---------------------------------------------------------------------------
@@ -117,15 +162,20 @@ export const GAIT_SCHEMA = [
       { key: 'roll', label: 'roll', min: 0, max: 1.2, step: 0.01, joints: ['ankleL', 'ankleR'],
         help: 'heel-to-toe roll, as a fraction of the thigh swing' },
       { key: 'tilt', label: 'toe-down bias @run', min: -0.8, max: 0.4, step: 0.01, joints: ['ankleL', 'ankleR'] },
-      { key: 'push', label: 'toe-off push', min: 0, max: 1.4, step: 0.01, joints: ['ankleL', 'ankleR'],
-        help: 'plantar flex as the trailing foot leaves the ground' },
-      { key: 'pushRun', label: 'toe-off @run', min: 0, max: 1.4, step: 0.01, joints: ['ankleL', 'ankleR'] },
-      { key: 'pushPhase', label: 'push phase', min: -3.14, max: 3.14, step: 0.01, joints: ['ankleL', 'ankleR'] },
-      { key: 'hang', label: 'toe-down while trailing', min: 0, max: 2.4, step: 0.01, joints: ['ankleL', 'ankleR'],
-        help: 'RADIANS BELOW HORIZONTAL that a raised REAR foot points its toes — solved for, so it lands '
-          + 'the same on every body. 0 turns the rule off and the foot stays flat as if it were still '
-          + 'standing on something; π/2 (1.57) points the toes straight DOWN; past that they point back, '
-          + 'which is what a trailing foot really does' },
+      { key: 'push', label: 'toe-off angle', min: 0, max: 2.0, step: 0.01, joints: ['ankleL', 'ankleR'],
+        help: 'how far DOWN the foot is driven relative to the shin while it is planted and behind the body — '
+          + 'the toe stays on the ground, the heel comes up, and a real push-off reaches something like '
+          + '90° (1.57). The WINDOW is not a dial: it is worked out from the pose' },
+      { key: 'pushRun', label: 'toe-off @run', min: 0, max: 2.0, step: 0.01, joints: ['ankleL', 'ankleR'] },
+      { key: 'level', label: 'sole levelling on the ground', min: 0, max: 1, step: 0.01, joints: ['ankleL', 'ankleR'],
+        help: 'how hard to keep the sole FLAT ON THE GROUND while the foot is planted, over and above what '
+          + "the model's own foot-depth calibration already asks for. Bodies the calibration skips (the "
+          + 'quadruped) need it here or their feet land at whatever angle the leg left them' },
+      { key: 'hang', label: 'toe past rest @airborne', min: -0.4, max: 1.0, step: 0.01, joints: ['ankleL', 'ankleR'],
+        help: 'extra plantar flex PAST the resting foot line, radians, while the foot is OFF THE GROUND. '
+          + '0 means the foot simply hangs at its natural angle to the shin (perpendicular, for a body built '
+          + 'that way) — which is the rule; a runner points the toe a little past it (~0.26 = 15°). The '
+          + 'alignment itself is not optional and needs no dial' },
     ],
   },
   {
@@ -211,7 +261,7 @@ export const GAITS = {
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
     },
-    ankle: { roll: 0.5, tilt: -0.10, push: 0.40, pushRun: 0.40, pushPhase: -0.45, hang: 1.75 },
+    ankle: { roll: 0.51, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0 },
     arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
   },
@@ -235,10 +285,10 @@ export const GAITS = {
       swing: 0.44, swingRun: 0.36, reach: 0.28, extend: 0.16,
       adduct: 0.105, adductRun: 0.07,
       stanceBend: 0.14, stanceBendRun: 0.16,
-      kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.15,
+      kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.93,
       cadence: 0.95, cadenceCap: 16,
     },
-    ankle: { roll: 0.55, tilt: -0.14, push: 0.42, pushRun: 0.45, pushPhase: -0.45, hang: 1.9 },
+    ankle: { roll: 0.55, tilt: -0.14, push: 0.75, pushRun: 0.85, level: 0, hang: 0.26 },
     arms: { swing: 0.78, swingRun: 0.89, lift: -0.10, elbow: 0.25, elbowRun: 0.55, elbowPump: 0.40, tuck: 0.18, cross: 0.12 },
     body: { bob: 0.21, pitch: 0.12, yaw: 0.10, roll: 0.05, lean: 0.46, twist: 0.15, head: -0.36 },
   },
@@ -255,7 +305,7 @@ export const GAITS = {
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
     },
-    ankle: { roll: 0.5, tilt: -0.10, push: 0.40, pushRun: 0.40, pushPhase: -0.45, hang: 1.8 },
+    ankle: { roll: 0.5, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0 },
     arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {
@@ -367,11 +417,12 @@ export function applyGait(tgt, gait, env) {
   // Animator.calibrateFeet. Without both, a deep, long boot pitches about a
   // joint far above and behind its sole and buries a corner in the floor for
   // most of the cycle: the walk reads as pushing off air rather than pavement.
-  const pushL = Math.max(0, -Math.sin(ph + A.pushPhase));
-  const pushR = Math.max(0, -Math.sin(ph + Math.PI + A.pushPhase));
-  const push = A.push + A.pushRun * ratio;
-  tgt.ankleL[0] += ankleGain * (swing * A.roll * sinL + A.tilt * ratio - push * pushL);
-  tgt.ankleR[0] += ankleGain * (swing * A.roll * sinR + A.tilt * ratio - push * pushR);
+  // the heel-to-toe ROLL that shapes a planted foot. The TOE-OFF is not here any
+  // more: it belongs to the push-off state, which applyFootRule works out from
+  // the pose (planted AND behind) instead of from a phase window — the phase one
+  // was firing ~100 degrees late, well after the foot had already left the ground.
+  tgt.ankleL[0] += ankleGain * (swing * A.roll * sinL + A.tilt * ratio);
+  tgt.ankleR[0] += ankleGain * (swing * A.roll * sinR + A.tilt * ratio);
   // (the TOE-BACK on a raised rear foot is applied last, by applyToeHang below —
   // it is a rule about the finished pose, so it has to run after the gallop layer
   // has had its say)
@@ -418,12 +469,36 @@ export function applyGait(tgt, gait, env) {
   // above it just pitched into it — run LAST, after hipsRot is set, so the
   // body's forward pitch is included. The authored roll above then rides on top
   // of a level plate instead of on top of the leg's own tilt.
-  // …and only while the foot IS on the pavement: `1 - hang weight` hands the
-  // foot back to the leg as it trails behind, which is what lets the toe-back
-  // above survive instead of being levelled straight out again.
-  if (footFlat > 0.01 && rest) {
+  // …and only while the foot IS on the pavement (`1 - air weight`), so that above
+  // the ground the foot can hang off the shin instead of being levelled straight
+  // back out — see applyToeHang.
+  //
+  // How hard to level is the LARGER of two asks: what the model's own foot depth
+  // measured (footFlat, from Animator.calibrateFeet — a long boot needs it or it
+  // buries a corner) and what the GAIT asks for (`ankle.level`), for a body the
+  // calibration never ran on.
+  //
+  // THE QUADRUPED LEAVES IT AT 0, MEASURED. calibrateFeet skips fenrir because a
+  // hock is nothing like a boot, and asking the gait to level his paws is worse
+  // than not: the levelling cancels hips + thigh + knee, which on a gallop
+  // includes 34 degrees of body pitch, and a paw whose rest carriage is nothing
+  // like flat came out dorsiflexed 130-170 degrees with its claws pointing at the
+  // sky. His planted paws stay with the authored hock motion; what he does get
+  // from this pass is the airborne half — a raised paw hangs at its resting line
+  // like every other foot in the game.
+  // WHICH FOOT IS UP, published for the passes that come after this one: the
+  // gallop layer refines it (it knows its own flight phase, which no L-vs-R
+  // comparison can see because a galloping quadruped lifts both hinds together)
+  // and applyToeHang consumes it.
+  env.air = { L: airWeight(tgt, rest, 'L', env), R: airWeight(tgt, rest, 'R', env) };
+  // …and PUSHING OFF IS NOT STANDING: in late stance the toe stays on the ground
+  // while the leg straightens and the heel comes up, so the foot is deliberately
+  // NOT flat there. The levelling therefore only gets the weight that is neither
+  // airborne nor pushing (see footStates).
+  const levelAsk = Math.max(footFlat, A.level || 0);
+  if (levelAsk > 0.01 && rest) {
     for (const side of ['L', 'R']) {
-      const level = footFlat * (1 - trailWeight(tgt, rest, side, env));
+      const level = levelAsk * footStates(tgt, rest, side, env).stance;
       if (level < 0.01) continue;
       tgt['ankle' + side][0] -= level * (tgt.hipsRot[0]
         + (tgt['thigh' + side][0] - rest['thigh' + side][0])
@@ -478,56 +553,60 @@ export function applyQuadGait(tgt, gait, env) {
   tgt.kneeR[0] += (0.3 + Math.max(0, hind2) * Q.hindFold) * q;
   tgt.ankleL[0] += (-0.28 - Math.max(0, -hind) * Q.hockSnap) * q;
   tgt.ankleR[0] += (-0.28 - Math.max(0, -hind2) * Q.hockSnap) * q;
+  // WHICH PAW IS UP — the gallop's own answer, which replaces the biped layer's
+  // guess as the gallop blends in. A galloping quadruped lifts both hinds
+  // TOGETHER on the gather, so comparing left against right (all applyGait can
+  // do) sees nothing; `hind` going negative IS the gather, and that is when the
+  // paw is in the air and should hang off the hock instead of being driven.
+  if (env.air) {
+    env.air.L = lerp(env.air.L, clamp01(2.6 * Math.max(0, -hind)), q);
+    env.air.R = lerp(env.air.R, clamp01(2.6 * Math.max(0, -hind2)), q);
+  }
 }
 
 // ---------------------------------------------------------------------------
-// TOES BACK ON A RAISED REAR FOOT — the last word on every gait.
+// THE FOOT RULE — the last word on a stride, and the one part of a gait that is
+// not a curve.
 //
-// Nothing levels a foot in mid-air: it hangs off the shin. A raised REAR foot
-// therefore points its toes back and down, and a foot that stays flat with its
-// sole parallel to the pavement reads as walking on a floor that isn't there —
-// the loudest "the feet are wrong" tell a gait has. NO gait should show it.
+// A foot is doing one of three things (see footStates), and only the first of
+// them is about the world:
 //
-// Two things used to keep the foot flat: the flat-sole rule cancelled the leg
-// chain for the WHOLE cycle instead of only while the foot was down (fixed in
-// applyGait, which now releases it as the leg trails), and nothing ever asked
-// the foot to hang.
+//   ON THE GROUND   the sole belongs FLAT ON IT, whatever the leg is doing. That
+//                   is the levelling ask back in applyGait (`footFlat` from the
+//                   model's own foot depth, or `ankle.level` from the gait), and
+//                   it is world-space: it cancels hips + thigh + knee.
+//   PUSHING OFF     planted but behind the body — the toe stays down while the leg
+//                   straightens and the heel comes up. The foot pivots over the
+//                   toe, so it is NOT flat and NOT hanging: it is driven hard down
+//                   relative to the shin (`ankle.push` + `pushRun`, and ~90 degrees
+//                   is what a real push-off reaches).
+//   IN THE AIR      nothing holds a foot at an angle to the world. It hangs off the
+//                   shin at its resting angle — perpendicular, for a body built
+//                   that way; whatever its own bind says, for a digitigrade one.
+//                   `ankle.hang` points the toe a little past that, which is what
+//                   a runner does (~15 degrees) and a walker does not.
 //
-// WHY IT IS A SEPARATE PASS, KEYED ON THE POSE. "Behind the body" is a fact
-// about the finished stride, not about a phase: fenrir's hinds are moved by the
-// biped layer AND by a gallop running at its own rate (`quad.stride`), so no
-// single phase window describes where his paws are. Reading it off the thigh
-// angle the pose actually ended up with covers every gait, every layer and any
-// gait added later, with nothing to keep in sync.
+// Both non-stance states are JOINT-space rules — stated relative to the shin, not
+// to the horizon — so one number lands the same on a boot, a talon and a paw.
 //
-// The angle is normalised by the gait's own stride amplitude, so a long-strided
-// gait reaches "fully trailing" at a proportionally bigger angle rather than
-// sooner. POSITIVE ankle pitch is what drops the toe in this rig space (measured
-// on the mannequin, colossus, titanus and viper — not inferred from the sign of
-// the toe-off term, which is authored around each foot's own rest carriage). Not
-// scaled by ankleGain either: that exists because a deep sole sweeps more GROUND
-// per radian, and a foot in the air is not touching any.
+// It runs LAST, after the gallop layer, so it covers fenrir's hinds too, and it
+// BLENDS rather than adds: the stance shaping (roll, tilt) is handed back as the
+// foot leaves the ground instead of accumulating into a pose no ankle holds.
 // ---------------------------------------------------------------------------
 export function applyToeHang(tgt, gait, env = {}) {
-  const hang = gait.ankle?.hang;
-  if (!hang) return;
+  const A = gait.ankle || {};
   const rest = env.rest || null;
   const r = (j) => (rest?.[j]?.[0] || 0);
-  // A planar leg chain turns the foot by the SUM of everything above it, so the
-  // foot's pitch away from its bind carriage (where the sole is down and the toes
-  // point forward) is hips + thigh + knee + ankle, each measured from rest.
-  // POSITIVE drops the toe. That makes the rule a one-line solve rather than a
-  // nudge, and `hang` a real quantity: radians below horizontal, the same on
-  // every body regardless of what its rest stance or its gallop layer did.
-  const dHips = tgt.hipsRot[0];
+  const ratio = env.ratio ?? 1;
+  const pushAngle = (A.push || 0) + (A.pushRun || 0) * ratio;
+  const hang = A.hang || 0;
   for (const side of ['L', 'R']) {
     const a = tgt['ankle' + side];
     if (!a || !tgt['thigh' + side]) continue;
-    const w = trailWeight(tgt, rest, side, env);
-    if (w < 0.01) continue;
-    const pitch = dHips + (tgt['thigh' + side][0] - r('thigh' + side))
-      + (tgt['knee' + side][0] - r('knee' + side)) + (a[0] - r('ankle' + side));
-    a[0] += w * (hang - pitch);
+    const st = footStates(tgt, rest, side, env);
+    if (st.air + st.push < 0.01) continue;          // pure stance: leave it alone
+    const home = r('ankle' + side);
+    a[0] = a[0] * st.stance + (home + hang) * st.air + (home + pushAngle) * st.push;
   }
 }
 
