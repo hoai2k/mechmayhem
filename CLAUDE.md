@@ -237,6 +237,16 @@ audio). Progress history: `TASKS.md`.
   and the in-array comments. Saving is local — **Export uncommitted saves**
   (both tools, enabled only when the tree is dirty) downloads every uncommitted
   change as ONE `git apply`-able patch to hand over for committing.
+  SKIN OPS LEAVE PINNED. `{"comp":N}` is an ordinal into the proximity partition
+  the CURRENT rig draws, so a rig edit renumbers it onto other geometry without a
+  word (jerry's back once landed on his foot this way; a viper skin patch
+  authored on the previous rig came back selecting his elbows). The workbench
+  still WORKS in islands, but Save/Export run `pinSkinOps` (skinops.js) first and
+  write the vertex list each island meant — a vertex index is a property of the
+  geometry, which no rig can renumber. Ops that arrive from elsewhere still
+  carrying `comp` ids are only valid against the rig they were authored on: check
+  them with `node tools/skindebug.mjs <mech>` before and after (the severity
+  total moves the wrong way when they have shifted).
 - SKIN WORKBENCH **Debug output ▶** downloads ONE self-contained HTML file for
   handing a deformation problem to someone else: two screenshots of the current
   frame (shaded + bone colours), the full tool state (mech, build, selected

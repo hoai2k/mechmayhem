@@ -77,11 +77,19 @@ const out = await page.evaluate(async ({ n }) => {
     };
     runs[key] = acc;
   }
+  // WARM UP FIRST. Both bodies start at their REST pose, and the animator's pose
+  // smoother (and the pelvis/sole follower, which has its own memory) takes a
+  // while to arrive at a running gait. Sampling from a cold start let that
+  // transient in as an outlier at one end of the cycle, which inflated the swing
+  // ranges by up to 2x and made the numbers unrepeatable run to run.
+  w.setPhase(0);
+  for (let k = 0; k < 60; k++) await new Promise((r) => requestAnimationFrame(r));
+
   // sweep the cycle: both bodies are posed by their own animator at the same
   // phase, with the smoother given a few frames to arrive at each one
   for (let i = 0; i < n; i++) {
     w.setPhase((i / n) * Math.PI * 2);
-    for (let k = 0; k < 14; k++) await new Promise((r) => requestAnimationFrame(r));
+    for (let k = 0; k < 18; k++) await new Promise((r) => requestAnimationFrame(r));
     for (const [key, m, a] of [['mine', w.mech, w.animator], ['vs', w.ghost, w.ghostAnimator]]) {
       const s = sample(m, a);
       const acc = runs[key];

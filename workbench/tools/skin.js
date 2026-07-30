@@ -1734,18 +1734,24 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
   // the patch this session's ops make, as an object — the one source both
   // Export (text, for pasting) and Save (POST, for writing) format from
   function opsPatch() {
-    const list = compactSkinOps(ops);
+    const list = outgoingOps();
     return altOn ? { [curId]: { alt: { skinOps: list } } } : { [curId]: { skinOps: list } };
   }
 
   // SAVE — write the ops into public/models/manifest.json on this machine via
   // the dev server (vite.config.js), so a reload of the game or any workbench
   // picks them up. Still local: committing is what publishes them.
+  // WHAT LEAVES THIS TOOL. Superseded ops dropped (compact), then every
+  // whole-island selector pinned to the vertices it means (pin) — a `{comp:N}`
+  // ordinal is only valid against the rig that drew the partition, and a rig
+  // edit renumbers it onto other geometry without a word. See pinSkinOps.
+  const outgoingOps = () => pinSkinOps(compactSkinOps(ops), analysis);
+
   const saveBtn = actionBtn('Save to manifest ▶', async () => {
-    const list = compactSkinOps(ops);
+    const list = outgoingOps();
     saveBtn.disabled = true;
     setStatus(`Saving ${list.length} op(s) to manifest.json under "${curId}${altOn ? '.alt' : ''}"…`);
-    const res = await config.skin.save(curId, compactSkinOps(ops), { variant: altOn ? 'alt' : 'glb' });
+    const res = await config.skin.save(curId, list, { variant: altOn ? 'alt' : 'glb' });
     saveBtn.disabled = false;
     if (res.ok) {
       setStatus(`SAVED — ${list.length} op(s) written to public/models/manifest.json (${res.written.join(', ')}).` +
@@ -1772,9 +1778,10 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
     // the ops belong to the entry they were painted on: nest them under
     // "alt" when the alternate build is loaded, or the patch would be pasted
     // onto the wrong model
+    const list = outgoingOps();
     const json = altOn
-      ? `{\n  "${curId}": {\n    "alt": {\n      "skinOps": ${skinOpsToJson(compactSkinOps(ops), '      ')}\n    }\n  }\n}`
-      : `{\n  "${curId}": {\n    "skinOps": ${skinOpsToJson(compactSkinOps(ops), '    ')}\n  }\n}`;
+      ? `{\n  "${curId}": {\n    "alt": {\n      "skinOps": ${skinOpsToJson(list, '      ')}\n    }\n  }\n}`
+      : `{\n  "${curId}": {\n    "skinOps": ${skinOpsToJson(list, '    ')}\n  }\n}`;
     out.style.display = 'block';
     out.value = json;
     out.select();

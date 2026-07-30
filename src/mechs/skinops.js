@@ -622,6 +622,43 @@ export function compactSkinOps(ops) {
   });
 }
 
+/**
+ * PIN every whole-island selector to the vertex list it means RIGHT NOW.
+ *
+ * `{"comp": 25}` is an ORDINAL into the proximity partition the CURRENT rig
+ * produces, so it only means what its author meant while that rig is in place.
+ * Move one bone and the partition is redrawn — 69 islands become 47 — and every
+ * id lands on different geometry, silently: this is how jerry's back once ended
+ * up bound to his foot, and how a viper skin patch authored on the previous rig
+ * came back selecting his elbows. A VERTEX INDEX is a property of the geometry,
+ * which no rig edit can renumber, so that is the form a saved op takes.
+ *
+ * The cost is file size (an island of 1,300 vertices is ~9 KB of numbers against
+ * 20 bytes for the ordinal), which is why the workbench still WORKS in islands —
+ * it only pins them on the way out.
+ *
+ * Selectors that are not a bare island (`verts`, `bone`, `comp` + `bone`) are
+ * passed through untouched: they either already name geometry or mean something
+ * the partition can't renumber.
+ */
+export function pinSkinOps(ops, analysis) {
+  if (!ops?.length || !analysis?.comps) return ops || [];
+  return ops.map((op) => {
+    const sel = op?.sel;
+    if (!sel || sel.comp === undefined || sel.bone !== undefined) return op;
+    const comp = analysis.comps[sel.comp];
+    if (!comp?.verts?.length) return op;          // unknown id: leave it alone
+    return { ...op, sel: { ...sel, comp: undefined, verts: comp.verts.slice().sort((a, b) => a - b) } };
+  }).map((op) => {
+    // drop the now-undefined `comp` key so the JSON stays clean
+    if (op.sel && 'comp' in op.sel && op.sel.comp === undefined) {
+      const { comp, ...rest } = op.sel;
+      return { ...op, sel: rest };
+    }
+    return op;
+  });
+}
+
 // Serialize an op list one op per line — a 100-op list stays ~100 lines
 // instead of the ~800 that pretty-printed JSON produces in manifest.json.
 export function skinOpsToJson(ops, indent = '  ') {
