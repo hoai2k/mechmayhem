@@ -21,7 +21,7 @@ import { CLIPS, compileClip, defClipVariants } from '../../../src/mechs/animatio
 import { Animator } from '../../../src/mechs/animator.js';
 import {
   GAITS, GAIT_SCHEMA, gaitIds, gaitIdFor, cloneGait, gaitDiff, formatGait,
-  applyGait, applyQuadGait, applyToeHang, gaitPhaseRate,
+  applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
 } from '../../../src/mechs/gaits.js';
 import { TUNING } from '../../../src/core/tuning.js';
 import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
@@ -311,6 +311,7 @@ const CONFIG = defineWorkbenchConfig({
       const shared = { ...env, rest };
       applyGait(tgt, gait, shared);
       if (gait.quad) applyQuadGait(tgt, gait, shared);
+      applyGaitKeys(tgt, gait, shared);
       applyToeHang(tgt, gait, shared);
       return tgt;
     },
