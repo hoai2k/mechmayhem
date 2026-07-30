@@ -131,6 +131,16 @@
  *   adapter whose data is never edited out from under it may leave it out.
  *
  * @property {Object} skin            skin-repair engine (islands, ops, patches)
+ *   analyze(mesh)     -> the bone-island partition the tool works in
+ *   apply(mesh, ops)  -> weights rewritten by a list of ops
+ *   compact(ops)      -> the ops list with no-ops dropped
+ *   pin(ops, analysis)-> the same ops with island ordinals resolved to vertex
+ *                        lists; REQUIRED on everything the tool saves or
+ *                        exports, since `{comp:N}` is only meaningful against
+ *                        the rig it was authored on
+ *   toJson(ops, ind)  -> the manifest text for a skinOps array
+ *   blendPatch / weldedAdjacency / enclaveScan — selection helpers
+ *   ops(id, opts) / seamCuts(id, opts) / applySeamCuts / save(id, ops, opts)
  * @property {Object} hurtbox         hit-volume measurement
  * @property {Object} stage           a live 3D scene with the game's own loop
  * @property {Object} persist         where edits go: manifest / rig / changes
