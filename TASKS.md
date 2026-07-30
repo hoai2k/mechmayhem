@@ -12,7 +12,60 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** VIPER'S NEW RIG IS IN — and it is worth it for the animation: the
+- **Latest:** ANKLE HEIGHT AUDITED ACROSS THE WHOLE ROSTER, and the answer was not
+  the one expected. An ankle bone is the hinge the gait rolls the foot around, so
+  it belongs at the TOP OF THE SOLE PLATE — not at the lowest point of the
+  geometry. `Animator.calibrateFeet` measures `footDepth` (ankle above sole) and
+  damps the authored heel roll by `convention/depth` when the bone sits high
+  (`ankleGain`, floor 0.25) — but it also gives up entirely at `depth <= 0.02`,
+  and a hinge level with the ground has nothing left under it to roll. The target
+  is therefore `0.32 * scale`, ~4.5% of body height, which is what `ankleGain 1.00`
+  and `footFlat 0` mean. New tool: `node tools/ankleprobe.mjs [mech …] [--chains]`
+  measures sole/ankle/depth/gain per mech per side, lists every bone at or below
+  its sole (and FAILS on one), and with `--chains` prints the whole leg with each
+  bone's share of the foot plate — which is how a mis-mapped ankle is told from a
+  badly-placed one. **NOTHING is underground:** no bone on any of the 17 mechs
+  sits at or below its own sole at rest. `buildSkeletonBones` (reskin.js) now
+  clamps a custom rig's bones to y >= 0 and warns, so a future rig edit dragging
+  an ankle onto the floor cannot bury the geometry under it.
+  THREE MECHS FIXED, and every candidate measured rather than assumed:
+  **vulcan** ankle y 0.10 -> 0.043 (depth 0.850 -> 0.366, gain 0.44 -> **1.00**,
+  skin audit 464.7 -> 463.0), **wraith** off the hock, y 0.155 -> 0.048 (0.98 ->
+  0.26, gain 0.32 -> **1.00**, audit 1455.2 -> **1431.2**), and **saurion**, whose
+  ankle was MAPPED to the hock (`bone_8`, 1.64 above the sole) while `bone_9` sits
+  at 0.31 and owns 100% of the foot plate — a `boneOverrides` remap, so no weight
+  moves (gain 0.25 -> **1.00**, audit 859.8 -> **816.9**). Plant is unchanged:
+  `footprobe` stance slip 12.97 -> 13.72 (vulcan) and 17.94 -> 17.67 (wraith).
+  THREE REJECTED WITH NUMBERS, because the skin would not take it: **titanus**
+  (audit 3158 -> **11661** at y 0.045, still 10085 at 0.09 — the boot shaft falls
+  to the knee and the foot's three bones collapse onto one another), **glacier**
+  (+18% for a 0.006 move; its sole weights are on a knife edge) and **cranky**,
+  the crab, whose "ankle" is the top of a leg arch 54% of the way up the body:
+  renaming it `hockL` and promoting the tip bone is weight-identical by
+  construction, and the tip rolling at full gain still cost +32% (1246 -> 1645) —
+  and his hexapod profile owns the legs at speed anyway. Left as found, with the
+  observation recorded that his `footL`/`shinL` hurtbox capsules therefore sit
+  mid-body and point upwards. The seven stock-skeleton mechs whose auto-rig simply
+  placed the ankle high (rhino 12.4%, frogger 11.1%, jerry 9.8%, nullbot 9.2%,
+  tempest 7.2%, nova, aegis) have NO better bone to map to — `--chains` shows the
+  high bone owning 100% of the foot plate in every case — and lowering a pivot on
+  a baked-weight skeleton needs a rebind, which the titanus/cranky results say
+  would more likely cost skin than buy roll. Measured, listed, not guessed at.
+  Also: **viper's re-authored skin patch is in** — 19 ops, all pinned vertex
+  lists, audit **1500.9 -> 923.4 (-38%)**, worst finding 270.2 -> 79.1.
+  AND A POSTER BUG FELL OUT OF IT: `tools/posters.mjs <ids>` built its index from
+  an EMPTY map and rewrote `posters.json` wholesale, so every named run deleted
+  the other mechs' boxes — and a mech with no box has no poster at all
+  (`posterMeta` returns null and mech select goes back to building a model per
+  keypress, the exact cost the posters exist to avoid, with the .png still on
+  disk looking fine). The committed index had been whittled down to ONE entry,
+  viper. The tool now MERGES, and all 17 posters were re-rendered so every mech
+  has its box back. Single-picker drift is 1-15px across the roster. Note for
+  whoever next reads `postercheck`: with 2+ pickers SLOT 0 reports a large
+  negative R drift (vulcan 153px, jerry 136px, cranky 121px — untouched mechs
+  included) while every other slot stays under 10px, so that number is a harness
+  artifact rather than the handover.
+- **Previous:** VIPER'S NEW RIG IS IN — and it is worth it for the animation: the
   ankle bone moved from the high hock (y 0.135 mesh-local, 0.92 world above the
   sole) down beside the sole (y 0.03, 0.21 world), so `calibrateFeet` now measures
   footDepth 0.206 against 0.925 and hands the gait `ankleGain 1.0` where it used

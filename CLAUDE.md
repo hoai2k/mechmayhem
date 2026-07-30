@@ -281,6 +281,24 @@ audio). Progress history: `TASKS.md`.
   world-measured clearance has to be divided back into local units or the
   correction loop runs at gain × sizeMul and rings. Measure any of it with
   `node tools/footprobe.mjs <mech> <scale>`.
+- WHERE THE ANKLE BONE GOES: at the TOP OF THE SOLE PLATE — about `0.32 * scale`
+  above the sole (~4.5% of body height), NOT at the lowest point of the
+  geometry. It is the hinge the gait rolls the foot around, so it needs a foot
+  underneath it: `Animator.calibrateFeet` measures `footDepth` (ankle above
+  sole) and DAMPS the authored heel roll by `convention/depth` when the bone
+  sits high (`ankleGain`, floor 0.25, plus a `footFlat` levelling ask), while at
+  `depth <= 0.02` it gives up and keeps the default. `ankleGain 1.00` +
+  `footFlat 0` is the target. `node tools/ankleprobe.mjs [mech …] [--chains]`
+  measures sole/ankle/depth/gain for every mech on both sides and FAILS on any
+  bone at or below its sole (nothing is, today); `--chains` prints the whole leg
+  with each bone's share of the FOOT PLATE, which is what distinguishes an ankle
+  MIS-MAPPED onto a hock (fix with `boneOverrides` — no weight moves, as
+  saurion's `bone_8` -> `bone_9`) from one merely placed high (fix in the rig
+  file — vulcan, wraith). Neither fix is free: moving an ankle re-draws the
+  proximity partition around it, so measure `tools/skindebug.mjs` before and
+  after and expect to reject some (titanus 3158 -> 11661, glacier +18%, cranky
+  +32% — all left as found). `buildSkeletonBones` clamps a custom rig's bones to
+  y >= 0 so a rig edit can't bury a foot under the arena floor.
 - Hitboxes: `src/combat/hurtbox.js`. Bone-bound capsules measured off each
   model's own geometry, so they follow the animation; melee resolves on the
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
@@ -325,7 +343,12 @@ audio). Progress history: `TASKS.md`.
   mech's feet, which the runtime projects live so one render serves 1-4
   pickers. Regenerate with `node tools/posters.mjs` after any change to a
   mech's model, rig, rest pose or scale; it refuses to write a procedural or
-  opaque poster. Check the handover with
+  opaque poster. A NAMED run (`node tools/posters.mjs viper rhino`) MERGES into
+  `posters.json` — it used to rewrite the map from empty, which deleted every
+  other mech's box, and a mech with no box has no poster at all as far as
+  `posterMeta` is concerned (mech select quietly goes back to building a model
+  per keypress, with the unused .png still sitting on disk). Check the handover
+  with
   `node tools/postercheck.mjs viper cranky,jerry <4 ids>` — it reports
   poster-vs-model drift in pixels per slot at each player count. NOTE any
   harness that builds preview mechs must `await loadManifest()` first, or

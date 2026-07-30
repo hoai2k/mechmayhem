@@ -33,7 +33,18 @@ const browser = await chromium.launch({
 });
 await mkdir(OUT, { recursive: true });
 
-const mechs = {};
+// START FROM THE INDEX ALREADY ON DISK. A named run re-renders SOME mechs, and
+// posters.json is one shared map — writing it from an empty object deleted every
+// other mech's entry, and a mech with no entry has no poster at all as far as
+// src/ui/posters.js is concerned (posterMeta returns null and mech select goes
+// back to building a model per keypress). The .png on disk does not save it: the
+// box is what sizes the billboard. So merge, and let each rendered mech
+// overwrite only its own entry.
+let mechs = {};
+try {
+  const prev = JSON.parse(readFileSync(`${OUT}/posters.json`, 'utf8'));
+  if (prev?.mechs) mechs = prev.mechs;
+} catch { /* no index yet — first run */ }
 let failed = 0;
 for (const id of want) {
   const page = await browser.newPage({ viewport: { width: 640, height: 640 } });

@@ -76,15 +76,17 @@ export const VULCAN_RIG = {
     { name: 'elbowR', parent: 'shoulderR', pos: [0.02, 0.63, -0.30], bias: 0.95 },
     { name: 'handR', parent: 'elbowR', pos: [0.05, 0.52, -0.33], bias: 0.95 },
     { name: 'gunR', parent: 'handR', pos: [0.16, 0.44, -0.35] },
-    // ---- LEFT leg (+z) ---- long foot: ankle back at x 0.00, toes at +0.09
+    // ---- LEFT leg (+z) ---- long foot: ankle back at x 0.00, toes at +0.09.
+    //      Ankle y 0.043 = the top of the sole plate, so the gait's heel roll
+    //      pivots the foot and not the whole boot (tools/ankleprobe.mjs).
     { name: 'thighL', parent: 'hips', pos: [0.03, 0.44, 0.14] },
     { name: 'kneeL', parent: 'thighL', pos: [0.02, 0.25, 0.17], bias: 0.95 },
-    { name: 'ankleL', parent: 'kneeL', pos: [0.00, 0.10, 0.20] },
+    { name: 'ankleL', parent: 'kneeL', pos: [0.00, 0.043, 0.20] },
     { name: 'footL', parent: 'ankleL', pos: [0.09, 0.02, 0.22] },
     // ---- RIGHT leg (-z) ----
     { name: 'thighR', parent: 'hips', pos: [0.03, 0.44, -0.14] },
     { name: 'kneeR', parent: 'thighR', pos: [0.02, 0.25, -0.17], bias: 0.95 },
-    { name: 'ankleR', parent: 'kneeR', pos: [0.00, 0.10, -0.20] },
+    { name: 'ankleR', parent: 'kneeR', pos: [0.00, 0.043, -0.20] },
     { name: 'footR', parent: 'ankleR', pos: [0.09, 0.02, -0.22] },
   ],
 };

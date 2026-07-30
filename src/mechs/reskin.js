@@ -338,6 +338,24 @@ function dropCutFragments(keptIdx, srcIdx, nVerts) {
 export function buildSkeletonBones(rig) {
   const byName = {};
   const bones = [];
+  // NO BONE BELOW THE FLOOR. Rig positions are mesh-local with y 0 = the ground
+  // the mech stands on (see any rigs/*.rig.js header), so a negative y is a bone
+  // UNDER the arena floor — and the geometry it owns is dragged down there with
+  // it. That is easy to author by accident when dropping an ankle onto a sole
+  // (the sole IS y 0) and easier still on the bones parented under it, which
+  // inherit the move. Clamp instead of trusting it, and say so once: a silent
+  // buried foot reads as "the model sinks" and sends the search into the
+  // animator. `node tools/ankleprobe.mjs` is the measurement that proves the
+  // shipped rigs are clear of the floor, and it fails loudly if one isn't.
+  const buried = rig.bones.filter((bd) => bd.pos[1] < 0);
+  if (buried.length) {
+    console.warn('rig: bone(s) below the floor, clamped to y 0 — '
+      + buried.map((bd) => `${bd.name} (${bd.pos[1].toFixed(3)})`).join(', '));
+  }
+  const rigBones = buried.length
+    ? rig.bones.map((bd) => (bd.pos[1] < 0 ? { ...bd, pos: [bd.pos[0], 0, bd.pos[2]] } : bd))
+    : rig.bones;
+  rig = { ...rig, bones: rigBones };
   for (const bd of rig.bones) {
     const bone = new THREE.Bone();
     bone.name = bd.name;

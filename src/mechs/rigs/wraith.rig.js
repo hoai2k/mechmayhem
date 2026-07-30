@@ -89,16 +89,19 @@ export const WRAITH_RIG = {
     { name: 'handR', parent: 'elbowR', pos: [0.04, 0.55, -0.285] },
     { name: 'clawR', parent: 'handR', pos: [0.06, 0.455, -0.30] },
 
-    // ---- LEFT leg (+z) ---- digitigrade: knee mid-thigh, hock high at 0.15,
-    //      long foot forward onto the toes
+    // ---- LEFT leg (+z) ---- digitigrade: knee mid-thigh, long foot forward
+    //      onto the toes. The ankle used to sit on the HOCK at y 0.155 — a
+    //      0.98-unit boot, which had calibrateFeet damping the gait's roll to
+    //      0.32 of what it was authored for. At y 0.048 (top of the sole) the
+    //      hock is just shin and the roll comes back (tools/ankleprobe.mjs).
     { name: 'thighL', parent: 'hips', pos: [0.02, 0.615, 0.02] },
     { name: 'kneeL', parent: 'thighL', pos: [0.03, 0.44, 0.05] },
-    { name: 'ankleL', parent: 'kneeL', pos: [0.03, 0.155, 0.10] },
+    { name: 'ankleL', parent: 'kneeL', pos: [0.03, 0.048, 0.10] },
     { name: 'footL', parent: 'ankleL', pos: [0.11, 0.03, 0.125] },
     // ---- RIGHT leg (-z) ----
     { name: 'thighR', parent: 'hips', pos: [0.02, 0.615, -0.145] },
     { name: 'kneeR', parent: 'thighR', pos: [0.03, 0.44, -0.165] },
-    { name: 'ankleR', parent: 'kneeR', pos: [0.03, 0.155, -0.185] },
+    { name: 'ankleR', parent: 'kneeR', pos: [0.03, 0.048, -0.185] },
     { name: 'footR', parent: 'ankleR', pos: [0.10, 0.03, -0.205] },
 
     // ---- cloak ---- one attachment at the upper back, then four columns of
