@@ -12,7 +12,29 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE GAIT WORKBENCH GETS KEYFRAMES — the escape hatch for a shape no
+- **Latest:** THE JOINT OFFSET MODE HAD VIPER STANDING PIGEON-TOED, twice over,
+  and both halves are fixed. (1) ACCUMULATION: `captureBase()` snapshots the pose
+  the offsets are layered onto, and it was being called from bones that were
+  already wearing them — so the base absorbed the offsets and the next apply laid
+  them on again. Startup did it once in `rebuild()` and again straight after (20
+  degrees per thigh instead of 10, feet touching), and every toggle of the mode
+  did it once more, which is the legs crossing further each time. There is now a
+  single entry point, `applyPose()` — clear every rotation, pose (bind or T),
+  capture the base from THAT, lay the offsets over it — and nothing else may call
+  `captureBase`/`applyCorrections`. It is idempotent: the measured world position
+  of both ankles is now byte-identical across four toggles and a T-pose round
+  trip. (2) WHERE THEY ARE PREVIEWED: 10 degrees at a hip swings an ankle most of
+  a foot's width, so previewing offsets in the plain MOVE view — the one view
+  whose job is placing bones against the asset as it really is — is what made the
+  stance look clamped even at the correct 10. They now show in JOINT OFFSET mode
+  only; Move shows the true rig (ankles back at their own z 1.8 rather than 0.9)
+  with the panel noting how many offsets are waiting, and the T pose stays clean
+  because offsets DOUBLE-COUNT there (the T has already aimed every limb straight,
+  so taking the splay out again crosses the legs — measured: ankles at z ±0.70,
+  exactly under the thighs, once the double-count is gone). The lesson for the
+  next probe: the earlier test checked the stored NUMBERS, which were right the
+  whole time. It is the rendered position that was wrong, so measure that.
+- **Previous:** THE GAIT WORKBENCH GETS KEYFRAMES — the escape hatch for a shape no
   dial can reach. A gait has no frames, but it has a PHASE, and that is enough to
   hang corrections off: `gait.keys` is `[{ ph, pose: { joint: [x,y,z]° } }]`,
   ADDITIVE over whatever the cycle produced and interpolated around the loop (the

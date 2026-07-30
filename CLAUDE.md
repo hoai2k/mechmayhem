@@ -299,10 +299,23 @@ audio). Progress history: `TASKS.md`.
   you turn is stored as that joint's offset — degrees `[x,y,z]`, listed in the
   panel with a ✕ per joint, saved to the MANIFEST (not the rig file) or copied as
   a patch. It is how a rig says something bone positions cannot: "this thigh
-  RESTS splayed, take 10 degrees out of it before any clip plays". Offsets ride
-  on top of whatever the editor is showing — bind or T pose — exactly as they
-  ride on top of the retarget in game, and edits persist as a draft
-  (`rigcorr:<id>`) until saved. CAVEAT worth knowing: the editor previews the
+  RESTS splayed, take 10 degrees out of it before any clip plays". Edits persist
+  as a draft (`rigcorr:<id>`) until saved.
+  THEY ARE PREVIEWED IN THAT MODE AND NOWHERE ELSE, which is a deliberate
+  narrowing: 10 degrees at a hip swings an ankle most of a foot's width, so
+  previewing them in the plain MOVE view stood the mech with his feet clamped
+  together in the one view whose job is placing bones against the asset as it
+  really is (the panel says how many are waiting instead). In the T pose they
+  DOUBLE-COUNT — the T has already aimed every limb straight, so "take the splay
+  out of this thigh" on top of an already-straight thigh crosses the legs — so
+  the T stays the honest "what can this rig do" view. Turning the mode on with
+  the T pose on shows the offsets over it, which is the comparison that matters.
+  One more rule that falls out: the base a correction is measured from is the
+  pose WITHOUT the offsets, so it may only ever be captured off bones that are
+  not wearing them. `applyPose()` is the single entry point that guarantees it
+  (clear rotations -> pose -> capture -> apply) and is idempotent; capturing from
+  bones that already wear the offsets folds them into the base and lays them on
+  twice, which walked the legs further across on every toggle of the mode. CAVEAT worth knowing: the editor previews the
   offset on the BIND pose while the game applies the same bone-local rotation on
   top of the ANIMATED pose, so the operation is identical but the frame it starts
   from differs by the animator's rest bias. Positions are never touched in this
