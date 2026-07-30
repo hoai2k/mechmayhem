@@ -193,6 +193,7 @@ export async function runRigWorkbench(config, params) {
   let undoStack = [], redoStack = [];
   let dragSnap = null;             // rig snapshot captured at gizmo drag-start
   let soloMove = false;            // move a joint WITHOUT dragging its subtree
+  let tposeOn = false;             // T-POSE reference view (read-only, see setTPose)
   let soloMoveTargets = null;      // Map childName -> frozen world pos during a solo-move drag
 
   // ---- undo/redo (snapshots of rigObj) ----
@@ -524,6 +525,92 @@ export async function runRigWorkbench(config, params) {
     }
   });
 
+  // ---- T POSE ------------------------------------------------------------
+  // "How accurately can this rig actually drive the mech?" A test swing answers
+  // it for one limb at a time; a T pose answers it for the whole body at once,
+  // because a T is the pose every joint has an opinion about — arms straight out
+  // along the shoulder line, legs straight down, spine up. A rig that is right
+  // produces a clean T; a rig with the ankle on the hock, an elbow inside the
+  // forearm or a thigh pointing out shows it here in one frame, and the same
+  // pose on the MANNEQUIN beside it (below) is the shape it was aiming at.
+  //
+  // It is a VIEW, not an edit: bones only ever get a rotation (positions, the
+  // thing this editor saves, are untouched), the gizmo lets go while it's on,
+  // and unchecking it drops every rotation back to the bind pose.
+  //
+  // Directions come from the RIG ITSELF rather than a hard-coded axis: the
+  // lateral is the shoulder line, up is +y (which is what this editor grounds
+  // against). So it works on a mesh in any forward-facing convention.
+  const _ta = new THREE.Vector3(), _tb = new THREE.Vector3(), _tq = new THREE.Quaternion();
+  // parent -> the child it aims at in a T. A bone with no entry keeps its bind
+  // rotation, which is what the spine and the non-game bones (crest, blades,
+  // toes) want: they ride whatever their ancestor does.
+  const T_CHAIN = [
+    ['hips', 'torso'], ['torso', 'head'],
+    ['shoulderL', 'elbowL'], ['elbowL', 'handL'],
+    ['shoulderR', 'elbowR'], ['elbowR', 'handR'],
+    ['thighL', 'kneeL'], ['kneeL', 'ankleL'],
+    ['thighR', 'kneeR'], ['kneeR', 'ankleR'],
+  ];
+  function tposeAxes() {
+    const sL = byName.shoulderL, sR = byName.shoulderR;
+    const up = new THREE.Vector3(0, 1, 0);
+    let lat = null;
+    if (sL && sR) {
+      lat = sL.getWorldPosition(_ta).clone().sub(sR.getWorldPosition(_tb));
+      lat.y = 0;
+      if (lat.lengthSq() > 1e-8) lat.normalize(); else lat = null;
+    }
+    // no shoulders (or both on the centre line): fall back to the hip line, then
+    // to +z, which is the rig files' own "left"
+    if (!lat && byName.thighL && byName.thighR) {
+      lat = byName.thighL.getWorldPosition(_ta).clone().sub(byName.thighR.getWorldPosition(_tb));
+      lat.y = 0;
+      if (lat.lengthSq() > 1e-8) lat.normalize(); else lat = null;
+    }
+    return { up, lat: lat || new THREE.Vector3(0, 0, 1) };
+  }
+  // aim `bone` so the segment down to `child` points along world direction `dir`
+  function aimBone(bone, child, dir) {
+    if (!bone || !child) return;
+    bone.updateWorldMatrix(true, false);
+    const pq = bone.parent ? bone.parent.getWorldQuaternion(new THREE.Quaternion()) : new THREE.Quaternion();
+    const rest = _ta.copy(child.position);          // child's BIND offset, in bone space
+    if (rest.lengthSq() < 1e-10) return;
+    rest.normalize();
+    const want = _tb.copy(dir).applyQuaternion(pq.invert());   // target, in the PARENT's frame
+    bone.quaternion.copy(_tq.setFromUnitVectors(rest, want.normalize()));
+    bone.updateMatrixWorld(true);
+  }
+  function applyTPose() {
+    resetPose();
+    const { up, lat } = tposeAxes();
+    const dirFor = (parent) => {
+      if (parent === 'hips' || parent === 'torso') return up;
+      if (parent.endsWith('L') && parent.startsWith('shoulder')) return lat;
+      if (parent.endsWith('R') && parent.startsWith('shoulder')) return _ta.copy(lat).negate().clone();
+      if (parent.startsWith('elbow')) return parent.endsWith('L') ? lat : _ta.copy(lat).negate().clone();
+      return _ta.copy(up).negate().clone();          // every leg segment hangs straight down
+    };
+    for (const [p, c] of T_CHAIN) aimBone(byName[p], byName[c], dirFor(p));
+    mesh.updateMatrixWorld(true);
+  }
+  function setTPose(on) {
+    tposeOn = on;
+    if (on) {
+      if (swinging) { swinging = false; swChk.checked = false; }
+      gizmo.detach();
+      applyTPose();
+      setNote('T POSE — a reference view, so the bones are not editable while it is on. '
+        + 'Uncheck to go back to the bind pose and carry on editing.');
+    } else {
+      resetPose();
+      if (selName) selectBone(selName);
+    }
+    for (const h of handles) h.mesh.visible = !on;
+    matchMannequin();
+  }
+
   // ---- test swing (rotate the claw + leg joints to check articulation) ----
   function applyTestPose(k) {
     // k: 0 rest .. 1 full. claws pitch forward, legs take a step.
@@ -659,6 +746,9 @@ export async function runRigWorkbench(config, params) {
   // of the shin, the shoulder inboard of the deltoid. Drag your bone to the
   // labelled dot and the rig is anatomically right before you even test a pose.
   let mannGroup = null, mannLabels = null, mannOn = false;
+  let mannRef = null;              // the whole reference body, not just its group
+  let mannBind = null;             // each reference bone's BIND local offset
+  let mannMatch = true;            // follow the rig's bones, vs stand in its own stance
   function modelHeight() {
     container.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(mesh);
@@ -699,7 +789,79 @@ export async function runRigWorkbench(config, params) {
     mannGroup.position.set((box.min.x + box.max.x) * 0.5, box.min.y, (box.min.z + box.max.z) * 0.5);
     scene.add(mannGroup);
     mannLabels = config.reference?.labels?.(ref, { size: modelHeight() * 0.045 });
+    mannRef = ref;
+    // each reference bone's own bind offset from its parent, kept because
+    // matchMannequin() rotates bones by aiming that offset somewhere new and
+    // needs the original to aim FROM
+    mannBind = {};
+    for (const [n, b] of Object.entries(ref.bones || {})) mannBind[n] = b.position.clone();
     note.textContent = `reference: ${ref.height.toFixed(2)} tall vs model ${modelHeight().toFixed(2)}`;
+    matchMannequin();
+  }
+
+  // ---- MANNEQUIN FOLLOWS THE RIG ------------------------------------------
+  // Standing in its own canonical stance, the reference answers "where does this
+  // joint BELONG". Standing in the rig's own bone positions, it answers the
+  // other half — "what have I actually built": the reference body wearing your
+  // skeleton, so a hock called an ankle or a knee 5cm outboard is a humanoid
+  // with a hock and a splayed knee rather than a number in a list. It follows
+  // live, so it moves as you drag, and it follows the T pose too.
+  //
+  // Both halves of a joint are matched: the bone's POSITION lands exactly on the
+  // rig's bone (this is what "match the bone positions" means), and its ROTATION
+  // aims the limb segment at the next joint down, so the reference bends its
+  // knee instead of sliding its shin sideways. Parent-first, because every child
+  // is placed in the parent's freshly-posed frame.
+  const _mp = new THREE.Vector3(), _md = new THREE.Vector3(), _mq = new THREE.Quaternion();
+  // parent -> the joint its segment should point at. Same chain the T pose uses;
+  // a bone that forks (hips, torso) keeps its bind rotation and lets its
+  // children place themselves.
+  const MANN_AIM = Object.fromEntries(T_CHAIN);
+  function matchMannequin() {
+    if (!mannOn || !mannRef || !mannGroup) return;
+    const bones = mannRef.bones || {};
+    if (!mannMatch) {
+      for (const [n, b] of Object.entries(bones)) {
+        if (mannBind?.[n]) b.position.copy(mannBind[n]);
+        b.quaternion.identity();
+      }
+      mannGroup.updateMatrixWorld(true);
+      mannRef.mesh?.skeleton?.update?.();
+      return;
+    }
+    container.updateMatrixWorld(true);
+    mannGroup.updateMatrixWorld(true);
+    // ORDER: a bone may only be placed once its parent is final, and the
+    // reference's own hierarchy is the authority on that
+    const order = [];
+    (function walk(b) {
+      if (!b) return;
+      if (b.isBone && bones[b.name]) order.push(b);
+      for (const c of b.children) walk(c);
+    })(mannRef.group);
+    for (const mb of order) {
+      const rb = byName[mb.name];
+      if (!rb) continue;                       // rig doesn't carry this joint
+      // 1. POSITION — land on the rig's bone, whatever the two bodies' scales
+      rb.getWorldPosition(_mp);
+      mb.parent.updateWorldMatrix(true, false);
+      mb.parent.worldToLocal(_mp);
+      mb.position.copy(_mp);
+      mb.updateMatrixWorld(true);
+      // 2. ROTATION — aim the segment at the next joint the rig has
+      const aim = MANN_AIM[mb.name];
+      const rc = aim && byName[aim];
+      const mc = aim && bones[aim];
+      if (!rc || !mc || !mannBind?.[aim]) { mb.quaternion.identity(); mb.updateMatrixWorld(true); continue; }
+      rc.getWorldPosition(_md).sub(rb.getWorldPosition(_mp));
+      if (_md.lengthSq() < 1e-10) { mb.quaternion.identity(); mb.updateMatrixWorld(true); continue; }
+      const pq = mb.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+      _md.normalize().applyQuaternion(pq);
+      mb.quaternion.copy(_mq.setFromUnitVectors(mannBind[aim].clone().normalize(), _md));
+      mb.updateMatrixWorld(true);
+    }
+    mannGroup.updateMatrixWorld(true);
+    mannRef.mesh?.skeleton?.update?.();
   }
   const mannRow = el('div', 'display:flex;gap:5px;align-items:center;margin:0 0 6px');
   const mannChk = document.createElement('input');
@@ -714,6 +876,38 @@ export async function runRigWorkbench(config, params) {
     + 'shoulder is inboard of the arm.';
   mannRow.appendChild(mannLab);
   panel.appendChild(mannRow);
+
+  // ...and which of its two jobs it is doing. MATCH RIG (the default) puts it in
+  // your skeleton's own bone positions — the reference body wearing this rig.
+  // Unticked, it stands in its canonical stance, which is the answer key for
+  // where each joint belongs.
+  const matchRow = el('div', 'display:flex;gap:5px;align-items:center;margin:0 0 6px;padding-left:16px');
+  const matchChk = document.createElement('input');
+  matchChk.type = 'checkbox';
+  matchChk.checked = mannMatch;
+  matchChk.onchange = () => { mannMatch = matchChk.checked; matchMannequin(); };
+  const matchLab = document.createElement('label');
+  matchLab.style.cssText = 'display:flex;gap:5px;align-items:center;font-size:11px;cursor:pointer;color:#b9c8db';
+  matchLab.append(matchChk, document.createTextNode(' match this rig\u2019s bones'));
+  matchLab.title = 'ON: the reference stands in YOUR bone positions — the humanoid your skeleton '
+    + 'describes, following live as you drag and through the T pose. OFF: it stands in its own '
+    + 'canonical stance, which is where the joints are SUPPOSED to be.';
+  matchRow.appendChild(matchLab);
+  panel.appendChild(matchRow);
+
+  // ---- T POSE (reference view) ----
+  const tRow = el('div', 'display:flex;gap:5px;align-items:center;margin:0 0 6px');
+  const tChk = document.createElement('input');
+  tChk.type = 'checkbox';
+  tChk.onchange = () => setTPose(tChk.checked);
+  const tLab = document.createElement('label');
+  tLab.style.cssText = 'display:flex;gap:5px;align-items:center;font-size:11px;cursor:pointer;color:#dfe8f5';
+  tLab.append(tChk, document.createTextNode(' T pose (reference \u2014 not editable)'));
+  tLab.title = 'Drive the whole skeleton into a canonical T — arms straight out along the shoulder '
+    + 'line, legs straight down — to see how accurately this rig can pose the mech. Rotation only: '
+    + 'nothing this editor saves is touched, and unchecking restores the bind pose.';
+  tRow.appendChild(tLab);
+  panel.appendChild(tRow);
 
   function refreshModeButtons() {
     bColor.style.background = colorOn ? '#24405e' : '#1a2433';
@@ -737,7 +931,12 @@ export async function runRigWorkbench(config, params) {
   panel.appendChild(lbl('Test'));
   const swRow = el('label', 'display:flex;gap:6px;align-items:center;margin-bottom:4px;cursor:pointer');
   const swChk = document.createElement('input'); swChk.type = 'checkbox';
-  swChk.onchange = () => { swinging = swChk.checked; if (!swinging) resetPose(); };
+  swChk.onchange = () => {
+    swinging = swChk.checked;
+    // one pose at a time: the swing writes the same bone rotations the T does
+    if (swinging && tposeOn) { tChk.checked = false; setTPose(false); }
+    if (!swinging) resetPose();
+  };
   swRow.append(swChk, document.createTextNode(' Swing claws/legs (loop)')); panel.appendChild(swRow);
 
   const saveBtn = btn('Save rig to file ▶', saveRig, true);
@@ -826,6 +1025,7 @@ export async function runRigWorkbench(config, params) {
       applyTestPose((Math.sin(swing) * 0.5 + 0.5));
     }
     syncHandles();
+    matchMannequin();    // the reference follows the bones live: drags, swing, T pose
     skelHelper?.update?.();
     updateSoloLines();   // keep the solo subtree's connections on the bones
     updatePostsLive();   // keep the black rods glued to the back-leg bones

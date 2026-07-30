@@ -12,7 +12,32 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** A RAISED REAR FOOT POINTS ITS TOES BACK, IN EVERY GAIT — the
+- **Latest:** THE RIG EDITOR CAN NOW SHOW YOU WHAT THE RIG DOES, not just where
+  its bones sit. Two boxes: **match this rig's bones** under the mannequin (on by
+  default) stands the reference humanoid in YOUR bone positions instead of its own
+  canonical stance — position lands on the bone, rotation aims each segment at the
+  next joint, so it bends its knee rather than sliding its shin, and it follows
+  live as you drag. **T pose** drives the whole skeleton into a canonical T (arms
+  along the shoulder line, legs down, lateral taken off the rig's OWN shoulder
+  line so it works whichever way the mesh faces). It is a view, not an edit —
+  rotation only, positions untouched, gizmo detached while on. Titanus and viper
+  hold a clean T; cranky stretches, and that IS the reading (a crab has no T).
+  BONE ROTATION IN THE RIG FILE WOULD BE A NO-OP, which is worth writing down:
+  `applyCustomRig` rebinds the skin at rest and `RigAdapter` captures
+  `offset = jointWorld⁻¹ · boneWorld` per bone, so a bind rotation R appears on
+  both sides and cancels exactly. The lever that works is `boneCorrections`
+  (manifest, degrees per joint, post-multiplied in bone-local space after the
+  retarget) — and it reaches custom-rig mechs too.
+  VIPER'S RUNNING SPLAY IS FIXED WITH IT: `thighL [10,0,0]` / `thighR [-10,0,0]`.
+  The cause was in the rig, not the gait — his knee bone sits 0.05 outboard of his
+  thigh, a 12° lean built into every pose, and the knee lift then swings the shin
+  out along that oblique axis. New probe `node tools/legsplay.mjs <mech>` measures
+  it ON THE BONES (the virtual joints read 10° INBOARD at full speed while the
+  rendered legs are 15° out, because the retarget drives orientation and the rig
+  owns position): standing knee lean **12.5° -> 2.5°**, knee-lift peak **44°/47°
+  -> 21°/37°**. Skin audit 923.4 -> 914.0, so it costs nothing. Change the 10 to
+  taste — 6 halves it, 12 stands him dead vertical.
+- **Previous:** A RAISED REAR FOOT POINTS ITS TOES BACK, IN EVERY GAIT — the
   trailing foot used to hang in the air with its sole level and its toes pointing
   forward, as if it were still standing on a floor that isn't there. Two things
   did it: the flat-sole rule cancelled the leg chain for the WHOLE cycle instead
