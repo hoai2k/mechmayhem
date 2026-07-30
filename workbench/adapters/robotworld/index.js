@@ -208,6 +208,23 @@ const CONFIG = defineWorkbenchConfig({
     save: (id, bones) => (isReference(id)
       ? Promise.resolve({ ok: false, error: 'the mannequin is a reference body — there is no rig file to save' })
       : saveRigBones(id, bones)),
+
+    // JOINT ROTATION OFFSETS — `boneCorrections`, the game's one rotation knob
+    // for a rig. Degrees [x,y,z] per game joint, post-multiplied in bone-LOCAL
+    // space after the retarget (rigadapter.js, `corr`), so it is the standing
+    // bias of a limb: "this thigh rests splayed, take 10 degrees off it before
+    // any clip plays". It lives in the MANIFEST, not the rig file, because a
+    // rest rotation in the rig file cancels out — applyCustomRig rebinds the
+    // skin at rest and RigAdapter captures a rest offset per bone, so the same
+    // R lands on both sides. This is the pair a tool needs to author them.
+    corrections: {
+      get: (id, { variant = 'glb' } = {}) => ({ ...(entryOf(id, variant === 'alt')?.boneCorrections || {}) }),
+      save: (id, corrections, { variant = 'glb' } = {}) => (isReference(id)
+        ? Promise.resolve({ ok: false, error: 'the mannequin is a reference body — it has no manifest entry' })
+        : saveManifestPatch(variant === 'alt'
+          ? { [id]: { alt: { boneCorrections: corrections } } }
+          : { [id]: { boneCorrections: corrections } })),
+    },
   },
 
   anim: {

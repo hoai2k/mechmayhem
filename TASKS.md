@@ -12,7 +12,31 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE T POSE IS EDITABLE, and two bugs behind it are fixed. Dragging a
+- **Latest:** VIPER'S ANKLES MOVED UP TO THE PIVOT (owner's rig, y 0.03 -> 0.08
+  mesh-local on both ankles, spliced in through `tools/rigfmt.mjs` so the header,
+  `skinSpan: 'child'` and the in-array comments survived). It is the anatomical
+  placement for a digitigrade foot and it reads right; the honest cost is that
+  the engine's own convention is `0.32 * scale` above the sole (~4.5% of body
+  height) and this is 9.1%, so `calibrateFeet` now measures footDepth 0.63
+  against 0.32 and hands the gait **ankleGain 1.00 -> 0.51** with **footFlat
+  0 -> 1.00**: the authored heel roll and toe-off run at half amplitude and the
+  sole is levelled. Nothing else moved much — skin audit 914.0 -> 940.8 (+3%),
+  gait sole min -1.3% -> -1.0% (so the foot is NOT clipping), stride and track
+  unchanged, poster drift 14px, soak clean. The middle ground, if the halved roll
+  ever reads as flat-footed, is an ankle around y 0.045.
+  **AND A JOINT OFFSET MODE** in the rig editor, beside `Move`: the gizmo rotates
+  and what you turn is stored as that joint's `boneCorrections` entry — the one
+  rotation a rig can carry, since a rest rotation on the bones themselves cancels
+  out. It is how the rig says "this thigh RESTS splayed, take it out before any
+  clip plays", which is exactly what viper needed. The panel lists the offsets
+  with a ✕ each, saves to the MANIFEST (not the rig file) or copies the patch,
+  keeps a draft in localStorage, and layers the offsets on top of whatever pose
+  is showing — bind or T — the way the game layers them on the retarget. Verified
+  headless: startup reads the shipped `{thighL:[10,0,0], thighR:[-10,0,0]}`, a
+  further 8° rotation lands as `[18,0,0]`, the bone's rig position is untouched,
+  and the draft survives a reload. The capability is declared in the contract
+  (`rig.corrections`), so an adapter without one simply hides the button.
+- **Previous:** THE T POSE IS EDITABLE, and two bugs behind it are fixed. Dragging a
   bone under the T pose now edits its BIND position through the pose: the gizmo
   only ever writes `bone.position` (which IS the bind offset — the pose sets
   rotations and nothing else) in the parent's POSED frame, so you push the limb

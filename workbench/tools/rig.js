@@ -193,7 +193,10 @@ export async function runRigWorkbench(config, params) {
   let undoStack = [], redoStack = [];
   let dragSnap = null;             // rig snapshot captured at gizmo drag-start
   let soloMove = false;            // move a joint WITHOUT dragging its subtree
-  let tposeOn = false;             // T-POSE reference view (read-only, see setTPose)
+  let tposeOn = false;             // T-POSE reference view (see setTPose)
+  let rotMode = false;             // JOINT OFFSET mode: the gizmo rotates, and the
+                                   // rotation is stored as a boneCorrection
+  let corrections = {};            // joint -> [x,y,z] degrees (manifest boneCorrections)
   let soloMoveTargets = null;      // Map childName -> frozen world pos during a solo-move drag
 
   // ---- undo/redo (snapshots of rigObj) ----
@@ -348,6 +351,9 @@ export async function runRigWorkbench(config, params) {
     }
     regenPosts();
     updateColors();
+    // new bone objects: the corrections' baseline has to be retaken, and the
+    // corrections themselves re-applied on top
+    if (bones) { captureBase(); applyCorrections(); }
   }
 
   // (re)wire the black posts from the current bone positions (they're parented
@@ -430,6 +436,10 @@ export async function runRigWorkbench(config, params) {
   const _smp = new THREE.Vector3();
   function onGizmoMove() {
     if (!selName) return;
+    // JOINT OFFSET mode: the gizmo is turning the bone, and the number that
+    // changes is a correction. Nothing about the bind moves, so none of the
+    // position bookkeeping below applies.
+    if (rotMode) { readCorrectionFromBone(); return; }
     // solo move: counter-move the direct children so their world positions stay
     // put — only the selected joint shifts, the rest of the limb holds still
     // relative to the geometry (grandchildren ride their frozen parents, so
@@ -461,8 +471,11 @@ export async function runRigWorkbench(config, params) {
     // want it while looking at the arm. To read the numbers back out, drop every
     // rotation first so the skeleton stands at its bind pose again, take the
     // positions, re-bind the skin there, and only then put the pose back on.
-    const reposeAfter = tposeOn;
-    if (reposeAfter) resetPose();
+    if (rotMode) { readCorrectionFromBone(); dragSnap = null; return; }
+    // Positions are read in WORLD space, so every rotation has to come off
+    // first — the T pose AND any joint offsets, since a corrected parent would
+    // otherwise rotate its children's measured positions into the rig file.
+    resetPose();
     syncRigFromBones();
     // record the pre-drag snapshot on the undo stack only if the drag actually
     // moved something
@@ -478,7 +491,7 @@ export async function runRigWorkbench(config, params) {
     updateColors();
     saveDraft();
     posReadout();               // the numbers the drag just changed
-    if (reposeAfter) applyTPose();   // and snap back to the T you were judging in
+    restorePose();              // and back to the pose (+ offsets) you were judging in
   }
 
   function selectBone(name) {
@@ -547,6 +560,83 @@ export async function runRigWorkbench(config, params) {
       if (selName) toggleSolo(selName);
     }
   });
+
+  // ---- JOINT OFFSETS (manifest `boneCorrections`) --------------------------
+  // THE ONE ROTATION A RIG CAN CARRY. Bone POSITIONS describe where a joint is;
+  // they cannot say "and this thigh rests splayed 10 degrees". A rest rotation
+  // in the rig file can't say it either — applyCustomRig rebinds the skin at
+  // rest and RigAdapter captures a rest offset per bone, so the same R lands on
+  // both sides and cancels exactly. The game's answer is `boneCorrections` in
+  // the manifest: degrees [x,y,z] per game joint, post-multiplied in bone-LOCAL
+  // space AFTER the retarget every frame, so it is a standing bias the animation
+  // is corrected for rather than a pose anyone has to key.
+  //
+  // This mode authors them by hand: the gizmo rotates instead of translating,
+  // and what you rotate is stored. Corrections ride ON TOP of whatever pose the
+  // editor is showing — bind or T — exactly as they ride on top of the retarget
+  // in game, so `base` below is the pose's own rotation and the correction is
+  // the delta from it.
+  const CORR_KEY = () => `rigcorr:${id}${useAlt ? ':alt' : ''}`;
+  const baseQ = new Map();          // bone name -> the pose's rotation, corrections aside
+  const _cq = new THREE.Quaternion(), _ce = new THREE.Euler();
+  const R2D = 180 / Math.PI;
+  function loadCorrections() {
+    const draft = localStorage.getItem(CORR_KEY());
+    if (draft) { try { return JSON.parse(draft); } catch { /* ignore */ } }
+    return config.rig.corrections?.get(id, { variant: useAlt ? 'alt' : 'glb' }) || {};
+  }
+  const saveCorrDraft = () => localStorage.setItem(CORR_KEY(), JSON.stringify(corrections));
+  // remember the pose the corrections are layered onto, then layer them
+  function captureBase() {
+    baseQ.clear();
+    for (const b of bones) baseQ.set(b.name, b.quaternion.clone());
+  }
+  function applyCorrections() {
+    for (const b of bones) {
+      const base = baseQ.get(b.name);
+      if (!base) continue;
+      const c = corrections[b.name];
+      if (!c) { b.quaternion.copy(base); continue; }
+      _cq.setFromEuler(_ce.set(c[0] / R2D, c[1] / R2D, c[2] / R2D));
+      b.quaternion.copy(base).multiply(_cq);       // post-multiply: bone-LOCAL, like the game
+    }
+    mesh.updateMatrixWorld(true);
+  }
+  // the gizmo just rotated `selName`: read the delta off the base and store it
+  function readCorrectionFromBone() {
+    const b = byName[selName];
+    const base = baseQ.get(selName);
+    if (!b || !base) return;
+    _cq.copy(base).invert().multiply(b.quaternion);
+    _ce.setFromQuaternion(_cq);
+    const deg = [_ce.x * R2D, _ce.y * R2D, _ce.z * R2D].map((v) => Math.round(v * 10) / 10);
+    if (deg.every((v) => Math.abs(v) < 0.05)) delete corrections[selName];
+    else corrections[selName] = deg;
+    saveCorrDraft();
+    renderCorrections();
+  }
+  // Put the view back after an edit: the pose that is on, then the corrections
+  // layered over it. Anything that clears rotations must end here.
+  function restorePose() {
+    if (tposeOn) applyTPose(); else resetPose();
+    captureBase();
+    applyCorrections();
+  }
+  function setRotMode(on) {
+    rotMode = on;
+    gizmo.setMode(on ? 'rotate' : 'translate');
+    gizmo.setSpace(on ? 'local' : 'world');
+    captureBase();
+    applyCorrections();
+    refreshModeButtons();
+    renderCorrections();
+    setNote(on
+      ? 'JOINT OFFSET mode — the gizmo ROTATES. What you rotate is stored as this joint\u2019s '
+        + '`boneCorrections` entry: a fixed rotation the game applies after the retarget, every '
+        + 'frame, so a limb that RESTS wrong is corrected before any clip plays. Bone positions '
+        + 'are untouched; this saves to the manifest, not the rig file.'
+      : 'Move mode — the gizmo translates bone positions again.');
+  }
 
   // ---- T POSE ------------------------------------------------------------
   // "How accurately can this rig actually drive the mech?" A test swing answers
@@ -622,7 +712,7 @@ export async function runRigWorkbench(config, params) {
     tposeOn = on;
     if (on) {
       if (swinging) { swinging = false; swChk.checked = false; }
-      applyTPose();
+      applyTPose(); captureBase(); applyCorrections();
       setNote('T POSE — and it is EDITABLE. Drag a bone and you are moving its BIND '
         + 'position, seen through the pose: the mesh deforms live, the rig file gets the '
         + 'edit, and the body snaps back into the T when you let go. Judge the neutral '
@@ -630,6 +720,7 @@ export async function runRigWorkbench(config, params) {
     } else {
       resetPose();
       rebindRest(mesh, bones);
+      captureBase(); applyCorrections();
     }
     if (selName) selectBone(selName);
     matchMannequin();
@@ -729,10 +820,16 @@ export async function runRigWorkbench(config, params) {
   if (altRow) { altRow.style.marginTop = '6px'; panel.appendChild(altRow); }
 
   const modeRow = el('div', 'display:flex;gap:6px;margin:6px 0');
-  const bMove = tog('Move', () => gizmo.setMode('translate'));
+  const bMove = tog('Move', () => setRotMode(false));
+  const bRot = tog('Joint offset', () => setRotMode(!rotMode));
   const bColor = tog('Color view', () => setColorMode(!colorOn));
   const bSolo = tog('Solo subtree (S)', () => { if (selName) toggleSolo(selName); });
-  modeRow.append(bMove, bColor, bSolo); panel.appendChild(modeRow);
+  bMove.title = 'Drag a bone to MOVE it — the bone positions this editor saves to the rig file.';
+  bRot.title = 'Drag a bone to ROTATE it, and the rotation is stored as this joint\u2019s '
+    + 'boneCorrections entry: a fixed offset the game applies after the retarget every frame, '
+    + 'which is how you say "this limb RESTS splayed, take it out before any clip plays". '
+    + 'Bone positions are untouched; it saves to the manifest, not the rig file.';
+  modeRow.append(bMove, bRot, bColor, bSolo); panel.appendChild(modeRow);
 
   const smRow = el('div', 'display:flex;gap:6px;margin:0 0 6px');
   const bSoloMove = tog('Solo move: off', () => { soloMove = !soloMove; refreshModeButtons(); });
@@ -953,6 +1050,56 @@ export async function runRigWorkbench(config, params) {
   matchRow.appendChild(matchLab);
   panel.appendChild(matchRow);
 
+  // ---- JOINT OFFSETS: the list, and where they go ----
+  const corrBox = el('div', 'margin:0 0 6px');
+  panel.appendChild(corrBox);
+  function renderCorrections() {
+    corrBox.textContent = '';
+    const names = Object.keys(corrections);
+    if (!rotMode && !names.length) return;          // nothing to say yet
+    corrBox.appendChild(lbl(`Joint offsets (boneCorrections)${names.length ? ` — ${names.length}` : ''}`));
+    if (!names.length) {
+      const hint = el('div', 'color:#7d8ea3;font-size:10.5px;line-height:1.5;margin-bottom:4px');
+      hint.textContent = 'Select a joint and turn it. The offset is what the game applies '
+        + 'after the retarget, every frame — the standing bias a bone position cannot express.';
+      corrBox.appendChild(hint);
+      return;
+    }
+    for (const n of names.sort()) {
+      const row = el('div', 'display:flex;gap:4px;align-items:center;font-size:11px;color:#dfe8f5;margin-bottom:2px');
+      const txt = el('span', 'flex:1;font-family:ui-monospace,monospace');
+      txt.textContent = `${n}  [${corrections[n].join(', ')}]`;
+      if (!JOINT_SET.has(n)) {
+        txt.style.color = '#ffb4a2';
+        txt.title = 'NOT a game joint — the retarget only drives the canonical joints, '
+          + 'so an offset on this bone would never be applied. Delete it.';
+      }
+      const clr = el('button', 'padding:1px 6px;border-radius:4px;border:1px solid #2c3648;'
+        + 'cursor:pointer;font-size:10px;background:#1a2433;color:#cfe0f5');
+      clr.textContent = '✕';
+      clr.title = `clear ${n}`;
+      clr.onclick = () => {
+        delete corrections[n]; saveCorrDraft();
+        captureBase(); applyCorrections(); renderCorrections();
+      };
+      row.append(txt, clr);
+      corrBox.appendChild(row);
+    }
+    const saveC = btn('Save offsets to manifest ▶', async () => {
+      const res = await config.rig.corrections.save(id, corrections, { variant: useAlt ? 'alt' : 'glb' });
+      if (res.ok) { setNote(`SAVED — boneCorrections for ${id}${useAlt ? '.alt' : ''} written to manifest.json. Commit to publish.`); changes?.refresh(); }
+      else if (res.offline) setNote(`No dev server to save through (${res.error}). Use Copy offsets and paste into the manifest.`);
+      else setNote(`Save FAILED: ${res.error}`);
+    }, true);
+    const copyC = btn('Copy offsets', () => {
+      const json = `{\n  "${id}": ${useAlt ? `{\n    "alt": { "boneCorrections": ${JSON.stringify(corrections)} }\n  }` : `{ "boneCorrections": ${JSON.stringify(corrections)} }`}\n}`;
+      out.value = json; out.style.display = 'block'; out.select();
+      navigator.clipboard?.writeText(json).catch(() => {});
+      setNote('Offsets copied — merge into public/models/manifest.json.');
+    });
+    corrBox.append(saveC, copyC);
+  }
+
   // ---- T POSE (reference view) ----
   const tRow = el('div', 'display:flex;gap:5px;align-items:center;margin:0 0 6px');
   const tChk = document.createElement('input');
@@ -970,6 +1117,8 @@ export async function runRigWorkbench(config, params) {
   panel.appendChild(tRow);
 
   function refreshModeButtons() {
+    bMove.style.background = rotMode ? '#1a2433' : '#24405e';
+    bRot.style.background = rotMode ? '#8a5a1f' : '#1a2433';
     bColor.style.background = colorOn ? '#24405e' : '#1a2433';
     bSolo.style.background = soloRoot ? '#1f7a4d' : '#1a2433';
     bSolo.textContent = soloRoot ? `Solo: ${soloRoot} (S)` : 'Solo subtree (S)';
@@ -1077,7 +1226,16 @@ export async function runRigWorkbench(config, params) {
   function btn(t, fn, primary) { const b = el('button', `width:100%;padding:6px;margin-top:4px;border-radius:5px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:${primary ? '#1f7a4d' : '#1a2433'};color:${primary ? '#fff' : '#cfe0f5'}`); b.textContent = t; b.onclick = fn; return b; }
   function round(v) { return Math.round(v * 100) / 100; }
 
+  // JOINT OFFSETS come from the localStorage draft, else the manifest. Read at
+  // startup so the model shows what the game will show; the mode is only offered
+  // if the config carries the capability at all (contract: rig.corrections).
+  if (config.rig.corrections) corrections = loadCorrections();
+  else bRot.style.display = 'none';
+
   load();
+  captureBase();
+  applyCorrections();
+  renderCorrections();
 
   engine.onUpdate = (dt) => {
     if (swinging && !gizmo.dragging) {
@@ -1111,6 +1269,28 @@ export async function runRigWorkbench(config, params) {
       return { before, after, posed: [b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w] };
     },
     get tpose() { return tposeOn; },
+    get corrections() { return JSON.parse(JSON.stringify(corrections)); },
+    setRotMode,
+    // test hook: a ROTATE drag, as the gizmo delivers one — turn the bone, then
+    // run the same move/commit path a release runs
+    _simRotate: (boneName, rx, ry, rz) => {
+      const b = byName[boneName];
+      if (!b) return null;
+      setRotMode(true);
+      selectBone(boneName);
+      const before = byName[boneName].getWorldPosition(new THREE.Vector3()).toArray();
+      b.rotation.set(b.rotation.x + rx, b.rotation.y + ry, b.rotation.z + rz);
+      onGizmoMove();
+      onEditCommit();
+      return {
+        corrections: JSON.parse(JSON.stringify(corrections)),
+        // did the BIND move? it must not — this is a rotation, not an edit to
+        // the positions the rig file stores
+        rigPos: rigObj.bones.find((x) => x.name === boneName).pos,
+        childBefore: before,
+        childAfter: byName[boneName].getWorldPosition(new THREE.Vector3()).toArray(),
+      };
+    },
     setTPose: (v) => { tChk.checked = v; setTPose(v); },
     mannFacing: () => {
       if (!mannRef) return null;
