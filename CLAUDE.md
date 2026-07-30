@@ -280,6 +280,19 @@ audio). Progress history: `TASKS.md`.
   `saveRig` — two function declarations, one scope, later one wins — so for a
   while every drag POSTed the rig file to the dev server, which then fired Vite's
   HMR and reloaded the tool from under the edit. Keep the two names distinct.
+- **JOINT OFFSET** mode in the rig editor (the button beside `Move`) authors
+  `boneCorrections` by hand: the gizmo ROTATES instead of translating, and what
+  you turn is stored as that joint's offset — degrees `[x,y,z]`, listed in the
+  panel with a ✕ per joint, saved to the MANIFEST (not the rig file) or copied as
+  a patch. It is how a rig says something bone positions cannot: "this thigh
+  RESTS splayed, take 10 degrees out of it before any clip plays". Offsets ride
+  on top of whatever the editor is showing — bind or T pose — exactly as they
+  ride on top of the retarget in game, and edits persist as a draft
+  (`rigcorr:<id>`) until saved. CAVEAT worth knowing: the editor previews the
+  offset on the BIND pose while the game applies the same bone-local rotation on
+  top of the ANIMATED pose, so the operation is identical but the frame it starts
+  from differs by the animator's rest bias. Positions are never touched in this
+  mode, so a joint offset costs no re-skin.
 - BONE ROTATION: a rig file carries POSITIONS ONLY, and adding a rest rotation to
   one would change nothing — `applyCustomRig` rebinds the skin at rest
   (`rebindRest`) and `RigAdapter` captures a rest offset per bone

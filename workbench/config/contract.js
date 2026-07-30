@@ -53,6 +53,14 @@
  *   custom.ids()      -> ids that have one
  *   custom.apply(mesh, rig) / setWeights / rebindRest / buildPosts
  *   save(id, bones)   -> persist a rig
+ *   corrections       OPTIONAL — per-joint ROTATION offsets, the one rotation a
+ *     rig can carry: a rest rotation on the bones themselves cancels out (the
+ *     skin is rebound at rest AND the retarget captures a rest offset per bone),
+ *     so a standing bias — "this thigh rests splayed" — has to be expressed as a
+ *     fixed rotation applied AFTER the retarget instead. Leave the block out and
+ *     the rig editor simply doesn't offer the mode.
+ *       get(id, opts)              -> { joint: [x,y,z] } in degrees
+ *       save(id, corrections, opts)-> persist them
  *
  * @property {Object} anim
  *   clips()           -> every clip name

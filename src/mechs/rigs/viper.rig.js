@@ -64,13 +64,13 @@ export const VIPER_RIG = {
     //      long clawed foot, so toe/heel tips carry the talon and the spur
     { name: 'thighL', parent: 'hips', pos: [0.02, 0.59, 0.07] },
     { name: 'kneeL', parent: 'thighL', pos: [0.02, 0.36, 0.12] },
-    { name: 'ankleL', parent: 'kneeL', pos: [-0.03, 0.03, 0.17] },
+    { name: 'ankleL', parent: 'kneeL', pos: [-0.01, 0.08, 0.18] },
     { name: 'toeL', parent: 'ankleL', pos: [0.08, 0.02, 0.20] },
     { name: 'heelL', parent: 'ankleL', pos: [-0.09, 0.03, 0.16] },
     // ---- RIGHT leg (-z) ----
     { name: 'thighR', parent: 'hips', pos: [0.02, 0.59, -0.07] },
     { name: 'kneeR', parent: 'thighR', pos: [0.02, 0.37, -0.12] },
-    { name: 'ankleR', parent: 'kneeR', pos: [-0.02, 0.03, -0.18] },
+    { name: 'ankleR', parent: 'kneeR', pos: [-0.02, 0.08, -0.19] },
     { name: 'toeR', parent: 'ankleR', pos: [0.08, 0.02, -0.20] },
     { name: 'heelR', parent: 'ankleR', pos: [-0.09, 0.03, -0.16] },
   ],
