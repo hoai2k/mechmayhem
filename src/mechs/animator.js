@@ -2,7 +2,7 @@
 // + additive impulses (recoil/flinch) + per-mech signature joint motion.
 import * as THREE from 'three';
 import { CLIPS, UPPER_JOINTS, defClipVariants } from './animations.js';
-import { gaitFor, gaitIdFor, applyGait, applyQuadGait, gaitPhaseRate } from './gaits.js';
+import { gaitFor, gaitIdFor, applyGait, applyQuadGait, applyToeHang, gaitPhaseRate } from './gaits.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
@@ -330,6 +330,9 @@ export class Animator {
       applyGait(tgt, gait, {
         ph: this.phase, ratio, s: this.s,
         ankleGain: this.ankleGain, footFlat: this.footFlat, rest: this.rest,
+        // the leg's own lengths: the toe-back rule works out how high a foot is
+        // off its standing height from the pose alone (see trailWeight)
+        thighLen: this.D.thighLen, shinLen: this.D.shinLen,
       });
     } else if (grounded) {
       // idle: breathing + weight shift + personality sway
@@ -379,6 +382,13 @@ export class Animator {
     if (grounded && speed > 0.4 && this.gait.quad) {
       applyQuadGait(tgt, this.gait, {
         ph: this.phase, ratio, s: this.s, hipHeight: this.D.hipHeight,
+      });
+    }
+    // THE TOE-BACK RULE, last: a raised REAR foot points its toes back and down,
+    // whichever layer put the leg back there (see applyToeHang).
+    if (grounded && speed > 0.4) {
+      applyToeHang(tgt, this.gait, {
+        rest: this.rest, thighLen: this.D.thighLen, shinLen: this.D.shinLen,
       });
     }
 

@@ -21,7 +21,7 @@ import { CLIPS, compileClip, defClipVariants } from '../../../src/mechs/animatio
 import { Animator } from '../../../src/mechs/animator.js';
 import {
   GAITS, GAIT_SCHEMA, gaitIds, gaitIdFor, cloneGait, gaitDiff, formatGait,
-  applyGait, applyQuadGait, gaitPhaseRate,
+  applyGait, applyQuadGait, applyToeHang, gaitPhaseRate,
 } from '../../../src/mechs/gaits.js';
 import { TUNING } from '../../../src/core/tuning.js';
 import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
@@ -291,6 +291,7 @@ const CONFIG = defineWorkbenchConfig({
       for (const j of JOINT_ORDER) { if (j !== 'hips') { tgt[j] = [0, 0, 0]; rest[j] = [0, 0, 0]; } }
       applyGait(tgt, gait, { ...env, rest });
       if (gait.quad) applyQuadGait(tgt, gait, env);
+      applyToeHang(tgt, gait, { ...env, rest });
       return tgt;
     },
     // The game's OWN top locomotion speed for this mech, so the preview's
