@@ -136,8 +136,10 @@ export const GAIT_SCHEMA = [
         help: 'extra stride amplitude added at full speed' },
       { key: 'reach', label: 'forward reach', min: 0, max: 1.2, step: 0.01, joints: ['thighL', 'thighR'],
         help: 'asymmetric extra swing on the FORWARD half — the leg reaching out ahead' },
-      { key: 'extend', label: 'rear extension', min: 0, max: 1.2, step: 0.01, joints: ['thighL', 'thighR'],
-        help: 'asymmetric extra swing BEHIND — the trailing leg finishing its push' },
+      { key: 'extend', label: 'rear extension', min: -2, max: 1.2, step: 0.01, joints: ['thighL', 'thighR'],
+        help: 'asymmetric extra swing BEHIND — the trailing leg finishing its push. NEGATIVE is legitimate: '
+          + 'on a body whose hips are carried horizontally (the quadruped) the same joint reads the other '
+          + 'way round, so his rear extension is a negative number' },
       { key: 'adduct', label: 'track narrow', min: -0.5, max: 0.6, step: 0.005, joints: ['thighL', 'thighR'],
         help: 'hip roll toward the midline: positive brings the feet under the body' },
       { key: 'adductRun', label: 'track narrow @run', min: -0.5, max: 0.6, step: 0.005, joints: ['thighL', 'thighR'],
@@ -162,10 +164,12 @@ export const GAIT_SCHEMA = [
       { key: 'roll', label: 'roll', min: 0, max: 1.2, step: 0.01, joints: ['ankleL', 'ankleR'],
         help: 'heel-to-toe roll, as a fraction of the thigh swing' },
       { key: 'tilt', label: 'toe-down bias @run', min: -0.8, max: 0.4, step: 0.01, joints: ['ankleL', 'ankleR'] },
-      { key: 'push', label: 'toe-off angle', min: 0, max: 2.0, step: 0.01, joints: ['ankleL', 'ankleR'],
-        help: 'how far DOWN the foot is driven relative to the shin while it is planted and behind the body — '
-          + 'the toe stays on the ground, the heel comes up, and a real push-off reaches something like '
-          + '90° (1.57). The WINDOW is not a dial: it is worked out from the pose' },
+      { key: 'push', label: 'foot angle at full back extension', min: 0, max: 2.0, step: 0.01,
+        joints: ['ankleL', 'ankleR'],
+        help: 'THE ANGLE THE FOOT ENDS UP AT, relative to the shin, when the leg is planted and fully behind '
+          + 'the body — the toe down, the heel up, pushing off. It is an absolute target, not an offset, so '
+          + 'this dial (plus its @run twin) is the whole answer: 1.57 = 90°, 0.79 = 45°. The WINDOW is not a '
+          + 'dial — planted AND behind is worked out from the pose' },
       { key: 'pushRun', label: 'toe-off @run', min: 0, max: 2.0, step: 0.01, joints: ['ankleL', 'ankleR'] },
       { key: 'level', label: 'sole levelling on the ground', min: 0, max: 1, step: 0.01, joints: ['ankleL', 'ankleR'],
         help: 'how hard to keep the sole FLAT ON THE GROUND while the foot is planted, over and above what '
@@ -299,13 +303,13 @@ export const GAITS = {
     name: 'Quadruped',
     note: 'Wolf lope: hinds drive as a pair against the fronts, spine arching on the gather.',
     legs: {
-      swing: 0.42, swingRun: 0.40, reach: 1.2, extend: 0,
+      swing: 0.42, swingRun: 0.40, reach: 1.2, extend: -1.5,
       adduct: 0.085, adductRun: 0,
       stanceBend: 0.14, stanceBendRun: 0.14,
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
     },
-    ankle: { roll: 0.5, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0 },
+    ankle: { roll: 0.5, tilt: -0.10, push: 0.45, pushRun: 0.35, level: 0, hang: 0 },
     arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {

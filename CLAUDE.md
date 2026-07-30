@@ -157,15 +157,32 @@ audio). Progress history: `TASKS.md`.
   to load that body with your edits intact — edits belong to the gait, not the
   mech), and CLICKING A LIMB then DRAGGING IT tunes the dial behind it: the tool
   measures d(joint)/d(dial) at that phase, works out which way that pushes the
-  limb on screen and projects the drag onto it. KEYFRAMES are the escape hatch
-  when no dial can say it: switch the panel to **Keyframes**, park the cycle at a
-  phase, click a joint and rotate the GIZMO — the correction is stored on the gait
+  limb on screen and projects the drag onto it. **JOINT ROTATIONS** is the same
+  thing said the other way round — every dial is ultimately a formula for a joint
+  angle, and this mode authors the angle by hand — and it is the escape hatch when
+  no dial can say it: switch the panel to it, park the cycle at a phase, click a
+  joint and rotate the GIZMO — the correction is stored on the gait
   as `keys: [{ ph, pose: { joint: [x,y,z]° } }]` (`applyGaitKeys`), additive over
   the cycle and interpolated around the loop. They run BEFORE the foot rule on
   purpose, so a hand edit can never break the rules that keep a foot honest: an
   ankle the foot rule owns at that phase refuses the gizmo and the panel says why.
   The track under the row is the key list (click to park, right-click to delete),
-  and "Output gait" carries the keys. TYPING beats the slider: a dial's
+  and "Output gait" carries the keys.
+  ONLY THE DIALS THAT MOVE THIS BODY are shown. A gait is one table shared by
+  every mech that names it, but a gait is not one PASS: fenrir's gallop layer
+  overwrites both arms outright once its blend is full (~75% throttle up), so
+  every `arms.*` row is a slider that cannot move him however far it is dragged,
+  while the same rows are live on titanus — and a `*Run` twin is dead at a
+  standstill by construction. Rather than a hand-maintained "which dials apply to
+  whom" table, the tool MEASURES it (`scanEffects`): the whole pipeline is run at
+  this mech's own numbers with each dial at the bottom, middle and top of its
+  range, and a dial that moves no joint anywhere in the cycle by more than ~0.25°
+  is inert HERE and hidden. Untick "only dials that move this mech" and they come
+  back greyed, each carrying the throttle band it DOES work in ("only works below
+  75%"), which is the useful half of "does nothing". Clicking a limb whose dials
+  are all inert says so and points at JOINT ROTATIONS. Same measurement on the
+  command line: `node tools/gaitdials.mjs <mech> [throttle]`.
+  TYPING beats the slider: a dial's
   number box takes values PAST the slider's ends (the range is the sane band, not
   a limit) and marks itself amber when it is outside what the handle can reach.
   **Output gait** downloads a paste-ready `GAITS` block with every changed dial

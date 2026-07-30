@@ -177,9 +177,7 @@ export class Animator {
   // bones only follow the virtual rig after postAnimate/adapter.sync).
   calibrateFeet() {
     const mech = this.mech;
-    // Bipeds only: the quadruped gallop authors its own hock/paw motion for a
-    // body whose "ankle" is nothing like a boot (fenrir).
-    if (!mech.isGLB || !mech.boneMap || this.gait.quad) return this.ankleGain;
+    if (!mech.isGLB || !mech.boneMap) return this.ankleGain;
     const body = bodySkinnedMesh(mech.group);
     if (!body) return this.ankleGain;
     this.poseStatic();
@@ -196,6 +194,13 @@ export class Animator {
     }
     // sole sample points, for the per-frame pelvis follow in update()
     this.soles = soles.length === 2 ? soles : null;
+    // THE QUADRUPED STOPS HERE. Its soles are now sampled — that is what the
+    // pelvis follow needs to keep a body ON the floor, and without it fenrir's
+    // paws had nothing holding them up (he was the one mech with no ground
+    // contact at all) — but the DAMPING below is derived from a boot's depth
+    // under an ankle, and a hock is nothing like a boot: it would quarter the
+    // authored gallop's hock motion and ask the paw to lie flat.
+    if (this.gait.quad) return this.ankleGain;
     // A rig whose ankle bone sits at or below the sole (depth <= 0) tells us
     // nothing — keep the default rather than inverting the toe-off.
     if (depth > 0.02) {
