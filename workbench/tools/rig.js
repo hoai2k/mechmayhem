@@ -16,7 +16,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { setupDevPanel } from '../ui/panel.js';
-import { wireExportChanges } from '../ui/save.js';
 import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js';
 import { subjectSelect, gotoSubject } from '../ui/subjectpick.js';
 
@@ -161,7 +160,12 @@ export async function runRigWorkbench(config, params) {
   scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
   gizmo.addEventListener('dragging-changed', (e) => {
     orbit.enabled = !e.value;
-    if (e.value) { dragSnap = snapshotRig(); captureSoloMoveTargets(); }  // pre-drag state
+    if (e.value) {
+      dragSnap = snapshotRig(); captureSoloMoveTargets();                 // pre-drag state
+      // A turn is measured from the pose, so an existing offset has to be ON
+      // screen or the drag would silently replace it instead of adding to it.
+      if (rotMode && !showOffsets) setShowOffsets(true);
+    }
     else { onEditCommit(); soloMoveTargets = null; }                      // reweight on release
   });
   gizmo.addEventListener('objectChange', onGizmoMove);
@@ -193,10 +197,10 @@ export async function runRigWorkbench(config, params) {
   let undoStack = [], redoStack = [];
   let dragSnap = null;             // rig snapshot captured at gizmo drag-start
   let soloMove = false;            // move a joint WITHOUT dragging its subtree
-  let tposeOn = false;             // T-POSE reference view (see setTPose)
   let rotMode = false;             // JOINT OFFSET mode: the gizmo rotates, and the
                                    // rotation is stored as a boneCorrection
   let corrections = {};            // joint -> [x,y,z] degrees (manifest boneCorrections)
+  let offChk = null;               // the 'show joint offsets' box (built with the panel)
   let soloMoveTargets = null;      // Map childName -> frozen world pos during a solo-move drag
 
   // ---- undo/redo (snapshots of rigObj) ----
@@ -310,12 +314,10 @@ export async function runRigWorkbench(config, params) {
 
   // Draft persistence: every edit lands in localStorage so a reload keeps your
   // work. NOT the same act as writing the rig FILE — that is the Save button's
-  // saveRigToFile() below, and it stayed a separate, deliberate step until this
-  // function and that one were both called `saveRig`. Two function declarations
-  // with one name in one scope: the later WINS, so every drag, undo, add and
-  // delete was POSTing src/mechs/rigs/<id>.rig.js to the dev server instead of
-  // saving a draft — which also fired Vite's HMR and reloaded the tool from
-  // under the edit. Keep the names distinct.
+  // the rig FILE, which nothing here writes any more: a rig leaves through
+  // Export, as text. (They were once both called `saveRig` — two declarations,
+  // one scope, later one wins — so every drag silently rewrote the rig file and
+  // fired Vite's HMR under the edit. Gone with the save path.)
   function saveDraft() { localStorage.setItem(LS_KEY(), JSON.stringify(rigObj)); }
 
   // `raw` / `startRig` came from the preflight above — both are known good.
@@ -353,7 +355,7 @@ export async function runRigWorkbench(config, params) {
     updateColors();
     // new bone objects: the corrections' baseline has to be retaken, and the
     // corrections themselves re-applied on top
-    if (bones) applyPose();
+    if (bones) renderView();
   }
 
   // (re)wire the black posts from the current bone positions (they're parented
@@ -455,12 +457,12 @@ export async function runRigWorkbench(config, params) {
         c.position.copy(_smp);
       }
     }
-    // moving the bind: keep the mesh at REST (don't deform while editing).
-    // NOT while a pose is on — rebinding under the T pose would bake the T INTO
-    // the bind, which is the one thing this must never do. Under a pose the mesh
-    // deforms as you drag instead, which is the live feedback that makes editing
-    // in the T pose worth doing at all.
-    if (!swinging && !tposeOn) rebindRest(mesh, bones);
+    // Moving the bind: keep the mesh at REST so it doesn't deform while editing.
+    // ONLY LEGAL WHEN NOTHING IS ROTATED — rebinding under the T pose bakes the T
+    // into the bind, and rebinding under the offsets preview bakes THOSE in, both
+    // permanently. Under either, the mesh deforms as you drag instead, which is
+    // the live feedback that makes editing in a pose worth doing at all.
+    if (!swinging && viewPose === 'bind' && !showOffsets) rebindRest(mesh, bones);
   }
   function onEditCommit() {
     if (!selName || swinging) return;
@@ -472,26 +474,26 @@ export async function runRigWorkbench(config, params) {
     // rotation first so the skeleton stands at its bind pose again, take the
     // positions, re-bind the skin there, and only then put the pose back on.
     if (rotMode) { readCorrectionFromBone(); dragSnap = null; return; }
-    // Positions are read in WORLD space, so every rotation has to come off
-    // first — the T pose AND any joint offsets, since a corrected parent would
-    // otherwise rotate its children's measured positions into the rig file.
-    resetPose();
-    syncRigFromBones();
-    // record the pre-drag snapshot on the undo stack only if the drag actually
-    // moved something
-    if (dragSnap && JSON.stringify(dragSnap) !== JSON.stringify(rigObj)) {
-      undoStack.push(dragSnap);
-      if (undoStack.length > 200) undoStack.shift();
-      redoStack.length = 0;
-    }
-    dragSnap = null;
-    setWeights(mesh, rigObj);   // reassign vertices to the nearest new bone
-    rebindRest(mesh, bones);    // at the BIND pose — see above
-    regenPosts();               // posts follow the moved bones
-    updateColors();
-    saveDraft();
-    posReadout();               // the numbers the drag just changed
-    restorePose();              // and back to the pose (+ offsets) you were judging in
+    // Positions are read in WORLD space and the skin is re-bound, so both have to
+    // happen with every rotation off — the pose AND the offsets. atPlainBind()
+    // guarantees it and puts the view back afterwards.
+    atPlainBind(() => {
+      syncRigFromBones();
+      // record the pre-drag snapshot on the undo stack only if the drag actually
+      // moved something
+      if (dragSnap && JSON.stringify(dragSnap) !== JSON.stringify(rigObj)) {
+        undoStack.push(dragSnap);
+        if (undoStack.length > 200) undoStack.shift();
+        redoStack.length = 0;
+      }
+      dragSnap = null;
+      setWeights(mesh, rigObj);   // reassign vertices to the nearest new bone
+      rebindRest(mesh, bones);    // at the BIND pose — see above
+      regenPosts();               // posts follow the moved bones
+      updateColors();
+      saveDraft();
+      posReadout();               // the numbers the drag just changed
+    });
   }
 
   function selectBone(name) {
@@ -577,7 +579,6 @@ export async function runRigWorkbench(config, params) {
   // in game, so `base` below is the pose's own rotation and the correction is
   // the delta from it.
   const CORR_KEY = () => `rigcorr:${id}${useAlt ? ':alt' : ''}`;
-  const baseQ = new Map();          // bone name -> the pose's rotation, corrections aside
   const _cq = new THREE.Quaternion(), _ce = new THREE.Euler();
   const R2D = 180 / Math.PI;
   function loadCorrections() {
@@ -586,33 +587,76 @@ export async function runRigWorkbench(config, params) {
     return config.rig.corrections?.get(id, { variant: useAlt ? 'alt' : 'glb' }) || {};
   }
   const saveCorrDraft = () => localStorage.setItem(CORR_KEY(), JSON.stringify(corrections));
-  // THE ONE RULE HERE: the base is the pose WITHOUT the offsets, so it may only
-  // ever be captured off bones that are not wearing them. Capturing it from bones
-  // that already are folds the offsets into the base, and the next apply lays
-  // them on a second time — which is why the legs crossed further on every
-  // toggle of the mode and why viper opened with his feet clamped together
-  // (startup applied them once in rebuild() and again straight after). Hence:
-  // captureBase/applyCorrections are PRIVATE and always run as one step from a
-  // known-clean pose, through applyPose() below. Nothing else calls them.
-  function captureBase() {
-    baseQ.clear();
-    for (const b of bones) baseQ.set(b.name, b.quaternion.clone());
-  }
-  function applyCorrections() {
-    for (const b of bones) {
-      const base = baseQ.get(b.name);
-      if (!base) continue;
-      const c = corrections[b.name];
-      if (!c) { b.quaternion.copy(base); continue; }
-      _cq.setFromEuler(_ce.set(c[0] / R2D, c[1] / R2D, c[2] / R2D));
-      b.quaternion.copy(base).multiply(_cq);       // post-multiply: bone-LOCAL, like the game
+  const corrQuat = (deg, out) => out.setFromEuler(_ce.set(deg[0] / R2D, deg[1] / R2D, deg[2] / R2D));
+
+  // ============ THE VIEW ============================================
+  // TWO PIECES OF DATA DESCRIBE THIS RIG, and nothing else does: `rigObj` (bind
+  // bone positions, saved to the rig file) and `corrections` (per-joint rotation
+  // offsets, saved to the manifest). Everything you see is a PURE FUNCTION of
+  // those two plus two view flags — which pose, and whether the offsets are
+  // shown. That is the invariant this section exists to hold, and it is what the
+  // earlier version got wrong: it kept a captured "base" pose in a Map and
+  // layered offsets onto whatever the bones happened to be wearing, so a second
+  // capture folded the offsets into the base and every toggle laid them on
+  // again. There is no stored pose here now. renderView() rebuilds every bone
+  // rotation from scratch, so it is idempotent by construction — call it as
+  // often as you like and nothing moves twice.
+  //
+  // THE RULES THAT FALL OUT, and they are the ones the user asked for:
+  //   · a VIEW never changes the rig. Only a drag does.
+  //   · switching pose or offsets-preview is therefore always reversible: the
+  //     same flags always produce the same bones, to the last decimal.
+  //   · the editing MODE (Move vs Joint offset) is not a view flag at all, so
+  //     switching modes cannot move anything.
+  let viewPose = 'bind';       // 'bind' | 'tpose'
+  let showOffsets = false;     // preview the joint offsets? (a view, not a mode)
+  // The pose's own rotation per bone, offsets aside. Filled by renderView at the
+  // one moment it is guaranteed offset-free — between the pose and the offsets —
+  // and read when a drag has to work out what the user just added.
+  const poseQ = new Map();
+
+  function renderView() {
+    if (!bones) return;
+    for (const b of bones) b.quaternion.identity();     // 1. the bind pose
+    if (viewPose === 'tpose') aimTPose();               // 2. the pose, if any
+    poseQ.clear();
+    for (const b of bones) poseQ.set(b.name, b.quaternion.clone());
+    if (showOffsets) {                                  // 3. the offsets, on top
+      for (const b of bones) {
+        const c = corrections[b.name];
+        if (c) b.quaternion.multiply(corrQuat(c, _cq));  // post-multiply = bone-LOCAL, as in game
+      }
     }
+    root?.updateMatrixWorld(true);
     mesh.updateMatrixWorld(true);
   }
-  // the gizmo just rotated `selName`: read the delta off the base and store it
+
+  // Run `fn` with the bones at the PLAIN BIND POSE — no pose, no offsets — then
+  // put the view back. Anything that reads or re-binds bone POSITIONS must go
+  // through here: positions are read in world space, so a rotation anywhere up
+  // the chain would otherwise be measured into the rig file, and a rebind under
+  // a rotation would bake that rotation into the skin for good.
+  function atPlainBind(fn) {
+    const pose = viewPose, off = showOffsets;
+    viewPose = 'bind'; showOffsets = false;
+    renderView();
+    try { return fn(); } finally {
+      viewPose = pose; showOffsets = off;
+      renderView();
+    }
+  }
+
+  function setShowOffsets(on) {
+    showOffsets = on;
+    if (offChk) offChk.checked = on;
+    renderView();
+    renderCorrections();
+  }
+
+  // the gizmo just rotated `selName`: what the user added, on top of the pose
   function readCorrectionFromBone() {
     const b = byName[selName];
-    const base = baseQ.get(selName);
+    const base = poseQ.get(selName);
     if (!b || !base) return;
     _cq.copy(base).invert().multiply(b.quaternion);
     _ce.setFromQuaternion(_cq);
@@ -622,45 +666,22 @@ export async function runRigWorkbench(config, params) {
     saveCorrDraft();
     renderCorrections();
   }
-  // THE ONLY WAY THE VIEW IS POSED. Clears every rotation, puts the pose that is
-  // on back (bind or T), takes the base from THAT, and lays the offsets over it.
-  // Idempotent by construction: run it twice and nothing moves twice.
-  //
-  // WHERE THE OFFSETS ARE PREVIEWED: in JOINT OFFSET mode, and nowhere else.
-  // Two reasons, both learned the hard way. A joint offset is a real rotation and
-  // 10 degrees at a hip swings the ankle most of a foot's width, so previewing it
-  // in the plain MOVE view left the mech standing with his feet clamped together
-  // — in the one view whose job is placing bones against the geometry AS THE
-  // ASSET IS. And in the T pose it double-counts: the T already aims every limb
-  // straight, so laying "take the splay out of this thigh" on top of a thigh that
-  // has just been aimed straight down crosses the legs. The T pose therefore
-  // stays the honest "what can this rig do" view. Turn the mode on — with or
-  // without the T — and the offsets appear, which is the comparison that matters.
-  const previewCorrections = () => rotMode;
-  function applyPose() {
-    if (tposeOn) applyTPose(); else resetPose();   // both leave the bones offset-free
-    captureBase();
-    if (previewCorrections()) applyCorrections();
-    else mesh.updateMatrixWorld(true);
-  }
-  const restorePose = applyPose;   // what an edit calls when it has finished
+
   function setRotMode(on) {
     rotMode = on;
     gizmo.setMode(on ? 'rotate' : 'translate');
     gizmo.setSpace(on ? 'local' : 'world');
-    // Re-pose because the MODE decides whether the offsets are previewed. Safe to
-    // run on every toggle now: applyPose() always rebuilds from a clean pose, so
-    // it can never fold the offsets in twice (which is what walked the legs
-    // further across on each toggle before).
-    applyPose();
+    // NO renderView() HERE, deliberately: the mode decides what a DRAG does, not
+    // what is on screen, so switching it can never move a joint.
     refreshModeButtons();
     renderCorrections();
     setNote(on
-      ? 'JOINT OFFSET mode — the gizmo ROTATES. What you rotate is stored as this joint\u2019s '
-        + '`boneCorrections` entry: a fixed rotation the game applies after the retarget, every '
+      ? 'JOINT OFFSET mode — the gizmo ROTATES, and what you turn is stored as this joint\u2019s '
+        + '`boneCorrections` entry: a fixed rotation the game applies after the retarget every '
         + 'frame, so a limb that RESTS wrong is corrected before any clip plays. Bone positions '
-        + 'are untouched; this saves to the manifest, not the rig file.'
-      : 'Move mode — the gizmo translates bone positions again.');
+        + 'are untouched, and this saves to the manifest, not the rig file. Starting a turn '
+        + 'switches the offsets preview on — you cannot edit what you cannot see.'
+      : 'Move mode — the gizmo translates, and a drag edits the bone positions the rig file stores.');
   }
 
   // ---- T POSE ------------------------------------------------------------
@@ -720,8 +741,9 @@ export async function runRigWorkbench(config, params) {
     bone.quaternion.copy(_tq.setFromUnitVectors(rest, want.normalize()));
     bone.updateMatrixWorld(true);
   }
-  function applyTPose() {
-    resetPose();
+  // The aims only: the caller (renderView) has already put every bone back to
+  // its bind rotation, and owns what happens after.
+  function aimTPose() {
     const { up, lat } = tposeAxes();
     const dirFor = (parent) => {
       if (parent === 'hips' || parent === 'torso') return up;
@@ -734,21 +756,17 @@ export async function runRigWorkbench(config, params) {
     mesh.updateMatrixWorld(true);
   }
   function setTPose(on) {
-    tposeOn = on;
-    if (on) {
-      if (swinging) { swinging = false; swChk.checked = false; }
-      applyPose();
-      setNote('T POSE — and it is EDITABLE. Drag a bone and you are moving its BIND '
-        + 'position, seen through the pose: the mesh deforms live, the rig file gets the '
-        + 'edit, and the body snaps back into the T when you let go. Judge the neutral '
-        + 'pose and fix it in the same place.');
-    } else {
-      resetPose();
-      rebindRest(mesh, bones);
-      applyPose();
-    }
+    viewPose = on ? 'tpose' : 'bind';
+    if (on && swinging) { swinging = false; swChk.checked = false; }
+    renderView();
     if (selName) selectBone(selName);
     matchMannequin();
+    setNote(on
+      ? 'T POSE — a VIEW of this same binding, and an editable one. Drag a bone and you are '
+        + 'moving its BIND position seen through the pose: the mesh deforms live, the rig file '
+        + 'gets the edit, and the body snaps back into the T when you let go. Unchecking it '
+        + 'changes nothing about the rig — the two poses are two views of one skeleton.'
+      : 'Bind pose — the skeleton as the rig file stores it.');
   }
 
   // ---- test swing (rotate the claw + leg joints to check articulation) ----
@@ -764,10 +782,7 @@ export async function runRigWorkbench(config, params) {
     set('thighR', -0.3 * k, 0, 0); set('kneeR', 0.4 * k, 0, 0);
     mesh.updateMatrixWorld(true);
   }
-  function resetPose() {
-    for (const b of bones) b.rotation.set(0, 0, 0);
-    mesh.updateMatrixWorld(true);
-  }
+
 
   // ---- export ----
   // the bone list as data — what Export prints and Save posts, from one place
@@ -781,28 +796,12 @@ export async function runRigWorkbench(config, params) {
     });
   }
 
-  // SAVE — write the bones into src/mechs/rigs/<id>.rig.js via the dev server.
-  // Only the bone array is replaced: the file's header comment and its
-  // skinSpan/softSkin/cutWelds/cutPairs survive (tools/rigfmt.mjs), which is
-  // the whole reason this is a splice and not a file write.
-  async function saveRigToFile() {
-    const bones = rigBonesPayload();
-    saveBtn.disabled = true;
-    setNote(`Saving ${bones.length} bones to ${id}.rig.js…`);
-    const res = await config.rig.save(id, bones);
-    saveBtn.disabled = false;
-    if (res.ok) {
-      setNote(`SAVED — ${res.bones} bones written to ${res.file}`
-        + (res.kept ? ' (skinSpan / softSkin / cut* preserved)' : '')
-        + '. Reload to see it rebuilt from file. Commit to publish.');
-      changes?.refresh();
-    } else if (res.offline) {
-      setNote(`No dev server to save through (${res.error}). Run \`npm run dev\`, or use Export rig.`);
-    } else {
-      setNote(`Save FAILED: ${res.error}\nNothing was written — Export rig is the fallback.`);
-    }
-  }
-
+  // NO SAVE-TO-DISK. This editor used to POST the bone list to the dev server,
+  // which wrote src/mechs/rigs/<id>.rig.js behind your back — convenient, and
+  // impossible to trust: nothing on screen said what had changed on disk. The
+  // rig leaves through EXPORT now, as text you can read before it lands
+  // anywhere. Edits still persist as a localStorage draft, so a reload keeps
+  // your work.
   function exportRig() {
     syncRigFromBones();
     const lines = rigObj.bones.map((b) => {
@@ -1083,10 +1082,10 @@ export async function runRigWorkbench(config, params) {
     const names = Object.keys(corrections);
     if (!rotMode && !names.length) return;          // nothing to say yet
     corrBox.appendChild(lbl(`Joint offsets (boneCorrections)${names.length ? ` — ${names.length}` : ''}`));
-    if (names.length && !previewCorrections()) {
+    if (names.length && !showOffsets) {
       const off = el('div', 'color:#c8a05a;font-size:10.5px;line-height:1.5;margin-bottom:4px');
-      off.textContent = 'Not previewed here — this view shows the rig as the asset really is, '
-        + 'so bones can be placed against it. Turn on Joint offset to see them applied.';
+      off.textContent = 'Not previewed — this view shows the rig as the asset really is, so bones '
+        + 'can be placed against it. Tick "Show joint offsets" to see them applied.';
       corrBox.appendChild(off);
     }
     if (!names.length) {
@@ -1111,25 +1110,36 @@ export async function runRigWorkbench(config, params) {
       clr.title = `clear ${n}`;
       clr.onclick = () => {
         delete corrections[n]; saveCorrDraft();
-        applyPose(); renderCorrections();
+        renderView(); renderCorrections();
       };
       row.append(txt, clr);
       corrBox.appendChild(row);
     }
-    const saveC = btn('Save offsets to manifest ▶', async () => {
-      const res = await config.rig.corrections.save(id, corrections, { variant: useAlt ? 'alt' : 'glb' });
-      if (res.ok) { setNote(`SAVED — boneCorrections for ${id}${useAlt ? '.alt' : ''} written to manifest.json. Commit to publish.`); changes?.refresh(); }
-      else if (res.offline) setNote(`No dev server to save through (${res.error}). Use Copy offsets and paste into the manifest.`);
-      else setNote(`Save FAILED: ${res.error}`);
-    }, true);
-    const copyC = btn('Copy offsets', () => {
+    const copyC = btn('Copy offsets ▶', () => {
       const json = `{\n  "${id}": ${useAlt ? `{\n    "alt": { "boneCorrections": ${JSON.stringify(corrections)} }\n  }` : `{ "boneCorrections": ${JSON.stringify(corrections)} }`}\n}`;
       out.value = json; out.style.display = 'block'; out.select();
       navigator.clipboard?.writeText(json).catch(() => {});
-      setNote('Offsets copied — merge into public/models/manifest.json.');
-    });
-    corrBox.append(saveC, copyC);
+      setNote('Offsets copied + shown below — paste into public/models/manifest.json.');
+    }, true);
+    corrBox.appendChild(copyC);
   }
+
+  // ---- THE TWO VIEW TOGGLES ----
+  // Neither changes the rig; both are just ways of looking at it. They sit
+  // together, above the bones, so it reads as "what am I looking at".
+  const offRow = el('div', 'display:flex;gap:5px;align-items:center;margin:0 0 6px');
+  offChk = document.createElement('input');
+  offChk.type = 'checkbox';
+  offChk.onchange = () => setShowOffsets(offChk.checked);
+  const offLab = document.createElement('label');
+  offLab.style.cssText = 'display:flex;gap:5px;align-items:center;font-size:11px;cursor:pointer;color:#dfe8f5';
+  offLab.append(offChk, document.createTextNode(' Show joint offsets'));
+  offLab.title = 'Preview the joint offsets on the model — a VIEW, like the T pose, so turning it '
+    + 'on and off never changes the rig. Off by default because an offset is a real rotation: ten '
+    + 'degrees at a hip swings an ankle most of a foot\u2019s width, and this view is also where '
+    + 'bones are placed against the asset as it really is.';
+  offRow.appendChild(offLab);
+  panel.appendChild(offRow);
 
   // ---- T POSE (reference view) ----
   const tRow = el('div', 'display:flex;gap:5px;align-items:center;margin:0 0 6px');
@@ -1174,17 +1184,13 @@ export async function runRigWorkbench(config, params) {
   swChk.onchange = () => {
     swinging = swChk.checked;
     // one pose at a time: the swing writes the same bone rotations the T does
-    if (swinging && tposeOn) { tChk.checked = false; setTPose(false); }
-    // the swing writes its own rotations every frame; when it stops, put the
-    // pose AND the joint offsets back rather than leaving the bones at zero
-    if (!swinging) applyPose();
+    if (swinging && viewPose === 'tpose') { tChk.checked = false; setTPose(false); }
+    // the swing writes its own rotations every frame; when it stops, the view is
+    // rebuilt from the data like any other view change
+    if (!swinging) renderView();
   };
   swRow.append(swChk, document.createTextNode(' Swing claws/legs (loop)')); panel.appendChild(swRow);
 
-  const saveBtn = btn('Save rig to file ▶', saveRigToFile, true);
-  panel.appendChild(saveBtn);
-  const exportChangesBtn = btn('Export uncommitted saves', () => {});
-  panel.appendChild(exportChangesBtn);
   panel.appendChild(btn('Export rig ▶', exportRig, true));
   panel.appendChild(btn('Reset to file rig', () => {
     pushUndo();
@@ -1198,7 +1204,6 @@ export async function runRigWorkbench(config, params) {
   const note = el('div', 'margin-top:6px;color:#9fb2c8;font-size:11px;white-space:pre-line;min-height:1.2em');
   panel.appendChild(note);
   const setNote = (t) => { note.textContent = t; };
-  const changes = wireExportChanges(exportChangesBtn, { setStatus: setNote });
 
   const help = el('div', 'margin-top:8px;color:#69788c;font-size:10.5px;line-height:1.5');
   help.innerHTML = 'Orbit: drag empty space · Zoom: wheel<br>Red/orange = claws (arms) · blue/cyan = legs · gray = struts.<br>'
@@ -1265,7 +1270,8 @@ export async function runRigWorkbench(config, params) {
   if (config.rig.corrections) corrections = loadCorrections();
   else bRot.style.display = 'none';
 
-  load();          // ends in rebuild(), which poses the model through applyPose()
+  load();          // ends in rebuild(), which draws the view through renderView()
+  renderView();
   renderCorrections();
 
   engine.onUpdate = (dt) => {
@@ -1299,15 +1305,17 @@ export async function runRigWorkbench(config, params) {
       const after = rigObj.bones.find((x) => x.name === boneName).pos;
       return { before, after, posed: [b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w] };
     },
-    get tpose() { return tposeOn; },
+    get tpose() { return viewPose === 'tpose'; },
+    get view() { return { pose: viewPose, offsets: showOffsets, mode: rotMode ? 'rotate' : 'move' }; },
     get corrections() { return JSON.parse(JSON.stringify(corrections)); },
-    setRotMode,
+    setRotMode, setShowOffsets,
     // test hook: a ROTATE drag, as the gizmo delivers one — turn the bone, then
     // run the same move/commit path a release runs
     _simRotate: (boneName, rx, ry, rz) => {
       const b = byName[boneName];
       if (!b) return null;
       setRotMode(true);
+      setShowOffsets(true);      // what a real drag-start does
       selectBone(boneName);
       const before = byName[boneName].getWorldPosition(new THREE.Vector3()).toArray();
       b.rotation.set(b.rotation.x + rx, b.rotation.y + ry, b.rotation.z + rz);

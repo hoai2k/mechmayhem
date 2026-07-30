@@ -130,9 +130,16 @@ the skin workbench (with the failing island selected), the rig editor, or the
 pose workbench (on that clip, at that frame). `config.reload()` — the "load from
 manifest" button — is what lets it pick up a save made in the other tab.
 
-## Saving
+## Getting an edit out
 
-`?edit=skin` and `?edit=rig` write to the repo through the dev server
-(`/__rw/manifest`, `/__rw/rig` in `vite.config.js`) — see the house rules in
-CLAUDE.md. Both splice rather than rewrite, and **Export uncommitted saves**
-hands the whole batch over as one `git apply`-able patch.
+Nothing here writes to the repo. Each tool EXPORTS its edit as text — the skin
+workbench a `skinOps` manifest patch, the rig editor its `bones` array and (in
+JOINT OFFSET mode) a `boneCorrections` patch — and a human or an agent applies
+it, with `tools/manifestfmt.mjs` / `tools/rigfmt.mjs` doing the splice so the
+diff stays small and the file's own comments survive. Work in progress persists
+as a localStorage draft, so a reload keeps it.
+
+There was a save path once (`POST /__rw/manifest`, `/__rw/rig` in
+`vite.config.js`, plus an "Export uncommitted saves" button that handed the batch
+over as one git patch). It was removed: a write you cannot see is a write you
+cannot trust.
