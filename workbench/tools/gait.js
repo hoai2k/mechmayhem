@@ -657,10 +657,19 @@ export async function runGaitWorkbench(config, params) {
     return { s, sx, sy, len2: sx * sx + sy * sy };
   }
 
-  function setDial(dial, value, { fromDrag = false } = {}) {
+  // `free`: let the number box go PAST the slider's ends. The slider's range is
+  // the sane band a dial is normally tuned in; typing is how you find out what a
+  // deliberately extreme value does, so the typed path is only sanity-clamped
+  // (finite, and inside a hard 8x safety band) and the row marks itself when the
+  // value is outside what the slider can reach.
+  function setDial(dial, value, { fromDrag = false, free = false } = {}) {
     const gait = gaitOf(gaitId);
     if (!gait[dial.group]) return;
-    gait[dial.group][dial.key] = clamp(value, dial.min, dial.max);
+    if (!Number.isFinite(value)) return;
+    const span = Math.max(1e-6, dial.max - dial.min);
+    gait[dial.group][dial.key] = free
+      ? clamp(value, dial.min - span * 8, dial.max + span * 8)
+      : clamp(value, dial.min, dial.max);
     writeStore();
     refreshDialRow(dial);
     if (!fromDrag) refreshGaitStatus();
@@ -1023,7 +1032,9 @@ export async function runGaitWorkbench(config, params) {
     const name = el('span', 'color:#9fb2c8;flex:1', d.label);
     const val = el('input', `width:58px;background:#0d131b;color:#dbe6f5;border:1px solid #2c3648;
       border-radius:4px;padding:1px 3px;font:11px ui-monospace,monospace;text-align:right`);
-    val.type = 'number'; val.step = d.step; val.min = d.min; val.max = d.max;
+    // deliberately NO min/max on the number box — see setDial({ free: true })
+    val.type = 'number'; val.step = d.step;
+    val.title = `slider range ${d.min} … ${d.max} — type a value outside it if you want to see what it does`;
     const undo = el('button', `${btnCss};padding:0 5px;font-size:11px;line-height:1.4;visibility:hidden`, '↺');
     undo.title = 'back to the shipped value';
     undo.onclick = () => { setDial(d, shippedValue(d)); };
@@ -1031,7 +1042,7 @@ export async function runGaitWorkbench(config, params) {
     const rng = el('input', 'width:100%;accent-color:#ff9f43;height:14px');
     rng.type = 'range'; rng.min = d.min; rng.max = d.max; rng.step = d.step;
     rng.oninput = () => setDial(d, Number(rng.value));
-    val.onchange = () => setDial(d, Number(val.value));
+    val.onchange = () => setDial(d, Number(val.value), { free: true });
     wrap.append(head, rng);
     dialRows.set(`${d.group}.${d.key}`, { wrap, rng, val, undo, name, d });
     refreshDialRow(d);
@@ -1047,6 +1058,12 @@ export async function runGaitWorkbench(config, params) {
     const changed = Math.abs(v - shippedValue(d)) > 1e-6;
     r.name.style.color = changed ? '#4fdc8b' : '#9fb2c8';
     r.undo.style.visibility = changed ? 'visible' : 'hidden';
+    // past the slider's end: the slider is pinned and cannot show it, so the
+    // number says so itself rather than quietly disagreeing with the handle
+    const beyond = v < d.min - 1e-9 || v > d.max + 1e-9;
+    r.val.style.color = beyond ? '#ffd23c' : '#dbe6f5';
+    r.val.style.borderColor = beyond ? '#7a6320' : '#2c3648';
+    r.rng.style.opacity = beyond ? 0.45 : 1;
   }
   function refreshAllDialRows() { for (const [, r] of dialRows) refreshDialRow(r.d); }
 

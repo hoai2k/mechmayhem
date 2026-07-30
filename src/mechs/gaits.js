@@ -36,6 +36,44 @@ import { lerp, clamp01 } from '../core/utils.js';
 
 export const DEFAULT_GAIT = 'standard';
 
+// HOW FAR BEHIND ITS REST DIRECTION the leg has to point before its foot counts
+// as fully TRAILING (radians of thigh + knee, i.e. of the shin's own swing). At
+// ~29 degrees the weight saturates, so the foot is treated as trailing through
+// the whole back half of the stride instead of only at its extreme, and is 0
+// again wherever the leg is under or ahead of the hips.
+const TRAIL_BAND = 0.5;
+
+// …and how far OFF ITS STANDING HEIGHT the foot has to be lifted before the same
+// applies, as a fraction of the leg's length. Both conditions are needed: a foot
+// that is behind the body but still ON it is mid-push and must keep its sole on
+// the pavement, which is the difference between a toe-off and a toe driven
+// through the floor.
+const LIFT_BAND = 0.10;
+
+/**
+ * How much this foot is TRAILING IN THE AIR: 0 planted, pushing, or reaching
+ * ahead — 1 swung out behind the body and clear of the ground.
+ *
+ * Read off the leg's own angles, not off the gait phase, because both facts are
+ * facts about the FINISHED stride: fenrir's hinds are moved by the biped layer
+ * AND by a gallop running at its own rate (`quad.stride`), so no single phase
+ * window describes where his paws are, and any gait added later would need its
+ * own window. The height is the same planar geometry the pose already implies —
+ * thigh and shin projected on vertical — so this stays a pure function of the
+ * pose and the workbench measures exactly what the game runs.
+ */
+function trailWeight(tgt, rest, side, env = {}) {
+  const r = (j) => (rest?.[j]?.[0] || 0);
+  const t0 = r('thigh' + side), k0 = r('knee' + side);
+  const t = tgt['thigh' + side][0], k = tgt['knee' + side][0];
+  const back = (t - t0) + (k - k0);
+  if (back <= 0) return 0;
+  const thighLen = env.thighLen || 1, shinLen = env.shinLen || 1;
+  const reach = (a, b) => thighLen * Math.cos(a) + shinLen * Math.cos(a + b);
+  const lift = (reach(t0, k0) - reach(t, k)) / (thighLen + shinLen);
+  return clamp01(back / TRAIL_BAND) * clamp01(lift / LIFT_BAND);
+}
+
 // ---------------------------------------------------------------------------
 // THE PARAMETER SCHEMA. One entry per dial: what it is called, what it does,
 // what range is sane, and WHICH JOINTS it moves — the workbench builds its
@@ -83,6 +121,11 @@ export const GAIT_SCHEMA = [
         help: 'plantar flex as the trailing foot leaves the ground' },
       { key: 'pushRun', label: 'toe-off @run', min: 0, max: 1.4, step: 0.01, joints: ['ankleL', 'ankleR'] },
       { key: 'pushPhase', label: 'push phase', min: -3.14, max: 3.14, step: 0.01, joints: ['ankleL', 'ankleR'] },
+      { key: 'hang', label: 'toe-down while trailing', min: 0, max: 2.4, step: 0.01, joints: ['ankleL', 'ankleR'],
+        help: 'RADIANS BELOW HORIZONTAL that a raised REAR foot points its toes — solved for, so it lands '
+          + 'the same on every body. 0 turns the rule off and the foot stays flat as if it were still '
+          + 'standing on something; π/2 (1.57) points the toes straight DOWN; past that they point back, '
+          + 'which is what a trailing foot really does' },
     ],
   },
   {
@@ -162,13 +205,13 @@ export const GAITS = {
     name: 'Standard',
     note: 'The all-purpose walk→run. Upright carriage, moderate stride, arms hanging.',
     legs: {
-      swing: 0.42, swingRun: 0.40, reach: 0, extend: 0,
-      adduct: 0, adductRun: 0,
+      swing: 0.42, swingRun: 0.40, reach: 0.51, extend: 0.47,
+      adduct: 0.08, adductRun: 0,
       stanceBend: 0.14, stanceBendRun: 0.14,
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
     },
-    ankle: { roll: 0.5, tilt: -0.10, push: 0.40, pushRun: 0.40, pushPhase: -0.45 },
+    ankle: { roll: 0.5, tilt: -0.10, push: 0.40, pushRun: 0.40, pushPhase: -0.45, hang: 1.75 },
     arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
   },
@@ -195,7 +238,7 @@ export const GAITS = {
       kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.15,
       cadence: 0.95, cadenceCap: 16,
     },
-    ankle: { roll: 0.55, tilt: -0.14, push: 0.42, pushRun: 0.45, pushPhase: -0.45 },
+    ankle: { roll: 0.55, tilt: -0.14, push: 0.42, pushRun: 0.45, pushPhase: -0.45, hang: 1.9 },
     arms: { swing: 0.78, swingRun: 0.89, lift: -0.10, elbow: 0.25, elbowRun: 0.55, elbowPump: 0.40, tuck: 0.18, cross: 0.12 },
     body: { bob: 0.21, pitch: 0.12, yaw: 0.10, roll: 0.05, lean: 0.46, twist: 0.15, head: -0.36 },
   },
@@ -206,13 +249,13 @@ export const GAITS = {
     name: 'Quadruped',
     note: 'Wolf lope: hinds drive as a pair against the fronts, spine arching on the gather.',
     legs: {
-      swing: 0.42, swingRun: 0.40, reach: 0, extend: 0,
-      adduct: 0, adductRun: 0,
+      swing: 0.42, swingRun: 0.40, reach: 1.2, extend: 0,
+      adduct: 0.085, adductRun: 0,
       stanceBend: 0.14, stanceBendRun: 0.14,
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
     },
-    ankle: { roll: 0.5, tilt: -0.10, push: 0.40, pushRun: 0.40, pushPhase: -0.45 },
+    ankle: { roll: 0.5, tilt: -0.10, push: 0.40, pushRun: 0.40, pushPhase: -0.45, hang: 1.8 },
     arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {
@@ -329,6 +372,9 @@ export function applyGait(tgt, gait, env) {
   const push = A.push + A.pushRun * ratio;
   tgt.ankleL[0] += ankleGain * (swing * A.roll * sinL + A.tilt * ratio - push * pushL);
   tgt.ankleR[0] += ankleGain * (swing * A.roll * sinR + A.tilt * ratio - push * pushR);
+  // (the TOE-BACK on a raised rear foot is applied last, by applyToeHang below —
+  // it is a rule about the finished pose, so it has to run after the gallop layer
+  // has had its say)
 
   // ===== arms: the COUNTER-swing =====
   // An arm swings OPPOSITE its own leg: left leg forward, left arm back. That
@@ -372,9 +418,14 @@ export function applyGait(tgt, gait, env) {
   // above it just pitched into it — run LAST, after hipsRot is set, so the
   // body's forward pitch is included. The authored roll above then rides on top
   // of a level plate instead of on top of the leg's own tilt.
+  // …and only while the foot IS on the pavement: `1 - hang weight` hands the
+  // foot back to the leg as it trails behind, which is what lets the toe-back
+  // above survive instead of being levelled straight out again.
   if (footFlat > 0.01 && rest) {
     for (const side of ['L', 'R']) {
-      tgt['ankle' + side][0] -= footFlat * (tgt.hipsRot[0]
+      const level = footFlat * (1 - trailWeight(tgt, rest, side, env));
+      if (level < 0.01) continue;
+      tgt['ankle' + side][0] -= level * (tgt.hipsRot[0]
         + (tgt['thigh' + side][0] - rest['thigh' + side][0])
         + (tgt['knee' + side][0] - rest['knee' + side][0]));
     }
@@ -427,6 +478,57 @@ export function applyQuadGait(tgt, gait, env) {
   tgt.kneeR[0] += (0.3 + Math.max(0, hind2) * Q.hindFold) * q;
   tgt.ankleL[0] += (-0.28 - Math.max(0, -hind) * Q.hockSnap) * q;
   tgt.ankleR[0] += (-0.28 - Math.max(0, -hind2) * Q.hockSnap) * q;
+}
+
+// ---------------------------------------------------------------------------
+// TOES BACK ON A RAISED REAR FOOT — the last word on every gait.
+//
+// Nothing levels a foot in mid-air: it hangs off the shin. A raised REAR foot
+// therefore points its toes back and down, and a foot that stays flat with its
+// sole parallel to the pavement reads as walking on a floor that isn't there —
+// the loudest "the feet are wrong" tell a gait has. NO gait should show it.
+//
+// Two things used to keep the foot flat: the flat-sole rule cancelled the leg
+// chain for the WHOLE cycle instead of only while the foot was down (fixed in
+// applyGait, which now releases it as the leg trails), and nothing ever asked
+// the foot to hang.
+//
+// WHY IT IS A SEPARATE PASS, KEYED ON THE POSE. "Behind the body" is a fact
+// about the finished stride, not about a phase: fenrir's hinds are moved by the
+// biped layer AND by a gallop running at its own rate (`quad.stride`), so no
+// single phase window describes where his paws are. Reading it off the thigh
+// angle the pose actually ended up with covers every gait, every layer and any
+// gait added later, with nothing to keep in sync.
+//
+// The angle is normalised by the gait's own stride amplitude, so a long-strided
+// gait reaches "fully trailing" at a proportionally bigger angle rather than
+// sooner. POSITIVE ankle pitch is what drops the toe in this rig space (measured
+// on the mannequin, colossus, titanus and viper — not inferred from the sign of
+// the toe-off term, which is authored around each foot's own rest carriage). Not
+// scaled by ankleGain either: that exists because a deep sole sweeps more GROUND
+// per radian, and a foot in the air is not touching any.
+// ---------------------------------------------------------------------------
+export function applyToeHang(tgt, gait, env = {}) {
+  const hang = gait.ankle?.hang;
+  if (!hang) return;
+  const rest = env.rest || null;
+  const r = (j) => (rest?.[j]?.[0] || 0);
+  // A planar leg chain turns the foot by the SUM of everything above it, so the
+  // foot's pitch away from its bind carriage (where the sole is down and the toes
+  // point forward) is hips + thigh + knee + ankle, each measured from rest.
+  // POSITIVE drops the toe. That makes the rule a one-line solve rather than a
+  // nudge, and `hang` a real quantity: radians below horizontal, the same on
+  // every body regardless of what its rest stance or its gallop layer did.
+  const dHips = tgt.hipsRot[0];
+  for (const side of ['L', 'R']) {
+    const a = tgt['ankle' + side];
+    if (!a || !tgt['thigh' + side]) continue;
+    const w = trailWeight(tgt, rest, side, env);
+    if (w < 0.01) continue;
+    const pitch = dHips + (tgt['thigh' + side][0] - r('thigh' + side))
+      + (tgt['knee' + side][0] - r('knee' + side)) + (a[0] - r('ankle' + side));
+    a[0] += w * (hang - pitch);
+  }
 }
 
 // ---------------------------------------------------------------------------

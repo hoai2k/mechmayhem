@@ -15,6 +15,12 @@
 //   track      how far the feet sit off the centre line (the "legs far apart" read)
 //   lean       body pitch at the hips + torso, in degrees
 //   armSwing   peak shoulder pitch travel, degrees
+//   toeFwd     THE RAISED REAR FOOT check: how far FORWARD its toes still point
+//              (1 = dead ahead, 0 = straight down, negative = back, which is what
+//              a trailing foot really does). Measured only where the foot is both
+//              behind the hips and clear of the ground — a planted foot points its
+//              toes forward and should. Positive here is the "walking on a floor
+//              that isn't there" tell.
 //   armPhase   the COUNTER-SWING check: correlation, over the cycle, between how
 //              far forward a foot is and how far forward the arm on the SAME
 //              side is. It must be NEGATIVE (left leg forward, left arm back) —
@@ -52,10 +58,14 @@ const out = await page.evaluate(async ({ n }) => {
     g.updateWorldMatrix(true, true);
     const V3 = g.position.constructor;              // THREE.Vector3, without importing three here
     const hip = m.joints.hips.getWorldPosition(new V3());
+    const Q = g.quaternion.constructor;
     const feet = {}, hands = {};
     for (const side of ['L', 'R']) {
-      const p = m.joints['ankle' + side].getWorldPosition(new V3());
-      feet[side] = { fore: p.z - hip.z, up: p.y - g.position.y, side: p.x - hip.x };
+      const o = m.joints['ankle' + side];
+      const p = o.getWorldPosition(new V3());
+      // where the toes point: the foot's own forward axis, in world
+      const toe = new V3(0, 0, 1).applyQuaternion(o.getWorldQuaternion(new Q()));
+      feet[side] = { fore: p.z - hip.z, up: p.y - g.position.y, side: p.x - hip.x, toe: toe.z };
       hands[side] = m.joints['hand' + side].getWorldPosition(new V3()).z - hip.z;
     }
     return {
@@ -71,7 +81,7 @@ const out = await page.evaluate(async ({ n }) => {
     const h = (m.dims.hipHeight + m.dims.torsoH + m.dims.headSize * 2);
     const acc = {
       reach: -1e9, trail: -1e9, lift: -1e9, sink: 1e9, track: 0,
-      hipMin: 1e9, hipMax: -1e9, lean: 0, shMin: 1e9, shMax: -1e9, sole: 1e9, h,
+      hipMin: 1e9, hipMax: -1e9, lean: 0, shMin: 1e9, shMax: -1e9, sole: 1e9, toeFwd: -9, h,
       // paired samples for the counter-swing correlation
       pairs: [],
     };
@@ -100,6 +110,9 @@ const out = await page.evaluate(async ({ n }) => {
         acc.lift = Math.max(acc.lift, f.up);
         acc.sink = Math.min(acc.sink, f.up);
         acc.track = Math.max(acc.track, Math.abs(f.side));
+        // BEHIND the hips and OFF the ground: the window where a foot must not
+        // still be pointing its toes forward
+        if (f.fore < -0.20 * acc.h && f.up > 0.20 * acc.h) acc.toeFwd = Math.max(acc.toeFwd, f.toe);
       }
       for (const side of ['L', 'R']) acc.pairs.push([s.feet[side].fore, s.hands[side]]);
       acc.hipMin = Math.min(acc.hipMin, s.hipY);
@@ -128,6 +141,7 @@ const out = await page.evaluate(async ({ n }) => {
     lift: a.lift / a.h, sink: a.sink / a.h, track: a.track / a.h,
     bob: (a.hipMax - a.hipMin) / a.h, lean: a.lean, armSwing: a.shMax - a.shMin,
     sole: a.sole > 1e8 ? null : a.sole / a.h,
+    toeFwd: a.toeFwd < -8 ? null : a.toeFwd,
     armPhase: corr(a.pairs),
   });
   return {
@@ -156,6 +170,10 @@ if (out.mine.sole !== null) row('sole min', out.mine.sole, out.other.sole);
 row('lean°', out.mine.lean, out.other.lean, (v) => v.toFixed(1));
 row('armSwing°', out.mine.armSwing, out.other.armSwing, (v) => v.toFixed(1));
 row('armPhase r', out.mine.armPhase, out.other.armPhase, (v) => v.toFixed(2));
+if (out.mine.toeFwd !== null) row('toeFwd', out.mine.toeFwd, out.other.toeFwd ?? 0, (v) => v.toFixed(2));
+console.log(`\n  raised rear foot: ${out.mine.toeFwd === null ? 'never both behind and lifted — nothing to judge'
+  : out.mine.toeFwd < 0.1 ? 'toes point DOWN/BACK (correct)'
+  : 'toes still point FORWARD — it reads as walking on a floor that is not there'}`);
 console.log(`\n  arms ${out.mine.armPhase < -0.3 ? 'COUNTER-swing the legs (correct)'
   : out.mine.armPhase > 0.3 ? 'swing WITH the legs — WRONG, they should counter'
   : 'barely swing / out of phase with the legs'}`);

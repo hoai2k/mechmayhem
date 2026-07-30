@@ -12,7 +12,31 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** ANKLE HEIGHT AUDITED ACROSS THE WHOLE ROSTER, and the answer was not
+- **Latest:** A RAISED REAR FOOT POINTS ITS TOES BACK, IN EVERY GAIT — the
+  trailing foot used to hang in the air with its sole level and its toes pointing
+  forward, as if it were still standing on a floor that isn't there. Two things
+  did it: the flat-sole rule cancelled the leg chain for the WHOLE cycle instead
+  of only while the foot was down, and nothing ever asked the foot to hang.
+  `applyToeHang` (gaits.js) is now the last word on a stride, after the gallop
+  layer, and it SOLVES rather than nudges: `ankle.hang` is the angle below
+  horizontal the toes should reach (π/2 = straight down, more = back) and the pass
+  subtracts what the hips, thigh and knee already contribute, so ONE number lands
+  the same on titanus' boot, viper's talon and fenrir's paw. Measured as the
+  forward component of the foot's own axis while it is behind the hips AND lifted
+  (`node tools/gaitprobe.mjs` reports it as `toeFwd`, and it is a new permanent
+  check): colossus **+0.89 → -0.17**, viper +0.98 → -0.17, titanus -0.17,
+  fenrir's hind paw **+0.99 → -0.22**. The window is read off the POSE, not the
+  phase — leg behind its rest direction AND foot off its standing height, both
+  required — which is what keeps a foot that is still PUSHING from having its toe
+  driven through the pavement (colossus' worst sole clearance is -0.044 of body
+  height, against -0.039 before the rule and -0.149 when the lift test was
+  missing) and what makes it work for fenrir, whose hinds are driven by the biped
+  layer and by a gallop running at its own rate. Also in: the owner's tuning for
+  `standard` (reach 0 -> 0.51, extend 0 -> 0.47, adduct 0 -> 0.08) and for `quad`
+  (reach 0 -> 1.2, adduct 0 -> 0.085), and the gait workbench's number boxes now
+  accept values PAST the slider ends (marked amber) so extremes can be tried
+  without widening the slider.
+- **Previous:** ANKLE HEIGHT AUDITED ACROSS THE WHOLE ROSTER, and the answer was not
   the one expected. An ankle bone is the hinge the gait rolls the foot around, so
   it belongs at the TOP OF THE SOLE PLATE — not at the lowest point of the
   geometry. `Animator.calibrateFeet` measures `footDepth` (ankle above sole) and

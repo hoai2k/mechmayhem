@@ -123,7 +123,18 @@ audio). Progress history: `TASKS.md`.
   is how one gait walks politely and sprints hard. Add a dial by adding it to
   `GAIT_SCHEMA` + reading it in `applyGait` — the workbench's sliders, its
   "which dial moves this limb" logic and `tools/wbconfig.mjs` all derive from
-  the schema. Judge a change with `node tools/gaitprobe.mjs <mech> [throttle]
+  the schema. THE ONE RULE THAT IS NOT A CURVE: a raised REAR foot must point its
+  toes back and down, never forward — a level sole in mid-air reads as walking on
+  a floor that isn't there. `applyToeHang` runs LAST (after the gallop layer) and
+  SOLVES for it: `ankle.hang` is the radians below horizontal the toes end up at
+  (π/2 = straight down, more = back), and the pass subtracts whatever the hips,
+  thigh and knee already contribute, so one number lands the same on a boot, a
+  talon and a paw. Its window is read off the POSE, not the phase — the leg
+  behind its rest direction AND the foot lifted off its standing height (both, or
+  a foot still pushing off gets its toe driven through the pavement) — which is
+  why it also works for fenrir, whose hinds are moved by two layers at different
+  rates. The same weight releases the flat-sole levelling, which used to cancel
+  the whole leg chain for the entire cycle. Judge a change with `node tools/gaitprobe.mjs <mech> [throttle]
   [vsGait]` (foot reach/stride/lift/track/lean measured off the posed model,
   diffed against another gait) and `node tools/gaitsheet.mjs <mech> out.png
   [throttle] [frames] [vsGait]` (the cycle as a filmstrip, comparison ghost in
@@ -140,8 +151,11 @@ audio). Progress history: `TASKS.md`.
   to load that body with your edits intact — edits belong to the gait, not the
   mech), and CLICKING A LIMB then DRAGGING IT tunes the dial behind it: the tool
   measures d(joint)/d(dial) at that phase, works out which way that pushes the
-  limb on screen and projects the drag onto it. **Output gait** downloads a
-  paste-ready `GAITS` block with every changed dial listed from -> to.
+  limb on screen and projects the drag onto it. TYPING beats the slider: a dial's
+  number box takes values PAST the slider's ends (the range is the sane band, not
+  a limit) and marks itself amber when it is outside what the handle can reach.
+  **Output gait** downloads a paste-ready `GAITS` block with every changed dial
+  listed from -> to.
   FOOTPRINTS (on by default, `&prints=0` off) run the GROUND instead of the
   mech: each plant stamps a print where the foot landed and the floor, prints
   and grid together, scrolls backward at the real ground speed. The gap between
