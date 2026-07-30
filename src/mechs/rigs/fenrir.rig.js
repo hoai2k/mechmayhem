@@ -34,9 +34,9 @@ export const FENRIR_RIG = {
   bones: [
     // ---- spine ---- (torso rides high at the chest, so hips carry the whole
     //      pelvis + belly column and torso carries the ribcage up to the neck)
-    { name: 'hips', parent: null, pos: [0.05, 0.52, 0.07], bias: 0.9 },
-    { name: 'torso', parent: 'hips', pos: [0.07, 0.79, 0.07], bias: 0.9 },
-    { name: 'head', parent: 'torso', pos: [0.05, 0.85, 0.07], bias: 1.1 },
+    { name: 'hips', parent: null, pos: [0.07, 0.58, 0.07], bias: 0.9 },
+    { name: 'torso', parent: 'hips', pos: [0.10, 0.62, 0.07], bias: 0.9 },
+    { name: 'head', parent: 'torso', pos: [0.11, 0.84, 0.07], bias: 1.1 },
     { name: 'crest', parent: 'head', pos: [0.07, 0.93, 0.07] },
     { name: 'snout', parent: 'head', pos: [0.24, 0.85, 0.07] },
     // ---- LEFT arm (+z) ---- hangs nearly straight down, claw at thigh height
@@ -52,15 +52,15 @@ export const FENRIR_RIG = {
     // ---- LEFT leg (+z) ---- knee forward, ankle low at the back of the paw,
     //      foot forward into the toes: three bends the digitigrade shape reads
     //      through, with the paw itself on `footL`.
-    { name: 'thighL', parent: 'hips', pos: [0.08, 0.50, 0.17] },
-    { name: 'kneeL', parent: 'thighL', pos: [0.10, 0.31, 0.20] },
-    { name: 'ankleL', parent: 'kneeL', pos: [0.07, 0.08, 0.24] },
-    { name: 'footL', parent: 'ankleL', pos: [0.13, 0.03, 0.26] },
+    { name: 'thighL', parent: 'hips', pos: [0.08, 0.56, 0.14] },
+    { name: 'kneeL', parent: 'thighL', pos: [0.12, 0.33, 0.21] },
+    { name: 'ankleL', parent: 'kneeL', pos: [0.05, 0.02, 0.23] },
+    { name: 'footL', parent: 'ankleL', pos: [0.13, 0.02, 0.26] },
     // ---- RIGHT leg (-z) ----
-    { name: 'thighR', parent: 'hips', pos: [0.08, 0.50, -0.03] },
-    { name: 'kneeR', parent: 'thighR', pos: [0.10, 0.32, -0.05] },
-    { name: 'ankleR', parent: 'kneeR', pos: [0.07, 0.07, -0.09] },
-    { name: 'footR', parent: 'ankleR', pos: [0.11, 0.03, -0.09] },
+    { name: 'thighR', parent: 'hips', pos: [0.08, 0.56, 0.00] },
+    { name: 'kneeR', parent: 'thighR', pos: [0.12, 0.34, -0.05] },
+    { name: 'ankleR', parent: 'kneeR', pos: [0.05, 0.02, -0.09] },
+    { name: 'footR', parent: 'ankleR', pos: [0.16, 0.02, -0.12] },
     // ---- tail: a long blade that leaves the pelvis, sweeps back and down and
     //      curls around the RIGHT leg to the floor
     { name: 'tail0', parent: 'hips', pos: [-0.06, 0.51, 0.06] },
