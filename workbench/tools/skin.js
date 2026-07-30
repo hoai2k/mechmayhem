@@ -41,7 +41,8 @@ export async function runSkinWorkbench(config, params) {
   const startId = params.get('mech') || params.get('id');
   // everything game-shaped comes from the contract, nothing from src/
   const {
-    analyze: analyzeSkin, apply: applySkinOps, compact: compactSkinOps, toJson: skinOpsToJson,
+    analyze: analyzeSkin, apply: applySkinOps, compact: compactSkinOps, pin: pinSkinOps,
+    toJson: skinOpsToJson,
     blendPatch, weldedAdjacency, enclaveScan,
   } = config.skin;
   const skinnedBox = config.geometry.skinnedBox;

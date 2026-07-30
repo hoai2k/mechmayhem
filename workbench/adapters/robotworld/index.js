@@ -330,6 +330,10 @@ const CONFIG = defineWorkbenchConfig({
     analyze: analyzeSkin,
     apply: applySkinOps,
     compact: compactSkinOps,
+    // PIN — turn every `{comp:N}` island ordinal into the vertex list it means,
+    // so a later rig edit can't renumber the partition under a saved op.
+    // Everything leaving the tool (save + export) goes through this.
+    pin: pinSkinOps,
     toJson: skinOpsToJson,
     blendPatch,
     weldedAdjacency,
