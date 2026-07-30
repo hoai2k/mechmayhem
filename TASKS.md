@@ -12,7 +12,22 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE FOOT IS THREE STATES, NOT A CURVE — reworked from the owner's
+- **Latest:** THE GAIT WORKBENCH GETS KEYFRAMES — the escape hatch for a shape no
+  dial can reach. A gait has no frames, but it has a PHASE, and that is enough to
+  hang corrections off: `gait.keys` is `[{ ph, pose: { joint: [x,y,z]° } }]`,
+  ADDITIVE over whatever the cycle produced and interpolated around the loop (the
+  last key wraps to the first, because a cycle is a circle and not a timeline —
+  `applyGaitKeys`). The panel has a **Dials / Keyframes** switch: in Keyframes the
+  cycle parks, a key track appears (click to park on a key, right-click to
+  delete, "+ key here" to add one — born EMPTY, so it changes nothing until a
+  joint moves), and clicking a joint attaches a rotate GIZMO whose drag is stored
+  against that phase. THE CONSTRAINTS STILL WIN: keys run BEFORE the foot rule, so
+  an ankle the rule owns at that phase (a raised foot hangs off its shin) refuses
+  the gizmo and the panel explains why instead of letting a drag quietly do
+  nothing. "Output gait" carries the keys, so a hand fix hands over like any other
+  tuning. Verified headless: a 40° elbow key moves the live pose by 39.5°, the key
+  round-trips through the export, and an ankle at a raised phase is refused.
+- **Previous:** THE FOOT IS THREE STATES, NOT A CURVE — reworked from the owner's
   description of what a foot actually does. `applyToeHang` now blends between
   **stance** (sole flat on the ground: the `footFlat`/`ankle.level` ask, the only
   world-space rule of the three), **push-off** (planted but BEHIND — the toe stays

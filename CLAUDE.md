@@ -157,7 +157,15 @@ audio). Progress history: `TASKS.md`.
   to load that body with your edits intact — edits belong to the gait, not the
   mech), and CLICKING A LIMB then DRAGGING IT tunes the dial behind it: the tool
   measures d(joint)/d(dial) at that phase, works out which way that pushes the
-  limb on screen and projects the drag onto it. TYPING beats the slider: a dial's
+  limb on screen and projects the drag onto it. KEYFRAMES are the escape hatch
+  when no dial can say it: switch the panel to **Keyframes**, park the cycle at a
+  phase, click a joint and rotate the GIZMO — the correction is stored on the gait
+  as `keys: [{ ph, pose: { joint: [x,y,z]° } }]` (`applyGaitKeys`), additive over
+  the cycle and interpolated around the loop. They run BEFORE the foot rule on
+  purpose, so a hand edit can never break the rules that keep a foot honest: an
+  ankle the foot rule owns at that phase refuses the gizmo and the panel says why.
+  The track under the row is the key list (click to park, right-click to delete),
+  and "Output gait" carries the keys. TYPING beats the slider: a dial's
   number box takes values PAST the slider's ends (the range is the sane band, not
   a limit) and marks itself amber when it is outside what the handle can reach.
   **Output gait** downloads a paste-ready `GAITS` block with every changed dial

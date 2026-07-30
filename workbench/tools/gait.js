@@ -62,6 +62,7 @@
 // updated wholesale.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { altChoice, altCheckbox } from '../ui/variantpick.js';
@@ -130,6 +131,10 @@ export async function runGaitWorkbench(config, params) {
   // OTHER gait? — how a mech gets moved between gaits with eyes open).
   let compareGait = params.get('vs') || null;
   let selJoint = null, hoverJoint = null, activeDial = null;
+  // DIALS tune the cycle's parameters; KEYS hand-correct one moment of it. The
+  // two edit different things, so they are modes rather than a shared drag.
+  let editMode = 'dials';
+  let gizmoOn = false, gizmoBase = null, gizmoKeyBase = null;
 
   let mech = null, animator = null, gaitId = null;
   let ghost = null, ghostAnim = null;
@@ -166,7 +171,41 @@ export async function runGaitWorkbench(config, params) {
     }
     return live[id];
   }
-  const editedIds = () => Object.keys(live).filter((id) => G.diff(G.shipped(id), live[id]).length);
+  const editedIds = () => Object.keys(live).filter((id) => G.diff(G.shipped(id), live[id]).length
+    || (live[id].keys?.length || 0) !== (G.shipped(id).keys?.length || 0)
+    || JSON.stringify(live[id].keys || []) !== JSON.stringify(G.shipped(id).keys || []));
+
+  // ---------- hand-keyed corrections ----------
+  // A gait has no frames — it has a PHASE, and a key is a correction hung off one
+  // (see applyGaitKeys in gaits.js). Keys are additive over the cycle and run
+  // BEFORE the foot rule, so the rules that keep a foot honest still win: an
+  // ankle the foot rule owns at this phase cannot be hand-rotated, and the panel
+  // says so rather than letting a drag do nothing.
+  const KEY_SNAP = 0.12;                       // radians of phase that count as "this key"
+  const keysOf = () => (gaitOf(gaitId).keys ||= []);
+  const keyNear = (ph) => keysOf().find((k) => Math.abs(((k.ph - ph + Math.PI * 3) % TAU) - Math.PI) < KEY_SNAP) || null;
+  function keyHere(create = false) {
+    const at = scrubPhase;
+    let k = keyNear(at);
+    if (!k && create) { k = { ph: +at.toFixed(3), pose: {} }; keysOf().push(k); keysOf().sort((a, b) => a.ph - b.ph); }
+    return k;
+  }
+  function deleteKey(k) {
+    const list = keysOf();
+    const i = list.indexOf(k);
+    if (i >= 0) list.splice(i, 1);
+    writeStore(); drawKeyTrack(); refreshGaitStatus(); refreshSelection();
+  }
+  // What the FOOT RULE owns at this phase, so the tool can refuse a hand edit it
+  // would only overwrite. Same three weights the gait itself blends with.
+  function footOwns(joint) {
+    if (!/^ankle/.test(joint)) return 0;
+    const side = joint.slice(-1);
+    const clr = animator.soleClearanceBySide?.();
+    const legLen = mech.dims.thighLen + mech.dims.shinLen;
+    if (clr && typeof clr[side] === 'number') return clamp(clr[side] / (0.045 * legLen), 0, 1);
+    return 0.5;                                 // uncalibrated: assume it might
+  }
   const dialValue = (d) => gaitOf(gaitId)?.[d.group]?.[d.key];
   const shippedValue = (d) => G.shipped(gaitId)?.[d.group]?.[d.key];
 
@@ -336,6 +375,7 @@ export async function runGaitWorkbench(config, params) {
     const legLen = mech.dims.thighLen + mech.dims.shinLen;
     const rate = G.phaseRate(gait, { speed: ctx.speed, ratio, legLen, sizeMul: animator.sizeMul || 1 });
 
+    if (gizmoOn) { drawMarks(); return; }      // a hand edit owns the pose
     if (paused) {
       // freeze the cycle where the scrubber says: update() advances the phase
       // itself, so hand it a phase one step BEHIND the one we want to land on.
@@ -361,7 +401,10 @@ export async function runGaitWorkbench(config, params) {
     }
     drawMarks();
     readoutT += dt;
-    if (readoutT > 0.1) { readoutT = 0; refreshReadout(rate); }
+    if (readoutT > 0.1) {
+      readoutT = 0; refreshReadout(rate);
+      if (editMode === 'keys') drawKeyTrack();
+    }
   };
   engine.start();
 
@@ -534,6 +577,42 @@ export async function runGaitWorkbench(config, params) {
     }
   }
 
+  // ---------- the key gizmo ----------
+  const gizmo = new TransformControls(camera, renderer.domElement);
+  gizmo.setSpace('local'); gizmo.setMode('rotate'); gizmo.setSize(0.9);
+  scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
+  gizmo.enabled = false;
+  gizmo.addEventListener('dragging-changed', (e) => {
+    orbit.enabled = !e.value;
+    gizmoOn = e.value;
+    if (e.value) {
+      // freeze the pose under the drag and remember where it started, so the
+      // stored correction is exactly what the hand moved
+      setPaused(true);
+      const j = mech.joints[selJoint];
+      gizmoBase = j ? j.rotation.toArray().slice(0, 3) : null;
+      const k = keyHere(true);
+      gizmoKeyBase = (k.pose[selJoint] || [0, 0, 0]).slice();
+    } else {
+      gizmoBase = null; gizmoKeyBase = null;
+      writeStore(); drawKeyTrack(); refreshGaitStatus();
+    }
+  });
+  gizmo.addEventListener('objectChange', () => {
+    if (!gizmoOn || !gizmoBase || !selJoint) return;
+    const j = mech.joints[selJoint];
+    const k = keyHere(true);
+    const now = j.rotation.toArray().slice(0, 3);
+    k.pose[selJoint] = [0, 1, 2].map((i) => +((gizmoKeyBase[i] + (now[i] - gizmoBase[i]) * (180 / Math.PI)).toFixed(2)));
+    statusLine.textContent = `key @ ${fmt(k.ph, 2)} rad · ${selJoint} `
+      + k.pose[selJoint].map((v) => `${v}°`).join(', ');
+  });
+  function refreshGizmo() {
+    const canKey = editMode === 'keys' && selJoint && mech?.joints[selJoint] && footOwns(selJoint) < 0.5;
+    if (canKey) { gizmo.attach(mech.joints[selJoint]); gizmo.enabled = true; }
+    else { gizmo.detach(); gizmo.enabled = false; }
+  }
+
   // ---------- picking ----------
   const PICK_PX = 26;
   const ray = new THREE.Raycaster();
@@ -681,6 +760,7 @@ export async function runGaitWorkbench(config, params) {
   let downX = 0, downY = 0, dragDial = null, dragSens = null;
   canvas.addEventListener('pointerdown', (e) => {
     downX = e.clientX; downY = e.clientY;
+    if (editMode === 'keys') return;           // the gizmo owns dragging there
     if (e.button !== 0 || !selJoint || !activeDial) return;
     // a drag that STARTS on the selected joint tunes it; anywhere else orbits
     if (pickJoint(e.clientX, e.clientY) !== selJoint) return;
@@ -723,6 +803,7 @@ export async function runGaitWorkbench(config, params) {
     selJoint = j || null;
     activeDial = null;
     refreshSelection();
+    refreshGizmo();
   });
   canvas.addEventListener('pointercancel', endDrag);
   canvas.addEventListener('pointerleave', () => { hoverJoint = null; });
@@ -819,11 +900,13 @@ export async function runGaitWorkbench(config, params) {
   const gaitStatus = el('div', 'margin-top:7px;font-size:11px;color:#8ba0b8');
   function refreshGaitStatus() {
     const changed = G.diff(G.shipped(gaitId), gaitOf(gaitId));
+    const nKeys = gaitOf(gaitId).keys?.length || 0;
     const others = editedIds().filter((id) => id !== gaitId);
-    gaitStatus.innerHTML = changed.length
+    gaitStatus.innerHTML = (nKeys ? `<span style="color:#4fdc8b">${nKeys} keyframe${nKeys > 1 ? 's' : ''}</span> · ` : '')
+      + (changed.length
       ? `<span style="color:#4fdc8b">${changed.length} dial${changed.length > 1 ? 's' : ''} changed</span>`
         + (others.length ? ` · also edited: ${others.join(', ')}` : '')
-      : `unchanged from shipped${others.length ? ` · edited elsewhere: ${others.join(', ')}` : ''}`;
+      : `unchanged from shipped${others.length ? ` · edited elsewhere: ${others.join(', ')}` : ''}`);
   }
 
   // ---- motion ----
@@ -921,6 +1004,66 @@ export async function runGaitWorkbench(config, params) {
     + 'does not match the speed.';
   printRow.appendChild(printLbl);
 
+  // ---- edit mode + the key track ----
+  const modeRow = row('<span style="width:38px;color:#8ba0b8">edit</span>');
+  const bDials = el('button', btnCss, 'Dials');
+  const bKeys = el('button', btnCss, 'Keyframes');
+  modeRow.append(bDials, bKeys);
+  const bAddKey = el('button', `${btnCss};margin-left:auto`, '+ key here');
+  bAddKey.title = 'Add a correction at the phase on screen. A key is EMPTY until you drag a joint, '
+    + 'so it changes nothing on its own.';
+  bAddKey.onclick = () => { setPaused(true); keyHere(true); writeStore(); drawKeyTrack(); refreshGaitStatus(); };
+  modeRow.appendChild(bAddKey);
+  function setMode(m) {
+    editMode = m;
+    for (const [b, k] of [[bDials, 'dials'], [bKeys, 'keys']]) {
+      const on = editMode === k;
+      b.style.background = on ? '#2b6cb0' : '#1a2433';
+      b.style.color = on ? '#fff' : '#9fb2c8';
+    }
+    keyTrack.style.display = editMode === 'keys' ? 'block' : 'none';
+    bAddKey.style.display = editMode === 'keys' ? '' : 'none';
+    if (editMode === 'keys') setPaused(true);
+    refreshGizmo(); refreshSelection();
+  }
+  bDials.onclick = () => setMode('dials');
+  bKeys.onclick = () => setMode('keys');
+  // the track: one diamond per key, around the cycle. Click to park on it,
+  // right-click to delete.
+  const keyTrack = el('canvas', 'width:100%;height:26px;display:none;cursor:pointer');
+  keyTrack.height = 26;
+  panel.appendChild(keyTrack);
+  function drawKeyTrack() {
+    const w = keyTrack.clientWidth || 300;
+    if (keyTrack.width !== w) keyTrack.width = w;
+    const g = keyTrack.getContext('2d');
+    g.clearRect(0, 0, w, 26);
+    g.strokeStyle = '#2f3c4e'; g.beginPath(); g.moveTo(0, 13); g.lineTo(w, 13); g.stroke();
+    const x = (ph) => (ph / TAU) * (w - 8) + 4;
+    g.fillStyle = '#8fd8ff';                       // where you are now
+    g.fillRect(x(scrubPhase) - 1, 2, 2, 22);
+    for (const k of gaitOf(gaitId).keys || []) {
+      const at = keyNear(scrubPhase) === k;
+      g.fillStyle = at ? '#ffd23c' : '#4fdc8b';
+      g.beginPath();
+      g.moveTo(x(k.ph), 5); g.lineTo(x(k.ph) + 5, 13); g.lineTo(x(k.ph), 21); g.lineTo(x(k.ph) - 5, 13);
+      g.closePath(); g.fill();
+    }
+  }
+  keyTrack.onclick = (e) => {
+    const r = keyTrack.getBoundingClientRect();
+    setPaused(true);
+    setPhase(((e.clientX - r.left - 4) / (r.width - 8)) * TAU);
+    drawKeyTrack(); refreshSelection();
+  };
+  keyTrack.oncontextmenu = (e) => {
+    e.preventDefault();
+    const r = keyTrack.getBoundingClientRect();
+    const ph = ((e.clientX - r.left - 4) / (r.width - 8)) * TAU;
+    const k = keyNear(ph);
+    if (k) deleteKey(k);
+  };
+
   const cmpRow = row('');
   const cmpChk = el('input');
   cmpChk.type = 'checkbox'; cmpChk.checked = compare;
@@ -972,8 +1115,32 @@ export async function runGaitWorkbench(config, params) {
   panel.appendChild(selBox);
   function refreshSelection() {
     if (!selJoint) {
-      selBox.innerHTML = '<span style="color:#7c8ba0">Click a limb in the viewport to see which gait dials '
-        + 'drive it — then drag that joint to tune the one you pick.</span>';
+      selBox.innerHTML = editMode === 'keys'
+        ? '<span style="color:#7c8ba0">KEYFRAMES: park the cycle at a phase, click a joint and rotate it. '
+          + 'The correction is stored against that phase and blends around the loop. Feet the foot rule '
+          + 'owns (a raised foot hangs off its shin) cannot be hand-rotated — the rule runs after.</span>'
+        : '<span style="color:#7c8ba0">Click a limb in the viewport to see which gait dials '
+          + 'drive it — then drag that joint to tune the one you pick.</span>';
+      return;
+    }
+    if (editMode === 'keys') {
+      const owns = footOwns(selJoint);
+      const k = keyNear(scrubPhase);
+      selBox.innerHTML = `<b style="color:#ff9f43">${selJoint}</b>`
+        + `<div style="color:#7c8ba0;margin-top:4px">`
+        + (owns >= 0.5
+          ? 'THE FOOT RULE owns this ankle at this phase (it is off the ground, so it hangs off the '
+            + 'shin). Hand corrections run before that rule, so a rotation here would only be '
+            + 'overwritten — scrub to a phase where the foot is planted, or move another joint.'
+          : `drag the gizmo to correct this joint at phase ${fmt(scrubPhase, 2)}`
+            + (k ? ` · key ${k.pose[selJoint] ? 'holds ' + k.pose[selJoint].map((v) => `${v}°`).join(', ') : 'is empty here'}`
+              : ' · a key will be created'))
+        + '</div>';
+      if (k) {
+        const del = el('button', `${btnCss};padding:2px 6px;font-size:11px;margin-top:5px`, 'delete this key');
+        del.onclick = () => deleteKey(k);
+        selBox.appendChild(del);
+      }
       return;
     }
     const list = dialsFor(selJoint);
@@ -1147,7 +1314,17 @@ export async function runGaitWorkbench(config, params) {
     'Space pause · [ ] step the cycle · Esc deselect · click a limb, then drag it where you want it.'));
 
   // headless hook — tools/*.mjs drive the workbench through this
+  setMode('dials');
+
   window.__gaitWork = {
+    setMode, addKey: () => { setPaused(true); const k = keyHere(true); writeStore(); drawKeyTrack(); return k; },
+    keys: () => gaitOf(gaitId).keys || [],
+    setKey: (joint, deg) => {
+      const k = keyHere(true);
+      k.pose[joint] = deg.slice();
+      writeStore(); drawKeyTrack(); refreshGaitStatus();
+      return k;
+    },
     get mech() { return mech; },
     get animator() { return animator; },
     get ghost() { return ghost; },

@@ -2,7 +2,9 @@
 // + additive impulses (recoil/flinch) + per-mech signature joint motion.
 import * as THREE from 'three';
 import { CLIPS, UPPER_JOINTS, defClipVariants } from './animations.js';
-import { gaitFor, gaitIdFor, applyGait, applyQuadGait, applyToeHang, gaitPhaseRate } from './gaits.js';
+import {
+  gaitFor, gaitIdFor, applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
+} from './gaits.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
@@ -409,8 +411,13 @@ export class Animator {
     if (grounded && speed > 0.4 && this.gait.quad) {
       applyQuadGait(tgt, this.gait, this._gaitEnv);
     }
-    // THE TOE-BACK RULE, last: a raised REAR foot points its toes back and down,
-    // whichever layer put the leg back there (see applyToeHang).
+    // hand-keyed corrections over the cycle, BEFORE the foot rule — a gait's
+    // rules about feet outrank a hand edit (see applyGaitKeys)
+    if (grounded && speed > 0.4 && this.gait.keys?.length) {
+      applyGaitKeys(tgt, this.gait, this._gaitEnv);
+    }
+    // THE FOOT RULE, last: stance / push-off / air, whichever layer put the leg
+    // where it is (see applyToeHang).
     if (grounded && speed > 0.4) applyToeHang(tgt, this.gait, this._gaitEnv);
 
     // ===== dash: coil, gather, LUNGE =====

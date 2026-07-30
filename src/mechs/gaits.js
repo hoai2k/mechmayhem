@@ -32,7 +32,7 @@
 //   thigh roll (z)        POSITIVE pulls the LEFT leg toward the midline
 //                          (the right leg mirrors), so `adduct` narrows the track
 //   head pitch            NEGATIVE = eyes up
-import { lerp, clamp01 } from '../core/utils.js';
+import { lerp, clamp01, TAU as TAU_ } from '../core/utils.js';
 
 export const DEFAULT_GAIT = 'standard';
 
@@ -332,6 +332,7 @@ export function gaitFor(def) { return GAITS[gaitIdFor(def)]; }
 export function cloneGait(g) {
   const out = { name: g.name, note: g.note };
   for (const grp of GROUPS) if (g[grp]) out[grp] = { ...g[grp] };
+  if (g.keys?.length) out.keys = g.keys.map((k) => ({ ph: k.ph, pose: JSON.parse(JSON.stringify(k.pose || {})) }));
   return out;
 }
 
@@ -565,6 +566,54 @@ export function applyQuadGait(tgt, gait, env) {
 }
 
 // ---------------------------------------------------------------------------
+// HAND-KEYED CORRECTIONS — the escape hatch, for when the dials cannot say it.
+//
+// A gait is parametric: it has no frames, so there is nothing to key. What it
+// DOES have is a phase, and that is enough to hang corrections off: `gait.keys`
+// is a list of `{ ph, pose: { joint: [x, y, z] degrees } }`, each an ADDITIVE
+// offset over whatever the cycle produced, interpolated around the loop (the last
+// key wraps to the first, because a gait cycle is a circle and not a timeline).
+//
+// They are deliberately additive and deliberately EARLY — before the foot rule —
+// so the rules that keep a foot honest still win. Rotating a planted ankle by
+// hand is not a thing anyone should be able to do; rotating an elbow at the top
+// of the swing is. The gait workbench enforces the same split in its UI.
+//
+// Nothing ships with keys. They exist so a shape the sliders cannot reach can be
+// fixed by hand instead of by adding a dial for every possible complaint.
+// ---------------------------------------------------------------------------
+const D2R_ = Math.PI / 180;
+
+/** The keys either side of `ph`, and how far between them it sits. */
+function keySpan(keys, ph) {
+  const n = keys.length;
+  const at = ((ph % TAU_) + TAU_) % TAU_;
+  let i = -1;
+  for (let k = 0; k < n; k++) if (keys[k].ph <= at) i = k;
+  const a = keys[(i + n) % n], b = keys[(i + 1) % n];
+  let span = b.ph - a.ph;
+  if (span <= 0) span += TAU_;                     // wrapped past the end
+  let t = span > 1e-6 ? (at - a.ph) / span : 0;
+  if (t < 0) t += TAU_ / span;
+  return { a, b, t: clamp01(t) };
+}
+
+export function applyGaitKeys(tgt, gait, env = {}) {
+  const keys = gait.keys;
+  if (!keys?.length) return;
+  const sorted = keys.slice().sort((x, y) => x.ph - y.ph);
+  const { a, b, t } = keySpan(sorted, env.ph || 0);
+  const joints = new Set([...Object.keys(a.pose || {}), ...Object.keys(b.pose || {})]);
+  for (const j of joints) {
+    const dst = tgt[j];
+    if (!dst) continue;
+    const va = a.pose?.[j] || [0, 0, 0], vb = b.pose?.[j] || [0, 0, 0];
+    const k = j === 'hipsPos' ? (env.s || 1) : D2R_;   // hips translate, everything else rotates
+    for (let i = 0; i < 3; i++) dst[i] += lerp(va[i], vb[i], t) * k;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // THE FOOT RULE — the last word on a stride, and the one part of a gait that is
 // not a curve.
 //
@@ -640,6 +689,16 @@ export function formatGait(id, gait) {
       if (row.length) lines.push(`      ${row.join(', ')},`);
       lines.push('    },');
     }
+  }
+  // hand-keyed corrections, one key per line — see applyGaitKeys
+  if (gait.keys?.length) {
+    lines.push('    keys: [');
+    for (const k of gait.keys.slice().sort((a, b) => a.ph - b.ph)) {
+      const pose = Object.entries(k.pose || {})
+        .map(([j, v]) => `${j}: [${v.map(num).join(', ')}]`).join(', ');
+      lines.push(`      { ph: ${num(k.ph)}, pose: { ${pose} } },`);
+    }
+    lines.push('    ],');
   }
   lines.push('  },');
   return lines.join('\n');
