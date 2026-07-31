@@ -420,7 +420,10 @@ export const GAITS = {
       // stifle for the same reason — measured: knee low point -0.00 -> 0.10,
       // paw low point -0.41 -> 0.30, both now clear of the ground.
       hindSwing: 1.80, hindCarry: -0.35,
-      hindFold: 1.00, hindKneeCarry: 0.90,
+      // hindFold 1.00 -> -1.28 (owner, ?edit=gait on fenrir at 100%): the fold
+      // now runs the other way, so the stifle OPENS through the gather instead
+      // of curling the shin up under the belly.
+      hindFold: -1.28, hindKneeCarry: 0.90,
       hockSnap: 0.75, hockCarry: -0.28,
     },
   },
