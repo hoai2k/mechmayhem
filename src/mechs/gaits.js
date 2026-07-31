@@ -390,7 +390,17 @@ export const GAITS = {
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
     },
-    runAnkle: { roll: 0.5, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0 },
+    // …EXCEPT THE FOOT. The ankle is the one part of the old gallop that was not
+    // worth restoring, so it is left on the sprint base at every speed: the roll,
+    // the toe-down bias and — the one that shows — `hang 0.26`, which lets an
+    // airborne paw hang at its resting line off the hock instead of being held
+    // at an angle to the world (measured 36 degrees off it before, 22 after).
+    // A run table that names only two keys morphs only those two; the rest of
+    // the group stays the base's, which is what makes this expressible at all.
+    // The two named here are the BACK-EXTENSION ANGLE, asked for explicitly:
+    // 0.45 + 0.35 = 0.80 rad, so the paw finishes its push at 46 degrees rather
+    // than the ~86 the old table drove it to.
+    runAnkle: { push: 0.45, pushRun: 0.35 },
     runArms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     runBody: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {

@@ -132,7 +132,11 @@ audio). Progress history: `TASKS.md`.
   rather than the same thing faster: FENRIR is `base: 'sprint'` at the bottom
   (he jogs like a runner — measured identical to sprint) morphing into the
   owner's hand-tuned wolf gallop at the top (measured BIT-IDENTICAL, every
-  joint, every phase, from ratio 0.75 up). The `run*` groups are DERIVED from
+  joint, every phase, from ratio 0.75 up — EXCEPT THE ANKLES, deliberately: the
+  foot is the one part of the old gallop not worth restoring, so `runAnkle`
+  names only the back-extension angle and the rest of the group stays sprint's,
+  which is what `hang 0.26` on an airborne paw buys. A run table that names two
+  keys morphs two keys). The `run*` groups are DERIVED from
   the four they mirror, so a new dial appears in both and in the workbench with
   no edit anywhere. Everything downstream must run on `effectiveGait`, phase
   rate included — the animator caches it per frame in `_gait`, the adapter
