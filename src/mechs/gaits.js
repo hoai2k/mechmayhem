@@ -179,17 +179,6 @@ export const GAIT_SCHEMA = [
         help: 'how hard to keep the sole FLAT ON THE GROUND while the foot is planted, over and above what '
           + "the model's own foot-depth calibration already asks for. Bodies the calibration skips (the "
           + 'quadruped) need it here or their feet land at whatever angle the leg left them' },
-      // NOT A POSE FUNCTION — see `runtime` below and Animator.groundClamp.
-      { key: 'ground', label: 'compress shin to avoid floor penetration', min: 0, max: 1, step: 0.05,
-        joints: ['ankleL', 'ankleR'], runtime: true,
-        help: 'THE FLOOR IS A CONTACT, not a suggestion. A gait is a pose function and has no idea where the '
-          + 'ground is, which is fine until a stride is long enough that the sole dips through it — fenrir\'s '
-          + 'gallop puts his paws 14% of body height under the floor at full extension. Turn this up and the '
-          + 'leg does what a real one does instead: the ankle rotates so the sole lies ALONG the floor, and '
-          + 'the shin COMPRESSES (the ankle bone rides up toward the knee, capped at a quarter of its length) '
-          + 'until the sole is back on it. 0 = off, 1 = never break the floor. Measured on the model every '
-          + 'frame, so unlike every other dial here it cannot be swept in a pose — the workbench shows it '
-          + 'without a measurement rather than reporting it dead. Needs a calibrated (GLB) body.' },
       { key: 'hang', label: 'toe past rest @airborne', min: -0.4, max: 1.0, step: 0.01, joints: ['ankleL', 'ankleR'],
         help: 'extra plantar flex PAST the resting foot line, radians, while the foot is OFF THE GROUND. '
           + '0 means the foot simply hangs at its natural angle to the shin (perpendicular, for a body built '
@@ -339,7 +328,7 @@ export const GAITS = {
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
     },
-    ankle: { roll: 0.51, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0, ground: 0 },
+    ankle: { roll: 0.51, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0 },
     arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
   },
@@ -366,7 +355,7 @@ export const GAITS = {
       kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.93,
       cadence: 0.95, cadenceCap: 16,
     },
-    ankle: { roll: 0.55, tilt: -0.14, push: 0.75, pushRun: 0.85, level: 0, hang: 0.26, ground: 0 },
+    ankle: { roll: 0.55, tilt: -0.14, push: 0.75, pushRun: 0.85, level: 0, hang: 0.26 },
     arms: { swing: 0.78, swingRun: 0.89, lift: -0.10, elbow: 0.25, elbowRun: 0.55, elbowPump: 0.40, tuck: 0.18, cross: 0.12 },
     body: { bob: 0.21, pitch: 0.12, yaw: 0.10, roll: 0.05, lean: 0.46, twist: 0.15, head: -0.36 },
   },
@@ -395,7 +384,12 @@ export const GAITS = {
     note: 'Sprinter\'s jog that opens into a wolf gallop: hinds drive as a pair against the fronts, spine arching on the gather.',
     // ---- AT FULL GALLOP: the owner's tuning, verbatim ----
     runLegs: {
-      swing: 0.42, swingRun: 0.40, reach: 1.2, extend: -1.5,
+      // reach 1.2 -> 0 (owner): the forward half of the stride was being shaped
+      // twice — `hindReach` in the quad block is already 0 for exactly that
+      // reason — and taking it out is what lines the hind arc up with where the
+      // paw actually lands. It is also what puts the paws back on the floor: the
+      // reach was swinging the leg forward past the body drop.
+      swing: 0.42, swingRun: 0.40, reach: 0, extend: -1.5,
       adduct: 0.085, adductRun: 0, adductTrail: 0,
       stanceBend: 0.14, stanceBendRun: 0.14,
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
@@ -412,12 +406,6 @@ export const GAITS = {
     // 0.45 + 0.35 = 0.80 rad, so the paw finishes its push at 46 degrees rather
     // than the ~86 the old table drove it to.
     runAnkle: { push: 0.45, pushRun: 0.35 },
-    // THE ONE BODY THAT NEEDS THE FLOOR ENFORCED. The 180-degree hind stride is
-    // longer than the body drop can clear, so the paws pass through the ground at
-    // full extension (-14.4% of body height with hindFold at -1.28). Rather than
-    // shorten the gallop until the arc clears, let the leg take it: sole flat on
-    // the floor, shin compressed to meet it. See Animator.groundClamp.
-    ankle: { ground: 1 },
     runArms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     runBody: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {
