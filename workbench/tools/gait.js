@@ -650,6 +650,13 @@ export async function runGaitWorkbench(config, params) {
 
   function effectEnv(ratio) {
     return {
+      // the tail chain this body has, so a `tail.*` dial can be swept like any
+      // other one — its straighten term is measured off the rig, not authored,
+      // so without this the whole group would report itself dead
+      tail: animator?.tailChain?.() || null,
+      tailT: 1,                      // one second along the tail's own clock,
+                                     // so `tail.idle` (a rate) is measurable
+
       ratio, s: mech.dims.scale || 1,
       ankleGain: animator.ankleGain, footFlat: animator.footFlat,
       hipHeight: mech.dims.hipHeight,

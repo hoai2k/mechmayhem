@@ -222,6 +222,50 @@ export const GAIT_SCHEMA = [
     ],
   },
   {
+    // A TAIL IS NOT A LIMB. It is not one of the 15 game joints, nothing
+    // retargets onto it, and only some bodies have one — so this group is
+    // OPTIONAL and a gait that has no `tail` block simply never shows it. What
+    // it drives is a chain of extra bones on a custom rig (`tail0`, `tail1`, …
+    // — fenrir's blade), through applyTailGait below.
+    id: 'tail', label: 'Tail — the blade', optional: true,
+    params: [
+      { key: 'droop', label: 'relax downward', min: -1.2, max: 1.2, step: 0.01,
+        joints: ['tail0', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5'],
+        help: 'total radians of DOWN, spread along the chain and weighted toward the tip — a tail '
+          + 'carried heavy rather than held out. Negative lifts it instead' },
+      { key: 'straight', label: 'straighten the resting curve', min: 0, max: 1, step: 0.01,
+        joints: ['tail0', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5'],
+        help: 'how much of the tail\'s OWN bind curve to take back out, segment by segment. The curve '
+          + 'is in the rig\'s bone positions, not in any rotation, so this is measured off the chain '
+          + 'itself (see tailChainOf) and cancelled: 0 leaves the sculpted droop, 1 lays the whole '
+          + 'blade out along its first segment' },
+      { key: 'sway', label: 'wag', min: 0, max: 0.5, step: 0.005,
+        joints: ['tail0', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5'],
+        help: 'horizontal sweep per segment, radians. It BEATS WITH THE STRIDE — the wave is driven '
+          + 'off the gait phase, not off a clock — which is what makes it read as the tail answering '
+          + 'the body rather than wagging on its own' },
+      { key: 'swayRun', label: 'wag @run', min: 0, max: 0.5, step: 0.005,
+        joints: ['tail0', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5'],
+        help: 'extra sweep at full speed, on top of `wag`' },
+      { key: 'lag', label: 'whip — lag down the chain', min: 0, max: 2.5, step: 0.01,
+        joints: ['tail0', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5'],
+        help: 'radians of phase the TIP runs behind the root. 0 swings the whole tail as one rigid '
+          + 'blade; turn it up and the wave travels outward and the tip trails, which is the whole '
+          + 'difference between a stick and something with weight on the end of it' },
+      { key: 'lift', label: 'vertical float', min: 0, max: 0.4, step: 0.005,
+        joints: ['tail0', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5'],
+        help: 'up-and-down undulation, at twice the wag\'s rate — the tail rising on the gather and '
+          + 'settling on the drive' },
+      { key: 'idle', label: 'wag speed at a standstill', min: 0, max: 4, step: 0.05,
+        joints: ['tail0', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5'],
+        help: 'the gait phase barely advances when the mech is not moving, so a wag driven purely by '
+          + 'it freezes on the spot and the tail reads as dead weight. This is the slow drift added '
+          + 'on top, radians per second — it is what keeps a standing wolf alive. It is a RATE, so '
+          + 'the workbench sweeps it a second along the tail\'s own clock to have something to '
+          + 'measure (see `tailT` in the adapter)' },
+    ],
+  },
+  {
     id: 'quad', label: 'Quadruped gallop', optional: true,
     params: [
       { key: 'onset', label: 'drops to four legs at', min: 0, max: 1, step: 0.01, joints: [],
@@ -406,25 +450,31 @@ export const GAITS = {
     // 0.45 + 0.35 = 0.80 rad, so the paw finishes its push at 46 degrees rather
     // than the ~86 the old table drove it to.
     runAnkle: { push: 0.45, pushRun: 0.35 },
+    // THE BLADE-TAIL. Carried a little heavy, most of its sculpted curve taken
+    // back out, and a wave running down it off the stride phase — see
+    // applyTailGait. `sway 0` would switch the motion off and leave only the
+    // carriage; the whole group missing would leave the tail exactly as the rig
+    // sculpted it.
+    tail: { droop: 0.45, straight: 0.3, sway: 0.09, swayRun: 0.09, lag: 1.1, lift: 0.05, idle: 1.2 },
     runArms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     runBody: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {
       onset: 0.40, blend: 0.35, stride: 0.85, lag: 0.30,
       // drop 0.32 -> 0.30: the 180-degree hind stride below needs the room, and
       // at 0.32 the paws swung 0.44 units UNDER the floor at full gallop
-      bodyPitch: 0.60, bodyArch: 0.09, drop: 0.30, heave: 0.15,
-      frontReach: 1.25, frontSwing: 0.65, frontRake: 0.45, frontFold: 1.20,
+      bodyPitch: 0.60, bodyArch: 0.50, drop: 0.30, heave: 0.15,
+      frontReach: 1.45, frontSwing: 0.65, frontRake: 0.45, frontFold: 1.20,
       // the stride shaping lives in `runLegs.reach`/`extend` above, as it did
       // when this gallop was tuned (the crossfade is what keeps it off his jog)
       // — these two stay 0 so it is not applied twice
-      hindReach: 0, hindExtend: 0,
+      hindReach: 0.28, hindExtend: 0,
       // A 180-DEGREE HIND STRIDE, as asked: the sweep is twice hindSwing, so 1.80
       // measures 178 degrees peak-to-peak on the thigh (it was 93 at 0.62).
       // hindCarry sits the middle of that stride a little forward so the wider
       // arc does not drive the knee into the floor, and hindKneeCarry lifts the
       // stifle for the same reason — measured: knee low point -0.00 -> 0.10,
       // paw low point -0.41 -> 0.30, both now clear of the ground.
-      hindSwing: 1.80, hindCarry: -0.35,
+      hindSwing: 1.42, hindCarry: -0.35,
       // hindFold 1.00 -> -1.28 (owner, ?edit=gait on fenrir at 100%): the fold
       // now runs the other way, so the stifle OPENS through the gather instead
       // of curling the shin up under the belly.
@@ -902,6 +952,110 @@ export function applyToeHang(tgt, gait, env = {}) {
     if (st.air + st.push < 0.01) continue;          // pure stance: leave it alone
     const home = r('ankle' + side);
     a[0] = a[0] * st.stance + (home + hang) * st.air + (home + pushAngle) * st.push;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// THE TAIL — a wave travelling down a chain that is not part of the rig.
+//
+// A tail is not one of the 15 game joints. Nothing retargets onto it, the
+// RigAdapter never touches it, and only a custom rig even has one (fenrir's
+// blade is `tail0`…`tail5`, hanging off the hips). So it gets its own pass,
+// gated on a gait carrying a `tail` block — every other gait is untouched and
+// shows no tail dials at all.
+//
+// WHAT IT IS TRYING TO LOOK LIKE: weight on the end of a rope. The wag is
+// driven off the GAIT PHASE rather than a clock, so it beats with the stride;
+// each segment further out runs a little further BEHIND that phase (`lag`), so
+// what you see is a wave travelling outward and a tip that trails rather than a
+// rigid blade swinging as one. The vertical float runs at twice the rate, which
+// is what a tail does — over and back once per stride sideways, up and down
+// twice.
+//
+// STRAIGHTENING is the odd one, and it is measured rather than authored: the
+// tail's resting curve lives in the rig's BONE POSITIONS, not in any rotation,
+// so there is no number to turn down. tailChainOf() reads the chain once and
+// works out how much each segment turns away from the one before it; `straight`
+// cancels that fraction back out. That is why this needs `env.tail` and does
+// nothing without it.
+// ---------------------------------------------------------------------------
+
+/**
+ * Measure a bone chain's own resting bend, once, so `tail.straight` has
+ * something to cancel. Local axes: every bone on a hand-placed rig rests
+ * unrotated, so all the segment directions live in one frame and the turn from
+ * one to the next is two plain angles — elevation (a rotation about Z) and
+ * heading (about Y).
+ * @param {Object} byName  bones by name (mech.rigBones)
+ * @returns {null|{n:number, bend:number[][]}}  bend[i] = [_, y, z] radians
+ */
+export function tailChainOf(byName, prefix = 'tail', max = 12) {
+  if (!byName) return null;
+  const chain = [];
+  for (let i = 0; i < max; i++) {
+    const b = byName[prefix + i];
+    if (!b) break;
+    chain.push(b);
+  }
+  if (chain.length < 2) return null;
+  // segment i runs from bone i to bone i+1, and a child's position IS that offset
+  const dirs = [];
+  for (let i = 0; i < chain.length - 1; i++) {
+    const p = chain[i + 1].position;
+    const len = Math.hypot(p.x, p.y, p.z) || 1;
+    dirs.push([p.x / len, p.y / len, p.z / len]);
+  }
+  // THE ANGLES HAVE TO BE THE ONES THE ROTATIONS ACTUALLY ADD, or the sign is a
+  // coin flip that depends on which way the chain happens to point — measuring
+  // "elevation" as atan2(y, |xz|) and subtracting it CURLED fenrir's tail into a
+  // hook, because his blade runs along -x and a positive Z turn lowers it there
+  // while raising a +x one. So: angZ is the angle a rotation about Z advances,
+  // angY the angle a rotation about Y advances, both read straight off the
+  // rotation matrices, and the turn from one segment to the next is their
+  // difference — correct in every quadrant, on any rig, facing any way.
+  const angZ = (d) => Math.atan2(d[1], d[0]);
+  const angY = (d) => Math.atan2(-d[2], d[0]);
+  const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  const bend = [[0, 0, 0]];
+  for (let i = 1; i < dirs.length; i++) {
+    bend.push([0, wrap(angY(dirs[i]) - angY(dirs[i - 1])), wrap(angZ(dirs[i]) - angZ(dirs[i - 1]))]);
+  }
+  // the LAST bone has no segment leaving it, so there is nothing of its own to
+  // straighten — padding it with its neighbour's turn put a kink in the tip
+  while (bend.length < chain.length) bend.push([0, 0, 0]);
+  return { n: chain.length, bend };
+}
+
+/**
+ * One frame of tail. Pure, like every other pass here: it writes `tgt.tail0…`
+ * and the caller decides what those mean (the animator puts them on the rig's
+ * own bones; the workbench measures them to find out which dials do anything).
+ * env: { ph, ratio, tail } — `tail` from tailChainOf, and without it the
+ * straighten term simply contributes nothing.
+ */
+export function applyTailGait(tgt, gait, env = {}) {
+  const T = gait.tail;
+  const chain = env.tail;
+  if (!T || !chain) return;
+  const ratio = env.ratio ?? 1;
+  const ph = env.tailPh ?? env.ph ?? 0;
+  const sway = (T.sway || 0) + (T.swayRun || 0) * ratio;
+  const n = chain.n;
+  for (let i = 0; i < n; i++) {
+    const a = tgt['tail' + i];
+    if (!a) continue;
+    // 0 at the root, 1 at the tip — everything below is weighted along it,
+    // because a tail does not do the same thing at both ends
+    const k = n > 1 ? i / (n - 1) : 0;
+    const b = chain.bend?.[i];
+    if (b && T.straight) { a[1] -= T.straight * b[1]; a[2] -= T.straight * b[2]; }
+    // RELAX DOWN. Spread over the chain so no single joint kinks, and weighted
+    // outward so the drop happens along the blade rather than at its root.
+    a[2] += ((T.droop || 0) / n) * (0.5 + k);
+    // THE WAVE. Each segment lags the one before it, so the sweep travels out.
+    const w = ph - (T.lag || 0) * k;
+    a[1] += Math.sin(w) * sway * (0.35 + k);
+    a[2] += Math.sin(w * 2 + 0.7) * (T.lift || 0) * (0.35 + k);
   }
 }
 
