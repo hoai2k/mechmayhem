@@ -686,9 +686,16 @@ export async function runGaitWorkbench(config, params) {
   }
 
   // Does this dial do ANYTHING here — whichever kind it is.
-  const dialLive = (d, ratio, phases) => (d.joints?.length
-    ? dialEffect(d, ratio, phases) > INERT
-    : rateEffect(d, ratio) > INERT_RATE);
+  //   `runtime` dials (ankle.ground) are neither: they are not a term in the
+  //   pose at all, they are a correction MEASURED against the floor on the live
+  //   model every frame (Animator.groundClamp). Nothing this scan can do sees
+  //   them, and reporting "no effect" because we cannot measure it is the
+  //   opposite of what this panel is for — so they are always offered, and the
+  //   row says the measurement does not apply.
+  const dialLive = (d, ratio, phases) => (d.runtime ? true
+    : d.joints?.length
+      ? dialEffect(d, ratio, phases) > INERT
+      : rateEffect(d, ratio) > INERT_RATE);
 
   // The biggest movement, in radians, that this dial can produce anywhere in the
   // cycle at this throttle. hipsPos is a translation, so it is divided back into

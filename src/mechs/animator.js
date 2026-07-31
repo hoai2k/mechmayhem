@@ -11,8 +11,25 @@ import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
 import { ease, lerp, clamp, clamp01, damp, TAU } from '../core/utils.js';
 
+// How fast the ground clamp closes on the floor. Fast — a paw arriving at speed
+// has a handful of frames before it is visibly through the ground — but still a
+// damped approach, so a single bad measurement cannot snap the leg.
+const CLAMP_RATE = 22;
+// …and how much of the shin's own length the give may ever be. A leg absorbing
+// a hard step is not a leg folding into its knee.
+const CLAMP_MAX = 0.35;
+
 const _wp = new THREE.Vector3();
 const _sp = new THREE.Vector3();
+// ground-clamp scratch (see groundClamp)
+const _gA = new THREE.Vector3();
+const _gB = new THREE.Vector3();
+const _gD = new THREE.Vector3();
+const _gH = new THREE.Vector3();
+const _gN = new THREE.Vector3();
+const _gQ = new THREE.Quaternion();
+const _gP = new THREE.Quaternion();
+const _gI = new THREE.Quaternion();
 const _qa = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
 // Aegis tower shield: local rest carry, and the brace tilt applied when the
@@ -692,6 +709,9 @@ export class Animator {
     }
     this.applyPose(this.cur);
     this.mech.postAnimate?.(); // GLB rigs: retarget virtual joints onto bones
+    // ...and THEN let the floor have its say (see groundClamp): it edits the
+    // real bones, so it has to run after the retarget wrote them
+    this.groundClamp(dt);
     // where the sole ended up this frame — the input to the pelvis follow above
     if (this.soles) {
       this._soleClrSide = this.soleClearanceBySide();
@@ -712,6 +732,160 @@ export class Animator {
   loopCrossed(prev, cur, evT) {
     if (prev <= cur) return prev < evT && cur >= evT;
     return evT > prev || evT <= cur; // wrapped
+  }
+
+  // ---------------------------------------------------------------------------
+  // GROUND CLAMP — the floor is where the paw STOPS.
+  //
+  // A gait is a pose function: it swings a leg through an angle and has no idea
+  // where the ground is. That is fine for a boot on a biped, whose stride was
+  // tuned against its own body — and wrong for a gallop, where the hind stride
+  // is long enough that the paw's arc dips below the floor at full extension.
+  // Fenrir's did: -14% of body height under it at 100% throttle. The old answer
+  // was to shorten the stride (quad.drop / hindKneeCarry) until the arc cleared,
+  // which buys clearance by taking the gallop out of the gallop.
+  //
+  // This is the other answer, and it is the one a real leg uses: THE FLOOR IS A
+  // CONTACT, not a suggestion. When a sole would pass through it, the leg does
+  // two things —
+  //
+  //   LEVEL   the ankle rotates so the sole lies ALONG the floor, instead of
+  //           spearing into it at whatever angle the swing left it. Measured, in
+  //           world space, off the same sole sample points calibrateFeet took:
+  //           the rotation that lays the sole's own long axis flat, so it works
+  //           on a boot, a talon and a paw without knowing which it has.
+  //   COMPRESS  the shin gives. The ankle bone's offset from its parent (the
+  //           knee) is shortened just enough to lift the sole back to the floor
+  //           — a leg absorbing a step, which is exactly what the extra length
+  //           in an over-long stride should be doing.
+  //
+  // Both are FEEDBACK, damped, in the same shape as the pelvis follow above:
+  // apply what we had, measure what is left, ease toward the remainder. That
+  // converges in a few frames, needs no closed-form solve of a skinned sole,
+  // and releases on its own the moment the foot is clear.
+  //
+  // Driven by the gait's `ankle.ground` (0 = off, 1 = never break the floor), so
+  // it crossfades with everything else and is per-gait rather than per-mech.
+  // GLB only: `this.soles` is what makes the measurement possible and only a
+  // calibrated model has it.
+  //
+  // ONE INVARIANT: the bind offset is cached and the position is rewritten from
+  // it every frame. The retarget (adapter.sync) writes bone ROTATION only, so a
+  // position edit is the one thing here that would otherwise compound frame on
+  // frame until the paw was inside the hip.
+  groundClamp(dt) {
+    const amt = clamp01(this._gait?.ankle?.ground ?? 0);
+    const st = this._clamp || (this._clamp = { L: {}, R: {} });
+    if (!this.soles || !this.mech.boneMap) return;
+    const ground = this.J.root.getWorldPosition(_wp).y;
+    for (const f of this.soles) {
+      const s = st[f.side];
+      const bone = f.bone;
+      const parent = bone.parent;
+      if (!s.bind) {
+        s.bind = bone.position.clone(); s.len = bone.position.length();
+        s.off = new THREE.Vector3(); s.q = new THREE.Quaternion();
+      }
+      if (!(amt > 0) && s.off.lengthSq() < 1e-12 && _gI.identity().angleTo(s.q) < 1e-4) continue;
+
+      // TWICE PER FRAME. The correction is measured off the pose it is already
+      // applied to, so a single pass is always one frame behind — and one frame
+      // behind, at a gallop, is a paw through the ground every stride. A second
+      // pass measures what the first one left and finishes it; the whole thing
+      // is a couple of dozen matrix transforms per foot, so this is cheap.
+      for (let pass = 0; pass < 2; pass++) {
+      // ---- (a) apply what we already have -------------------------------
+      bone.position.copy(s.bind).add(s.off);
+      if (parent) {
+        parent.updateMatrixWorld(true);
+        bone.quaternion.premultiply(_gP.copy(parent.getWorldQuaternion(_gQ)).invert().multiply(s.q).multiply(_gQ));
+      }
+      bone.updateMatrixWorld(true);
+
+      // ---- (b) measure what is left -------------------------------------
+      // lowest sole point, and the sole's own long axis, both in world space
+      let low = Infinity, loP = null, hiP = null, loT = Infinity, hiT = -Infinity;
+      bone.getWorldPosition(_gA);
+      // the long axis: the horizontal direction of the sole point furthest from
+      // the ankle — a foot's length, whichever way the model faces
+      let far = 0;
+      _gH.set(0, 0, 0);
+      for (const p of f.points) {
+        _sp.copy(p).applyMatrix4(bone.matrixWorld);
+        const dx = _sp.x - _gA.x, dz = _sp.z - _gA.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > far) { far = d2; _gH.set(dx, 0, dz); }
+      }
+      if (far < 1e-9) continue;                   // a point foot has no sole to lay flat
+      _gH.normalize();
+      for (const p of f.points) {
+        _sp.copy(p).applyMatrix4(bone.matrixWorld);
+        if (_sp.y < low) low = _sp.y;
+        const t = (_sp.x - _gA.x) * _gH.x + (_sp.z - _gA.z) * _gH.z;
+        if (t < loT) { loT = t; loP = _sp.clone(); }
+        if (t > hiT) { hiT = t; hiP = _sp.clone(); }
+      }
+      // THE SHIN, IN WORLD UNITS — which is also the ruler everything else here
+      // is measured against. `bone.position` is in the PARENT's local space and
+      // a GLB's bone space is nothing like world space (modelScale is 8× on this
+      // model), so a world penetration spent straight into a local length would
+      // be eight times the correction asked for — it pinned the cap on the first
+      // frame and stayed there. Convert with the parent's own world scale.
+      parent?.getWorldPosition(_gB);
+      _gN.subVectors(_gA, _gB);           // the shin, world — its OWN vector: the
+      const shinW = _gN.length();         // level pass below reuses _gD
+      const perLocal = s.len > 1e-9 ? shinW / s.len : 1;   // world units per local unit
+      // the band over which the correction fades in as the sole arrives: a hard
+      // switch at zero pops, and a paw crossing the floor at speed crosses it in
+      // a single frame
+      const band = Math.max(1e-5, shinW * 0.06);
+      const clr = low - ground;                    // WORLD units, like everything here
+      const contact = amt * clamp01(-clr / band);
+
+      // ---- (c) ease toward the remainder --------------------------------
+      // LEVEL: the rotation that lays the sole's long axis onto its own
+      // horizontal projection. setFromUnitVectors means no sign to get wrong,
+      // and it corrects roll as well as pitch on a foot that is both.
+      if (contact > 0.001 && loP && hiP && hiT - loT > 1e-6) {
+        _gD.subVectors(hiP, loP).normalize();
+        _gB.set(_gD.x, 0, _gD.z);
+        if (_gB.lengthSq() > 1e-9) {
+          _gB.normalize();
+          _gQ.setFromUnitVectors(_gD, _gB);
+          _gI.identity().slerp(_gQ, contact);
+          s.q.premultiply(_gI);
+        }
+      } else {
+        s.q.slerp(_gI.identity(), 1 - Math.exp(-CLAMP_RATE * dt));
+      }
+      // COMPRESS. The obvious thing is to shorten the bone along its own axis,
+      // and it is the wrong thing: at FULL EXTENSION — the one phase where a
+      // gallop puts the paw through the floor — the shin is nearly HORIZONTAL,
+      // so shortening it walks the paw backwards and lifts it barely at all.
+      // (Measured: fenrir sat pinned at the cap with a third of the penetration
+      // still there.) So the give is authored where it is needed, STRAIGHT UP in
+      // world space, and expressed as an offset on the bone: with a vertical
+      // shin that IS shortening it, with a raked one it re-aims it, and either
+      // way the sole arrives on the floor instead of under it. The cap is a
+      // fraction of the shin's own length, so no leg can fold into its knee.
+      if (contact > 0.001 && parent && perLocal > 1e-9) {
+        _gB.set(0, -clr, 0)                    // what is still through the floor
+          .divideScalar(perLocal)              // world units -> the parent's
+          .applyQuaternion(_gP.copy(parent.getWorldQuaternion(_gQ)).invert())
+          .add(s.off)                          // …on top of the give already in
+          .clampLength(0, s.len * CLAMP_MAX);
+      } else {
+        _gB.set(0, 0, 0);                      // clear of the floor: let it back out
+      }
+      // ASYMMETRIC, on purpose. Going INTO the floor is a hard constraint — a
+      // paw arriving at speed crosses the whole contact band inside one frame,
+      // and a damped approach simply arrives late, which is a paw through the
+      // ground for two frames every stride. Coming back OUT is cosmetic, so
+      // that half is eased: the leg unloads over a few frames instead of
+      // snapping straight the instant the foot clears.
+      s.off.lerp(_gB, _gB.lengthSq() > s.off.lengthSq() ? 1 : 1 - Math.exp(-CLAMP_RATE * dt));
+      }
+    }
   }
 
   applyPose(pose) {
