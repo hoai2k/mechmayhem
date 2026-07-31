@@ -114,6 +114,13 @@ export class Warmup {
     scene.add(floor);
     const hidden = B.arenaObjs.map((o) => ({ o, vis: o.visible }));
     for (const h of hidden) h.o.visible = false;
+    // THE WARM-UP IS A SANDBOX, NOT THE BOARD. The arena is fully built by
+    // now (it has to be — this screen exists to stream its textures), so
+    // without this the fighters romping on the grey stage are colliding with
+    // buildings nobody can see, punching holes in them, and setting off fuel
+    // barrels and spike traps at their real spawn points. `sandbox` makes the
+    // arena ignore them until the reveal; see arena.collideFighter.
+    B.world.sandbox = true;
 
     B.loading = {
       // the gate holds for as long as the texture pack streams — the match
@@ -195,6 +202,7 @@ export class Warmup {
       L.ov.remove();
       engine.views = null;
       B.hud.el.style.display = '';
+      B.world.sandbox = false;    // on the board now: hazards and walls are real
       B.loading = null;
       if (B.usesTouch) this.touchControls?.setVisible(true);
       B.match.begin();

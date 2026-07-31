@@ -22,6 +22,10 @@ const _pv = new THREE.Vector3(); // scratch for projecting poster boxes
 // or two, and the flash reads as a glitch rather than as progress.
 const SPINNER_DELAY = 700;
 
+// How long a poster may keep covering for a body that has not arrived. Past
+// this the download is slow or broken and the spinner underneath says so.
+const POSTER_HOLD = 4;
+
 // THE IDLE SWAY every preview model shares: yaw = sin(phase) * SWAY_AMP +
 // POSTER_YAW, one wave for the whole stage. It is deliberately GLOBAL — with
 // two to four pickers the marks stand side by side, and models drifting on
@@ -370,18 +374,48 @@ export class MenuStage {
     }
   }
 
-  /** Build the real body for a poster and drop the picture. Called when the
-   *  choice has settled, or right away on a lock-in. */
+  /** Build the real body for a poster. Called when the choice has settled, or
+   *  right away on a lock-in.
+   *
+   *  THE PICTURE STAYS UP UNTIL THE MODEL HAS RENDERED. Dropping it here (as
+   *  this used to) leaves a hole: a GLB may still be downloading, and even a
+   *  cached one is not on screen until the next render — so the poster
+   *  vanished, the mark was empty for a frame or twenty, then the mech
+   *  appeared. The body is built UNDERNEATH the poster instead and the
+   *  picture is retired only once the real thing is standing there
+   *  (retirePosters, below). They are pixel-aligned by construction, so the
+   *  handover has nothing to see. */
   promotePoster(mesh) {
     const p = mesh.userData.poster;
     if (!p || p.promoted) return;
     p.promoted = true;
+    p.shown = 0;               // frames the finished model has been rendered for
     const def = applyColorScheme(ROSTER_BY_ID[p.entry.id], p.entry.variant || 0);
     this.spawnUnit(def, new THREE.Vector3(p.x, 0, 0), POSTER_YAW,
       { slotIdx: p.entry.slotIdx, stageX: p.x, yawOffset: 0, fx: null,
         _sig: `${p.entry.id}:${p.entry.variant || 0}` });
     this._built.add(p.entry.id);
-    this.dropPoster(mesh);
+  }
+
+  /** Drop each promoted poster once its body is real and has been drawn.
+   *  Runs at the END of update(), so "drawn" means: the unit was in the scene
+   *  for a render that has already happened, not merely created this frame. */
+  retirePosters(dt = 0) {
+    for (const mesh of this.posters.slice()) {
+      const p = mesh.userData.poster;
+      if (!p.promoted) continue;
+      const u = this.mechs.find((m) => m.slotIdx === p.entry.slotIdx);
+      if (!u || u.loading || u.isSpinner) {
+        // Still a placeholder — keep the picture up, but not forever: past
+        // POSTER_HOLD this is a slow or failed download, and the spinner
+        // underneath is the honest thing to show.
+        p.wait = (p.wait || 0) + dt;
+        if (p.wait > POSTER_HOLD) this.dropPoster(mesh);
+        continue;
+      }
+      if (p.shown++ < 1) continue;   // let it be drawn once under the poster
+      this.dropPoster(mesh);
+    }
   }
 
   dropPoster(mesh) {
@@ -698,6 +732,7 @@ export class MenuStage {
     this.layoutPosters();
     for (const mesh of this.posters.slice()) {
       const p = mesh.userData.poster;
+      if (p.promoted) continue;      // body already building underneath it
       p.settle -= dt;
       if (p.settle <= 0) this.promotePoster(mesh);
     }
@@ -757,6 +792,9 @@ export class MenuStage {
       // lineup & select previews always show the combat-ready carriage
       m.animator.update(dt, { speed: 0, grounded: true, alwaysReady: true });
     }
+    // last: a poster comes down only once the body beneath it is real and has
+    // already been drawn at least once (see promotePoster)
+    this.retirePosters(dt);
   }
 
   destroy() {

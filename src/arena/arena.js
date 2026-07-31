@@ -499,11 +499,16 @@ export class Arena {
   }
 
   // ---- combat services ----
+  // Both are no-ops in the warm-up SANDBOX (see collideFighter): a punch
+  // thrown on the grey stage must not shatter a building that has not been
+  // revealed, and there is nothing out there to hang off yet.
   grabProbe(px, py, pz) {
+    if (this.world?.sandbox) return null;
     return this.destructo.grabProbe(px, py, pz);
   }
 
   damageSphere(pos, radius, dmg, dir = null, structural = false) {
+    if (this.world?.sandbox) return 0;
     this.igniteCampfires(pos, radius + 1.2);
     const terra = this.terrain.damageSphere(pos, radius, dmg);
     const props = this.damageProps(pos, radius, dmg * (structural ? 1.4 : 0.8), dir);
@@ -636,8 +641,15 @@ export class Arena {
     // no boundary clamp — space wraps; buildings, settled rubble and SOLID
     // PROPS push back, and terrain (hills / bridge decks) carries fighters
     // on its surface
-    this.destructo.collideFighter(f);
+    //
+    // SANDBOX (the warm-up): the arena is BUILT but hidden while its textures
+    // stream, and the fighters romping on the grey stage are not on the board
+    // yet. Everything solid is therefore skipped — running into a building
+    // nobody can see reads as an invisible wall — but TERRAIN still carries
+    // them, because that is the ground under their feet, not scenery.
+    if (!this.world?.sandbox) this.destructo.collideFighter(f);
     this.terrain.collideFighter(f);
+    if (this.world?.sandbox) return;
     const w = this.world;
     for (const p of this.propBodies) {
       if (!p.alive) continue;
@@ -724,7 +736,8 @@ export class Arena {
   // per-frame: a fighter running into a tank, or a projectile striking it,
   // sets it off
   updateExplosives() {
-    if (!this.world || !this.explosives.length) return;
+    // barrels do not go off in the warm-up sandbox (see collideFighter)
+    if (!this.world || this.world.sandbox || !this.explosives.length) return;
     for (const e of this.explosives) {
       if (e.dead) continue;
       const contact = e.bodyR;
@@ -749,7 +762,7 @@ export class Arena {
   // timers burn down so a fire can be re-lit after it dies out
   updateHazards(dt) {
     const w = this.world;
-    if (!w) return;
+    if (!w || w.sandbox) return;   // no spikes underfoot in the warm-up
     for (const cf of this.campfires) {
       if (cf.litT > 0) cf.litT -= dt;
     }

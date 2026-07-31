@@ -2429,6 +2429,19 @@ export class Fighter {
     this.unrollPivot();
     const st = this.def.stats;
     const I = this.intent;
+    // CONTROL IMPLIES ANIMATION CONTROL. The round-start intro runs 2.3s but
+    // controls come back at 1.6s (match.js unlocks at stateT<=0.9), and the
+    // warm-up hands humans their controls the same frame it starts the clip —
+    // so for that overlap you could run while the flourish still owned the
+    // legs, sliding with no walk cycle. The first real input drops it. Only
+    // clips marked `cancelOnMove` (intro, taunt) go; an attack is a
+    // commitment and holds.
+    if (!this.controlsLocked && this.alive && this.animator.action?.clip.cancelOnMove &&
+        !this.animator.action.fadingOut &&
+        (Math.abs(I.moveX) > 0.2 || Math.abs(I.moveZ) > 0.2 ||
+         I.jump || I.dash || I.light || I.heavy || I.special || I.ult || I.ranged)) {
+      this.animator.stop(0.1);
+    }
     this.stateT -= dt;
     this.specialCd = Math.max(0, this.specialCd - dt);
     this.rangedCd = Math.max(0, this.rangedCd - dt);

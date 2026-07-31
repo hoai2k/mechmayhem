@@ -34,7 +34,7 @@ const LAND_STRETCH = { hipsPos: [0, 0.12, 0], hipsRot: [0, 0, 0], torso: [6, 0, 
 const CLIPS_RAW = {
   // ---------- personality ----------
   intro: {
-    dur: 2.3,
+    dur: 2.3, cancelOnMove: true,
     keys: [
       { t: 0, pose: { hipsPos: [0, -1.5, 0], torso: [42, 0, 0], head: [-30, 0, 0], shoulderL: [20, 0, -14], shoulderR: [20, 0, 14], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0], kneeL: [95, 0, 0], kneeR: [95, 0, 0], thighL: [-52, 0, 0], thighR: [-52, 0, 0], ankleL: [-40, 0, 0], ankleR: [-40, 0, 0] } },
       { t: 0.55, ease: 'inOutQuad', pose: { hipsPos: [0, -1.4, 0], torso: [40, 0, 0], head: [-28, 0, 0] } },
@@ -56,7 +56,7 @@ const CLIPS_RAW = {
     events: [{ t: 0.35, type: 'sfx', arg: 'powerup' }],
   },
   taunt: {
-    dur: 1.3,
+    dur: 1.3, cancelOnMove: true,
     keys: [
       { t: 0, pose: {} },
       { t: 0.3, ease: 'outQuad', pose: { torso: [14, 12, 0], head: [-10, -10, 0], shoulderR: [-72, 0, 16], elbowR: [-70, 0, 0] } },
@@ -1247,6 +1247,12 @@ function compile(name, raw) {
     loop: !!raw.loop,
     hold: !!raw.hold,
     upper: !!raw.upper,
+    // A FLOURISH, not a commitment: the round-start intro and the taunt own
+    // the legs, so a player who starts running the moment control returns
+    // slides with no walk cycle under them. Control implies ANIMATION
+    // control — fighter.update drops these the instant a real input arrives.
+    // Attacks deliberately do NOT carry it; those you are committed to.
+    cancelOnMove: !!raw.cancelOnMove,
     strikeArm: raw.strikeArm || null, // 'L'/'R' on a ONE-ARMED blow, else null
     // Which limb the blow is RESOLVED on (combat/hurtbox.js): a part name
     // like 'footR'. Only needed where the auto-detection — "whichever
