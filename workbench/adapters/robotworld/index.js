@@ -22,7 +22,7 @@ import { Animator } from '../../../src/mechs/animator.js';
 import {
   GAITS, GAIT_SCHEMA, gaitIds, gaitIdFor, cloneGait, gaitDiff, formatGait,
   applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
-  gaitBaseOf, gaitHeirsOf, effectiveGait,
+  gaitBaseOf, gaitHeirsOf, effectiveGait, applyTailGait,
 } from '../../../src/mechs/gaits.js';
 import { TUNING } from '../../../src/core/tuning.js';
 import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
@@ -314,6 +314,18 @@ const CONFIG = defineWorkbenchConfig({
       if (g.quad) applyQuadGait(tgt, g, shared);
       applyGaitKeys(tgt, g, shared);
       applyToeHang(tgt, g, shared);
+      // the tail, if this body has one — seeded here so the dial sweep can see
+      // it. Its chain comes in through env.tail (Animator.tailChain), because
+      // the straighten term is measured off the rig and not authored.
+      if (g.tail && shared.tail) {
+        for (let i = 0; i < shared.tail.n; i++) tgt['tail' + i] = [0, 0, 0];
+        // `tail.idle` is a RATE, not a pose term — it winds the tail's own
+        // clock. A pose sampled at one instant cannot see a rate, so the caller
+        // hands over how far along that clock to sample (`tailT`, seconds) and
+        // the dial moves something measurable.
+        shared.tailPh = (shared.ph ?? 0) + (shared.tailT ?? 0) * (g.tail.idle || 0);
+        applyTailGait(tgt, g, shared);
+      }
       return tgt;
     },
     // The game's OWN top locomotion speed for this mech, so the preview's

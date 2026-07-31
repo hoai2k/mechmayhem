@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { CLIPS, UPPER_JOINTS, defClipVariants } from './animations.js';
 import {
   gaitFor, gaitIdFor, applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
-  effectiveGait,
+  effectiveGait, applyTailGait, tailChainOf,
 } from './gaits.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
@@ -137,6 +137,13 @@ export class Animator {
     this.impulses = [];
     this.spinVel = 0;                   // gatling spin
     this.fired = false;                 // convenience flag combat can poll
+  }
+
+  // The tail chain this body has, measured once (see tailChainOf). Null for
+  // every mech without one, which is all of them but fenrir today.
+  tailChain() {
+    if (this._tail === undefined) this._tail = tailChainOf(this.mech.rigBones) || null;
+    return this._tail;
   }
 
   makeRestTarget() {
@@ -433,6 +440,30 @@ export class Animator {
     // where it is (see applyToeHang).
     if (grounded && speed > 0.4) applyToeHang(tgt, this._gait, this._gaitEnv);
 
+    // ===== the tail =====
+    // NOT gated on moving, unlike everything above it: the gait's stride only
+    // exists while he walks, but a tail is alive standing still — that is what
+    // `tail.idle` is for. Seeded here rather than in makeRestTarget because a
+    // tail chain is a property of the RIG, not of the game's joint list, and
+    // most bodies do not have one.
+    // NOTE `this._gait` is only refreshed inside the walk block above; at a
+    // standstill it is still the last one resolved (or `this.gait` from the
+    // constructor), which is what we want — the tail's carriage does not stop
+    // existing because the mech did.
+    const tail = this._gait?.tail ? this.tailChain() : null;
+    if (tail) {
+      // its own env: the gait block above only builds one while WALKING, and
+      // this pass deliberately runs whether he is moving or not
+      const e = this._tailEnv || (this._tailEnv = {});
+      for (let i = 0; i < tail.n; i++) tgt['tail' + i] = [0, 0, 0];
+      e.tail = tail;
+      e.ratio = ctx.maxSpeed > 0 ? clamp01(speed / ctx.maxSpeed) : 0;
+      // the wave's own clock: the STRIDE drives it, plus a slow drift so a
+      // standing wolf is not a statue
+      e.tailPh = this.phase + this.t * (this._gait.tail.idle || 0);
+      applyTailGait(tgt, this._gait, e);
+    }
+
     // ===== dash: coil, gather, LUNGE =====
     // A dash used to be a 2-line torso lean over a big velocity change, so it
     // read as the mech SLIDING rather than pushing off. Now it's a real
@@ -692,6 +723,11 @@ export class Animator {
     }
     this.applyPose(this.cur);
     this.mech.postAnimate?.(); // GLB rigs: retarget virtual joints onto bones
+    // …and the tail on top. It rides RIG bones, which adapter.sync never writes
+    // (they are not game joints), so this has to land after the retarget — and
+    // it survives to the draw untouched. Smoothed for free: the keys went into
+    // `tgt`, so the same filter the rest of the pose gets applies to them.
+    this.applyTailPose();
     // where the sole ended up this frame — the input to the pelvis follow above
     if (this.soles) {
       this._soleClrSide = this.soleClearanceBySide();
@@ -712,6 +748,21 @@ export class Animator {
   loopCrossed(prev, cur, evT) {
     if (prev <= cur) return prev < evT && cur >= evT;
     return evT > prev || evT <= cur; // wrapped
+  }
+
+  // The tail's smoothed angles onto the rig's own bones. Separate from
+  // applyPose because those are the 15 VIRTUAL joints and these are not joints
+  // at all — they belong to one model's skeleton and nothing retargets them.
+  applyTailPose() {
+    const tail = this._tail;
+    if (!tail) return;
+    const bones = this.mech.rigBones;
+    if (!bones) return;
+    for (let i = 0; i < tail.n; i++) {
+      const v = this.cur['tail' + i];
+      const b = bones['tail' + i];
+      if (v && b) b.rotation.set(v[0], v[1], v[2]);
+    }
   }
 
   applyPose(pose) {

@@ -276,33 +276,14 @@ export const GLB_ANIM = {
     },
   },
 
-  // FENRIR — the wolf's TAIL WAG (contract §5: the animator wags a
-  // tail0→tail1→tail2 chain) is a procedural-design joint chain the GLB has
-  // no route for: signatures.fenrir writes to J.tail0..2, which only exist
-  // when designs/fenrir.js ran. The custom rig (rigs/fenrir.rig.js) carries
-  // the blade-tail as its OWN 6-bone chain, and the RigAdapter never touches
-  // those (they aren't game joints), so drive them straight here off
-  // mech.rigBones. Same wave as the procedural signature — sped up and
-  // widened when he's moving — spread over 6 bones instead of 3, so the
-  // per-bone amplitude and phase step are halved to keep the total sweep and
-  // curve shape identical. rotation.y is the horizontal sweep on any bone (a
-  // Y-rotation can't change height); rotation.z adds the slow vertical
-  // undulation. Runs before postAnimate, and adapter.sync() only writes the
-  // 15 mapped joints, so these locals survive to the draw.
-  fenrir: {
-    post(anim, dt, ctx, tgt) {
-      const bones = anim.mech.rigBones;
-      if (!bones) return;                       // stock auto-rig: nothing to wag
-      const t = anim.t;
-      const wag = 0.25 + (ctx.speed > 1 ? 0.5 : 0);
-      for (let i = 0; i < 6; i++) {
-        const b = bones['tail' + i];
-        if (!b) continue;
-        b.rotation.y = Math.sin(t * (2.2 + wag * 2) + i * 0.45) * (0.09 + wag * 0.07);
-        b.rotation.z = Math.sin(t * 1.4 + i * 0.35) * 0.04;
-      }
-    },
-  },
+  // FENRIR — the wolf's TAIL WAG used to live here as a hard-coded sine over
+  // `mech.rigBones.tail0…5`. It is GAIT DATA now: the `tail` dial group in
+  // gaits.js (droop / straighten / wag / whip / float), applied by
+  // applyTailGait and written onto the same bones by Animator.applyTailPose —
+  // so it is tunable in /workbench/?edit=gait against the live body instead of
+  // being three numbers in a post hook, and it beats with the stride instead of
+  // with a free-running clock.
+  fenrir: {},
 
   // The rest read correctly with the retargeted procedural motion (verified
   // in showcase/battle). Entries kept so each GLB has a documented home for

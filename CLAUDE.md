@@ -236,6 +236,39 @@ audio). Progress history: `TASKS.md`.
   readout prints both, and they agreeing is the no-skate proof), the sideways
   offset is the track, and a stance foot sliding off its own print is a cadence
   that doesn't match the speed.
+- THE TAIL IS GAIT DATA (`tail` dial group in gaits.js, `applyTailGait`,
+  `Animator.applyTailPose`). A tail is NOT one of the 15 game joints: nothing
+  retargets onto it, and only a custom rig even has one (fenrir's blade is
+  `tail0`…`tail5` off the hips). It used to be three hard-coded sines in
+  glbanim's fenrir `post` hook; it is now seven dials tuned against the live
+  body in `/workbench/?edit=gait`, and the group is OPTIONAL — a gait with no
+  `tail` block shows no tail dials and leaves the chain exactly as the rig
+  sculpted it, which is every gait but `quad`.
+  WHAT IT IS TRYING TO LOOK LIKE is weight on the end of a rope: the wag is
+  driven off the GAIT PHASE rather than a clock, so it beats with the stride,
+  and each segment further out runs further BEHIND that phase (`lag`) — what you
+  see is a WAVE TRAVELLING OUTWARD and a tip that trails, not a rigid blade
+  swinging as one. Measured on fenrir at 100%: sweep per segment 6.4° at the
+  root climbing to 24.7° at the tip, tip lagging the root by ~2 frames.
+  `lift` runs at twice the wag's rate (over-and-back once a stride sideways, up
+  and down twice); `idle` is the slow drift added on top, because the gait phase
+  barely advances at a standstill and a wag driven purely by it leaves a
+  standing wolf looking dead.
+  STRAIGHTENING IS MEASURED, not authored: a tail's resting curve lives in the
+  rig's BONE POSITIONS, not in any rotation, so there is no number to turn down.
+  `tailChainOf` reads the chain once and works out how far each segment turns
+  away from the one before it, and `straight` cancels that fraction back out.
+  The angles it measures are the ones a rotation about Y and about Z actually
+  ADD (`atan2(y, x)`, `atan2(-z, x)`) rather than a friendly-sounding
+  elevation/heading pair — get that wrong and the sign flips with which way the
+  chain points, which is how the first version CURLED fenrir's tail into a hook
+  instead of laying it out.
+  It runs after the retarget (`adapter.sync` never writes non-joint bones) and
+  is smoothed for free, because the keys go into the same `tgt` the rest of the
+  pose does. The dials sweep in the workbench like any other — the adapter seeds
+  `tail0…` in `evaluate` and hands over the chain via `env.tail`, plus `tailT`
+  (a second along the tail's own clock) so `idle`, which is a RATE, has
+  something a fixed-phase pose can measure.
 - FENRIR'S GALLOP is a `quad` block over the biped layer, and its hind drive is
   ADDITIVE on top of `applyGait` while the front drive REPLACES what the biped
   layer did (`lerp(..., q)`). That asymmetry matters when tuning: the hinds carry
