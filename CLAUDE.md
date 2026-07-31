@@ -297,15 +297,37 @@ audio). Progress history: `TASKS.md`.
   <mech> --pairs a~b` to render one: the welded triangles highlighted at bind
   pose beside the frame that abuses them most. Pairs already separated by a
   seamCut drop off the list, so it doubles as the check that a cut worked.
+- DROPPED GEOMETRY — when the model is standing in for something the ENGINE
+  does better: `"dropBones": ["stackL","stackR"]` in a manifest entry DELETES
+  every triangle owned by those bones and CAPS the rim it opens
+  (`src/mechs/dropgeo.js`, run right after skinOps + seamCuts, so it reads the
+  final weights). Ownership is the dominant weight, the same rule seamcut and
+  the skin audit use; the rim is walked in POSITION-WELDED space (an auto-mesh
+  splits vertices at every uv seam, so an unwelded rim is a handful of open arcs
+  and capping those leaves daylight through the model) and each connected rim
+  fans to its own centre vertex, bound to the bone most of the rim already
+  answers to. The BONES STAY — they carry no skin but still ride the animation,
+  which is what the effect that replaces the geometry hangs off.
+  INFERNO is the worked example: his chimneys used to end in two sculpted
+  tongues of flame, frozen at whatever angle the sculptor left them. The drop
+  takes them off and seals the mouths; the manifest hangs `stackL`/`stackR`
+  ANCHORS on the same bones (any key in `muzzles` becomes an anchor of that
+  name), and the roster's `stackFx` block drives `Fighter.updateStackFlames` —
+  flickering tongues, embers, and a smoke column emitted with no horizontal
+  speed of its own, so he walks out from under it and it reads as a TRAIL.
+  Judge it in a fight, not in a poster: mech select builds a mech and not a
+  Fighter, so the burners only light once he is in the arena.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
   Alternate GLB** checkbox for any mech that has one (off by default;
   `&alt=1` in the URL; `?debug=models` reaches the same build through its
   COMPARE TO dropdown, which stands alt beside the primary). When a mech's
-  custom rig lives ONLY on its `alt` (inferno, rhino), `?rigedit=<id>` opens
+  custom rig lives ONLY on its `alt` (rhino), `?rigedit=<id>` opens
   that build instead of refusing, with the box ticked and disabled. Shared
-  logic: `src/dev/altpick.js`.
+  logic: `src/dev/altpick.js`. (INFERNO's alt is the other way round now: his
+  hand-rigged build was PROMOTED to primary and the old Tripo auto-rig entry is
+  the alt, kept as a retired reference.)
 - Every mech dropdown goes through `subjectSelect` (`workbench/ui/subjectpick.js`),
   which orders them ALPHABETICALLY and puts the `hidden` work-in-progress mechs
   under a rule at the end — the catalogue's own order is the roster's design
