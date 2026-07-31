@@ -12,7 +12,15 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** FENRIR'S GALLOP, PUT BACK — and an apology owed with it. His tuned
+- **Latest:** `sprint.adductTrail` 0.15 -> **0.215**, the owner's value from the
+  gait workbench (tuned on viper at full throttle). Measured across the four
+  mechs that run sprint: the trailing paw comes to 0.267 of wraith's 0.776 stance
+  width, 0.476 of tempest's 0.913, 0.062 of nova's 0.187 — and -0.008 on viper,
+  which is the centre line to within a rounding error, since he is the body it
+  was tuned on. Every mech's PLANTED width is unchanged, which is the check that
+  matters: the flick is still gated on `air * back`, so nothing is dragged
+  sideways while it carries weight.
+- **Previous:** FENRIR'S GALLOP, PUT BACK — and an apology owed with it. His tuned
   quad block was rewritten in parallel to inherit `base: 'sprint'` with the stride
   shaping moved into `quad.hindReach`/`hindExtend`, and the result put him on his
   belly: paws **20.9% of body height under the floor** and the hind knee dragging
