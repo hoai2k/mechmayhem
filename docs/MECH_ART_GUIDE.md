@@ -45,6 +45,17 @@ in-engine model. A failed GLB load also falls back. The game never breaks.
 3. Verify (§4). The runtime retargets the game's ENTIRE animation set onto
    the model — incoming GLBs need **no animations of their own**.
 
+> **THE BIND POSE IS THE BATTLE STANCE — DON'T SPEND IT.** These models are
+> authored standing ready to fight, and that pose is the art: the game uses it
+> as the mech's carriage (which is why `combatPose` is null for a GLB, see
+> animator.js). Anything that rotates a bone at rest therefore RESTANDS the
+> robot. `boneCorrections` is the usual culprit: it is the right lever for a
+> bind that is genuinely wrong for the game's rig, and the wrong one for an
+> error that only shows up in MOTION — give those the fourth "ramp" number
+> (`[10, 0, 0, 45]`), which fades the correction in with the joint's deviation
+> from bind and so leaves the stance alone. Viper is the worked example; the
+> numbers are in `tools/legsplay.mjs`.
+
 **Route A+ — replace a scrambled auto-rig with a hand-placed one.** Tripo's
 skeletons are opaque and often wrong (a crab with both claws welded to one leg
 bone; a sniper whose cloak and rifle hang off junk bones). When remapping

@@ -11,6 +11,7 @@ import * as THREE from 'three';
 
 const _q1 = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
+const _q3 = new THREE.Quaternion();
 const _e = new THREE.Euler();
 const D2R = Math.PI / 180;
 
@@ -157,16 +158,37 @@ export class RigAdapter {
         for (let a = bone.parent; a && a !== parentEntry.bone; a = a.parent) chain.push(a);
         for (let i = chain.length - 1; i >= 0; i--) interQ.multiply(chain[i].quaternion);
       }
-      // optional hand-authored correction (from the ?debug=pose workbench):
-      // a fixed extra rotation applied in bone-LOCAL space after retargeting,
-      // to fix systematic bind mismatches (e.g. a shoulder always splayed too
-      // far). Degrees [x,y,z] per joint in opts.corrections.
+      // Optional hand-authored correction (from the ?debug=pose workbench):
+      // an extra rotation applied in bone-LOCAL space after retargeting, to fix
+      // systematic bind mismatches (e.g. a shoulder always splayed too far).
+      // Degrees [x,y,z] per joint in opts.corrections.
+      //
+      // A FOURTH NUMBER MAKES IT RAMP: [x, y, z, rampDeg] fades the correction
+      // in with how far this joint has rotated AWAY FROM THE BIND POSE, hitting
+      // full strength at rampDeg of deviation. That distinction matters because
+      // the two things people reach for this lever for are not the same defect:
+      //
+      //   CONSTANT — the model's bind itself is wrong for the game's rig (a
+      //     shoulder authored 15 degrees too wide). Correct everywhere, rest
+      //     included.
+      //   RAMPING — the bind is RIGHT and the model's own stance is the art;
+      //     what is wrong is what the retarget does as the joint SWINGS,
+      //     because the rig's next bone sits off-axis (viper's knee bone is
+      //     0.05 outboard of his thigh, so a knee lift throws the shin wide).
+      //     A constant correction there fixes the swing by restanding the mech
+      //     — it flattened viper's authored 12-degree leg splay to 2 and his
+      //     battle stance went with it. The error is zero at bind, so the
+      //     correction must be too.
       const cd = (opts.corrections || {})[jname];
       const corr = cd ? new THREE.Quaternion().setFromEuler(
         new THREE.Euler(cd[0] * D2R, cd[1] * D2R, cd[2] * D2R)) : null;
+      const corrRamp = cd && cd.length > 3 && cd[3] > 0 ? cd[3] * D2R : 0;
       const entry = {
-        jname, joint, bone, offset, parentEntry, interQ, corr,
+        jname, joint, bone, offset, parentEntry, interQ, corr, corrRamp,
         bindLocalPos: bone.position.clone(),
+        // the bone's own bind-pose local rotation: what a RAMPING correction
+        // measures deviation from, and by definition the artist's stance
+        bindLocalQ: bone.quaternion.clone(),
         world: new THREE.Quaternion(),
       };
       this.entries.push(entry);
@@ -206,7 +228,18 @@ export class RigAdapter {
       else if (e.bone.parent) e.bone.parent.getWorldQuaternion(_q2);
       else _q2.identity();
       e.bone.quaternion.copy(_q2.invert().multiply(_q1));
-      if (e.corr) e.bone.quaternion.multiply(e.corr); // local post-retarget nudge
+      if (e.corr) {
+        // local post-retarget nudge. A ramping one is scaled by how far this
+        // bone has swung from its bind rotation, so the authored stance is
+        // returned untouched and only the swing is corrected.
+        if (e.corrRamp) {
+          const dev = e.bone.quaternion.angleTo(e.bindLocalQ);
+          const k = Math.min(1, dev / e.corrRamp);
+          e.bone.quaternion.multiply(_q3.identity().slerp(e.corr, k));
+        } else {
+          e.bone.quaternion.multiply(e.corr);
+        }
+      }
     }
     // hips bob / crouch translation (vertical only, scaled into model units)
     if (this.hipsEntry) {

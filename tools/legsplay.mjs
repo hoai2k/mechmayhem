@@ -23,10 +23,24 @@
 // (RigAdapter, `corr`). On a custom rig every bone rests unrotated, so bone-local
 // x is the mesh's forward axis and a rotation about it is exactly adduction:
 //
-//   "boneCorrections": { "thighL": [10, 0, 0], "thighR": [-10, 0, 0] }
+//   "boneCorrections": { "thighL": [10, 0, 0, 45], "thighR": [-10, 0, 0, 45] }
 //
-// Positive on the LEFT pulls that leg in. Rotation in the rig FILE would not
-// work — see the note in src/mechs/rigs/README-ish header of any rig, or the
+// Positive on the LEFT pulls that leg in. THE FOURTH NUMBER IS THE RAMP, and
+// on a splay like this it is not optional: without it the correction is a
+// CONSTANT, so it also rotates the model's BIND POSE — which on a GLB is the
+// artist's battle stance, the thing the mech is supposed to stand in. Viper
+// shipped that way for a day and stood with his legs pulled straight:
+//
+//                       standing lean      running lean (mean)
+//   no correction        12.2 / 12.8        +9.7 / +10.5
+//   [10,0,0]              2.2 /  2.8   <--  -4.0 /  -3.2   stance destroyed
+//   [10,0,0,45]          12.2 / 12.7        -1.2 /  -0.5   stance kept
+//
+// The ramp fades the correction in with the joint's deviation FROM BIND, which
+// is where the error actually comes from: at the bind pose the rig's oblique
+// knee axis has nothing to swing along, so there is nothing to correct.
+//
+// Rotation in the rig FILE would not work — see the note in src/mechs/rigs/README-ish header of any rig, or the
 // derivation in CLAUDE.md: applyCustomRig rebinds at rest and RigAdapter
 // captures a rest offset per bone, so both halves cancel a bind rotation out.
 //
