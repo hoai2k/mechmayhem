@@ -2,13 +2,19 @@
 // replacing a Tripo auto-rig that needed 99 skinOps and still could not tell
 // his arms apart from his fuel tanks.
 //
-// Currently wired as the mech's ALTERNATE build (manifest `inferno.alt`), so
-// the shipped mech is unchanged while this one is judged side by side:
-//   ?rigedit=inferno         (this rig, on the alt GLB — see rigedit's alt gate)
+// THIS IS NOW THE SHIPPED BUILD. The Tripo entry it replaced is kept as
+// `inferno.alt` — a retired reference, still loadable side by side:
+//   ?rigedit=inferno                         this rig, on the shipped GLB
 //   ?debug=models&mech=inferno&left=alt      procedural / alt / primary compare
-//   node tools/variantcheck.mjs inferno
-// Promoting it is a manifest edit only: move `rig` onto the primary entry and
-// keep the Tripo entry as `alt` (MECH_ART_GUIDE §Route A+ step 4).
+//   node tools/anchorkeep.mjs inferno        anchors held through the promotion
+// (Promotion was a manifest edit only — `rig` moved onto the primary entry and
+// the Tripo entry became `alt`; MECH_ART_GUIDE §Route A+ step 4.)
+//
+// `stackL`/`stackR` NO LONGER CARRY SKIN. The chimney tops used to end in two
+// sculpted tongues of flame; the manifest's `dropBones` deletes that geometry
+// and caps the mouths (dropgeo.js), and the bones stay as the anchors the live
+// burners hang off (roster `stackFx` -> Fighter.updateStackFlames). Keep them
+// where the chimney mouth is — moving one moves the fire.
 //
 // Positions are MESH-LOCAL (raw GLB bind space): +x FORWARD (head, toes,
 // torch barrels), +y UP, +z LEFT / -z RIGHT. The model is 1.0 tall in this
@@ -49,15 +55,17 @@
 // Tripo primary's 0.208. It keeps climbing, but so does the risk of armour
 // plates reading rubbery, so this stops at vulcan's setting.
 //
-// SKIN OPS: the alt entry also carries a hand-painted `skinOps` patch (1852
-// verts of the lower chest moved off `hips` onto `torso`, authored in
-// ?debug=skin with Edit Alternate GLB on). skinOps run AFTER the re-skin on
-// the custom-rig path, so a paint layers on top of `softSkin` rather than
-// being erased by it — at the cost of being RIGID where it lands: over the
-// clips inferno actually plays, worst cross-bone stretch 0.108 -> 0.148
-// (`dead`), still well under the Tripo primary's 0.208. If that band ever
-// reads stiff, the same rebind as a `weights` blend op instead of `to` keeps
-// the gradient.
+// SKIN OPS: the entry also carries a hand-painted `skinOps` patch — 28 ops,
+// ~28k verts, authored in ?edit=skin: the chest off `hips` onto `torso`, the
+// shoulder shells off the torso, and both LEGS re-cut hip/knee/ankle. skinOps
+// run AFTER the re-skin on the custom-rig path, so a paint layers on top of
+// `softSkin` rather than being erased by it — at the cost of being RIGID where
+// it lands. What that trade cost, measured with `node tools/skindebug.mjs
+// inferno` before and after the leg paint: 35 findings / 1315 total severity ->
+// 34 / 1858. The legs stopped PINCHING (the old thigh/knee pinch findings are
+// gone) and started STRETCHING instead, worst in `ball` — the air-roll tuck,
+// the most extreme curl he owns. If that ever reads rubbery, the same rebind as
+// a `weights` blend op instead of `to` keeps the gradient.
 //
 // `cutWelds` is deliberately NOT set. Rhino and vulcan need it because their
 // meshers spanned the air gap between arm and hip with a hidden membrane that

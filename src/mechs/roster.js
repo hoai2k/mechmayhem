@@ -350,6 +350,18 @@ export const ROSTER = [
     stats: { hp: 1050, speed: 8.8, jump: 12.5, weight: 0.75, armor: 0.14, blockMult: 0.11 },
     ui: { power: 8, speed: 4, defense: 6 },
     levelHands: true, // wrist counter-pitch keeps the hand hardware on the aim line (signatures.js)
+    // HIS CHIMNEYS BURN. The GLB used to carry two sculpted tongues of flame on
+    // the shoulder stacks; `dropBones` takes that geometry off and caps the
+    // mouths, and Fighter.updateStackFlames burns here instead — flickering
+    // tongues, embers, and a smoke column he walks out from under. `anchors`
+    // are manifest anchors on the chimney bones; `joints` is the fallback for
+    // the procedural body, which has no chimneys (lifted `lift` above the
+    // shoulder). Gaps are SECONDS BETWEEN particles at a standstill; `smokeRun`
+    // is how much more smoke a full sprint makes.
+    stackFx: {
+      anchors: ['stackL', 'stackR'], joints: ['shoulderL', 'shoulderR'], lift: 0.9,
+      flameGap: 0.055, smokeGap: 0.14, smokeRun: 2.4,
+    },
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.12, 0], torso: [8, 0, 0], head: [-6, 0, 0], shoulderL: [-44, 10, -12], shoulderR: [-44, -10, 12], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0], thighL: [-12, 0, -8], thighR: [0, 0, 8], kneeL: [18, 0, 0], kneeR: [10, 0, 0] },
     moves: {
