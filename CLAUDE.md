@@ -236,41 +236,6 @@ audio). Progress history: `TASKS.md`.
   readout prints both, and they agreeing is the no-skate proof), the sideways
   offset is the track, and a stance foot sliding off its own print is a cadence
   that doesn't match the speed.
-- THE FLOOR IS A CONTACT, not a suggestion (`Animator.groundClamp`, gait dial
-  `ankle.ground`, 0 = off / 1 = never break the floor). A gait is a POSE
-  FUNCTION: it swings a leg through an angle and has no idea where the ground
-  is, which is fine until a stride is long enough that the sole dips through it
-  — fenrir's gallop put his paws 14.4% of body height UNDER the floor at full
-  extension. The old answer was to shorten the stride (`quad.drop`,
-  `hindKneeCarry`) until the arc cleared, i.e. buy clearance by taking the
-  gallop out of the gallop. This is the other answer, and it is what a real leg
-  does: when a sole would pass through the floor the ankle ROTATES so the sole
-  lies ALONG it (measured in world space off the same sole samples
-  `calibrateFeet` took — the rotation that lays the sole's own long axis flat,
-  so it works on a boot, a talon and a paw without knowing which) and the shin
-  GIVES until the sole is back on it. Measured: `sole min` -14.4% -> -1.7% of
-  body height, better than the standard gait's own -6.0%, with the stride
-  untouched.
-  THREE THINGS THE IMPLEMENTATION LEARNED THE HARD WAY, all of them measured:
-  · The give is authored STRAIGHT UP IN WORLD SPACE, not along the bone. At full
-    extension — the one phase that penetrates — the shin is nearly HORIZONTAL,
-    so shortening it along its own axis walks the paw backwards and lifts it
-    barely at all (it sat pinned at the cap with a third of the penetration
-    still there). Expressed as an offset on the ankle bone, "up" IS shortening
-    when the shin is vertical and re-aims it when it is raked.
-  · It runs TWICE PER FRAME. The correction is measured off the pose it is
-    already applied to, so one pass is always a frame behind — and a frame
-    behind, at a gallop, is a paw through the ground every stride.
-  · It is ASYMMETRIC. Going INTO the floor is applied immediately (a hard
-    constraint); coming back OUT is eased over a few frames (cosmetic).
-  It runs AFTER the retarget, because it edits the real bones, and the bind
-  offset is cached and rewritten every frame — `adapter.sync` writes bone
-  ROTATION only, so a position edit is the one thing here that would compound
-  frame on frame until the paw was inside the hip. GLB only (`this.soles` is
-  what makes the measurement possible). The dial is marked `runtime: true` in
-  `GAIT_SCHEMA`: it is not a term in the pose at all, so the gait workbench's
-  dial sweep cannot see it and offers it without a measurement rather than
-  reporting it dead.
 - FENRIR'S GALLOP is a `quad` block over the biped layer, and its hind drive is
   ADDITIVE on top of `applyGait` while the front drive REPLACES what the biped
   layer did (`lerp(..., q)`). That asymmetry matters when tuning: the hinds carry
