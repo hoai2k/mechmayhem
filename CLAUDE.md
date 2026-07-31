@@ -185,23 +185,21 @@ audio). Progress history: `TASKS.md`.
   read), GAME SPEED (the player-facing ROBOT SPEED setting, 50-200%) and
   ANIMATION SPEED (slow-motion for reading a fast cycle; changes nothing about
   the gait). Pause + a phase scrubber (`[`/`]`) freeze a moment of the stride; a
-  phase-locked GHOST beside the mech runs the SHIPPED gait — or any other gait,
+  phase-locked GHOST (OFF by default — `&compare=1` or the checkbox brings it in;
+  a second body halves the room the first one gets) runs the SHIPPED gait beside
+  the mech — or any other gait,
   which is how a mech is moved between gaits with eyes open. The mech dropdown
   names each mech's gait, the panel lists every other mech running it (click one
   to load that body with your edits intact — edits belong to the gait, not the
   mech), and CLICKING A LIMB then DRAGGING IT tunes the dial behind it: the tool
   measures d(joint)/d(dial) at that phase, works out which way that pushes the
-  limb on screen and projects the drag onto it. **JOINT ROTATIONS** is the same
-  thing said the other way round — every dial is ultimately a formula for a joint
-  angle, and this mode authors the angle by hand — and it is the escape hatch when
-  no dial can say it: switch the panel to it, park the cycle at a phase, click a
-  joint and rotate the GIZMO — the correction is stored on the gait
-  as `keys: [{ ph, pose: { joint: [x,y,z]° } }]` (`applyGaitKeys`), additive over
-  the cycle and interpolated around the loop. They run BEFORE the foot rule on
-  purpose, so a hand edit can never break the rules that keep a foot honest: an
-  ankle the foot rule owns at that phase refuses the gizmo and the panel says why.
-  The track under the row is the key list (click to park, right-click to delete),
-  and "Output gait" carries the keys.
+  limb on screen and projects the drag onto it. (There WAS a second editing mode,
+  JOINT ROTATIONS, which authored `gait.keys` by hand through a gizmo; it went
+  unused and is gone. The DATA side survives untouched — `applyGaitKeys` still
+  runs and "Output gait" still carries any `keys` a gait has — so a gait file
+  that carries them is unaffected; there is just no UI that writes them.)
+  EVERY DIAL GROUP OPENS SHUT: sixty-odd dials across nine groups is a wall, so
+  you open the one limb you came to tune.
   ONLY THE DIALS THAT MOVE THIS BODY are shown. A gait is one table shared by
   every mech that names it, but a gait is not one PASS: fenrir's gallop layer
   overwrites both arms outright once its blend is full (~75% throttle up), so
@@ -211,11 +209,21 @@ audio). Progress history: `TASKS.md`.
   whom" table, the tool MEASURES it (`scanEffects`): the whole pipeline is run at
   this mech's own numbers with each dial at the bottom, middle and top of its
   range, and a dial that moves no joint anywhere in the cycle by more than ~0.25°
-  is inert HERE and hidden. Untick "only dials that move this mech" and they come
+  is inert HERE and hidden. THE CADENCE PAIR IS MEASURED DIFFERENTLY, because it
+  poses nothing: `legs.cadence`/`cadenceCap` set how fast the phase ADVANCES, and
+  a pose sampled at a fixed phase cannot see that, so they are swept through
+  `phaseRate` instead and counted inert under a 1% change. They used to be
+  EXEMPTED from the scan outright, which made them the one kind of dial that
+  could never be reported dead — and on fenrir at full gallop that is exactly
+  what they are (the crossfade hands the phase rate to `runLegs.cadence`), so his
+  whole "Legs — the stride" group was two live-looking sliders that did nothing.
+  Untick "only dials that move this mech" and they come
   back greyed, each carrying the throttle band it DOES work in ("only works below
   75%"), which is the useful half of "does nothing". Clicking a limb whose dials
-  are all inert says so and points at JOINT ROTATIONS. Same measurement on the
-  command line: `node tools/gaitdials.mjs <mech> [throttle]`.
+  are all inert says so. Same measurement on the
+  command line: `node tools/gaitdials.mjs <mech> [throttle]` — and note
+  `&throttle=0` is a real standstill now (`Number('0') || 1` used to quietly open
+  it at full speed, so 0 and 1 reported the same answer).
   TYPING beats the slider: a dial's
   number box takes values PAST the slider's ends (the range is the sane band, not
   a limit) and marks itself amber when it is outside what the handle can reach.
@@ -461,7 +469,13 @@ audio). Progress history: `TASKS.md`.
   GAME has already separated still stretches in that view — wiggling jerry's
   elbow swings his hand, whose weld to the torso is cut in game and intact
   here. The panel says so whenever the loaded entry has seam cuts; judge a cut
-  in Skin Debug, not in the skin workbench.
+  in Skin Debug, not in the skin workbench. (There was a "View with seam cuts"
+  toggle here that swapped a CUT read-only copy of the geometry in, plus a "What
+  moves?" (M) report of which bones' vertices travel. Both are gone: the preview
+  bought a mode where nothing could be edited — the cut renumbers vertices, so
+  every write had to be blocked — and neither answered the question as well as
+  Skin Debug, which plays every clip. The warning note stays; the toggle does
+  not.)
 - Skin workbench selections: click = the bone-island under the cursor ·
   SHIFT-click = the BLEND PATCH (the run of geometry sharing that vertex's own
   bone plus a minority weight on another — the bit of torso that wiggles with
@@ -471,7 +485,15 @@ audio). Progress history: `TASKS.md`.
   lasso, paints the region verts you can SEE inside it) · **Slice** (the same
   lasso cutting THROUGH the model — near side, far side and anything buried
   between, for geometry you'd otherwise have to orbit around; the outline
-  draws amber instead of violet to say so).
+  draws amber instead of violet to say so). In paint mode **C** re-picks the
+  COLOR and **R** re-picks the REGION — the two you reach for mid-stroke — and
+  the bone list doubles as the colour palette.
+  A REBIND CAN BE ANSWERED TWO WAYS. "Rebind → click target" (Q) arms it, and
+  then EITHER clicking that part on the model (fast when you can see the right
+  part — it takes whatever bone owns that spot) OR clicking the bone's NAME in
+  the list (exact, and it reaches a bone with no geometry left to click)
+  completes it. The list header and its border go amber while it is armed. The
+  bone list sits ABOVE the ops list, since it is the one you work in.
 - A fighter grown at RUNTIME (colossus' COLOSSAL FORM ult scales him 4×) must
   tell the animation layer: `animator.sizeMul = <factor>`. Everything in
   animator.js is authored in the model's own local units, so without it the

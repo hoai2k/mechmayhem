@@ -154,7 +154,7 @@
  *                        the rig it was authored on
  *   toJson(ops, ind)  -> the manifest text for a skinOps array
  *   blendPatch / weldedAdjacency / enclaveScan — selection helpers
- *   ops(id, opts) / seamCuts(id, opts) / applySeamCuts / save(id, ops, opts)
+ *   ops(id, opts) / seamCuts(id, opts) / save(id, ops, opts)
  * @property {Object} hurtbox         hit-volume measurement
  * @property {Object} stage           a live 3D scene with the game's own loop
  * @property {Object} persist         where edits go: manifest / rig / changes

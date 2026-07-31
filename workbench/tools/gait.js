@@ -62,7 +62,6 @@
 // updated wholesale.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { altChoice, altCheckbox } from '../ui/variantpick.js';
@@ -119,13 +118,22 @@ export async function runGaitWorkbench(config, params) {
   let build = params.get('model') === 'proc' ? 'proc'
     : params.get('model') === 'mannequin' ? 'mann' : 'glb';
   let altOn = params.get('alt') === '1';
-  let throttle = clamp(Number(params.get('throttle')) || 1, 0, 1);
+  // `|| 1` would be wrong here and was: `Number('0') || 1` is 1, so
+  // &throttle=0 — a standstill, the one speed where every `*Run` dial is dead —
+  // silently opened at full speed instead, and tools/gaitdials.mjs reported the
+  // same answer for 0 and 1.
+  let throttle = params.has('throttle')
+    ? clamp(Number(params.get('throttle')) || 0, 0, 1)
+    : 1;
   let gameSpeed = clamp(Number(params.get('game')) || G.gameSpeed?.() || 1, 0.5, 2);
   let animSpeed = clamp(Number(params.get('anim')) || 1, 0.05, 2);
   let sprintOn = false;
   let paused = false;
   let scrubPhase = 0;
-  let compare = params.get('compare') !== '0';
+  // GHOST OFF BY DEFAULT. It is a comparison, not a view: most of the time you
+  // are tuning one body and the second one beside it halves the space the first
+  // gets on screen. `&compare=1` (or the checkbox) brings it back.
+  let compare = params.get('compare') === '1';
   // WHICH gait the ghost runs. null = this gait as it ships (did my edit help?);
   // a gait id = that gait, shipped (what would this mech look like under the
   // OTHER gait? — how a mech gets moved between gaits with eyes open).
@@ -133,8 +141,6 @@ export async function runGaitWorkbench(config, params) {
   let selJoint = null, hoverJoint = null, activeDial = null;
   // DIALS tune the cycle's parameters; KEYS hand-correct one moment of it. The
   // two edit different things, so they are modes rather than a shared drag.
-  let editMode = 'dials';
-  let gizmoOn = false, gizmoBase = null, gizmoKeyBase = null;
 
   let mech = null, animator = null, gaitId = null;
   let ghost = null, ghostAnim = null;
@@ -175,37 +181,6 @@ export async function runGaitWorkbench(config, params) {
     || (live[id].keys?.length || 0) !== (G.shipped(id).keys?.length || 0)
     || JSON.stringify(live[id].keys || []) !== JSON.stringify(G.shipped(id).keys || []));
 
-  // ---------- hand-keyed corrections ----------
-  // A gait has no frames — it has a PHASE, and a key is a correction hung off one
-  // (see applyGaitKeys in gaits.js). Keys are additive over the cycle and run
-  // BEFORE the foot rule, so the rules that keep a foot honest still win: an
-  // ankle the foot rule owns at this phase cannot be hand-rotated, and the panel
-  // says so rather than letting a drag do nothing.
-  const KEY_SNAP = 0.12;                       // radians of phase that count as "this key"
-  const keysOf = () => (gaitOf(gaitId).keys ||= []);
-  const keyNear = (ph) => keysOf().find((k) => Math.abs(((k.ph - ph + Math.PI * 3) % TAU) - Math.PI) < KEY_SNAP) || null;
-  function keyHere(create = false) {
-    const at = scrubPhase;
-    let k = keyNear(at);
-    if (!k && create) { k = { ph: +at.toFixed(3), pose: {} }; keysOf().push(k); keysOf().sort((a, b) => a.ph - b.ph); }
-    return k;
-  }
-  function deleteKey(k) {
-    const list = keysOf();
-    const i = list.indexOf(k);
-    if (i >= 0) list.splice(i, 1);
-    writeStore(); drawKeyTrack(); refreshGaitStatus(); refreshSelection();
-  }
-  // What the FOOT RULE owns at this phase, so the tool can refuse a hand edit it
-  // would only overwrite. Same three weights the gait itself blends with.
-  function footOwns(joint) {
-    if (!/^ankle/.test(joint)) return 0;
-    const side = joint.slice(-1);
-    const clr = animator.soleClearanceBySide?.();
-    const legLen = mech.dims.thighLen + mech.dims.shinLen;
-    if (clr && typeof clr[side] === 'number') return clamp(clr[side] / (0.045 * legLen), 0, 1);
-    return 0.5;                                 // uncalibrated: assume it might
-  }
   const dialValue = (d) => gaitOf(gaitId)?.[d.group]?.[d.key];
   const shippedValue = (d) => G.shipped(gaitId)?.[d.group]?.[d.key];
 
@@ -395,7 +370,6 @@ export async function runGaitWorkbench(config, params) {
     const legLen = mech.dims.thighLen + mech.dims.shinLen;
     const rate = G.phaseRate(gait, { speed: ctx.speed, ratio, legLen, sizeMul: animator.sizeMul || 1 });
 
-    if (gizmoOn) { drawMarks(); return; }      // a hand edit owns the pose
     if (paused) {
       // freeze the cycle where the scrubber says: update() advances the phase
       // itself, so hand it a phase one step BEHIND the one we want to land on.
@@ -424,7 +398,6 @@ export async function runGaitWorkbench(config, params) {
     readoutT += dt;
     if (readoutT > 0.1) {
       readoutT = 0; refreshReadout(rate);
-      if (editMode === 'keys') drawKeyTrack();
     }
   };
   engine.start();
@@ -598,42 +571,6 @@ export async function runGaitWorkbench(config, params) {
     }
   }
 
-  // ---------- the key gizmo ----------
-  const gizmo = new TransformControls(camera, renderer.domElement);
-  gizmo.setSpace('local'); gizmo.setMode('rotate'); gizmo.setSize(0.9);
-  scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
-  gizmo.enabled = false;
-  gizmo.addEventListener('dragging-changed', (e) => {
-    orbit.enabled = !e.value;
-    gizmoOn = e.value;
-    if (e.value) {
-      // freeze the pose under the drag and remember where it started, so the
-      // stored correction is exactly what the hand moved
-      setPaused(true);
-      const j = mech.joints[selJoint];
-      gizmoBase = j ? j.rotation.toArray().slice(0, 3) : null;
-      const k = keyHere(true);
-      gizmoKeyBase = (k.pose[selJoint] || [0, 0, 0]).slice();
-    } else {
-      gizmoBase = null; gizmoKeyBase = null;
-      writeStore(); drawKeyTrack(); refreshGaitStatus();
-    }
-  });
-  gizmo.addEventListener('objectChange', () => {
-    if (!gizmoOn || !gizmoBase || !selJoint) return;
-    const j = mech.joints[selJoint];
-    const k = keyHere(true);
-    const now = j.rotation.toArray().slice(0, 3);
-    k.pose[selJoint] = [0, 1, 2].map((i) => +((gizmoKeyBase[i] + (now[i] - gizmoBase[i]) * (180 / Math.PI)).toFixed(2)));
-    statusLine.textContent = `key @ ${fmt(k.ph, 2)} rad · ${selJoint} `
-      + k.pose[selJoint].map((v) => `${v}°`).join(', ');
-  });
-  function refreshGizmo() {
-    const canKey = editMode === 'keys' && selJoint && mech?.joints[selJoint] && footOwns(selJoint) < 0.5;
-    if (canKey) { gizmo.attach(mech.joints[selJoint]); gizmo.enabled = true; }
-    else { gizmo.detach(); gizmo.enabled = false; }
-  }
-
   // ---------- picking ----------
   const PICK_PX = 26;
   const ray = new THREE.Raycaster();
@@ -707,6 +644,7 @@ export async function runGaitWorkbench(config, params) {
   // -------------------------------------------------------------------------
   const EFFECT_PHASES = 12;
   const INERT = 0.004;                 // radians (~0.23°) over the dial's whole range
+  const INERT_RATE = 0.01;             // …and 1% of the phase rate, for the cadence pair
   const inertDials = new Set();        // "group.key" of everything with no effect
   const dialReach = new Map();         // …and, for those, the throttle it comes alive at
 
@@ -718,6 +656,39 @@ export async function runGaitWorkbench(config, params) {
       thighLen: mech.dims.thighLen, shinLen: mech.dims.shinLen,
     };
   }
+
+  // THE CADENCE PAIR POSES NOTHING. `legs.cadence`/`cadenceCap` (`joints: []`)
+  // set how fast the phase ADVANCES, which a pose sampled at a fixed phase
+  // cannot see: swept through dialEffect they measure a flat zero. They used to
+  // be EXEMPTED from the scan for that reason — which quietly made them the one
+  // kind of dial that could never be reported dead, and on fenrir at full gallop
+  // that is exactly what they are (the crossfade hands the phase rate to
+  // `runLegs.cadence`, so its biped twin sat in the panel as one of only two
+  // live-looking dials under "Legs"). So measure the thing they DO drive.
+  // Fractional, because a phase rate is rad/s and has no business being compared
+  // against a joint angle.
+  function rateEffect(d, ratio) {
+    const gait = gaitOf(gaitId);
+    if (typeof gait[d.group]?.[d.key] !== 'number') return 0;
+    const was = gait[d.group][d.key];
+    const legLen = mech.dims.thighLen + mech.dims.shinLen;
+    const speed = G.topSpeed(curId, { game: gameSpeed, sprint: sprintOn }) * ratio;
+    const opts = { speed, ratio, legLen, sizeMul: animator.sizeMul || 1 };
+    let lo = Infinity, hi = -Infinity;
+    for (const v of [d.min, (d.min + d.max) / 2, d.max]) {
+      gait[d.group][d.key] = v;
+      const r = G.phaseRate(gait, opts);
+      if (r < lo) lo = r;
+      if (r > hi) hi = r;
+    }
+    gait[d.group][d.key] = was;
+    return hi > 1e-6 ? (hi - lo) / hi : 0;
+  }
+
+  // Does this dial do ANYTHING here — whichever kind it is.
+  const dialLive = (d, ratio, phases) => (d.joints?.length
+    ? dialEffect(d, ratio, phases) > INERT
+    : rateEffect(d, ratio) > INERT_RATE);
 
   // The biggest movement, in radians, that this dial can produce anywhere in the
   // cycle at this throttle. hipsPos is a translation, so it is divided back into
@@ -754,7 +725,7 @@ export async function runGaitWorkbench(config, params) {
     let lo = null, hi = null;
     for (let i = 0; i <= 10; i++) {
       const r = i / 10;
-      if (dialEffect(d, r, 6) > INERT) { if (lo === null) lo = r; hi = r; }
+      if (dialLive(d, r, 6)) { if (lo === null) lo = r; hi = r; }
     }
     return lo === null ? null : { lo, hi };
   }
@@ -766,12 +737,7 @@ export async function runGaitWorkbench(config, params) {
     const gait = gaitOf(gaitId);
     for (const d of dials) {
       if (typeof gait[d.group]?.[d.key] !== 'number') continue;
-      // A dial that poses NO joint (`joints: []` — the cadence pair) is not
-      // inert, it is invisible to this measurement: it sets how fast the phase
-      // ADVANCES, and a pose sampled at a fixed phase cannot see that. Sweeping
-      // it would report 0 and hide the two dials that own the foot cadence.
-      if (!d.joints?.length) continue;
-      if (dialEffect(d, throttle) > INERT) continue;
+      if (dialLive(d, throttle)) continue;
       inertDials.add(`${d.group}.${d.key}`);
       dialReach.set(`${d.group}.${d.key}`, dialBand(d));
     }
@@ -884,7 +850,6 @@ export async function runGaitWorkbench(config, params) {
   let downX = 0, downY = 0, dragDial = null, dragSens = null;
   canvas.addEventListener('pointerdown', (e) => {
     downX = e.clientX; downY = e.clientY;
-    if (editMode === 'keys') return;           // the gizmo owns dragging there
     if (e.button !== 0 || !selJoint || !activeDial) return;
     // a drag that STARTS on the selected joint tunes it; anywhere else orbits
     if (pickJoint(e.clientX, e.clientY) !== selJoint) return;
@@ -1153,75 +1118,6 @@ export async function runGaitWorkbench(config, params) {
     + 'does not match the speed.';
   printRow.appendChild(printLbl);
 
-  // ---- edit mode + the key track ----
-  const modeRow = row('<span style="width:38px;color:#8ba0b8">edit</span>');
-  const bDials = el('button', btnCss, 'Dials');
-  const bKeys = el('button', btnCss, 'Joint rotations');
-  bDials.title = 'Tune the CYCLE: every dial in the gait table, live on the body on screen.';
-  // The answer to "are the dials just joint rotations in disguise?" — yes, and
-  // this is the same thing said the other way round: rotate the joint itself at
-  // one phase and the correction is stored on the gait as a key.
-  bKeys.title = 'Pose the JOINTS instead: park the cycle at a phase, click a joint, rotate the gizmo. '
-    + 'Every dial is ultimately a formula for a joint angle, and this is the same angle authored by '
-    + 'hand — stored on the gait as a phase key and added over whatever the cycle produced. It is the '
-    + 'escape hatch for anything no dial can say. The foot rules still win: they run after the keys, '
-    + 'so an ankle they own at that phase refuses the gizmo and says why.';
-  modeRow.append(bDials, bKeys);
-  const bAddKey = el('button', `${btnCss};margin-left:auto`, '+ key here');
-  bAddKey.title = 'Add a correction at the phase on screen. A key is EMPTY until you drag a joint, '
-    + 'so it changes nothing on its own.';
-  bAddKey.onclick = () => { setPaused(true); keyHere(true); writeStore(); drawKeyTrack(); refreshGaitStatus(); };
-  modeRow.appendChild(bAddKey);
-  function setMode(m) {
-    editMode = m;
-    for (const [b, k] of [[bDials, 'dials'], [bKeys, 'keys']]) {
-      const on = editMode === k;
-      b.style.background = on ? '#2b6cb0' : '#1a2433';
-      b.style.color = on ? '#fff' : '#9fb2c8';
-    }
-    keyTrack.style.display = editMode === 'keys' ? 'block' : 'none';
-    bAddKey.style.display = editMode === 'keys' ? '' : 'none';
-    if (editMode === 'keys') setPaused(true);
-    refreshGizmo(); refreshSelection();
-  }
-  bDials.onclick = () => setMode('dials');
-  bKeys.onclick = () => setMode('keys');
-  // the track: one diamond per key, around the cycle. Click to park on it,
-  // right-click to delete.
-  const keyTrack = el('canvas', 'width:100%;height:26px;display:none;cursor:pointer');
-  keyTrack.height = 26;
-  panel.appendChild(keyTrack);
-  function drawKeyTrack() {
-    const w = keyTrack.clientWidth || 300;
-    if (keyTrack.width !== w) keyTrack.width = w;
-    const g = keyTrack.getContext('2d');
-    g.clearRect(0, 0, w, 26);
-    g.strokeStyle = '#2f3c4e'; g.beginPath(); g.moveTo(0, 13); g.lineTo(w, 13); g.stroke();
-    const x = (ph) => (ph / TAU) * (w - 8) + 4;
-    g.fillStyle = '#8fd8ff';                       // where you are now
-    g.fillRect(x(scrubPhase) - 1, 2, 2, 22);
-    for (const k of gaitOf(gaitId).keys || []) {
-      const at = keyNear(scrubPhase) === k;
-      g.fillStyle = at ? '#ffd23c' : '#4fdc8b';
-      g.beginPath();
-      g.moveTo(x(k.ph), 5); g.lineTo(x(k.ph) + 5, 13); g.lineTo(x(k.ph), 21); g.lineTo(x(k.ph) - 5, 13);
-      g.closePath(); g.fill();
-    }
-  }
-  keyTrack.onclick = (e) => {
-    const r = keyTrack.getBoundingClientRect();
-    setPaused(true);
-    setPhase(((e.clientX - r.left - 4) / (r.width - 8)) * TAU);
-    drawKeyTrack(); refreshSelection();
-  };
-  keyTrack.oncontextmenu = (e) => {
-    e.preventDefault();
-    const r = keyTrack.getBoundingClientRect();
-    const ph = ((e.clientX - r.left - 4) / (r.width - 8)) * TAU;
-    const k = keyNear(ph);
-    if (k) deleteKey(k);
-  };
-
   const cmpRow = row('');
   const cmpChk = el('input');
   cmpChk.type = 'checkbox'; cmpChk.checked = compare;
@@ -1304,33 +1200,8 @@ export async function runGaitWorkbench(config, params) {
   panel.appendChild(selBox);
   function refreshSelection() {
     if (!selJoint) {
-      selBox.innerHTML = editMode === 'keys'
-        ? '<span style="color:#7c8ba0">KEYFRAMES: park the cycle at a phase, click a joint and rotate it. '
-          + 'The correction is stored against that phase and blends around the loop. Feet the foot rule '
-          + 'owns (a raised foot hangs off its shin) cannot be hand-rotated — the rule runs after.</span>'
-        : '<span style="color:#7c8ba0">Click a limb in the viewport to see which gait dials '
-          + 'drive it — then drag that joint to tune the one you pick. If none of them can move it '
-          + 'on this body, switch to JOINT ROTATIONS and key the angle by hand.</span>';
-      return;
-    }
-    if (editMode === 'keys') {
-      const owns = footOwns(selJoint);
-      const k = keyNear(scrubPhase);
-      selBox.innerHTML = `<b style="color:#ff9f43">${selJoint}</b>`
-        + `<div style="color:#7c8ba0;margin-top:4px">`
-        + (owns >= 0.5
-          ? 'THE FOOT RULE owns this ankle at this phase (it is off the ground, so it hangs off the '
-            + 'shin). Hand corrections run before that rule, so a rotation here would only be '
-            + 'overwritten — scrub to a phase where the foot is planted, or move another joint.'
-          : `drag the gizmo to correct this joint at phase ${fmt(scrubPhase, 2)}`
-            + (k ? ` · key ${k.pose[selJoint] ? 'holds ' + k.pose[selJoint].map((v) => `${v}°`).join(', ') : 'is empty here'}`
-              : ' · a key will be created'))
-        + '</div>';
-      if (k) {
-        const del = el('button', `${btnCss};padding:2px 6px;font-size:11px;margin-top:5px`, 'delete this key');
-        del.onclick = () => deleteKey(k);
-        selBox.appendChild(del);
-      }
+      selBox.innerHTML = '<span style="color:#7c8ba0">Click a limb in the viewport to see which '
+        + 'gait dials drive it — then drag that joint to tune the one you pick.</span>';
       return;
     }
     const list = dialsFor(selJoint);
@@ -1341,8 +1212,7 @@ export async function runGaitWorkbench(config, params) {
         // the dials exist, they just cannot reach this joint on this body — the
         // case that sends you looking for a dial that isn't there (fenrir's arms)
         ? `${all.length} dial${all.length === 1 ? '' : 's'} name this joint but none of them move it on `
-          + `${curId} at ${pct(throttle)} throttle — ${inertWhy(all[0])}. `
-          + 'Switch the panel to JOINT ROTATIONS and key the correction by hand instead.'
+          + `${curId} at ${pct(throttle)} throttle — ${inertWhy(all[0])}.`
         : 'no gait dial drives this joint — it is posed by the rest/combat stance or a signature.'));
       return;
     }
@@ -1397,7 +1267,9 @@ export async function runGaitWorkbench(config, params) {
     for (const group of schema) {
       if (!gait[group.id]) continue;              // e.g. no quad block on a biped
       const det = el('details', 'margin:6px 0;border:1px solid #26303f;border-radius:6px;background:#0f151d');
-      det.open = group.id !== 'quad';
+      // ALL SHUT to start: a gait carries sixty-odd dials across nine groups and
+      // an open panel is a wall. Open the one limb you came to tune.
+      det.open = false;
       const sum = el('summary', 'cursor:pointer;padding:5px 7px;color:#cfe0f5;font-size:11.5px;letter-spacing:.02em', group.label);
       det.appendChild(sum);
       const body = el('div', 'padding:2px 8px 8px');
@@ -1572,17 +1444,7 @@ export async function runGaitWorkbench(config, params) {
     'Space pause · [ ] step the cycle · Esc deselect · click a limb, then drag it where you want it.'));
 
   // headless hook — tools/*.mjs drive the workbench through this
-  setMode('dials');
-
   window.__gaitWork = {
-    setMode, addKey: () => { setPaused(true); const k = keyHere(true); writeStore(); drawKeyTrack(); return k; },
-    keys: () => gaitOf(gaitId).keys || [],
-    setKey: (joint, deg) => {
-      const k = keyHere(true);
-      k.pose[joint] = deg.slice();
-      writeStore(); drawKeyTrack(); refreshGaitStatus();
-      return k;
-    },
     get mech() { return mech; },
     get animator() { return animator; },
     get ghost() { return ghost; },

@@ -42,7 +42,6 @@ import {
   analyzeSkin, applySkinOps, compactSkinOps, pinSkinOps, skinOpsToJson,
   blendPatch, weldedAdjacency, enclaveScan,
 } from '../../../src/mechs/skinops.js';
-import { applySeamCuts } from '../../../src/mechs/seamcut.js';
 import { buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } from '../../../src/combat/hurtbox.js';
 import { PROPS } from '../../../src/arena/props.js';
 import { propManifest, loadPropModel, setPropAssetBase } from '../../../src/arena/propglb.js';
@@ -360,12 +359,13 @@ const CONFIG = defineWorkbenchConfig({
     weldedAdjacency,
     enclaveScan,
     ops: (id, { variant = 'glb' } = {}) => (entryOf(id, variant === 'alt')?.skinOps || []).map((o) => ({ ...o })),
-    // SEAM CUTS — separating geometry the mesher wrongly welded (seamcut.js).
-    // Handed over so a tool can PREVIEW the cut: the skin workbench edits the
-    // raw file, where the cut has not happened yet, and without this there is
-    // nowhere to see what the game will actually render.
+    // SEAM CUTS — geometry the mesher wrongly welded and seamcut.js separates.
+    // Handed over so a tool can SAY SO: the skin workbench edits the raw file,
+    // where the cut has not happened yet, so a mech that has cuts needs a
+    // warning that what it is showing is not what the game builds. There is no
+    // preview of the cut here any more — judging one needs the deforming model
+    // over every clip, which is Skin Debug's job.
     seamCuts: (id, { variant = 'glb' } = {}) => (entryOf(id, variant === 'alt')?.seamCuts || []),
-    applySeamCuts,
   },
 
   hurtbox: { build: buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE },
