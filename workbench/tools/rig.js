@@ -199,7 +199,7 @@ export async function runRigWorkbench(config, params) {
   let soloMove = false;            // move a joint WITHOUT dragging its subtree
   let rotMode = false;             // JOINT OFFSET mode: the gizmo rotates, and the
                                    // rotation is stored as a boneCorrection
-  let corrections = {};            // joint -> [x,y,z] degrees (manifest boneCorrections)
+  let corrections = {};            // joint -> [x,y,z(,rampDeg)] (manifest boneCorrections)
   let offChk = null;               // the 'show joint offsets' box (built with the panel)
   let soloMoveTargets = null;      // Map childName -> frozen world pos during a solo-move drag
 
@@ -573,6 +573,14 @@ export async function runRigWorkbench(config, params) {
   // space AFTER the retarget every frame, so it is a standing bias the animation
   // is corrected for rather than a pose anyone has to key.
   //
+  // AND AN OPTIONAL FOURTH NUMBER, THE RAMP: `[10, 0, 0, 45]` fades the
+  // correction in with how far the bone has swung from its bind rotation. Use
+  // it whenever the error is one of MOTION rather than of the bind itself —
+  // a rig whose next bone sits off-axis throws the limb wide as the joint
+  // swings, but has nothing wrong with it standing still. A constant there
+  // rotates the bind pose too, and on a GLB the bind pose is the mech's battle
+  // stance (viper stood with his legs pulled straight for a day that way).
+  //
   // This mode authors them by hand: the gizmo rotates instead of translating,
   // and what you rotate is stored. Corrections ride ON TOP of whatever pose the
   // editor is showing — bind or T — exactly as they ride on top of the retarget
@@ -588,6 +596,7 @@ export async function runRigWorkbench(config, params) {
   }
   const saveCorrDraft = () => localStorage.setItem(CORR_KEY(), JSON.stringify(corrections));
   const corrQuat = (deg, out) => out.setFromEuler(_ce.set(deg[0] / R2D, deg[1] / R2D, deg[2] / R2D));
+  const _cq2 = new THREE.Quaternion();   // scratch for the ramped-offset preview
 
   // ============ THE VIEW ============================================
   // TWO PIECES OF DATA DESCRIBE THIS RIG, and nothing else does: `rigObj` (bind
@@ -624,7 +633,27 @@ export async function runRigWorkbench(config, params) {
     if (showOffsets) {                                  // 3. the offsets, on top
       for (const b of bones) {
         const c = corrections[b.name];
-        if (c) b.quaternion.multiply(corrQuat(c, _cq));  // post-multiply = bone-LOCAL, as in game
+        if (!c) continue;
+        corrQuat(c, _cq);
+        // A RAMPED correction (the 4th number) is scaled by how far this bone
+        // has swung from its bind rotation — see RigAdapter. Here the bind
+        // rotation IS the identity (renderView starts every bone there), so the
+        // pose-only quaternion in poseQ is exactly that deviation. Without this
+        // the preview showed the full rotation at the BIND pose, where the game
+        // applies none of it: the editor would report a leg splay the game does
+        // not have, which is the opposite of what a preview is for.
+        //
+        // The preview is ramped even for the joint being EDITED, so that the
+        // editing mode stays a non-view flag (turning JOINT OFFSET on must not
+        // move anything). readCorrectionFromBone divides the ramp back out.
+        if (c.length > 3 && c[3] > 0) {
+          const pq = poseQ.get(b.name);
+          const dev = pq ? 2 * Math.acos(Math.min(1, Math.abs(pq.w))) : 0;
+          const k = Math.min(1, dev / (c[3] / R2D));
+          corrQuat(c, _cq2);
+          _cq.identity().slerp(_cq2, k);
+        }
+        b.quaternion.multiply(_cq);                      // post-multiply = bone-LOCAL, as in game
       }
     }
     root?.updateMatrixWorld(true);
@@ -659,10 +688,40 @@ export async function runRigWorkbench(config, params) {
     const base = poseQ.get(selName);
     if (!b || !base) return;
     _cq.copy(base).invert().multiply(b.quaternion);
+    // A RAMPED correction is drawn at a FRACTION of its stored strength (see
+    // renderView), so what is on screen is k of the number the manifest holds.
+    // Divide k back out, or every edit would quietly shrink the entry. At the
+    // bind pose k is 0 by construction — a ramped correction does nothing
+    // there, so there is nothing to author and saying so beats storing a
+    // number the user cannot see the effect of.
+    const ramp = corrections[selName]?.[3];
+    if (ramp > 0) {
+      const dev = 2 * Math.acos(Math.min(1, Math.abs(base.w)));
+      const k = Math.min(1, dev / (ramp / R2D));
+      if (k < 0.15) {
+        setNote(`${selName} carries a RAMPED offset (full strength at ${ramp}\u00b0 of swing) and this `
+          + 'pose barely moves it, so there is nothing on screen to edit. Turn the T pose or the test '
+          + 'swing on first, then drag.');
+        renderView();
+        return;
+      }
+      // scale the on-screen rotation back up to full strength, about its own axis
+      const ax = new THREE.Vector3(), a2 = 2 * Math.acos(Math.min(1, Math.abs(_cq.w)));
+      const sn = Math.sqrt(Math.max(0, 1 - _cq.w * _cq.w));
+      if (sn > 1e-6) {
+        ax.set(_cq.x / sn, _cq.y / sn, _cq.z / sn).normalize();
+        if (_cq.w < 0) ax.negate();
+        _cq.setFromAxisAngle(ax, a2 / k);
+      }
+    }
     _ce.setFromQuaternion(_cq);
     const deg = [_ce.x * R2D, _ce.y * R2D, _ce.z * R2D].map((v) => Math.round(v * 10) / 10);
+    // KEEP THE RAMP. The 4th number says WHERE the correction applies, not how
+    // much of it there is, so re-turning a ramped joint must not silently
+    // demote it to a constant — that would restand the mech at bind, which is
+    // the bug this whole shape exists to avoid.
     if (deg.every((v) => Math.abs(v) < 0.05)) delete corrections[selName];
-    else corrections[selName] = deg;
+    else corrections[selName] = ramp > 0 ? [...deg, ramp] : deg;
     saveCorrDraft();
     renderCorrections();
   }
@@ -1098,7 +1157,9 @@ export async function runRigWorkbench(config, params) {
     for (const n of names.sort()) {
       const row = el('div', 'display:flex;gap:4px;align-items:center;font-size:11px;color:#dfe8f5;margin-bottom:2px');
       const txt = el('span', 'flex:1;font-family:ui-monospace,monospace');
-      txt.textContent = `${n}  [${corrections[n].join(', ')}]`;
+      const cn = corrections[n];
+      txt.textContent = `${n}  [${cn.slice(0, 3).join(', ')}]`
+        + (cn.length > 3 && cn[3] > 0 ? `  ramp ${cn[3]}\u00b0` : '');
       if (!JOINT_SET.has(n)) {
         txt.style.color = '#ffb4a2';
         txt.title = 'NOT a game joint — the retarget only drives the canonical joints, '
@@ -1328,6 +1389,10 @@ export async function runRigWorkbench(config, params) {
         rigPos: rigObj.bones.find((x) => x.name === boneName).pos,
         childBefore: before,
         childAfter: byName[boneName].getWorldPosition(new THREE.Vector3()).toArray(),
+        // the bone as it stands the instant the drag is committed — a ramped
+        // offset has to render back to exactly this from the number stored
+        posedAfter: [b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w]
+          .map((v) => +v.toFixed(4)),
       };
     },
     setTPose: (v) => { tChk.checked = v; setTPose(v); },
