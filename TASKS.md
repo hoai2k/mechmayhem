@@ -5509,3 +5509,63 @@ MEASURED (tools/gaitprobe.mjs fenrir <throttle> sprint):
     body height, since a higher lift and more bob deepen the trough. `quad.drop`
     is the dial that buys it back and it is the owner's to spend; the readout
     shows it live.
+
+FENRIR: SPRINTER'S JOG, THE OWNER'S GALLOP, NOTHING GIVEN UP
+-------------------------------------------------------------
+Two attempts, and the second is the one that works.
+
+The FIRST tried to say it with inheritance alone: `base: 'sprint'` plus the
+gallop's stride shaping moved into `quad.hindReach`/`hindExtend`. Stride
+survived that port exactly; the CARRIAGE did not. Sprint's knees, bob and lean
+rode along into the gallop and put fenrir five points of body height deeper
+through the floor, and it was reverted (correctly) on main.
+
+The lesson is that his run end is not a variation on a sprinter. It is a
+different animal, and no amount of patching one table into the other says that.
+So: A GAIT MAY BE TWO TABLES. `runLegs` / `runAnkle` / `runArms` / `runBody` are
+a second copy of the four pose groups, and `effectiveGait(gait, ratio)`
+crossfades the gait from the first into the second over exactly the band the
+quadruped layer fades in on (`gallopBlend`, `quad.onset` … `+ quad.blend`) — so
+the carriage and the gallop arrive together instead of fighting on the way.
+
+  · at the bottom the gait IS its base. Fenrir is `base: 'sprint'`, so he jogs
+    like a runner: measured against sprint at throttle 0.3, every metric is a
+    null diff (stride 54.3% vs 54.3%, lean 10.0 both, armSwing 65.7 both,
+    armPhase -0.97 both).
+  · at the top it IS the run table. The owner's tuned gallop is copied in
+    verbatim, so from ratio 0.75 up the pose is BIT-IDENTICAL to the gait as it
+    stood before any of this — worst joint difference 0.00e+0 rad over 64 phases
+    at ratios 0.75/0.9/1. Not "close enough": the same numbers reach applyGait,
+    so the same pose comes out.
+
+THE NEW LANGUAGE TRANSLATES ITSELF. The run tables are the four groups, so every
+dial added while this was in flight — `legs.adductTrail`, and the gallop's
+`hindCarry`/`hindKneeCarry`/`hockCarry`/`hindSwing 1.80` — carried across with
+no special case: the `run*` schema groups are DERIVED from the four they mirror,
+so a dial added above is a dial here, in the table and in the workbench panel.
+`quad.hindReach`/`hindExtend` stay 0 and are now redundant with
+`runLegs.reach`/`extend`; they are left in place because the stride is expressed
+through the legs group again, as it was when the gallop was tuned.
+
+Everything downstream resolves the gait first — the animator caches it per frame
+in `_gait` (scratch object, no per-frame allocation), the workbench adapter
+resolves it inside `evaluate` and `phaseRate`. Miss one and half the body gets
+the jog's numbers and half the run's.
+
+In the panel this shows up for free: at 30% throttle the `run*` rows measure as
+inert and hide, at 100% the base rows do — each labelled with the throttle band
+it works in, so which table you are editing is never a guess.
+
+…EXCEPT THE FOOT. The ankle is the one part of the old gallop that was not worth
+restoring, so `runAnkle` names only two keys — `push 0.45` / `pushRun 0.35`, the
+BACK-EXTENSION ANGLE asked for explicitly (0.80 rad = 46 degrees, against the
+~86 the old table drove it to) — and the rest of the group stays sprint's at
+every speed: the roll, the toe-down bias, and `hang 0.26`, which lets an
+airborne paw hang at its resting line off the hock instead of being held at an
+angle to the world (36 degrees off it before, 22 after).
+
+That a run table can name TWO keys and morph only those two is what makes the
+exception expressible at all — no flag, no special case, just the same
+group-by-group, key-by-key merge the base does. Measured at full gallop: every
+joint except the ankles is 0.00e+0 rad from the old gallop, and the ankles are
+up to 40 degrees away from it, which is the point.

@@ -266,8 +266,45 @@ export const GAIT_SCHEMA = [
   },
 ];
 
-const GROUPS = GAIT_SCHEMA.map((g) => g.id);
+// ---------------------------------------------------------------------------
+// …AND THE SAME DIALS AGAIN, AS "WHAT THIS GAIT TURNS INTO WHEN IT OPENS UP".
+//
+// A gait is one set of numbers scaled by `ratio`, which is enough for a body
+// that does ONE thing faster. It is not enough for a body that does a DIFFERENT
+// thing fast: fenrir jogs on two legs like a runner and gallops on four like a
+// wolf, and those want different stride, different knees, different carriage —
+// not the same numbers turned up.
+//
+// So a gait may carry a second copy of any of the four pose groups, under
+// `runLegs` / `runAnkle` / `runArms` / `runBody`, and the gait MORPHS from the
+// first into the second as the quadruped layer fades in (the same `q`, so the
+// carriage and the gallop arrive together instead of fighting on the way).
+// At the bottom the gait is exactly its base; at the top it is exactly the run
+// table, which is what lets a hand-tuned gallop be restored verbatim and still
+// have a sprinter's jog underneath it.
+//
+// The groups are DERIVED from the four they mirror, so a dial added above is a
+// dial here too — including in the workbench, which builds its panel from this
+// schema and will show `runLegs.reach` beside `legs.reach` with no edit there.
+// ---------------------------------------------------------------------------
+const MORPH_GROUPS = ['legs', 'ankle', 'arms', 'body'];
+export const runGroupId = (id) => `run${id[0].toUpperCase()}${id.slice(1)}`;
+for (const id of MORPH_GROUPS) {
+  const src = GAIT_SCHEMA.find((g) => g.id === id);
+  GAIT_SCHEMA.push({
+    id: runGroupId(id),
+    label: `${src.label} — AT FULL GALLOP`,
+    optional: true,
+    params: src.params.map((p) => ({
+      ...p,
+      help: `${p.help ? `${p.help}. ` : ''}THE VALUE AT FULL GALLOP: the gait crossfades to this `
+        + 'one over the same speed band the quadruped layer fades in on, so this is the number '
+        + 'that shapes the run and the one above is the number that shapes the jog',
+    })),
+  });
+}
 
+const GROUPS = GAIT_SCHEMA.map((g) => g.id);
 /** Flat list of every dial: { group, key, label, min, max, step, joints, help }. */
 export function gaitParamList() {
   return GAIT_SCHEMA.flatMap((g) => g.params.map((p) => ({ ...p, group: g.id, groupLabel: g.label })));
@@ -323,48 +360,58 @@ export const GAITS = {
     body: { bob: 0.21, pitch: 0.12, yaw: 0.10, roll: 0.05, lean: 0.46, twist: 0.15, head: -0.36 },
   },
 
-  // FENRIR — A SPRINTER WHO DROPS TO FOUR LEGS.
+  // FENRIR — A SPRINTER WHO OPENS INTO A WOLF.
   //
-  // `base: 'sprint'` is the whole of his slow end: below `quad.onset` the gallop
-  // contributes nothing, so what runs is the sprint gait verbatim — driving bent
-  // arms, narrow track, frame pitched into it. He JOGS like a runner. From onset
-  // to onset+blend the rotary gallop fades in over the top and takes the body
-  // quadruped, which is the transition you see when he opens up.
+  // TWO TABLES, ONE GAIT. `base: 'sprint'` is his slow end: below `quad.onset`
+  // nothing here applies and what runs is the sprint gait verbatim — driving
+  // bent arms, narrow track, frame pitched into it. He JOGS LIKE A RUNNER. The
+  // `run*` blocks are his fast end: THE OWNER'S TUNED GALLOP, copied in
+  // unchanged, and the gait crossfades into them over exactly the band the
+  // quadruped layer fades in on. At full throttle every dial is that table to
+  // the last digit, so the gallop is the one he tuned and not an approximation
+  // of it.
   //
-  // That is why the block below is SHORT: everything not named here is sprint's,
-  // and tuning sprint moves fenrir's jog along with viper's run. Only the things
-  // that are true of a wolf and not of a runner are overridden, and the stride
-  // shaping the GALLOP needs lives in the `quad` block (hindReach/hindExtend) so
-  // it cannot leak back into the jog.
+  // The first attempt at this made the run inherit sprint too, with the stride
+  // shaping moved into `quad.hindReach`/`hindExtend`. Stride survived the port;
+  // the carriage did not — sprint's knees, bob and lean rode along and put him
+  // 5 points of body height deeper through the floor. Hence two whole tables
+  // rather than a base plus patches: the run end is not a variation on a
+  // sprinter, it is a different animal, and the honest way to say that is to
+  // write it out.
   quad: {
+    base: 'sprint',
     name: 'Quadruped',
-    note: 'Wolf lope: hinds drive as a pair against the fronts, spine arching on the gather.',
-    // THE OWNER'S TUNING, restored. This block was briefly rewritten to inherit
-    // `base: 'sprint'` with the gallop's stride shaping moved into
-    // `quad.hindReach`/`hindExtend`; the result put fenrir on his belly with his
-    // paws through the floor (sole min -20.9% of body height), so the values he
-    // had tuned are back, self-contained, where they can be read in one place.
-    // `quad.onset` is kept from that work — it only governs the speed the gallop
-    // FADES IN at, not the shape of it, and it is what lets him jog on two legs
-    // before he opens up.
-    legs: {
+    note: 'Sprinter\'s jog that opens into a wolf gallop: hinds drive as a pair against the fronts, spine arching on the gather.',
+    // ---- AT FULL GALLOP: the owner's tuning, verbatim ----
+    runLegs: {
       swing: 0.42, swingRun: 0.40, reach: 1.2, extend: -1.5,
       adduct: 0.085, adductRun: 0, adductTrail: 0,
       stanceBend: 0.14, stanceBendRun: 0.14,
       kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
       cadence: 0.92, cadenceCap: 14,
     },
-    ankle: { roll: 0.5, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0 },
-    arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
-    body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
+    // …EXCEPT THE FOOT. The ankle is the one part of the old gallop that was not
+    // worth restoring, so it is left on the sprint base at every speed: the roll,
+    // the toe-down bias and — the one that shows — `hang 0.26`, which lets an
+    // airborne paw hang at its resting line off the hock instead of being held
+    // at an angle to the world (measured 36 degrees off it before, 22 after).
+    // A run table that names only two keys morphs only those two; the rest of
+    // the group stays the base's, which is what makes this expressible at all.
+    // The two named here are the BACK-EXTENSION ANGLE, asked for explicitly:
+    // 0.45 + 0.35 = 0.80 rad, so the paw finishes its push at 46 degrees rather
+    // than the ~86 the old table drove it to.
+    runAnkle: { push: 0.45, pushRun: 0.35 },
+    runArms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
+    runBody: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {
       onset: 0.40, blend: 0.35, stride: 0.85, lag: 0.30,
       // drop 0.32 -> 0.30: the 180-degree hind stride below needs the room, and
       // at 0.32 the paws swung 0.44 units UNDER the floor at full gallop
       bodyPitch: 0.60, bodyArch: 0.09, drop: 0.30, heave: 0.15,
       frontReach: 1.25, frontSwing: 0.65, frontRake: 0.45, frontFold: 1.20,
-      // the stride shaping lives in `legs.reach`/`legs.extend` above, as it did
-      // when this gallop was tuned — these two stay 0 so it is not applied twice
+      // the stride shaping lives in `runLegs.reach`/`extend` above, as it did
+      // when this gallop was tuned (the crossfade is what keeps it off his jog)
+      // — these two stay 0 so it is not applied twice
       hindReach: 0, hindExtend: 0,
       // A 180-DEGREE HIND STRIDE, as asked: the sweep is twice hindSwing, so 1.80
       // measures 178 degrees peak-to-peak on the thigh (it was 93 at 0.62).
@@ -394,6 +441,48 @@ export const GAITS = {
 // bases. `baseOf` remembers who came from where, for the parts that want to say
 // so (the workbench header, formatGait).
 // ---------------------------------------------------------------------------
+/**
+ * How far into the quadruped layer this gait is at that speed, 0..1 — the ONE
+ * number that says "how much wolf". `applyQuadGait` blends its pose with it and
+ * `effectiveGait` crossfades the dials with it, so the carriage and the gallop
+ * are never out of step with each other.
+ */
+export function gallopBlend(gait, ratio) {
+  const Q = gait?.quad;
+  if (!Q) return 0;
+  return clamp01((ratio - (Q.onset ?? 0.4)) / Q.blend);
+}
+
+/**
+ * THE GAIT AT THIS SPEED. Without `run*` groups that is the gait itself; with
+ * them it is the crossfade between the two tables (see the schema note above).
+ *
+ * Every pass downstream — the phase rate, applyGait, the gallop, the keys, the
+ * foot rule — must run on THIS rather than on the raw gait, or half the body
+ * gets the jog's numbers and half gets the run's.
+ *
+ * `out` is a caller-owned scratch object so the per-frame path allocates
+ * nothing; the source gait is never written to.
+ */
+export function effectiveGait(gait, ratio, out) {
+  if (!MORPH_GROUPS.some((g) => gait[runGroupId(g)])) return gait;
+  const q = gallopBlend(gait, ratio);
+  if (q <= 1e-4) return gait;
+  const dst = out || {};
+  const own = dst.__morph || (dst.__morph = { legs: {}, ankle: {}, arms: {}, body: {} });
+  for (const k of Object.keys(gait)) if (!MORPH_GROUPS.includes(k)) dst[k] = gait[k];
+  for (const g of MORPH_GROUPS) {
+    const from = gait[g], to = gait[runGroupId(g)];
+    if (!from) { delete dst[g]; continue; }
+    if (!to) { dst[g] = from; continue; }
+    const o = own[g];
+    // a dial the run table does not name simply does not morph
+    for (const k in from) o[k] = to[k] === undefined ? from[k] : lerp(from[k], to[k], q);
+    dst[g] = o;
+  }
+  return dst;
+}
+
 const BASE_OF = {};
 export const gaitBaseOf = (id) => BASE_OF[id] || null;
 export const gaitHeirsOf = (id) => Object.keys(BASE_OF).filter((k) => BASE_OF[k] === id);

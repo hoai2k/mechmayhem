@@ -123,13 +123,25 @@ audio). Progress history: `TASKS.md`.
   everything downstream sees one flat table (`gaitBaseOf`/`gaitHeirsOf` remember
   who came from where; `formatGait` emits `base` plus only the differences, so
   the workbench's paste-back loop keeps the inheritance instead of silently
-  freezing a copy). FENRIR IS THE CASE: `quad` is `base: 'sprint'` plus a gallop
-  layer, so below `quad.onset` (0.40 of top speed) the gallop contributes nothing
-  and he JOGS AS A SPRINTER — verbatim sprint, measured identical — then goes
-  quadruped over `onset … onset + quad.blend`. Stride shaping the GALLOP needs
-  lives in the `quad` block (`hindReach`/`hindExtend`) rather than in
-  `legs.reach`/`legs.extend`, which apply at every speed and to every mech on the
-  base gait: a wolf's stride written there would land on his jog and on viper. `applyGait()` is the whole cycle and is
+  freezing a copy).
+  …AND A GAIT MAY BE TWO TABLES. `runLegs`/`runAnkle`/`runArms`/`runBody` are a
+  second copy of the four pose groups, and `effectiveGait(gait, ratio)`
+  CROSSFADES the gait from the first into the second over the same speed band
+  the quadruped layer fades in on (`gallopBlend` — `quad.onset` to
+  `onset + quad.blend`). That is for a body that does a DIFFERENT thing fast
+  rather than the same thing faster: FENRIR is `base: 'sprint'` at the bottom
+  (he jogs like a runner — measured identical to sprint) morphing into the
+  owner's hand-tuned wolf gallop at the top (measured BIT-IDENTICAL, every
+  joint, every phase, from ratio 0.75 up — EXCEPT THE ANKLES, deliberately: the
+  foot is the one part of the old gallop not worth restoring, so `runAnkle`
+  names only the back-extension angle and the rest of the group stays sprint's,
+  which is what `hang 0.26` on an airborne paw buys. A run table that names two
+  keys morphs two keys). The `run*` groups are DERIVED from
+  the four they mirror, so a new dial appears in both and in the workbench with
+  no edit anywhere. Everything downstream must run on `effectiveGait`, phase
+  rate included — the animator caches it per frame in `_gait`, the adapter
+  resolves it inside `evaluate`/`phaseRate` — or half the body gets the jog's
+  numbers and half the run's. `applyGait()` is the whole cycle and is
   PURE — the animator runs it and so does the gait workbench, so what is tuned
   there is what ships. Each dial has a `*Run` twin (`base + run * ratio`), which
   is how one gait walks politely and sprints hard. Add a dial by adding it to
