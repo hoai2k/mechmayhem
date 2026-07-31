@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { CLIPS, UPPER_JOINTS, defClipVariants } from './animations.js';
 import {
   gaitFor, gaitIdFor, applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
+  effectiveGait,
 } from './gaits.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
@@ -128,6 +129,7 @@ export class Animator {
     // the pickers display.
     this.gaitId = gaitIdFor(mech.def);
     this.gait = gaitFor(mech.def);
+    this._gait = this.gait;   // …at the current speed (see effectiveGait in update)
     this.cur = this.makeRestTarget();   // smoothed applied pose
     this.phase = Math.random() * TAU;   // gait phase
     this.t = Math.random() * 100;       // global time (desyncs idles)
@@ -346,7 +348,13 @@ export class Animator {
       // model. The cycle itself is applyGait(); all that happens here is
       // advancing the phase at the cadence the gait asks for and handing over
       // the per-body calibration the table can't know (foot depth, scale).
-      const gait = this.gait;
+      // …and, for a gait that is TWO tables (fenrir jogs like a runner and
+      // gallops like a wolf — see effectiveGait), the crossfade between them at
+      // this speed. Everything below runs on THIS, phase rate included, or half
+      // the body would get the jog's numbers and half the run's. The scratch
+      // object means the per-frame path still allocates nothing.
+      const gait = effectiveGait(this.gait, ratio, this._effGait || (this._effGait = {}));
+      this._gait = gait;
       const legLen = this.D.thighLen + this.D.shinLen;
       this.phase += gaitPhaseRate(gait, { speed, ratio, legLen, sizeMul: this.sizeMul }) * dt;
       // ONE env for the whole locomotion pipeline: the passes hand each other
@@ -414,16 +422,16 @@ export class Animator {
     // Rides OVER the biped stride above (which is what it lerps out of at
     // walking pace); the numbers are the gait's `quad` section — see gaits.js.
     if (grounded && speed > 0.4 && this.gait.quad) {
-      applyQuadGait(tgt, this.gait, this._gaitEnv);
+      applyQuadGait(tgt, this._gait, this._gaitEnv);
     }
     // hand-keyed corrections over the cycle, BEFORE the foot rule — a gait's
     // rules about feet outrank a hand edit (see applyGaitKeys)
     if (grounded && speed > 0.4 && this.gait.keys?.length) {
-      applyGaitKeys(tgt, this.gait, this._gaitEnv);
+      applyGaitKeys(tgt, this._gait, this._gaitEnv);
     }
     // THE FOOT RULE, last: stance / push-off / air, whichever layer put the leg
     // where it is (see applyToeHang).
-    if (grounded && speed > 0.4) applyToeHang(tgt, this.gait, this._gaitEnv);
+    if (grounded && speed > 0.4) applyToeHang(tgt, this._gait, this._gaitEnv);
 
     // ===== dash: coil, gather, LUNGE =====
     // A dash used to be a 2-line torso lean over a big velocity change, so it

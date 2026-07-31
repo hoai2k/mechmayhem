@@ -22,7 +22,7 @@ import { Animator } from '../../../src/mechs/animator.js';
 import {
   GAITS, GAIT_SCHEMA, gaitIds, gaitIdFor, cloneGait, gaitDiff, formatGait,
   applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
-  gaitBaseOf, gaitHeirsOf,
+  gaitBaseOf, gaitHeirsOf, effectiveGait,
 } from '../../../src/mechs/gaits.js';
 import { TUNING } from '../../../src/core/tuning.js';
 import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
@@ -290,7 +290,10 @@ const CONFIG = defineWorkbenchConfig({
     clone: cloneGait,
     diff: gaitDiff,
     format: formatGait,
-    phaseRate: gaitPhaseRate,
+    // …at the speed asked for: a gait that crossfades into a second table
+    // (fenrir) changes its own cadence on the way, so the preview has to resolve
+    // it exactly as the animator does before reading anything off it.
+    phaseRate: (gait, opts) => gaitPhaseRate(effectiveGait(gait, opts?.ratio ?? 1), opts),
     // hand an EDITED gait to a live animator — held by reference, so the very
     // next frame runs it (this is also how the game shares one gait between
     // mechs: everyone points at the same object)
@@ -305,10 +308,13 @@ const CONFIG = defineWorkbenchConfig({
       // ONE env: the passes hand each other conclusions through it (which foot
       // is in the air), exactly as the animator runs them
       const shared = { ...env, rest };
-      applyGait(tgt, gait, shared);
-      if (gait.quad) applyQuadGait(tgt, gait, shared);
-      applyGaitKeys(tgt, gait, shared);
-      applyToeHang(tgt, gait, shared);
+      // the gait AT THIS SPEED — same resolution the animator does, so a
+      // `run*` dial measures as the thing it actually moves
+      const g = effectiveGait(gait, env.ratio ?? 1);
+      applyGait(tgt, g, shared);
+      if (g.quad) applyQuadGait(tgt, g, shared);
+      applyGaitKeys(tgt, g, shared);
+      applyToeHang(tgt, g, shared);
       return tgt;
     },
     // The game's OWN top locomotion speed for this mech, so the preview's
