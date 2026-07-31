@@ -5555,3 +5555,17 @@ the jog's numbers and half the run's.
 In the panel this shows up for free: at 30% throttle the `run*` rows measure as
 inert and hide, at 100% the base rows do — each labelled with the throttle band
 it works in, so which table you are editing is never a guess.
+
+…EXCEPT THE FOOT. The ankle is the one part of the old gallop that was not worth
+restoring, so `runAnkle` names only two keys — `push 0.45` / `pushRun 0.35`, the
+BACK-EXTENSION ANGLE asked for explicitly (0.80 rad = 46 degrees, against the
+~86 the old table drove it to) — and the rest of the group stays sprint's at
+every speed: the roll, the toe-down bias, and `hang 0.26`, which lets an
+airborne paw hang at its resting line off the hock instead of being held at an
+angle to the world (36 degrees off it before, 22 after).
+
+That a run table can name TWO keys and morph only those two is what makes the
+exception expressible at all — no flag, no special case, just the same
+group-by-group, key-by-key merge the base does. Measured at full gallop: every
+joint except the ankles is 0.00e+0 rad from the old gallop, and the ankles are
+up to 40 degrees away from it, which is the point.
