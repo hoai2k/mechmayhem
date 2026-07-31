@@ -6,6 +6,7 @@ import { buildMech } from '../mechs/factory.js';
 import { Animator } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
+import { stackState, burnStacks, stackBlast } from '../mechs/stackfx.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import { CONFIG } from '../core/config.js';
@@ -3573,110 +3574,29 @@ export class Fighter {
   }
 
   // ================= burner stacks =================
-  // THE FIRE IS NOT ON THE MODEL. Inferno's shoulder chimneys used to end in
-  // two sculpted tongues of flame — a lump of triangles copied off the concept
-  // art, frozen at whatever angle the sculptor left them and reading as plastic
-  // horns the moment he moved. The manifest now DROPS that geometry and caps
-  // the mouths (dropgeo.js), and this is what stands in its place: two live
-  // burners on the `stackL`/`stackR` anchors, which ride the chimney bones
-  // through every clip.
+  // Inferno's shoulder chimneys BURN — see mechs/stackfx.js for what the three
+  // layers are and why the emission lives outside this file (the menus burn the
+  // same mech with no Fighter around it). This end owns the two things only a
+  // fighter knows: how hard he is WORKING, and whether smoke belongs here.
   //
-  // Three layers, because a burner is three things at once:
-  //   FLAME  small licking tongues off the mouth, on the flipbook atlas, so
-  //          they flicker in place instead of fading. A per-stack flicker
-  //          oscillator (two detuned sines + noise, one per side so the two
-  //          chimneys never pulse together) drives their size and rate — the
-  //          "little flickering flames" the pilot light actually is.
-  //   EMBER  the odd spark carried up out of the throat.
-  //   SMOKE  the part that reads as MOTION. It leaves the mouth with almost no
-  //          horizontal speed of its own, so the mech walks out from under it
-  //          and the column bends into a trail behind him; the harder he moves
-  //          the more of it there is (`stackFx.smokeRun`), and a dash blows a real
-  //          gout out. Buoyancy and drag do the rest.
-  //
-  // Data-driven off `def.stackFx` (roster.js), same shape as `bladeTrail`, so
-  // this is a mech's property and not a hard-coded id — and `joints` names the
-  // fallback for the procedural body, which has no chimney anchors.
+  // NO SMOKE IN THE WARM-UP SANDBOX. The loading screen parks the fighters on a
+  // grey plinth inside their own leash radius (warmup.js) — a trail with
+  // nowhere to trail to just fills the frame with fog while the arena streams
+  // in. Flames only there, same as the menus.
   updateStackFlames(dt) {
     const sf = this.def.stackFx;
     const fx = this.world.effects;
     if (!fx) return;
-    const s = this.scale;
+    this._stackFx = this._stackFx || stackState(sf);
     // how hard he is working: ground speed against his own top speed
     const run = clamp01(Math.hypot(this.vel.x, this.vel.z) / Math.max(1e-3, this.moveSpeed() * 1.15));
+    const smoke = !this.world.sandbox;
     this.group.updateWorldMatrix(true, true);
-    const st = this._stackFx || (this._stackFx = sf.anchors.map((_, i) => ({
-      t: 0, flame: 0, smoke: 0, ember: 0, phase: i * 2.3,
-    })));
-    for (let i = 0; i < sf.anchors.length; i++) {
-      const src = this.mech.anchors?.[sf.anchors[i]] || this.mech.joints?.[sf.joints?.[i]];
-      if (!src) continue;
-      src.getWorldPosition(_v);
-      // the procedural body has no chimney: lift off the shoulder instead
-      if (!this.mech.anchors?.[sf.anchors[i]]) _v.y += (sf.lift ?? 0.9) * s;
-      const k = st[i];
-      k.t += dt;
-      // flicker: two detuned sines plus a little noise, offset per side
-      const fl = 0.62 + 0.3 * Math.sin(k.t * 11 + k.phase) + 0.18 * Math.sin(k.t * 27.3 + k.phase * 2)
-        + rand(-0.1, 0.1);
-      const burn = clamp01(fl) * (0.8 + 0.45 * run);
-
-      // Each layer runs its own accumulator and CATCHES UP: a burner emitting
-      // 35 tongues a second must not collapse to one-per-frame on a machine
-      // running at 12fps, which is the difference between a lit chimney and a
-      // few orange dots. Capped per frame so a stalled tab cannot dump the
-      // whole pool the moment it resumes.
-      const tick = (key, gap, emit) => {
-        k[key] -= dt;
-        for (let n = 0; n < 6 && k[key] <= 0; n++) { k[key] += gap; emit(); }
-        if (k[key] <= 0) k[key] = gap;
-      };
-
-      tick('flame', (sf.flameGap ?? 0.055) / (0.75 + 1.5 * burn), () => {
-        const up = (2.6 + 4.5 * burn) * s;
-        fx.flames.emit(_v.x + rand(-0.12, 0.12) * s, _v.y + 0.05 * s, _v.z + rand(-0.12, 0.12) * s,
-          rand(-0.5, 0.5) * s, up, rand(-0.5, 0.5) * s,
-          { life: rand(0.2, 0.36), size: (0.95 + 1.05 * burn) * s, color: 0xffe9a8, color2: 0xff5c12,
-            alpha: 0.92, cell: -1, spin: 1.4, drag: 2.6, grow: 1.6 * s, gravity: -3.2 * s, fadeIn: 0.12 });
-        // the light the flame throws, so the chimney lip catches it
-        fx.glows.emit(_v.x, _v.y + 0.1 * s, _v.z, 0, 1.2 * s, 0,
-          { life: 0.16, size: (1.1 + 1.1 * burn) * s, color: 0xff8a2a, alpha: 0.5 * burn, grow: -1.2 * s });
-      });
-
-      tick('ember', rand(0.12, 0.4) / (0.5 + run), () => {
-        fx.sparks.emit(_v.x, _v.y + 0.15 * s, _v.z,
-          rand(-1.2, 1.2) * s, rand(4, 9) * s, rand(-1.2, 1.2) * s,
-          { life: rand(0.4, 0.9), size: rand(0.24, 0.44) * s, color: 0xffcf80, color2: 0xff3c08,
-            gravity: 7 * s, drag: 1.1, fadeIn: 0.02 });
-      });
-
-      // SMOKE — the trail. Emitted with no horizontal velocity of its own, so
-      // it hangs where it was made and he walks out from under it.
-      tick('smoke', (sf.smokeGap ?? 0.17) / (1 + (sf.smokeRun ?? 2.4) * run), () => {
-        fx.smoke.emit(_v.x + rand(-0.25, 0.25) * s, _v.y + rand(0.7, 1.3) * s, _v.z + rand(-0.25, 0.25) * s,
-          rand(-0.5, 0.5) * s, rand(3, 5) * s, rand(-0.5, 0.5) * s,
-          { life: rand(1.2, 2.2) * (0.8 + 0.5 * run), size: rand(1.6, 2.7) * s,
-            color: 0x5e544a, color2: 0x1d1c22, alpha: 0.46 + 0.2 * run,
-            drag: 1.3, grow: 3.1 * s, spin: 0.7, fadeIn: 0.22 });
-      });
-    }
+    burnStacks(this.mech, sf, this._stackFx, dt, { fx, scale: this.scale, run, smoke });
     // a dash punches the burners: one gout per dash, not one per frame
     if (this.state === 'dash' && !this._stackDashed) {
       this._stackDashed = true;
-      for (let i = 0; i < sf.anchors.length; i++) {
-        const src = this.mech.anchors?.[sf.anchors[i]] || this.mech.joints?.[sf.joints?.[i]];
-        if (!src) continue;
-        src.getWorldPosition(_v);
-        for (let n = 0; n < 5; n++) {
-          fx.smoke.emit(_v.x + rand(-0.3, 0.3) * s, _v.y + rand(0.2, 1.1) * s, _v.z + rand(-0.3, 0.3) * s,
-            rand(-1.5, 1.5) * s, rand(2, 5) * s, rand(-1.5, 1.5) * s,
-            { life: rand(1.2, 2.2), size: rand(1.4, 2.4) * s, color: 0x5f544a, color2: 0x1d1c22,
-              alpha: 0.5, drag: 1.5, grow: 3.2 * s, spin: 0.9, fadeIn: 0.2 });
-        }
-        fx.flames.emit(_v.x, _v.y + 0.1 * s, _v.z, 0, 9 * s, 0,
-          { life: 0.34, size: 2.2 * s, color: 0xfff2c8, color2: 0xff4a0c,
-            alpha: 0.95, cell: -1, spin: 1.6, drag: 2.4, grow: 2.6 * s, gravity: -4 * s });
-      }
+      stackBlast(this.mech, sf, { fx, scale: this.scale, smoke });
     } else if (this.state !== 'dash') this._stackDashed = false;
   }
 

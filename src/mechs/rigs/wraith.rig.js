@@ -14,6 +14,19 @@
 // entry (?rigedit=wraith&alt=1 / the pose tool's Compare Alternate GLB) so the
 // two can be judged side by side.
 //
+// IT DOES CARRY skinOps AGAIN — 28 of them, hand-painted on THIS rig in
+// ?edit=skin: the cloak onto `cape0`, the pauldrons onto the `mantle` pair, the
+// forearms off the torso, and both legs re-cut at hip/knee/ankle. That is not
+// the old rig's 44 patches coming back; the proximity re-skin still draws the
+// weights and this is the paint on top. What it moved, `node
+// tools/skindebug.mjs wraith` before and after: 29 findings / 1431 total
+// severity -> 39 / 1816. The two worst broad findings went (the 1346-vert
+// torso/head band at `castRaise`, and the shoulderR-to-cloak weld at
+// `hangGrab`) along with the elbowL pinch, and what replaced them is a larger
+// number of SMALLER, more local shoulder/mantle findings — which is what
+// breaking one big island into correctly-owned pieces looks like on this
+// metric. Hurtbox is unmoved (tools/hurtboxfit: contain 63% -> 62%).
+//
 // SPACE: positions are MESH-LOCAL (raw GLB bind space): +x FORWARD (hood
 // point, toes), +y UP, +z the model's LEFT / -z its RIGHT. This model's
 // lateral centre line sits at z ≈ -0.05, not 0 — every left/right pair below
