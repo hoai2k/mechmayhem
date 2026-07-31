@@ -13,6 +13,8 @@ import { createMech, is3dMode, manifestHasGlb } from '../mechs/gltf.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial } from '../core/texload.js';
 import { loadPosterIndex, posterMeta, posterUrl, POSTER_YAW, SETTLE_MS } from '../ui/posters.js';
+import { BurnerFx } from '../combat/effects.js';
+import { stackState, burnStacks } from '../mechs/stackfx.js';
 
 const _pv = new THREE.Vector3(); // scratch for projecting poster boxes
 
@@ -268,6 +270,12 @@ export class MenuStage {
     this._swayT0 = 0;       // idle-sway phase origin (see armSway)
     this._swayHold = new Set(); // slots parked at POSTER_YAW waiting to join it
     this.sparkles = [];     // live sparkle bursts (see sparkleBurst)
+    // A mech whose def carries `stackFx` (inferno) is ON FIRE here too — the
+    // chimneys are empty geometry now, so a menu that didn't burn would show a
+    // furnace robot with two cold pipes. Built on demand, since most line-ups
+    // have nobody who burns; smoke is deliberately absent (see BurnerFx).
+    this.burner = null;
+    this.burning = [];      // [{ mech, sf, st }] — one per unit that burns
     loadPosterIndex();      // fire and forget; no poster = old behaviour
   }
 
@@ -502,6 +510,7 @@ export class MenuStage {
         this.mechs[idx] = Object.assign(tag(glb), {
           yawOffset: unit.yawOffset || 0, fx: unit.fx || null,
         });
+        this.syncBurners();      // a late GLB may be one that burns
         this.onUnitReady?.(this.mechs[idx]);
       });
       return unit;
@@ -512,6 +521,7 @@ export class MenuStage {
     mech.group.rotation.y = rotY;
     this.group.add(mech.group);
     this.mechs.push(mech);
+    this.syncBurners();
     this.onUnitReady?.(mech);
     return mech;
   }
@@ -701,6 +711,34 @@ export class MenuStage {
     if (m) m.yawOffset = (m.yawOffset || 0) + delta;
   }
 
+  // ---- burner stacks on a display mech (mechs/stackfx.js) ----------------
+  // A unit only joins this list once its BODY is real: a poster is a picture
+  // and a spinner is a placeholder, and hanging fire off either would light a
+  // chimney that isn't on screen yet. onUnitReady/the GLB swap both land in
+  // syncBurners, so a mech that arrives late still catches light.
+  syncBurners() {
+    this.burning = [];
+    for (const m of this.mechs) {
+      const sf = m.isSpinner ? null : m.def?.stackFx;
+      if (!sf) continue;
+      m._stackFx = m._stackFx || stackState(sf);
+      this.burning.push({ mech: m, sf, st: m._stackFx });
+    }
+    if (this.burning.length && !this.burner) this.burner = new BurnerFx(this.engine.scene);
+  }
+
+  updateBurners(dt) {
+    if (!this.burner) return;
+    for (const b of this.burning) {
+      b.mech.group.updateWorldMatrix(true, true);
+      // run 0: nobody is going anywhere on a plinth, so this is the idle burn
+      burnStacks(b.mech, b.sf, b.st, dt, {
+        fx: this.burner, scale: b.mech.def?.body?.scale || 1, run: 0,
+      });
+    }
+    this.burner.update(dt);
+  }
+
   clearMechs() {
     this._gen++; // invalidate any in-flight GLB swaps from a prior screen
     this._swayHold.clear(); // nothing left to stay in step with
@@ -710,6 +748,11 @@ export class MenuStage {
       if (m.spinner) disposeSpinner(m.spinner);
     }
     this.mechs = [];
+    this.burning = [];
+    // the pools go back to the GPU with the bodies that fed them: a screen
+    // change may well be to a line-up where nobody burns
+    this.burner?.dispose();
+    this.burner = null;
     for (const r of this.rings) {
       this.group.remove(r);
       r.geometry.dispose();
@@ -792,6 +835,7 @@ export class MenuStage {
       // lineup & select previews always show the combat-ready carriage
       m.animator.update(dt, { speed: 0, grounded: true, alwaysReady: true });
     }
+    this.updateBurners(dt);
     // last: a poster comes down only once the body beneath it is real and has
     // already been drawn at least once (see promotePoster)
     this.retirePosters(dt);

@@ -13,6 +13,26 @@
 // +y UP, +z LEFT / -z RIGHT; the tail arches up-back at -x. Positions below are
 // the latest ?rigedit=jerry tuning; `post`/`bias` are re-attached here because
 // the editor's Export emits only name/parent/pos.
+//
+// THE SKIN PAINT AND THE SEAM CUT MOVE TOGETHER. His manifest carries 92
+// skinOps and a `seamCuts` rule, and the rule reads the weights the paint
+// leaves behind — so a repaint can hand the cut a different set of bridging
+// triangles without a word. The 92-op pass did exactly that: it cleared the old
+// arm-to-leg welds (shoulderR~thighR, elbowR~thighR, thighL~torso all gone from
+// `node tools/weldmap.mjs jerry --list`) and grew a new ELBOW-to-torso one in
+// their place — 22 triangles on the left, 15 on the right, stretching 240x at
+// `intro`, the top three findings in the audit. `elbowL`/`elbowR` joined the
+// cut's `a` list (it now reads "the whole arm vs the torso", which is the
+// armpit seam it always meant) and those findings went:
+//   before the paint  13 findings / 233 total severity
+//   paint, old cut    20 / 829      <- the elbow weld, uncut
+//   paint, cut widened 19 / 160
+// KNOWN LOSS, left as authored: the paint moves the entire upper leg onto
+// `kneeL`/`kneeR`, so `thighR` ends up owning ZERO vertices and `thighL` six.
+// A bone with no geometry has no hurtbox capsule, so `tools/hurtboxfit.mjs`
+// reports thighR missing and combat falls back to the broad-phase ball there
+// (contain 87% -> 82%, though bloat improves 1.40x -> 1.02x). Painting a slice
+// of upper leg back onto the thighs in ?edit=skin is all it needs.
 export const JERRY_RIG = {
   bones: [
     // ---- body ----

@@ -312,11 +312,18 @@ audio). Progress history: `TASKS.md`.
   tongues of flame, frozen at whatever angle the sculptor left them. The drop
   takes them off and seals the mouths; the manifest hangs `stackL`/`stackR`
   ANCHORS on the same bones (any key in `muzzles` becomes an anchor of that
-  name), and the roster's `stackFx` block drives `Fighter.updateStackFlames` —
+  name), and the roster's `stackFx` block feeds `src/mechs/stackfx.js` —
   flickering tongues, embers, and a smoke column emitted with no horizontal
   speed of its own, so he walks out from under it and it reads as a TRAIL.
-  Judge it in a fight, not in a poster: mech select builds a mech and not a
-  Fighter, so the burners only light once he is in the arena.
+  THE BURNER IS NOT A COMBAT THING, which is why the emission lives in
+  stackfx.js and not in fighter.js: it takes a plain `mech` plus the pools to
+  emit into, so the MENUS burn too — mech select and the title line-up are
+  models with no Fighter around them (`MenuStage.syncBurners`, feeding
+  `BurnerFx` from effects.js, a flame/ember/glow pool set with NO SMOKE POOL).
+  Smoke is off wherever there is nowhere to trail to: the menus by construction,
+  and the warm-up sandbox by `world.sandbox` (a robot on a plinth inside its own
+  leash radius just ends up in a fog bank). A POSTER still shows cold pipes —
+  it is a PNG — so mech select burns only once the real body is in.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit

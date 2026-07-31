@@ -248,6 +248,46 @@ class ParticlePool {
     this.points.geometry.attributes.aSize.needsUpdate = true;
     this.points.geometry.attributes.aMisc.needsUpdate = true;
   }
+
+  // Effects itself lives as long as the battle does and never needs this; a
+  // MENU pool set (BurnerFx below) is built and torn down every time a screen
+  // changes, so it has to give the GPU buffers back. The TEXTURE is not
+  // disposed: it comes out of the shared cache in core/textures.js and the next
+  // pool — or the battle — wants the same one.
+  dispose() {
+    this.points.parent?.remove(this.points);
+    this.points.geometry.dispose();
+    this.points.material.dispose();
+  }
+}
+
+// THE MENUS BURN TOO. A mech on the select stage or in the title line-up is a
+// plain mech and not a Fighter: there is no world, no combat, and no Effects.
+// This is the smallest pool set a burner needs (mechs/stackfx.js) — flame,
+// ember, and the light the flame throws.
+//
+// DELIBERATELY NO SMOKE POOL. A trail wants somewhere to trail to; a robot
+// standing on a display plinth just ends up in a fog bank, and stackfx.js reads
+// the missing pool as "flames only" with no flag to pass.
+export class BurnerFx {
+  constructor(scene, cap = 160) {
+    this.flames = new ParticlePool(scene, flameAtlasTexture(), { cap, cols: 4, rows: 4 });
+    this.sparks = new ParticlePool(scene, sparkTexture(), { cap: Math.round(cap * 0.6) });
+    this.glows = new ParticlePool(scene, softCircleTexture(), { cap: Math.round(cap * 0.6) });
+    this.smoke = null;
+  }
+
+  update(dt) {
+    this.flames.update(dt);
+    this.sparks.update(dt);
+    this.glows.update(dt);
+  }
+
+  dispose() {
+    this.flames.dispose();
+    this.sparks.dispose();
+    this.glows.dispose();
+  }
 }
 
 // ---------- sprite-override intake (chromakey capable) ----------
