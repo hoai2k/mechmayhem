@@ -605,6 +605,12 @@ export class World {
 // shots as before), while a deliberately-splayed gun — cranky's water cannons
 // — throws along its own axis. A muzzle with NO rot still returns identity, so
 // one added later behaves as it always did until its orientation is authored.
+// How much of the vertical aim a FLAME keeps, and the bias added on top. A jet
+// aimed at a nearby target's centre from a tall mech's chest points at the
+// floor; these flatten it back toward the horizon. See the flame handler.
+const FLAME_PITCH = 0.4;
+const FLAME_RISE = 0.05;
+
 const _bQ = new THREE.Quaternion(), _bOff = new THREE.Quaternion();
 const _bFwd = new THREE.Vector3(), _bFace = new THREE.Vector3();
 function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
@@ -641,12 +647,38 @@ const WEAPONS = {
   },
 
   flame(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {
-    // FLAMETHROWER: one roaring cone of burning fuel — a FAT stream
-    // tube, plus shader-card flames (FlameFX) licking off the nozzle
-    // along the aim and blooming up where the stream lands
+    // FLAMETHROWER: one roaring cone of burning fuel — a stream tube, plus
+    // shader-card flames (FlameFX) licking off the nozzle along the aim and
+    // blooming up where the stream lands.
+    //
+    // IT SHOOTS FLATTER THAN THE AIM DOES. The vertical assist pitches every
+    // shot at the target's CENTRE, which is right for a bullet and wrong for
+    // this: inferno's barrels sit at chest height on a tall body, so a target
+    // anywhere close puts the jet on a downward slope and he hoses the pavement
+    // in front of him. A flame is a WALL, not a bullet — it only has to arrive
+    // at the right place horizontally — so most of that pitch is taken back out
+    // and a little up-bias added, leaving a stream that reads as going FORWARD.
+    //
+    // THIS APPLIES TO THE LOCKED AIM TOO, which is the case that matters: a
+    // target lock tracks the enemy's centre by itself, so it slopes downward for
+    // exactly the same reason the assist does — skipping it there left the jet
+    // at -10 degrees in the one mode the player spends most of a fight in. Only
+    // the DOWN half is compressed; aim genuinely upward and the clamp's top end
+    // still lets the stream climb.
+    // The clamp is on the SLOPE — rise over run — so the horizontal is put back
+    // to unit length FIRST. Clamping `y` on a vector whose horizontal part has
+    // already been shortened by a steep aim and then renormalizing gives back a
+    // steeper angle than the number asked for (-0.1 measured as -7.8 degrees,
+    // not -5.7): the limit has to be applied in the frame it is stated in.
+    {
+      const hl = Math.hypot(dir.x, dir.z) || 1;
+      dir.set(dir.x / hl, clamp(dir.y * FLAME_PITCH + FLAME_RISE, -0.1, 0.4), dir.z / hl).normalize();
+    }
     const cool = fireCool(f.def);
     const end = w.effects.jet('flame' + f.playerIndex, from, dir, {
-      type: cool ? 'firecool' : 'fire', speed: 30, range: mv.range * 1.05, gravity: -4, r0: 0.32, r1: 2.2,
+      // r1 2.2 -> 1.5: the far end of the tube narrows, so a longer jet does not
+      // also become a wider one
+      type: cool ? 'firecool' : 'fire', speed: 30, range: mv.range * 1.05, gravity: -4, r0: 0.32, r1: 1.5,
     });
     let fj = w.flameJets.get(f.playerIndex);
     if (fj && (!fj.nozzle.alive || !fj.impact.alive)) {
@@ -656,7 +688,7 @@ const WEAPONS = {
     if (!fj) {
       fj = {
         nozzle: new FlameFX(w.scene, w.effects, from, { radius: 0.55, scale: 1.05, dir, cards: 5, light: false, cool }),
-        impact: new FlameFX(w.scene, w.effects, end || from, { radius: 1.5, scale: 1.0, cards: 6, light: false, cool }),
+        impact: new FlameFX(w.scene, w.effects, end || from, { radius: 1.15, scale: 1.0, cards: 6, light: false, cool }),
         ttl: 0,
       };
       w.spawnFlameJet(f.playerIndex, fj);
@@ -666,14 +698,16 @@ const WEAPONS = {
     fj.impact.rekindle();
     fj.nozzle.setPose(from, dir);
     if (end) fj.impact.setPose(end.setY(Math.max(0, end.y - 0.5)));
-    if (Math.random() < 0.4) w.effects.fire(from, dir, 34, 0.24, !!cool); // embers riding the blast
+    if (Math.random() < 0.4) w.effects.fire(from, dir, 34, 0.15, !!cool); // embers riding the blast
     w.audio?.play('flame');
     // cone tick damage
     for (const t of w.fighters) {
       if (t === f || !t.alive) continue;
       const toT = t.center().sub(from);
       const d = toT.length();
-      if (d < mv.range && toT.normalize().dot(dir) > 0.72) {
+      // 0.72 -> 0.86: ~44 degrees of half-cone down to ~31, so the reach it
+      // gained is not paid for in a wash that catches everything beside him
+      if (d < mv.range && toT.normalize().dot(dir) > 0.86) {
         t.takeHit(mv.dmg * f.dmgMult(), f, { knock: 0.5, srcPos: from, status: { burn: 5, burnT: 2 }, soft: true });
       }
     }

@@ -131,6 +131,25 @@ audio). Progress history: `TASKS.md`.
   are the fit metrics; `node tools/hurtboxfit.mjs` prints them for the whole
   roster on both routes, and `node tools/hitprobe.mjs "<battle url>"` reports
   the new melee test against the old one on a real fight.
+- WHICH WAY THE LEGS POINT is not always which way the body faces
+  (`Animator.legFrame`). In target lock a mech strafes and back-pedals with its
+  chest on the enemy; the whole body used to turn as one, so a strafe played a
+  forward stride translated sideways and a BACK-PEDAL played a forward stride
+  translated backwards — the planted foot travelling WITH him instead of pushing
+  against the ground. Measured on titanus, stance-foot drift along the direction
+  of travel: forward -5.5 u/s (pushing back, correct), backwards +5.2 (the
+  moonwalk), strafe -0.01 (a pure skate). These are robots, so the fix is the
+  one a person cannot do: `ctx.drift` is the angle from facing to travel, the
+  HIPS take it (they are the rig root, so the legs follow) and the TORSO gives
+  the same angle back, leaving the lower body walking where it is going and the
+  upper body still aiming. Past a quarter turn that would be a pirouette, so
+  beyond it the drift is measured against the REVERSED facing and the walk cycle
+  runs BACKWARDS instead — a 180° back-pedal is 0° of leg turn and a reversed
+  stride, and back-strafing is both. After: backwards -4.3, strafe -2.7, both
+  pushing the right way. HUMANOIDS ONLY, gated on the gait (`standard`/`sprint`)
+  plus a roster opt-out `strafeLegs: false` — a crab does not counter-rotate its
+  waist (cranky), and jerry (`arthropod`) and fenrir (`quad`) are excluded by
+  their gaits.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
   `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
   nova) and `quad` (fenrir).

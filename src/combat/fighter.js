@@ -3083,6 +3083,13 @@ export class Fighter {
       speed: this.climb ? this._climbSpeed || 0
         : canMove || this._charging ? spd : proneScuttle,
       maxSpeed: maxSpd,
+      // WHICH WAY HE IS ACTUALLY GOING, as an angle off his facing. In target
+      // lock the two come apart — he strafes and back-pedals with his chest on
+      // the enemy — and the animator turns the hips (and reverses the cycle) off
+      // this. Zero while climbing: the walk cycle IS the climb there, in a body
+      // frame that has nothing to do with the arena's.
+      drift: !this.climb && spd > 0.4
+        ? angleDiff(this.yaw, Math.atan2(this.vel.x, this.vel.z)) : 0,
       grounded: this.grounded || this.climb?.phase === 'wall',
       vy: this.vel.y,
       dashT: this.dashT,
