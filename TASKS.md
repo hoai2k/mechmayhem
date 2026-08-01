@@ -5649,3 +5649,83 @@ keeps the shell nearly square through light1/2/3 (torso pitch delta x0.35, yaw
 x0.25, hips yaw x0.3 — cranky's crab rule) and scales the arms' travel AROUND
 the rest carriage x1.35. Impact frame: the claw arcs overhead as the visible
 striker, shell square, still landing in the aim band.
+
+## Phase 16 — THE ARENA EDITOR: `?edit=level` edits the SHIPPED arenas (user request, 2026-08-01)
+
+The level builder was a blank canvas with a palette: you placed a city one prop
+at a time and exported it. What it could not do was open one of the twelve
+arenas people actually play and change it, which is the thing a level tool is
+for. It now does, and the palette has moved out of the way to make room for the
+editing.
+
+**PICKING AN ARENA BAKES IT.** The top bar's dropdown lists the 12 shipped
+arenas; choosing one BUILDS it, for real, through the same `Arena` a match uses,
+and hands back every piece of it as an editable object — massed towers with
+their setbacks and ziggurat tiers, every prop with its own yaw and seed, the
+lanes, hills, bridges, pools and the elevated loop. `seed ⟳` rerolls that
+arena's layout. `?edit=level&arena=<theme>&seed=<n>` opens one directly;
+`&theme=<id>` still means a blank level on that theme and `&load=<name>` still
+edits a level file, so nothing that pointed at the old tool has moved.
+
+**THE BAKE READS A BUILT ARENA, IT DOES NOT RE-RUN THE GENERATOR.** `Arena` now
+writes each building and prop into `arena.recipe` as it places it (the RAW tint —
+the authored path re-applies `tintFor`), `Terrain` already kept its lanes /
+hills / bridges / patches / viaduct as plain data, and `src/arena/bake.js`
+assembles a level from the two. A second implementation of the scatter rules
+would be wrong the first time someone tuned the real one. `node
+tools/arenabake.mjs` bakes all twelve, rebuilds each through `themeFromLevel`
+and diffs what combat can touch — chunks, buildings, props, explosives, spikes,
+campfires, lanes, hills, bridges, patches, viaduct segments, piers, bounds. All
+twelve are identical. It deliberately does NOT count `propBodies`: a prop's
+solid collider is measured off its built bounding box and props swap in a
+generated GLB the moment one finishes streaming, so the same theme at the same
+seed already disagrees with itself by a body or two — counting it would report
+the game's own async as bake drift (measured: uptown 52 / 49 / 50 on three
+identical builds).
+
+Three things the level format grew so an arena can survive the trip:
+  · a building may carry `cells`, an explicit massing silhouette, instead of
+    the palette's plain nx·ny·nz box (`Simplify to box` in the inspector turns
+    one back into the editable kind);
+  · a level may carry a resolved `viaduct` block — `themeFromLevel` no longer
+    forces `L.viaduct` to null, and `r0` pins where the two ramps sit, which
+    was the one seeded number the deck could not otherwise reproduce;
+  · viaduct PIERS are placed for authored levels too. They are derived from the
+    deck rather than scattered, so they are never written into the recipe — a
+    bake that recorded them would leave a second set behind on reload.
+Ground patches and spawn points became first-class palette entries at the same
+time, since a baked arena arrives carrying them.
+
+**THE EDITING IS ON SCREEN.** Click to select, shift-click to add, shift-drag
+empty ground to marquee a whole block. DRAG a selected object to move it and the
+entire selection travels; ALT-drag leaves a copy behind. A small toolbar rides
+above the selection — turn, copy, delete, properties — and a bright ring on the
+ground under each selected object says which ones they are (a one-pixel
+wireframe box vanishes at arena zoom, and the ring draws through whatever is in
+front of it, which is how you find a selected prop tucked behind a tower).
+R turns the selection about its OWN CENTRE, via a pivot the gizmo hangs off, so
+one object and twenty behave identically.
+
+THE GIZMO IS ROTATE-ONLY NOW. A translate gizmo sits exactly on top of the thing
+you want to grab: its centre plane-handle swallowed every drag aimed at the
+object under it, and the drag silently did nothing. Moving is the drag; the
+gizmo is for the one thing a drag can't express.
+
+Everything that was a permanent panel is now conditional: the palette is a
+drawer behind ＋ ADD (searchable, grouped, stays open while you place), the
+properties panel exists only while something is selected, and arena/view/
+playtest settings live behind the gear.
+
+Two bugs fell out of the rewrite, one of them old: the properties panel was
+revealed by a CSS transition on `right`, which never advances under a stalled
+animation clock and left the panel parked off screen — both panels are now shown
+outright. And the playtest mech pickers were built by a `ensurePtPickers()` call
+sitting BELOW the editor's `return engine`, so they never existed and Playtest
+threw on `ptP1.value`; the fighters are now plain ids chosen in the settings
+modal.
+
+Files: `src/editor/leveleditor.js` (rewritten), `src/arena/bake.js` (new),
+`src/arena/arena.js` (recipe + authored cells + shared pier placement),
+`src/arena/level.js` (viaduct passthrough + cells), `src/arena/terrain.js`
+(`V.r0`), `src/editor/catalog.js` (patches, elevated loop),
+`tools/arenabake.mjs` (new), `src/core/knobs.js` (`arena`, `seed`).

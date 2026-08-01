@@ -695,10 +695,43 @@ audio). Progress history: `TASKS.md`.
   in twin viewports with one shared camera, with triangle/texture/VRAM/file
   deltas and a size check; the mesh merge is judged by flipping `?props=raw`
   on a battle URL, since it changes draw calls and not pixels.
-- Level builder: `?edit=level` (place/move buildings, props, terrain + export)
-  · `?edit=level&load=<name>` edits `public/levels/<name>.json` ·
-  `?battle=<theme>&level=<name>` plays an authored level. Editor: `src/editor/`,
-  loader + authored-placement format: `src/arena/level.js`.
+- THE ARENA EDITOR (`?edit=level`) EDITS THE SHIPPED ARENAS, not just blank
+  canvases. Pick one of the 12 from the top-bar dropdown and it is BAKED: the
+  arena is built for real, exactly as a match builds it, and every massed
+  tower, every prop with its own yaw and seed, the lanes, hills, bridges,
+  pools and the elevated loop come back as objects you can click. The `seed ⟳`
+  button rerolls that arena's layout; `?edit=level&arena=<theme>` opens one
+  directly, `&seed=<n>` picks the layout, `&theme=<id>` still means a BLANK
+  level on that theme and `&load=<name>` still edits
+  `public/levels/<name>.json`. `?battle=<theme>&level=<name>` plays one.
+  THE BAKE READS A BUILT ARENA rather than re-running the generator: `Arena`
+  writes every building and prop it places into `arena.recipe` as it places
+  them (raw tint — the authored path re-applies `tintFor`), Terrain already
+  keeps its lanes/hills/bridges/patches/viaduct as plain data, and
+  `src/arena/bake.js` assembles the level from both. So there is no second
+  copy of the generation rules to drift when the scatter is tuned. Prove the
+  round trip with `node tools/arenabake.mjs` — it bakes all 12, rebuilds each
+  through `themeFromLevel`, and diffs what combat can touch (chunks, props,
+  hazards, every terrain feature). Note it deliberately does NOT count
+  `propBodies`: a prop's collider is measured off its built bounding box and
+  props swap in a generated GLB the moment one finishes streaming, so the same
+  theme at the same seed already disagrees with itself by a body or two.
+  Three things the format grew for this: a building may carry `cells` (an
+  explicit massing silhouette) instead of nx/ny/nz, a level may carry a
+  resolved `viaduct` block (`L.viaduct` is no longer forced to null, and
+  `r0` pins the ramp positions), and viaduct PIERS are now placed for authored
+  levels too — they are derived from the deck, so they are never recorded into
+  the recipe or a bake would leave a second set behind.
+  INTERACTION IS ON SCREEN, not in a panel: click to select, shift-click to
+  add, shift-drag empty ground to marquee · DRAG a selected object to move it
+  and the whole selection travels · ALT-drag leaves a copy behind · a small
+  toolbar rides above the selection (turn / copy / delete / properties) · R
+  turns the selection about its own centre. THE GIZMO IS ROTATE-ONLY — a
+  translate gizmo sits exactly on top of the thing you want to grab and eats
+  the drag, which is what it did. The palette is a drawer behind ＋ ADD and the
+  properties panel only exists while something is selected.
+  Editor: `src/editor/`, loader + authored-placement format:
+  `src/arena/level.js`.
 
 ## Mech art pipeline — READ `docs/MECH_ART_GUIDE.md` FIRST
 

@@ -45,6 +45,11 @@ export function arenaTexEntries(theme) {
 
 const _v = new THREE.Vector3();
 
+// recipe numbers are read by a human in the level editor's export — a placement
+// is not more accurate for carrying fifteen decimals
+const round1 = (v) => Math.round(v * 10) / 10;
+const round2 = (v) => Math.round(v * 1000) / 1000;
+
 function makeSkyDome(theme) {
   const geo = new THREE.SphereGeometry(900, 24, 16);
   // generated sky panorama (src/textures/sky/sky_<id>/) — equirect, sampled
@@ -117,6 +122,12 @@ export class Arena {
     this.propBodies = [];  // solid, destructible structures (cylinder colliders)
     this.ghostPropGroups = []; // the 8 toroidal clones (mirror destruction)
     this.ambientT = 0;
+    // RECIPE: every building / prop this arena placed, written down in the
+    // level editor's own authored format as it is placed. A procedural arena
+    // is a seeded one-off — the editor turns one into an editable level by
+    // building it and reading this back (src/arena/bake.js), so there is no
+    // second copy of the generation rules to drift out of sync.
+    this.recipe = { buildings: [], props: [] };
     const rng = makeRng(seed * 31 + theme.id.length * 77);
 
     // Toroidal cell: coordinates wrap at ±wrapHalf (world.bind reads this).
@@ -313,10 +324,13 @@ export class Arena {
       // authored levels place exact towers from the editor
       for (const o of theme.authored) {
         if (o.k !== 'building') continue;
-        const nx = o.nx || 2, ny = o.ny || 4, nz = o.nz || 2;
         const cw = o.cw || 3.5, ch = o.ch || 3.3, cd = o.cd || 3.5;
         const tint = tintFor(o.tint ?? theme.buildings.tints[0]);
-        this.destructo.addBuilding(o.x, o.z, nx, ny, nz, cw, ch, cd, { tint, rng });
+        // `cells` is a massed silhouette (setback tower, ziggurat, warehouse…)
+        // carried verbatim out of a baked arena; without it the tower is the
+        // plain nx·ny·nz box the palette places.
+        if (o.cells?.length) this.destructo.addBuildingCells(o.x, o.z, o.cells, cw, ch, cd, { tint, rng });
+        else this.destructo.addBuilding(o.x, o.z, o.nx || 2, o.ny || 4, o.nz || 2, cw, ch, cd, { tint, rng });
       }
     } else {
       // buildings are MASSED, not boxed: each site draws a theme-flavored
@@ -341,7 +355,8 @@ export class Arena {
           hRange[1] = Math.max(hRange[0], hRange[1] - 1);
         }
         const cw = rng.range(3.2, 3.9), ch = rng.range(3.1, 3.6), cd = rng.range(3.2, 3.9);
-        const tint = tintFor(theme.buildings.tints[rng.int(0, theme.buildings.tints.length - 1)]);
+        const rawTint = theme.buildings.tints[rng.int(0, theme.buildings.tints.length - 1)];
+        const tint = tintFor(rawTint);
         let m = null;
         if (donorPool.length && rng.chance(site.tall ? 0.65 : 0.35)) {
           m = donorPool[rng.int(0, donorPool.length - 1)];
@@ -353,6 +368,12 @@ export class Arena {
         // wide silhouettes shrink their cells instead of swallowing streets
         const cwE = Math.min(cw, 19 / m.nx), cdE = Math.min(cd, 19 / m.nz);
         this.destructo.addBuildingCells(site.x, site.z, m.cells, cwE, ch, cdE, { tint, rng });
+        // recorded with the RAW tint: the authored path runs tintFor again
+        this.recipe.buildings.push({
+          k: 'building', x: round1(site.x), z: round1(site.z),
+          cells: m.cells, nx: m.nx, ny: m.ny, nz: m.nz,
+          cw: round2(cwE), ch: round2(ch), cd: round2(cdE), tint: rawTint,
+        });
       }
     }
 
@@ -382,6 +403,15 @@ export class Arena {
       if (needFlat && this.terrain.heightAt(x, z) > 0.15) return false;
       return true;
     };
+    // viaduct piers first: solid destructible columns holding up the loop.
+    // Derived from the deck, not placed by hand, so an authored level that
+    // carries a viaduct gets its piers too — and they are never recorded into
+    // the recipe, or baking one arena would leave a second set behind.
+    for (const spot of this.terrain.pylonSpots) {
+      const g = placeProp(this.propGroup, this.objects, 'viaductPylon', spot.x, spot.z,
+        { h: spot.h, ry: spot.axis === 'x' ? Math.PI / 2 : 0, seed: rng.int(1, 99999) });
+      if (g) this._regProp(g, spot.x, spot.z, 0);
+    }
     if (theme.authored) {
       // authored levels place exact props from the editor (deterministic yaw,
       // seed and optional uniform scale)
@@ -399,20 +429,21 @@ export class Arena {
         this._regProp(g, o.x, o.z, gy);
       }
     } else {
-      // viaduct piers first: solid destructible columns holding up the loop
-      for (const spot of this.terrain.pylonSpots) {
-        const g = placeProp(this.propGroup, this.objects, 'viaductPylon', spot.x, spot.z,
-          { h: spot.h, ry: spot.axis === 'x' ? Math.PI / 2 : 0, seed: rng.int(1, 99999) });
-        if (g) this._regProp(g, spot.x, spot.z, 0);
-      }
       const buildAt = (spec, x, z, i, skyAnchored = false) => {
         let opts = Array.isArray(spec.opts) ? spec.opts[i % spec.opts.length] : { ...(spec.opts || {}) };
         opts = { ...opts, seed: rng.int(1, 99999) };
+        const recOpts = { ...opts };            // before the ice-material swap
         if (opts.mat === 'ice') opts.mat = PROP_MATS.ice;
         const gy = skyAnchored ? 0 : this.terrain.heightAt(x, z);
         const g = placeProp(this.propGroup, this.objects, spec.name, x, z, opts);
         if (g && gy > 0.01) g.position.y += gy; // seat the prop on the terrain surface
         if (g) this._regProp(g, x, z, gy);
+        if (g) {
+          this.recipe.props.push({
+            k: 'prop', name: spec.name, x: round1(x), z: round1(z),
+            ry: round2(g.rotation.y), s: 1, opts: recOpts,
+          });
+        }
         return g;
       };
       // a generated sky panorama paints its own aurora — the procedural

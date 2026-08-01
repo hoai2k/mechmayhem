@@ -242,7 +242,9 @@ export class Terrain {
     const at = V.at ?? (rng.chance(0.5) ? 1 : -1) * rng.range(minAt, Math.max(minAt + 6, this.B * 0.8));
     const H = V.h ?? 6.8, rampL = V.rampL ?? 14;
     const nSeg = Math.max(24, Math.round(this.P / 6));
-    const r0 = rng.range(-this.P / 2, this.P / 2);
+    // where the two ramps sit along the loop. Seeded normally; an authored
+    // level pins it so a baked arena's ramps come back where they were.
+    const r0 = V.r0 ?? rng.range(-this.P / 2, this.P / 2);
     this.viaduct = {
       lane: { at, amp, phase: V.phase ?? rng.range(0, TAU), axis, half },
       H, rampL, w, nSeg, segLen: this.P / nSeg,
