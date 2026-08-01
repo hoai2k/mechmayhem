@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { streamNoiseTexture } from '../core/textures.js';
 import { rand, clamp01 } from '../core/utils.js';
+import { fireTintOf } from '../mechs/colorscheme.js';
 
 const FLAME_VERT = /* glsl */`
   uniform float uW;
@@ -36,7 +37,7 @@ const FLAME_FRAG = /* glsl */`
   uniform float uSeed;
   uniform float uAge;       // 0 newborn -> 1 burned out
   uniform float uIntensity;
-  uniform float uCool;      // 0 fire-orange -> 1 gas-flame blue
+  uniform vec3 uG0, uG1, uG2, uG3;   // the flame's gradient, dark -> white heart
   varying vec2 vUv;
   void main() {
     vec2 uv = vUv;
@@ -60,25 +61,35 @@ const FLAME_FRAG = /* glsl */`
     fire = clamp(fire * 1.45, 0.0, 1.0);
     // gradient map: deep red skirt -> orange body -> yellow -> small white
     // heart (keep the heart RARE — a wide white core reads as a blowtorch).
-    // uCool swaps the whole ramp to gas-flame blue (TIDE-scheme fire).
-    vec3 gA = mix(vec3(0.42, 0.03, 0.0),  vec3(0.01, 0.09, 0.46), uCool);
-    vec3 gB = mix(vec3(0.95, 0.34, 0.03), vec3(0.08, 0.46, 0.98), uCool);
-    vec3 gC = mix(vec3(1.0, 0.72, 0.2),   vec3(0.42, 0.83, 1.0),  uCool);
-    vec3 gD = mix(vec3(1.0, 0.95, 0.72),  vec3(0.85, 0.96, 1.0),  uCool);
-    vec3 col = mix(gA, gB, smoothstep(0.04, 0.38, fire));
-    col = mix(col, gC, smoothstep(0.38, 0.72, fire));
-    col = mix(col, gD, smoothstep(0.88, 0.99, fire));
+    // THE RAMP IS A UNIFORM, not a constant: an alternate paint job burns in
+    // its own colour (colorscheme.js schemeFire), and the blue gas flame TIDE
+    // always had is just that formula at hue 0.58. Defaults below are the
+    // ordinary fire, so anything that does not pass a tint is unchanged.
+    vec3 col = mix(uG0, uG1, smoothstep(0.04, 0.38, fire));
+    col = mix(col, uG2, smoothstep(0.38, 0.72, fire));
+    col = mix(col, uG3, smoothstep(0.88, 0.99, fire));
     float a = smoothstep(0.03, 0.25, fire) * uIntensity;
     gl_FragColor = vec4(col, a);
     if (a < 0.015) discard;
   }
 `;
 
-// TIDE-scheme mechs burn BLUE: 1 when this fighter def wears the deep-sea
-// paint, 0 otherwise — thread through every fire FX an owner spawns
-export const fireCool = (def) => (def?.variant === 2 ? 1 : 0);
+// THE FIRE A MECH BURNS. null for an ordinary flame; otherwise the four ramp
+// stops of its paint job (colorscheme.js — saturated schemes only, so white,
+// silver, black and brown keep normal fire). Thread it through every fire FX an
+// owner spawns. TIDE used to be special-cased here as a blue boolean; it comes
+// out of the scheme table now like every other colour.
+export const fireTint = (def) => fireTintOf(def);
+// what an ember / a point light should be for that tint
+export const fireGlow = (tint) => (tint ? tint.stops[2] : 0xffc060);
+export const fireDeep = (tint) => (tint ? tint.stops[0] : 0xff3808);
 
-function makeCard(scene, cool = 0) {
+// the ordinary flame's four gradient stops, shared with the fire tornado so
+// the two never drift apart
+export const FIRE_RAMP = [0x6b0800, 0xf25708, 0xffb833, 0xfff2b8];
+
+function makeCard(scene, tint = null) {
+  const g = tint ? tint.stops : FIRE_RAMP;
   const geo = new THREE.PlaneGeometry(1, 1);
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
   const mat = new THREE.ShaderMaterial({
@@ -88,7 +99,10 @@ function makeCard(scene, cool = 0) {
       uSeed: { value: rand(0, 10) },
       uAge: { value: 0 },
       uIntensity: { value: 1 },
-      uCool: { value: cool },
+      uG0: { value: new THREE.Color(g[0]) },
+      uG1: { value: new THREE.Color(g[1]) },
+      uG2: { value: new THREE.Color(g[2]) },
+      uG3: { value: new THREE.Color(g[3]) },
       uW: { value: 1 },
       uH: { value: 1 },
       uUp: { value: new THREE.Vector3(0, 1, 0) },
@@ -119,20 +133,20 @@ export class FlameFX {
   //   dir:    flame axis (default straight up; tilt for nozzle bursts)
   //   cards:  transient tongue budget
   //   light:  add a flickering point light (one per fire, cheap and sells it)
-  constructor(scene, effects, pos, { radius = 1.2, scale = 1, dir = null, cards = 7, light = true, cool = 0 } = {}) {
+  constructor(scene, effects, pos, { radius = 1.2, scale = 1, dir = null, cards = 7, light = true, tint = null } = {}) {
     this.scene = scene;
     this.fx = effects;
     this.pos = pos.clone();
     this.radius = radius;
     this.scale = scale;
-    this.cool = cool;
+    this.tint = tint;
     this.up = dir ? dir.clone().normalize() : new THREE.Vector3(0, 1, 0);
     this.alive = true;
     this._acc = { tongue: 0, ember: 0, smoke: 0 };
     this.cards = [];
     // the heart: two persistent core cards that never die, just flicker
     for (let i = 0; i < 2; i++) {
-      const c = makeCard(scene, cool);
+      const c = makeCard(scene, tint);
       c.core = true;
       c.mesh.visible = true;
       c.mesh.position.copy(pos).add(this.up.clone().multiplyScalar(i * 0.1));
@@ -143,10 +157,10 @@ export class FlameFX {
       c.u.uUp.value.copy(this.up);
       this.cards.push(c);
     }
-    for (let i = 0; i < cards; i++) this.cards.push(makeCard(scene, cool));
+    for (let i = 0; i < cards; i++) this.cards.push(makeCard(scene, tint));
     this.light = null;
     if (light) {
-      this.light = new THREE.PointLight(cool ? 0x38a0ff : 0xff7a22, 40 * scale, 18 * scale, 1.8);
+      this.light = new THREE.PointLight(tint ? tint.stops[2] : 0xff7a22, 40 * scale, 18 * scale, 1.8);
       this.light.position.copy(pos).add(this.up.clone().multiplyScalar(1.2 * scale));
       scene.add(this.light);
     }
@@ -225,7 +239,7 @@ export class FlameFX {
       fx.sparks.emit(p.x + Math.cos(a) * r, p.y + rand(0.5, 1.5) * this.scale, p.z + Math.sin(a) * r,
         rand(-1.2, 1.2), rand(3, 7) * this.scale, rand(-1.2, 1.2),
         { life: rand(0.6, 1.3), size: rand(0.25, 0.5),
-          color: this.cool ? 0x9fdcff : 0xffc060, color2: this.cool ? 0x1f78ff : 0xff3808,
+          color: fireGlow(this.tint), color2: fireDeep(this.tint),
           gravity: -2, drag: 0.8, fadeIn: 0.02 });
     });
 

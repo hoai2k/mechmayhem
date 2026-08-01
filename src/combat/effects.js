@@ -95,9 +95,9 @@ const _ja = new THREE.Vector3(), _jb = new THREE.Vector3(), _jt = new THREE.Vect
 const VERT = /* glsl */`
   attribute float aSize;
   attribute vec4 aColor;   // rgb + alpha
-  attribute vec2 aMisc;    // rotation angle, atlas cell index
+  attribute vec3 aMisc;    // rotation angle, atlas cell index, hue shift
   varying vec4 vColor;
-  varying vec2 vMisc;
+  varying vec3 vMisc;
   void main() {
     vColor = aColor;
     vMisc = aMisc;
@@ -113,7 +113,19 @@ const FRAG = /* glsl */`
   uniform sampler2D uTex;
   uniform vec2 uGrid;      // atlas columns, rows
   varying vec4 vColor;
-  varying vec2 vMisc;
+  varying vec3 vMisc;
+  // HUE ROTATION, per particle. The flame atlas bakes its own orange -> yellow
+  // -> white heart into the RGB, which is what makes a flame sprite read as
+  // fire — and also what makes it untintable: multiplying purple over a pixel
+  // whose red is pinned at 255 gives a muddy red, not a purple flame. So the
+  // sampled texture is ROTATED around the colour wheel instead, which moves the
+  // whole baked ramp together and keeps the hot core hot. 0 = untouched, so
+  // every particle that does not ask for it is bit-identical.
+  vec3 hueRot(vec3 c, float a) {
+    const vec3 k = vec3(0.57735);
+    float cs = cos(a);
+    return c * cs + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - cs);
+  }
   void main() {
     vec2 pc = gl_PointCoord - 0.5;
     float cA = cos(vMisc.x), sA = sin(vMisc.x);
@@ -121,7 +133,8 @@ const FRAG = /* glsl */`
     pc = clamp(pc + 0.5, 0.004, 0.996);
     vec2 cellXY = vec2(mod(vMisc.y, uGrid.x), floor(vMisc.y / uGrid.x));
     vec4 t = texture2D(uTex, (cellXY + pc) / uGrid);
-    gl_FragColor = vec4(vColor.rgb * t.rgb, vColor.a * t.a);
+    vec3 tex = vMisc.z == 0.0 ? t.rgb : clamp(hueRot(t.rgb, vMisc.z), 0.0, 1.0);
+    gl_FragColor = vec4(vColor.rgb * tex, vColor.a * t.a);
     if (gl_FragColor.a < 0.01) discard;
   }
 `;
@@ -134,7 +147,7 @@ class ParticlePool {
     this.pos = new Float32Array(cap * 3);
     this.col = new Float32Array(cap * 4);
     this.size = new Float32Array(cap);
-    this.misc = new Float32Array(cap * 2); // angle, cell
+    this.misc = new Float32Array(cap * 3); // angle, cell, hue shift (radians)
     // particle sim state
     this.vel = new Float32Array(cap * 3);
     this.life = new Float32Array(cap);     // remaining
@@ -156,7 +169,7 @@ class ParticlePool {
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     geo.setAttribute('aColor', new THREE.BufferAttribute(this.col, 4));
     geo.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1));
-    geo.setAttribute('aMisc', new THREE.BufferAttribute(this.misc, 2));
+    geo.setAttribute('aMisc', new THREE.BufferAttribute(this.misc, 3));
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6); // skip culling
 
     const mat = new THREE.ShaderMaterial({
@@ -191,6 +204,7 @@ class ParticlePool {
     spin = 0,         // radians/sec (sign randomized here when nonzero)
     rot = null,       // start angle; default random
     fadeIn = 0.1,     // fraction of life spent ramping alpha IN (no popping)
+    hue = 0,          // radians to rotate the SPRITE's own colours by (see hueRot)
   } = {}) {
     const i = this.head;
     this.head = (this.head + 1) % this.cap;
@@ -213,6 +227,7 @@ class ParticlePool {
     const frames = this.cols * this.rows;
     this.cell[i] = cell === -2 ? (Math.random() * frames) | 0 : cell;
     this.fadeT[i] = Math.max(0.001, fadeIn * life);
+    this.misc[i * 3 + 2] = hue;
   }
 
   update(dt) {
@@ -238,8 +253,8 @@ class ParticlePool {
       col[i * 4 + 2] = baseCol[i * 3 + 2] + (endCol[i * 3 + 2] - baseCol[i * 3 + 2]) * m;
       col[i * 4 + 3] = baseAlpha[i] * f * Math.min(1, age / fadeT[i]);
       size[i] = baseSize[i] * (1 + grow[i] * m);
-      misc[i * 2] = rot0[i] + spin[i] * age;
-      misc[i * 2 + 1] = cell[i] < 0
+      misc[i * 3] = rot0[i] + spin[i] * age;
+      misc[i * 3 + 1] = cell[i] < 0
         ? Math.min(frames - 1, (m * frames) | 0)  // flipbook rides the lifetime
         : cell[i];
     }
@@ -666,7 +681,11 @@ export class Effects {
 
   // one tick of REAL flame: flipbook tongues that LICK through their loop
   // as they cool white->orange->deep red, embers, and smoke off the tip
-  fire(origin, dir, speed = 26, spread = 0.3, cool = false) {
+  // `tint` (colorscheme.js schemeFire) recolours the whole burst for a mech in
+  // an alternate paint job; null is ordinary fire, and the old blue `cool`
+  // boolean is just the TIDE tint arriving this way instead.
+  fire(origin, dir, speed = 26, spread = 0.3, tint = null) {
+    const G = tint?.stops, hue = tint?.rot || 0;
     // core: hot, brief, fast frames
     const c = dir.clone();
     c.x += rand(-spread * 0.5, spread * 0.5);
@@ -675,8 +694,8 @@ export class Effects {
     c.normalize().multiplyScalar(speed * rand(0.85, 1.05));
     this.flames.emit(origin.x, origin.y, origin.z, c.x, c.y, c.z,
       { life: rand(0.22, 0.34), size: rand(1.4, 2.1),
-        color: cool ? 0xd8f2ff : 0xffefc0, color2: cool ? 0x2f8cff : 0xff7a14,
-        alpha: 0.95, cell: -1, spin: 1.2, drag: 2, grow: 2, gravity: -5, fadeIn: 0.08 });
+        color: G ? G[3] : 0xffefc0, color2: G ? G[1] : 0xff7a14,
+        alpha: 0.95, cell: -1, spin: 1.2, drag: 2, grow: 2, gravity: -5, fadeIn: 0.08, hue });
     // body: bigger licking tongues, buoyant, swelling as they cool
     for (let i = 0; i < 2; i++) {
       const d = dir.clone();
@@ -684,15 +703,15 @@ export class Effects {
       d.normalize().multiplyScalar(speed * rand(0.55, 0.95));
       this.flames.emit(origin.x, origin.y, origin.z, d.x, d.y, d.z,
         { life: rand(0.38, 0.68), size: rand(1.9, 3.1),
-          color: cool ? 0x64b4ff : 0xffab3c, color2: cool ? 0x0a2470 : 0x6e1804,
-          alpha: 0.88, cell: -1, spin: 1.6, drag: 2.4, grow: 3.2, gravity: -7, fadeIn: 0.1 });
+          color: G ? G[2] : 0xffab3c, color2: G ? G[0] : 0x6e1804,
+          alpha: 0.88, cell: -1, spin: 1.6, drag: 2.4, grow: 3.2, gravity: -7, fadeIn: 0.1, hue });
     }
     // embers: tiny hot flecks tumbling out of the stream
     if (Math.random() < 0.35) {
       this.sparks.emit(origin.x, origin.y, origin.z,
         dir.x * speed * 0.7 + rand(-3, 3), dir.y * speed * 0.7 + rand(0, 4), dir.z * speed * 0.7 + rand(-3, 3),
         { life: rand(0.4, 0.8), size: rand(0.3, 0.6),
-          color: cool ? 0x9fdcff : 0xffb060, color2: cool ? 0x1f78ff : 0xff4010, gravity: 9, drag: 1, fadeIn: 0.02 });
+          color: G ? G[2] : 0xffb060, color2: G ? G[1] : 0xff4010, gravity: 9, drag: 1, fadeIn: 0.02 });
     }
     // smoke shears off past the flame tip and climbs, tumbling
     if (Math.random() < 0.7) {
@@ -726,14 +745,15 @@ export class Effects {
     }
   }
 
-  firePatch(pos, radius = 2.2) {
+  firePatch(pos, radius = 2.2, tint = null) {
+    const G = tint?.stops, hue = tint?.rot || 0;
     // one tick of ground-fire visuals; caller re-invokes while patch lives
     for (let i = 0; i < 2; i++) {
       const a = rand(Math.PI * 2), r = rand(0, radius);
       this.flames.emit(pos.x + Math.cos(a) * r, pos.y + 0.15, pos.z + Math.sin(a) * r,
         rand(-0.5, 0.5), rand(2.5, 5), rand(-0.5, 0.5),
-        { life: rand(0.35, 0.6), size: rand(1.1, 2), color: 0xffd070, color2: 0x8a2408,
-          alpha: 0.9, cell: -1, spin: 1, drag: 1, grow: 2, fadeIn: 0.1 });
+        { life: rand(0.35, 0.6), size: rand(1.1, 2), color: G ? G[3] : 0xffd070, color2: G ? G[0] : 0x8a2408,
+          alpha: 0.9, cell: -1, spin: 1, drag: 1, grow: 2, fadeIn: 0.1, hue });
     }
     if (Math.random() < 0.4) {
       const a = rand(Math.PI * 2), r = rand(0, radius * 0.8);
@@ -833,7 +853,8 @@ export class Effects {
   // ---- coherent jets: call every weapon tick; the tube persists and
   // rebuilds along the live ballistic arc, dying ~0.15s after the last
   // call. Returns the arc's end point (for splashes/puddles at landing).
-  jet(key, from, dir, { type = 'water', speed = 42, range = 20, gravity = 28, r0 = 0.15, r1 = 0.6 } = {}) {
+  jet(key, from, dir, { type = 'water', speed = 42, range = 20, gravity = 28, r0 = 0.15, r1 = 0.6,
+    tint = null } = {}) {
     let e = this.streams.get(key);
     if (!e) {
       const style = JET_STYLES[type];
@@ -879,6 +900,14 @@ export class Effects {
     }
     e.ttl = 0.16;
     e.mesh.visible = true;
+    // A TINTED STREAM re-colours the cached material each call rather than
+    // keying a second one: the tube is owned by the fighter (key 'flame<n>'),
+    // and a fighter can be repainted between rounds.
+    if (tint) {
+      e.mat.uniforms.uCore.value.setHex(tint.stops[3]);
+      e.mat.uniforms.uEdge.value.setHex(tint.stops[0]);
+      e.mat.uniforms.uFoam.value.setHex(tint.stops[2]);
+    }
     // ballistic arc: fly until range is spent or the stream meets the dirt
     const vx = dir.x * speed, vy0 = dir.y * speed, vz = dir.z * speed;
     let tEnd = range / speed;

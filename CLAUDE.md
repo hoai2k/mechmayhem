@@ -748,6 +748,26 @@ audio). Progress history: `TASKS.md`.
   family; a near-grey mech's armor is the NEUTRAL pixels and its few saturated
   ones are accents to protect. Judge a change with
   `node tools/schemesheet.mjs <mech> out.png <schemeIdxCsv>`.
+- FIRE IN THE TEAM COLOUR (`colorscheme.js` schemeFire / `fireTintOf`): a
+  repainted mech's FLAMES answer to the paint — inferno in AMETHYST breathing
+  purple, in VERDANT green — but only where it reads as a deliberate colour.
+  White, silver, black and brown are what ordinary fire looks like against soot,
+  and tinting those just looks broken, so the rule comes off the scheme's own
+  numbers rather than a hand-kept list: a scheme tints when it has a chromatic
+  FLOOR (`minS`) and is not desaturating on top of it (`satMul >= 0.8`, which is
+  what excludes UMBER). MIDNIGHT/IVORY/SILVER cap saturation instead of flooring
+  it and fall out on the first test. TIDE's blue gas flame used to be a
+  hard-coded `fireCool(def)` boolean; it comes out of the same formula now.
+  TWO MECHANISMS, because there are two kinds of flame. The SHADER fires
+  (FlameFX cards, the fire tornado's shells, the jet tube) take the four ramp
+  stops as uniforms — dark base, body, bright, white heart — generated at the
+  scheme's hue from one profile, so every colour is the same fire. The SPRITE
+  fires (the particle pools) cannot: `flameAtlasTexture` bakes the orange ramp
+  into its own pixels with red pinned at 255, so multiplying a tint over it
+  gives mud. Those rotate the sampled texture's HUE instead (`hue` on
+  ParticlePool.emit, `aMisc.z`), which moves the whole baked ramp together and
+  keeps the hot core hot. 0 = untouched, so every untinted particle in the game
+  is bit-identical.
 - Work-in-progress mechs: a roster def flagged `hidden: true` (currently
   AEGIS + NOVA) is kept out of the GAME's roster — mech select, RANDOM
   picks, CPU picks, title line-up — until SETTINGS → SHOW ALL ROBOTS is
