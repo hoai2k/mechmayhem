@@ -1,31 +1,28 @@
 // WALL CLIMBING — the gecko route up a building.
 //
 // A mech whose roster def carries a `climb` block (JERRY, who paid for it with
-// his hover jets) can walk UP a facade. The whole feature is here: the mode
-// machine, the surface-following movement, the body's damp between the ground
-// frame and the wall frame, the haul over a lip, and the pass that plants the
+// his hover jets) walks UP facades. The whole feature is here: the attach, the
+// surface-following movement, the body's damp between the ground frame and the
+// wall frame, the haul over a lip, the jump off, and the pass that plants the
 // hands and feet on whatever surface they are crossing. fighter.js owns four
 // call sites and no logic.
 //
 // ---------------------------------------------------------------------------
-// CLIMBING IS A MODE, entered and left on purpose:
+// THERE IS NO CLIMBING MODE. A body built to climb is always climbing, so the
+// whole feature is one sentence: WALK INTO A SURFACE AND YOU ARE ON IT.
 //
-//   IN   · push into a building face for a beat (TUNING.climb.grabSeconds —
-//          a LITTLE push, not a lean; a glancing scrape never latches), or
-//        · jump at a building with a direction held: he latches on impact.
-//          No direction held and he bounces off and falls like anyone else
-//          (and the universal punch-hold wall grab still works for him too).
-//   OUT  · rest the stick for TUNING.climb.restSeconds and he goes back to
-//          whatever a body does where he is — standing on a top, falling off
-//          a face — or
-//        · run the stamina bar dry.
-//
-// WHILE THE MODE IS ON he climbs everything he touches: a wall ahead is taken
-// without any gate, a lip is hauled over, a roof is crossed, and walking off
-// the far edge WRAPS him over it onto the face below, head-first, the way he
-// is going. Holding LIGHT while attached is the grip — he stays put on the
-// face, and keeps the mode on release as long as the stick is held. A is the
-// spring off the wall (the mode survives it, so jump-and-regrab works).
+//   ON    · walk into anything too tall to step over and he takes it; or
+//         · jump at it and he LANDS on it — contact alone, nothing held,
+//           nothing pressed. (The universal punch-hold wall grab still works
+//           for him too, and so does the ordinary step-over for small stuff.)
+//   ALONG · the stick read against the face: in = up, back = down, sideways
+//           scuttles across. Let go and he stays put; a climber at rest is
+//           holding on. Lips are hauled over, roofs crossed, and walking off
+//           the far edge WRAPS him over onto the face below, head-first.
+//   OFF   · JUMP. With a direction held it is a real leap THAT WAY (with just
+//           enough outward speed folded in that a stick aimed back into the
+//           face still clears it). With nothing held he simply lets go and
+//           drops straight down, the way any other mech falls off anything.
 //
 // ---------------------------------------------------------------------------
 // THE FRAME. A wall is a FLOOR THAT POINTS SIDEWAYS, and that one sentence is
@@ -52,11 +49,10 @@
 // gravity, no arena pushout — the surface IS the constraint, re-probed every
 // frame so he follows a curved prop around and a stepped facade up.
 import * as THREE from 'three';
-import { TUNING, STAMINA_TANK } from '../core/tuning.js';
+import { TUNING } from '../core/tuning.js';
 import { clamp, clamp01, damp, DEG } from '../core/utils.js';
 
 const C = TUNING.climb;
-const CLIMB_DRAIN = STAMINA_TANK * C.stamina;
 const UP = new THREE.Vector3(0, 1, 0);
 
 // scratch — this module allocates nothing per frame
@@ -131,94 +127,61 @@ function bodyFree(f) {
 export function climbStep(f, dt, mv) {
   if (!f.def.climb) return false;
   if (f._climbCd > 0) f._climbCd = Math.max(0, f._climbCd - dt);
-
-  // ---- MODE EXIT: the stick at rest is the way out. Read the RAW stick, not
-  // `mv` — a rooted state (an attack thrown from the wall) zeroes mv while the
-  // player is still very much holding on, and dropping him mid-swing for it
-  // would read as a bug. The LIGHT grip suspends the clock outright.
-  const stick = Math.hypot(f.intent.moveX, f.intent.moveZ);
-  if (f.climbMode) {
-    const holding = !!(f.climb && f.intent.lightHeld);
-    if (stick < 0.3 && !holding && f.climb?.phase !== 'top') {
-      f._climbRest = (f._climbRest || 0) + dt;
-      if (f._climbRest >= C.restSeconds) exitMode(f);
-    } else f._climbRest = 0;
-  } else f._climbRest = 0;
-
+  // A LET-GO STAYS LET GO for as long as he is still brushing the face he let
+  // go of — otherwise the body falling down it would touch it again the very
+  // next frame and re-grab, and "drop straight down like anyone else" would be
+  // impossible anywhere near a wall. It expires the moment he lands or reaches
+  // open air (touchAttach), never on a timer and never on the jump button:
+  // this fires in the same frame the jump does, and a two-frame press would
+  // have cancelled its own let-go.
+  if (f._climbRelease && f.grounded) f._climbRelease = false;
   if (f.climb) {
     updateAttached(f, dt, mv);
     return !!f.climb;
   }
-  if (f.climbMode) modeTouch(f, dt, mv);
-  else enterGate(f, dt, mv);
+  touchAttach(f, mv);
   return !!f.climb;
 }
 
-function exitMode(f) {
-  f.climbMode = false;
-  f._climbRest = 0;
-  f._climbPress = 0;
-  if (f.climb) detach(f, false);   // on a wall: he falls, like letting go
-}
-
 // ---------------------------------------------------------------------------
-// ENTERING THE MODE (mode off)
-function enterGate(f, dt, mv) {
+// TOUCHING A CLIMBABLE SURFACE. There is no mode to enter: a body built to
+// climb is climbing, and this is simply what happens when it meets a face.
+//   grounded  — walking INTO something too tall to step over takes it. (The
+//               into-test is the only gate left, and it is not a gate so much
+//               as a fact: you cannot walk up a wall you are walking along.)
+//   airborne  — CONTACT IS ENOUGH. Jump at a building and you land on it, no
+//               direction to hold, nothing to press.
+function touchAttach(f, mv) {
   // THE CPU DOES NOT CLIMB. Nothing about ai.js knows a wall is a route: it
   // steers at an enemy on the ground, so a CPU that latched would climb
   // whatever it happened to be walking into and then sit forty units up
   // pressing forward at a rooftop. Everything BELOW the climb is shared —
   // stepping over small obstacles — so a CPU jerry still reads as the same
   // body. (Drop this clause the day the AI can want height.)
-  if (f.isAI) { f._climbPress = 0; return; }
-  if (!bodyFree(f) || f.blocking || f._climbCd > 0) { f._climbPress = 0; return; }
-  const len = Math.hypot(mv.x, mv.z);
-  if (len < 0.45) { f._climbPress = 0; return; }
-  const ix = mv.x / len, iz = mv.z / len;
-  const pad = f.radius + f.def.climb.reach * f.height;
-  const s = probeFor(f, f.pos.y + f.height * 0.42, pad);
-  if (!s) { f._climbPress = 0; return; }
-  const into = -(ix * s.nx + iz * s.nz);
-  if (f.grounded) {
-    // a LITTLE push squarely into the face — enough to tell a climb from a
-    // scrape along a facade or a knockback shove, and no more
-    if (into < C.grabDot) { f._climbPress = 0; return; }
-    if (s.top - f.pos.y < C.minFace * f.height) { f._climbPress = 0; return; }
-    f._climbPress = (f._climbPress || 0) + dt;
-    if (f._climbPress >= C.grabSeconds) attach(f, s, mv);
-  } else {
-    // JUMPED (or fell) INTO A BUILDING with a direction held: latch the moment
-    // he actually hits it. No direction, or steering away, and he just bounces
-    // off and falls, like every other mech.
-    if (into < C.airDot) return;
-    if (s.gap > f.radius * 1.1) return;              // near it isn't ON it
-    if (s.top - f.pos.y < f.height * 0.3) return;    // about to clear the top anyway
-    attach(f, s, mv);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// IN THE MODE, off a wall (walking a roof or the ground, or airborne between
-// grabs): he climbs whatever he touches. A wall ahead is taken with NO gate,
-// and walking off a roof's edge wraps him over onto the face below.
-function modeTouch(f, dt, mv) {
-  if (!bodyFree(f)) return;
-  const len = Math.hypot(mv.x, mv.z);
-  if (len < 0.3) return;
-  const ix = mv.x / len, iz = mv.z / len;
+  if (f.isAI || !bodyFree(f) || f._climbCd > 0) return;
   const D = f.def.climb;
   const pad = f.radius + D.reach * f.height;
   const s = probeFor(f, f.pos.y + f.height * 0.42, pad);
-  if (s && f._climbCd <= 0) {
-    const into = -(ix * s.nx + iz * s.nz);
+  const len = Math.hypot(mv.x, mv.z);
+  if (f._climbRelease) {
+    // out of contact with everything: the let-go has served its purpose and
+    // the next surface he meets is his again
+    if (!s || s.gap >= f.radius * 1.2) f._climbRelease = false;
+    return;
+  }
+  if (s && s.gap < f.radius * 1.2) {
     const rise = s.top - f.pos.y;
-    // anything his step can't simply take, he climbs
-    if (into > 0.15 && rise > D.stepUp * f.height + 0.1 && s.gap < f.radius * 1.2) {
-      return attach(f, s, mv);
+    if (rise > D.stepUp * f.height + 0.1) {
+      if (!f.grounded) return attach(f, s, len > 0.3 ? mv : null);
+      if (len > 0.3 && -(mv.x / len * s.nx + mv.z / len * s.nz) > C.grabDot) {
+        return attach(f, s, mv);
+      }
     }
   }
-  // the far lip: walking off a real drop wraps him over it, no pause
-  if (f.grounded && f.pos.y > f.height * 0.6) wrapDown(f, mv, ix, iz);
+  // the far lip: walking off a real drop wraps him over onto the face below
+  if (f.grounded && len > 0.3 && f.pos.y > f.height * 0.6) {
+    wrapDown(f, mv, mv.x / len, mv.z / len);
+  }
 }
 
 function wrapDown(f, mv, ix, iz) {
@@ -236,9 +199,7 @@ function wrapDown(f, mv, ix, iz) {
 
 // ---------------------------------------------------------------------------
 function attach(f, s, mv) {
-  f.climbMode = true;
-  f._climbPress = 0;
-  f._climbRest = 0;
+  f._climbRelease = false;
   f.climb = { surf: s, phase: 'wall', t: 0, lostT: 0, fwd: new THREE.Vector3(0, 1, 0) };
   // face the way the stick is about to carry him along the face
   if (mv) {
@@ -261,26 +222,57 @@ function attach(f, s, mv) {
   f.world.effects?.dustPuff(_p.set(s.x, f.pos.y + f.height * 0.25, s.z), 4, 0xa8a8a8);
 }
 
-// off the wall — the MODE is untouched (exitMode is the only thing that ends
-// it), so a spring off a face can regrab, and a descent that reaches the
-// ground keeps climbing whatever he walks into next. `spring` = A pushed him
-// off; otherwise he just falls. The cooldown stops the very same face from
-// re-latching in the frame after a deliberate departure.
-function detach(f, spring) {
-  const c = f.climb;
-  if (!c) return;
+// off the wall. He keeps climbing whatever he meets next — there is no mode to
+// end — so the only thing this owes the player is not re-grabbing the face he
+// just left in the same breath, which the cooldown handles.
+function detach(f) {
+  if (!f.climb) return;
   f.climb = null;
   f._climbSpeed = 0;
-  f._climbPress = 0;
-  f._climbCd = spring ? 0.35 : 0.2;
-  f._hangCoyote = 0.2;  // the same short grace the wall grab leaves behind
+  f._climbCd = 0.2;
   f.grounded = false;
-  if (spring) {
-    normalAt(c.surf, f.pos, _n);
-    f.vel.set(_n.x * 6.5, f.def.stats.jump * TUNING.movement.jumpMult * 0.72, _n.z * 6.5);
-    f.world.audio?.play('jump');
-    f.world.effects?.dustPuff(f.pos, 5);
+  // NO COYOTE GRACE. The punch-hold wall grab leaves one behind (let go, and a
+  // jump still fires for a beat) because there letting go is not itself a jump.
+  // Here the jump IS the exit, so a grace period only means a second jump
+  // fires out of the first — a let-go that shoots him skyward instead of
+  // dropping him.
+  f._hangCoyote = 0;
+}
+
+// THE JUMP OFF A WALL, and it is two different moves by whether the stick is
+// pushed:
+//   DIRECTION HELD — he springs off THAT WAY, a real leap: the stick sets the
+//     heading, with just enough outward speed folded in that a stick aimed
+//     back INTO the face still clears it rather than re-latching a frame later.
+//   NOTHING HELD  — he simply LETS GO. No push, no arc: he drops straight down
+//     the way any other mech falls off anything, and `_climbRelease` keeps the
+//     face he is sliding past from grabbing him on the way.
+function wallJump(f) {
+  const c = f.climb;
+  normalAt(c.surf, f.pos, _n);
+  // the RAW stick, not the movement input: a rooted state (an attack thrown
+  // from the wall) zeroes that, and reading it here would turn a directed leap
+  // into a let-go for no reason the player can see
+  const mv = f.intent;
+  const len = Math.hypot(mv.moveX, mv.moveZ);
+  detach(f);
+  if (len < 0.3) {
+    f._climbRelease = true;
+    f.vel.set(0, 0, 0);
+    return;
   }
+  const dx = mv.moveX / len, dz = mv.moveZ / len;
+  const speed = f.moveSpeed() * C.leapMult;
+  // outward floor: `out` is how much of the leap is guaranteed to be away from
+  // the wall, whatever the stick says
+  const away = Math.max(0, C.leapOut - (dx * _n.x + dz * _n.z) * speed);
+  f.vel.set(dx * speed + _n.x * away,
+    f.def.stats.jump * TUNING.movement.jumpMult * C.leapRise,
+    dz * speed + _n.z * away);
+  f.targetYaw = Math.atan2(dx, dz);
+  f._climbCd = 0.3;
+  f.world.audio?.play('jump');
+  f.world.effects?.dustPuff(f.pos, 5);
 }
 
 // ---------------------------------------------------------------------------
@@ -292,14 +284,13 @@ function updateAttached(f, dt, mv) {
   // anything that takes the body away takes the wall with it
   if (!f.alive || f.controlsLocked || f._carry || f.cinePuppet ||
       (f.state !== 'normal' && f.state !== 'attack' && f.state !== 'channel')) {
-    return detach(f, false);
+    return detach(f);
   }
+  // A ALWAYS GETS YOU OFF, the haul over a lip included: that is half a second
+  // of scripted travel, and swallowing a jump for it is half a second of dead
+  // controller. The surface is still known, so the same two-way jump applies.
+  if (f.intent.jump) return wallJump(f);
   if (c.phase === 'top') return updateTopOut(f, dt);
-
-  if (f.intent.jump) return detach(f, true);
-  // grip costs stamina, so a wall is a route and not a perch
-  f.sprintEnergy = Math.max(0, f.sprintEnergy - CLIMB_DRAIN * dt);
-  if (f.sprintEnergy <= 0) return exitMode(f);
 
   // re-probe every frame: this is what follows a stepped facade up and carries
   // him around a cylinder. Two heights are asked — chest and ankle — and the
@@ -311,23 +302,19 @@ function updateAttached(f, dt, mv) {
   const s1 = probeFor(f, f.pos.y + f.height * 0.3, pad);
   const s2 = probeFor(f, f.pos.y + 0.4, pad);
   const s = !s1 ? s2 : !s2 ? s1 : (Math.abs(s2.gap) < Math.abs(s1.gap) ? s2 : s1);
-  if (s) { c.surf = s; c.lostT = 0; } else if ((c.lostT += dt) > 0.12) return detach(f, false);
+  if (s) { c.surf = s; c.lostT = 0; } else if ((c.lostT += dt) > 0.12) return detach(f);
 
   const surf = c.surf;
   normalAt(surf, f.pos, _n);
   _side.crossVectors(UP, _n).normalize();          // along the face, horizontal
   // THE STICK, read against the face: pushing IN is up, pulling BACK is down,
-  // the sideways half scuttles across — and the LIGHT grip overrides all of
-  // it: held, he stays exactly where he is.
-  const hold = f.intent.lightHeld;
-  let vUp = 0, vLat = 0;
-  if (!hold) {
-    const into = -(mv.x * _n.x + mv.z * _n.z);
-    const lat = mv.x * _side.x + mv.z * _side.z;
-    const speed = f.moveSpeed() * f.speedMult() * D.speed *
-      (f.blocking ? TUNING.movement.blockMoveMult : 1);
-    vUp = into * speed; vLat = lat * speed;
-  }
+  // the sideways half scuttles across. Let go of it and he simply stays where
+  // he is — a climber at rest is holding on, and that IS the grip.
+  const into = -(mv.x * _n.x + mv.z * _n.z);
+  const lat = mv.x * _side.x + mv.z * _side.z;
+  const speed = f.moveSpeed() * f.speedMult() * D.speed *
+    (f.blocking ? TUNING.movement.blockMoveMult : 1);
+  const vUp = into * speed, vLat = lat * speed;
   f.pos.y += vUp * dt;
   f.pos.x += _side.x * vLat * dt;
   f.pos.z += _side.z * vLat * dt;
@@ -351,15 +338,15 @@ function updateAttached(f, dt, mv) {
 
   // the lip: his claws are over it, haul him up
   if (vUp > 0.05 && f.pos.y >= surf.top - f.height * 0.45) return startTopOut(f, surf);
-  // the bottom: back on the dirt, stand up (the mode stays on). The floor is
-  // only a floor if he has actually DESCENDED onto it — a column base sitting
+  // the bottom: back on the dirt, and he walks on. The floor is only a floor
+  // if he has actually DESCENDED onto it — a column base sitting
   // well above his feet (he wrapped over a terrace lip and is on the face
   // below it) must not teleport him back up onto the ledge he just left.
   const floor = Math.max(surf.base || 0, f.world.arena?.terrainHeightAt?.(f.pos.x, f.pos.z) || 0);
   if (f.pos.y <= floor + 0.05 && floor - f.pos.y < 0.6 && vUp <= 0) {
     f.pos.y = floor;
-    detach(f, false);
-    f._climbCd = 0.1;   // stepping away, not leaving on purpose — short
+    detach(f);
+    f._climbCd = 0.1;   // stepping off the bottom, not leaving on purpose
     f.grounded = true;
     f.vel.set(0, 0, 0);
   }

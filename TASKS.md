@@ -12,7 +12,26 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** CLIMBING IS A MODE now, and nothing about it snaps. The rework, on
+- **Latest:** THE CLIMBING MODE IS GONE — Jerry is simply always climbing, which
+  is both what the owner asked for and a lot less machinery. Walk into anything
+  too tall to step over and he takes it; JUMP at one and he lands on it, contact
+  alone, nothing held and nothing pressed. Deleted with the mode: the grab press
+  and its timer, the stick-at-rest exit clock, the airborne direction gate, the
+  stamina drain on the grip, and the LIGHT-attack grip (which existed to stop the
+  rest clock dropping him — with no clock, letting go of the stick already leaves
+  him holding on, so LIGHT goes back to being his attack).
+  THE JUMP IS NOW THE WHOLE EXIT, and it reads the stick: a DIRECTION HELD is a
+  real leap that way (`leapMult`/`leapRise`, with a `leapOut` floor of outward
+  speed so a stick aimed back into the face still clears it rather than
+  re-latching); NOTHING HELD is a plain let-go — no push, no arc, he drops
+  straight down like anyone else, and a `_climbRelease` latch stops the face he is
+  sliding past from re-grabbing him on the way down (it clears when he lands or
+  jumps again). The jump also works DURING the lip haul now: that is half a second
+  of scripted travel, and swallowing the input for it was half a second of dead
+  controller. Verified by probe: full traverse on one stick hold (up three tiers,
+  across, wrap over the top, 49 units down, walk on), stick released mid-wall
+  parks him at y=6.10 with feet 0.0-0.1 off the face indefinitely, and both jumps.
+- **Previous:** CLIMBING IS A MODE now, and nothing about it snaps. The rework, on
   owner feedback ("orientation gets weird after climbing a little bit", "only a
   little push", "climb over everything until the stick rests"):
   ORIENTATION — the climb code no longer writes `f.yaw` anywhere. On the wall the

@@ -90,11 +90,10 @@ async function run(script, frames, dist) {
           t: +t.toFixed(2), state: f.state,
           y: +f.pos.y.toFixed(2), z: +f.pos.z.toFixed(2),
           tilt: +(f._climbTilt || 0).toFixed(2),
-          phase: c ? c.phase : (f.climbMode ? 'mode' : '-'),
+          phase: c ? c.phase : (f.grounded ? '-' : 'air'),
           fy: c ? +c.fwd.y.toFixed(2) : 0,
           grounded: f.grounded,
-          press: +((f._climbPress || 0)).toFixed(2),
-          rest: +((f._climbRest || 0)).toFixed(2),
+          rel: f._climbRelease ? 1 : 0,
           tips: [tip('ankleL'), tip('ankleR'), tip('handL'), tip('handR')],
         });
       }
@@ -104,14 +103,16 @@ async function run(script, frames, dist) {
 }
 
 const SCENARIOS = [
-  ['hold forward: little push, up, over, across, wrap down the far side, walk on',
+  ['walk in and hold forward: straight up, over, across, wrap down, walk on',
     '{ moveZ: 1 }', 420, 3.5],
-  ['climb, then rest the stick: mode ends, he falls off',
-    't < 0.55 ? { moveZ: 1 } : {}', 160, 3.5],
-  ['jump at the wall holding forward: latches on impact, mid-air',
-    '{ moveZ: 1, jump: t < 0.05, jumpHeld: t < 0.4 }', 220, 12],
-  ['climb, then LIGHT grip with the stick released: holds; release light: falls',
-    't < 0.5 ? { moveZ: 1 } : t < 1.3 ? { lightHeld: true } : {}', 200, 3.5],
+  ['climb, then release the stick: he STAYS on the wall (a climber at rest holds on)',
+    't < 0.55 ? { moveZ: 1 } : {}', 200, 3.5],
+  ['jump at the wall, stick RELEASED before contact: contact alone lands him on it',
+    '{ moveZ: t < 0.5 ? 1 : 0, jump: t > 0.149 && t < 0.151, jumpHeld: t > 0.15 && t < 0.5 }', 220, 7],
+  ['climb, then JUMP with no direction: lets go, drops straight down past the face',
+    't < 0.45 ? { moveZ: 1 } : { jump: t > 0.449 && t < 0.451 }', 200, 3.5],
+  ['climb, then JUMP with the stick back: leaps away from the wall that way',
+    't < 0.45 ? { moveZ: 1 } : { moveZ: -1, jump: t > 0.449 && t < 0.451 }', 200, 3.5],
 ];
 for (const [label, script, frames, dist] of SCENARIOS) {
   const trace = await run(script, frames, dist);
@@ -119,7 +120,7 @@ for (const [label, script, frames, dist] of SCENARIOS) {
   for (const s of trace) {
     console.log(` t=${String(s.t).padStart(5)} ${s.phase.padEnd(5)} tilt=${String(s.tilt).padStart(4)} ` +
       `fy=${String(s.fy).padStart(5)} y=${String(s.y).padStart(6)} z=${String(s.z).padStart(7)} ` +
-      `grnd=${s.grounded ? 'Y' : 'n'} press=${s.press} rest=${s.rest} tips=[${s.tips.join(', ')}]`);
+      `grnd=${s.grounded ? 'Y' : 'n'} rel=${s.rel} tips=[${s.tips.join(', ')}]`);
   }
 }
 

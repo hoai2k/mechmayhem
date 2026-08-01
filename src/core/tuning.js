@@ -80,29 +80,28 @@ export const TUNING = {
   // `climb` block (JERRY, who trades the hover jets for it). Shared feel
   // lives here; per-mech reach/speed/step live on the def.
   //
-  // CLIMBING IS A MODE (combat/climb.js). In: a LITTLE push into a face
-  // (`grabSeconds` — enough to tell a climb from a scrape or a knockback
-  // shove, and no more), or jumping at a building with a direction held.
-  // While it is on he climbs everything he touches — walls with no gate, lips
-  // hauled over, roof edges wrapped straight over onto the face below. Out:
-  // the stick at rest for `restSeconds`, and he goes back to whatever a body
-  // does where he is (standing on a top, falling off a face).
+  // THERE IS NO CLIMBING MODE (combat/climb.js): a body built to climb is
+  // always climbing. Walk into anything too tall to step over and he takes it;
+  // jump at it and he lands on it, contact alone. The way off is the JUMP —
+  // with a direction it is a leap that way, with nothing held he lets go and
+  // drops straight down.
   climb: {
-    grabSeconds: 0.15,     // the little push into a face that starts the mode
-    grabDot: 0.5,          // ...and how squarely (cos of the angle to the face)
-    airDot: 0.2,           // airborne: stick-into-face needed to latch on impact
-    restSeconds: 0.25,     // stick at rest this long leaves the mode
+    // walking INTO a face rather than along it — the only gate left on a
+    // grounded grab, and it is a fact rather than a gate (you cannot walk up a
+    // wall you are walking beside). Airborne, contact alone is enough.
+    grabDot: 0.35,
     tiltRate: 6.5,         // how fast the body damps between ground and wall
-    stamina: 0.055,        // fraction of a full bar per second spent hanging on
-    // A face has to be worth STARTING a climb over: anything shorter than this
-    // (x the mech's own height, measured from his feet) is an OBSTACLE — he
-    // steps over it instead (see `stepUp` on the def). Once the mode is ON,
-    // the bound is stepUp itself: he climbs everything his step can't take.
-    minFace: 0.85,
     topSeconds: 0.55,      // the haul over the lip, in seconds
-    // in the mode, a drop this many body-heights ahead is a face to wrap over
-    // and climb down; anything shallower he just walks off
+    // a drop this many body-heights ahead is a face to wrap over and climb
+    // down; anything shallower he just walks off
     wrapDrop: 0.75,
+    // THE JUMP OFF A WALL, with a direction held: leap speed x the mech's walk,
+    // the rise x his own jump, and the outward speed guaranteed to be away from
+    // the face however the stick is aimed (without it, a stick pointed back
+    // into the wall re-latches a frame later instead of jumping).
+    leapMult: 1.15,
+    leapRise: 0.8,
+    leapOut: 5,
     // How hard the hands/feet are pulled onto the surface they are crossing,
     // and how near an extremity has to be (x body height) before that pull
     // reaches it at all. 1 = planted exactly on the face.

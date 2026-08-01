@@ -616,31 +616,35 @@ audio). Progress history: `TASKS.md`.
   height along the BODY's up instead of world y (identical on the floor; on a
   wall the old version read the distance OUT from the face and inverted every
   foot rule the gait runs on).
-  CLIMBING IS A MODE. In: a LITTLE push squarely into a face (`grabSeconds`,
-  0.15s at `grabDot` — enough to tell a climb from a scrape or a knockback
-  shove, and no more), or jumping at a building with a direction held
-  (`airDot`), which latches him on impact — no direction and he bounces off
-  and falls like anyone else (the universal punch-hold wall grab still works
-  for him too). Out: the stick at rest for `restSeconds`, and he goes back to
-  whatever a body does where he is — standing on a top, falling off a face —
-  or the stamina bar runs dry (grip costs `stamina` per second). WHILE THE
-  MODE IS ON he climbs everything he touches: a wall ahead is taken with no
-  gate (bounded only by `stepUp` — anything his step can take, he steps), a
-  lip is hauled over (`topSeconds`, heading damped through the ordinary yaw
-  servo, never snapped), a roof is crossed, and walking off a drop deeper than
+  THERE IS NO CLIMBING MODE — a body built to climb is always climbing, and
+  the whole feature is "walk into a surface and you are on it". GROUNDED, he
+  takes anything too tall to step over that he is walking INTO (`grabDot` is
+  the only gate left, and it is a fact rather than a gate: you cannot walk up
+  a wall you are walking beside). AIRBORNE, CONTACT IS ENOUGH — jump at a
+  building and you land on it, no direction to hold, nothing to press (the
+  universal punch-hold wall grab still works for him too). The bound on what
+  counts as a wall is `stepUp` alone: `def.climb.stepUp` becomes
+  `Fighter.stepUp`, which destructible.js and arena.js read to turn a low
+  ledge into footing he RISES onto rather than a wall he stops at (zero for
+  every other mech, so those paths are unchanged).
+  ON THE FACE the stick's into-the-face component is the climb (push on to go
+  up, pull back to come down) and its sideways component scuttles him across;
+  let go and he STAYS PUT, because a climber at rest is holding on. A lip is
+  hauled over (`topSeconds`, heading damped through the ordinary yaw servo,
+  never snapped), a roof is crossed, and walking off a drop deeper than
   `wrapDrop` body-heights WRAPS him over the edge onto the face below,
   head-first, the way he is going (`groundUnder` tells that drop from the next
   tier's wall, or the wrap would fire at the foot of a wall he is about to
-  climb). A face shorter than `minFace` body-heights never STARTS the mode —
-  `def.climb.stepUp` becomes `Fighter.stepUp`, which destructible.js and
-  arena.js read to turn a low ledge into footing he RISES onto rather than a
-  wall he stops at (zero for every other mech, so those paths are unchanged).
-  On the wall the stick's into-the-face component is the climb (push on to go
-  up, pull back to come down) and its sideways component scuttles him across;
-  A springs him off (the MODE survives it, so jump-and-regrab works — a short
-  `_climbCd` stops the same face re-latching the next frame); holding LIGHT is
-  the GRIP — he stays put on the face, doesn't punch, ignores the rest clock,
-  and keeps the mode on release as long as the stick is held.
+  climb).
+  THE WAY OFF IS THE JUMP, and it is two moves by whether the stick is pushed.
+  A DIRECTION HELD is a real leap that way (`leapMult`/`leapRise`, plus a
+  `leapOut` floor of outward speed so a stick aimed back INTO the face still
+  clears it instead of re-latching). NOTHING HELD is a plain LET GO: no push,
+  no arc, he drops straight down like any other mech falling off anything, and
+  `_climbRelease` stops the face he is sliding past from grabbing him on the
+  way (it clears when he lands or jumps again). A works during the lip haul
+  too — half a second of scripted travel is half a second of dead controller
+  otherwise.
   A CLIMBER'S HANDS AND FEET ARE ON THE SURFACE (`conformClimbLimbs`, run after
   the GLB retarget has synced, so it writes the bones a rigged model actually
   renders): two-bone IK onto the nearest point of the face, feet weighted by
