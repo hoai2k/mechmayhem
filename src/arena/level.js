@@ -24,8 +24,12 @@
 //       { k:'lane', kind, style, axis, at, amp, phase, width, glow, dash, color },
 //       { k:'patch', kind, x, z, r, glow, color },   // lake / lava pool / lawn...
 //     ],
+//     viaduct: { axis, at, amp, phase, h, w, rampL, r0, pylonEvery, color, edge } | null,
 //     spawns: [ { x, z, yaw } ],
 //   }
+// A building may carry `cells` (an explicit massing silhouette) instead of the
+// plain nx/ny/nz box — that is how a shipped arena's towers survive being baked
+// into a level (src/arena/bake.js).
 import { THEMES_BY_ID, THEMES } from './themes.js';
 
 export const LEVEL_VERSION = 1;
@@ -59,7 +63,11 @@ export function themeFromLevel(level) {
   L.clearing = level.clearing ?? bl.clearing ?? 38;
   L.plaza = level.plaza ?? bl.plaza ?? false;
   L.clusters = { count: 0, size: [2, 3] };  // no procedural building clusters
-  L.viaduct = null;   // authored levels are exact — no seeded loop
+  // The elevated loop is cell-global, so it is a LEVEL FIELD rather than one of
+  // the placed objects: either the level carries a fully resolved spec (baked
+  // out of a shipped arena, or dialled in the editor) or there is no loop at
+  // all — never the base theme's seeded one, which would land somewhere else.
+  L.viaduct = level.viaduct || null;
 
   L.lanes = lanes.map((o) => ({
     kind: o.kind, style: o.style || o.kind, axis: o.axis,
@@ -125,6 +133,7 @@ export function emptyLevel(themeId = 'neon') {
     clearing: base.layout?.clearing ?? 38,
     plaza: base.layout?.plaza ?? true,
     objects: [],
+    viaduct: null,
     spawns: [],
   };
 }

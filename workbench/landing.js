@@ -137,7 +137,7 @@ export function runLanding(unknownTool = null) {
         </a>`).join('')}
     </div>
     <div class="wb-foot">
-      Also lives on the game page: the <a href="../?edit=level">level builder</a>
+      Also lives on the game page: the <a href="../?edit=level">arena editor</a>
       (<code>?edit=level</code>) and the <a href="../?showcase">mech showcase</a>
       (<code>?showcase</code>). Back to <a href="../">the game</a>.
     </div>

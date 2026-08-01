@@ -25,6 +25,7 @@ export const CATALOG = [
       { id: 'hill', label: 'Hill', k: 'hill', deck: false, hint: 'Walkable mound' },
       { id: 'deck', label: 'Platform', k: 'hill', deck: true, color: true, hint: 'Flat-top deck with a glowing edge' },
       { id: 'bridge', label: 'Bridge', k: 'bridge', color: true, hint: 'Destructible causeway with ramps' },
+      { id: 'viaduct', label: 'Elevated loop', k: 'viaduct', hint: 'One per arena — an endless raised highway on piers' },
     ],
   },
   {
@@ -40,6 +41,20 @@ export const CATALOG = [
       { id: 'lane_sand', label: 'Sand', k: 'lane', kind: 'sand' },
       { id: 'lane_canal', label: 'Canal', k: 'lane', kind: 'canal', glow: 0x53e8ff },
       { id: 'lane_stripe', label: 'Stripe', k: 'lane', kind: 'stripe', glow: 0x53e8ff },
+    ],
+  },
+  {
+    group: 'Ground patches', items: [
+      { id: 'patch_lake', label: 'Lake', k: 'patch', kind: 'lake', hint: 'Standing water — bogs mechs down' },
+      { id: 'patch_water', label: 'Water pool', k: 'patch', kind: 'water' },
+      { id: 'patch_lava', label: 'Lava pool', k: 'patch', kind: 'lava', hint: 'Burns' },
+      { id: 'patch_acid', label: 'Acid pool', k: 'patch', kind: 'acid', hint: 'Corrosive' },
+      { id: 'patch_oil', label: 'Oil slick', k: 'patch', kind: 'oil' },
+      { id: 'patch_mud', label: 'Mud', k: 'patch', kind: 'mud' },
+      { id: 'patch_ice', label: 'Ice sheet', k: 'patch', kind: 'ice' },
+      { id: 'patch_sand', label: 'Sand', k: 'patch', kind: 'sand' },
+      { id: 'patch_grass', label: 'Lawn', k: 'patch', kind: 'grass' },
+      { id: 'patch_ash', label: 'Ash', k: 'patch', kind: 'ash' },
     ],
   },
   {
