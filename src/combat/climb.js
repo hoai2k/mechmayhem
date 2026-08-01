@@ -1,63 +1,82 @@
-// WALL CLIMBING — the gecko route up a building.
+// SURFACE WALKING — the body that walks on everything.
 //
 // A mech whose roster def carries a `climb` block (JERRY, who paid for it with
-// his hover jets) walks UP facades. The whole feature is here: the attach, the
-// surface-following movement, the body's damp between the ground frame and the
-// wall frame, the haul over a lip, the jump off, and the pass that plants the
-// hands and feet on whatever surface they are crossing. fighter.js owns four
-// call sites and no logic.
+// his hover jets) does not walk on the FLOOR, he walks on the WORLD: up a
+// facade, over its lip, across the roof, down the far side, over the crates on
+// the way, without a single mode change or a single scripted move. fighter.js
+// owns four call sites and no logic.
 //
 // ---------------------------------------------------------------------------
-// THERE IS NO CLIMBING MODE. A body built to climb is always climbing, so the
-// whole feature is one sentence: WALK INTO A SURFACE AND YOU ARE ON IT.
+// WHY THE PREVIOUS VERSION FELT WRONG, because the shape of the fix follows
+// from it. That one ATTACHED TO ONE PLANE: a probe picked the nearest building
+// face, the body snapped to its normal, and everything else — the haul over a
+// lip, the wrap over a roof edge — was a scripted special case bolted on. A
+// single plane cannot express a CORNER, so every corner was a discontinuity:
+// he stepped up onto the first block (the arena's step-over, now gone), the
+// plane flipped, his facing flipped with it, and the camera fought the
+// building it could no longer see him through.
 //
-//   ON    · walk into anything too tall to step over and he takes it; or
-//         · jump at it and he LANDS on it — contact alone, nothing held,
-//           nothing pressed. (The universal punch-hold wall grab still works
-//           for him too, and so does the ordinary step-over for small stuff.)
-//   ALONG · the stick read against the face: in = up, back = down, sideways
-//           scuttles across. Let go and he stays put; a climber at rest is
-//           holding on. Lips are hauled over, roofs crossed, and walking off
-//           the far edge WRAPS him over onto the face below, head-first.
-//   OFF   · JUMP. With a direction held it is a real leap THAT WAY (with just
-//           enough outward speed folded in that a stick aimed back into the
-//           face still clears it). With nothing held he simply lets go and
-//           drops straight down, the way any other mech falls off anything.
+// This version never names a surface. Every frame it asks the world one
+// question — WHAT IS NEAR MY FEET? — and answers it with a field:
+//
+//     n  = the average outward normal of everything in reach, distance-weighted
+//     cp = the nearest point on any of it
+//
+// and that is the whole model. On open floor the only thing in reach is the
+// floor, so n is straight up and he is an ordinary mech (the walker hands him
+// back to applyPhysics — dash, knockdown, landing, the jump arc, all untouched).
+// Walk him at a wall and the wall enters the field: n tilts smoothly from floor
+// toward facade as its weight grows, and because INPUT IS MAPPED THROUGH n (see
+// below), the same forward push that was carrying him along the ground starts
+// carrying him up it. Reach the top and the roof enters the field and takes
+// over; step past the far lip and the only thing in reach is the edge itself,
+// whose normal rotates continuously from up to outward as he crosses it, so he
+// tips over and walks down. Nothing is scripted. Every corner in the arena,
+// convex or concave, is the field doing arithmetic.
 //
 // ---------------------------------------------------------------------------
-// THE FRAME. A wall is a FLOOR THAT POINTS SIDEWAYS, and that one sentence is
-// the whole geometry:
+// THE THREE RULES
 //
-//     body up   (+Y local, feet -> head) = the surface's outward NORMAL
-//     body fwd  (+Z local, where he faces) = the direction he is TRAVELLING
+// 1. ORIENTATION IS THE FIELD. `up` damps toward n — literally "whatever
+//    average orientation his feet indicate" — and `fwd` damps toward the
+//    direction he is travelling. The body frame is built from those two, so it
+//    is continuous by construction: no case analysis to disagree with itself,
+//    and no snap anywhere, because both vectors only ever move by a damp. The
+//    walker never writes f.yaw; the ordinary yaw servo keeps the horizontal
+//    heading live underneath it.
 //
-// On the ground that reads up = world +Y and fwd = the yaw heading — the
-// ordinary standing frame, unchanged — so ONE formula covers both ends and the
-// transition is a slerp between them. On a vertical face it stands him on the
-// wall like a floor, facing the way he is moving: up when climbing, sideways
-// when scuttling across, head-first DOWN when descending, each reached by the
-// same damp a ground turn uses. NOTHING SNAPS: the climb code never writes
-// f.yaw — the ordinary stick-driven yaw servo keeps the horizontal heading
-// honest underneath the blend, so attaching, detaching and topping out are all
-// the same smooth turn a player already knows. The mech's own walk cycle run
-// in that frame IS the climb; the one thing the animator had to learn is that
-// soleClearanceBySide measures along the body's own up, not world y.
+// 2. INPUT IS MAPPED THROUGH THE SAME ROTATION. The stick arrives as a world XZ
+//    direction (input.js has already turned it by the camera). Rotate it by
+//    Q = (world up -> body up) and it becomes a direction along the surface:
+//    identity on the floor, so ground movement is untouched to the bit; a
+//    quarter turn on a wall, where "push away from the camera" becomes "climb".
+//    One rotation drives movement, facing and the chase camera, which is why
+//    they cannot drift apart.
 //
-// The group's origin is at the FEET, so `pos` is the contact point on the
-// surface and rotating the group about it pivots exactly where a climber's
-// feet are. Physics is replaced outright while attached (climbPhysics): no
-// gravity, no arena pushout — the surface IS the constraint, re-probed every
-// frame so he follows a curved prop around and a stepped facade up.
+// 3. THE FEET ARE PULLED TO THE SURFACE, never teleported onto it. The field
+//    is sampled a STANDOFF off the body's own up — above the soles on a floor,
+//    out from the face on a wall — and position is corrected until the sample
+//    sits exactly that far off, which makes floors and walls the same
+//    arithmetic. That correction is EXACT while he walks a surface (a rate can
+//    be outrun by his own stride, and losing the race means sailing off a roof)
+//    and capped only while he is still ARRIVING at one, which is the glide.
+//    De-penetration keeps him out of geometry instead of clipping into it. Hands and feet are then planted individually on whatever is
+//    nearest THEM (conformClimbLimbs) — which is how a mech crossing a corner
+//    gets one claw on the wall and one on the roof.
+//
+// The way off is the JUMP: with a direction held it is a leap that way, with
+// nothing held he lets go and drops. Everything else — including running out of
+// surface — just falls, because a walker with nothing in reach is a body in the
+// air.
 import * as THREE from 'three';
 import { TUNING } from '../core/tuning.js';
-import { clamp, clamp01, damp, DEG } from '../core/utils.js';
+import { clamp, clamp01, DEG } from '../core/utils.js';
 
 const C = TUNING.climb;
 const UP = new THREE.Vector3(0, 1, 0);
 
 // scratch — this module allocates nothing per frame
-const _n = new THREE.Vector3();
-const _side = new THREE.Vector3();
+const _dir = new THREE.Vector3();
 const _want = new THREE.Vector3();
 const _p = new THREE.Vector3();
 const _tgt = new THREE.Vector3();
@@ -68,6 +87,7 @@ const _mtx = new THREE.Matrix4();
 const _qA = new THREE.Quaternion();
 const _qB = new THREE.Quaternion();
 const _qC = new THREE.Quaternion();
+const _qUp = new THREE.Quaternion();
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _root = new THREE.Vector3();
@@ -75,43 +95,203 @@ const _mid = new THREE.Vector3();
 const _end = new THREE.Vector3();
 const _axis = new THREE.Vector3();
 
-// ---------------------------------------------------------------------------
-// surfaces
-// A probe (arena.climbProbe) is either a PLANE (a building facade: a point on
-// the face plus its outward normal) or a CYLINDER (a solid prop: walking
-// sideways carries you around it). Both answer the same two questions.
+// ===========================================================================
+// THE SOLIDS NEAR THE BODY
+//
+// Collected ONCE a frame and then queried five times (the body plus four
+// limbs), because the gather is the expensive half — walking every live chunk
+// of every nearby building — and each query is a handful of clamps.
+// ===========================================================================
+const _boxes = [];   // pooled {x0,y0,z0,x1,y1,z1}
+let _nBoxes = 0;
+const _cyls = [];    // pooled {x,z,r,h}
+let _nCyls = 0;
+const MAX_BOXES = 96, MAX_CYLS = 24;
 
-// outward unit normal of the surface at a world point
-function normalAt(s, p, out) {
-  if (s.kind === 'cylinder') {
-    const dx = p.x - s.cx, dz = p.z - s.cz;
-    const d = Math.hypot(dx, dz);
-    if (d < 1e-4) return out.set(s.nx, 0, s.nz);
-    return out.set(dx / d, 0, dz / d);
+function pushBox(x0, y0, z0, x1, y1, z1) {
+  const b = _boxes[_nBoxes] || (_boxes[_nBoxes] = {});
+  b.x0 = x0; b.y0 = y0; b.z0 = z0; b.x1 = x1; b.y1 = y1; b.z1 = z1;
+  _nBoxes++;
+}
+
+function collectSolids(f, reach) {
+  _nBoxes = 0;
+  _nCyls = 0;
+  const arena = f.world.arena;
+  if (!arena || f.world.sandbox) return;
+  const px = f.pos.x, py = f.pos.y, pz = f.pos.z;
+  const d = arena.destructo;
+  if (d) {
+    for (const b of d.buildings) {
+      if (b.alive <= 0) continue;
+      const a = b.aabb;
+      if (px < a.minX - reach || px > a.maxX + reach ||
+          pz < a.minZ - reach || pz > a.maxZ + reach ||
+          py < -reach || py > a.maxY + reach) continue;
+      for (const c of b.grid.values()) {
+        if (!c.alive) continue;
+        if (Math.abs(px - c.x) > c.w / 2 + reach || Math.abs(py - c.y) > c.h / 2 + reach ||
+            Math.abs(pz - c.z) > c.d / 2 + reach) continue;
+        pushBox(c.x - c.w / 2, c.y - c.h / 2, c.z - c.d / 2,
+          c.x + c.w / 2, c.y + c.h / 2, c.z + c.d / 2);
+        if (_nBoxes >= MAX_BOXES) return;
+      }
+    }
+    // settled rubble is standable to the ordinary collider, so it is walkable
+    // here too — a mech crossing a collapsed facade walks over the debris
+    for (const it of d.rubble.items) {
+      if (!it.settled || it.life <= 0) continue;
+      if (Math.abs(px - it.px) > it.w / 2 + reach || Math.abs(py - it.py) > it.h / 2 + reach ||
+          Math.abs(pz - it.pz) > it.d / 2 + reach) continue;
+      pushBox(it.px - it.w / 2, it.py - it.h / 2, it.pz - it.d / 2,
+        it.px + it.w / 2, it.py + it.h / 2, it.pz + it.d / 2);
+      if (_nBoxes >= MAX_BOXES) return;
+    }
   }
-  return out.set(s.nx, 0, s.nz);
-}
-
-// nearest point ON the surface to p, pushed `gap` back out along the normal
-function projectTo(s, p, out, gap = 0) {
-  if (s.kind === 'cylinder') {
-    const dx = p.x - s.cx, dz = p.z - s.cz;
-    const d = Math.hypot(dx, dz) || 1;
-    return out.set(s.cx + (dx / d) * (s.r + gap), p.y, s.cz + (dz / d) * (s.r + gap));
+  const w = f.world;
+  for (const p of arena.propBodies || []) {
+    if (!p.alive) continue;
+    const dx = w ? w.wrapDelta(px - p.x) : px - p.x;
+    const dz = w ? w.wrapDelta(pz - p.z) : pz - p.z;
+    if (Math.hypot(dx, dz) > p.r + reach || py > p.h + reach || py < -reach) continue;
+    const c = _cyls[_nCyls] || (_cyls[_nCyls] = {});
+    c.x = px - dx; c.z = pz - dz; c.r = p.r; c.h = p.h;   // the image next to us
+    _nCyls++;
+    if (_nCyls >= MAX_CYLS) break;
   }
-  const along = (p.x - s.x) * s.nx + (p.z - s.z) * s.nz;
-  return out.set(p.x - s.nx * (along - gap), p.y, p.z - s.nz * (along - gap));
 }
 
-// how far OUTSIDE the surface a world point sits (negative = buried in it)
-function distanceTo(s, p) {
-  if (s.kind === 'cylinder') return Math.hypot(p.x - s.cx, p.z - s.cz) - s.r;
-  return (p.x - s.x) * s.nx + (p.z - s.z) * s.nz;
+// Nearest point on a box and the outward normal there. Returns the SIGNED
+// distance: positive outside, negative inside (the depth to push back out by).
+function boxNearest(b, px, py, pz, outCp, outN) {
+  const cx = clamp(px, b.x0, b.x1), cy = clamp(py, b.y0, b.y1), cz = clamp(pz, b.z0, b.z1);
+  const dx = px - cx, dy = py - cy, dz = pz - cz;
+  const d2 = dx * dx + dy * dy + dz * dz;
+  if (d2 > 1e-10) {
+    const d = Math.sqrt(d2);
+    outCp.set(cx, cy, cz);
+    outN.set(dx / d, dy / d, dz / d);
+    return d;
+  }
+  // INSIDE: leave by the shallowest face. A body should never be in here —
+  // de-penetration is what keeps it out — but geometry can arrive around one
+  // when a chunk falls, and "nearest face" is the only answer that gets it out
+  // sanely rather than through the building.
+  const ex0 = px - b.x0, ex1 = b.x1 - px;
+  const ey0 = py - b.y0, ey1 = b.y1 - py;
+  const ez0 = pz - b.z0, ez1 = b.z1 - pz;
+  let best = ex0; outN.set(-1, 0, 0);
+  if (ex1 < best) { best = ex1; outN.set(1, 0, 0); }
+  if (ey0 < best) { best = ey0; outN.set(0, -1, 0); }
+  if (ey1 < best) { best = ey1; outN.set(0, 1, 0); }
+  if (ez0 < best) { best = ez0; outN.set(0, 0, -1); }
+  if (ez1 < best) { best = ez1; outN.set(0, 0, 1); }
+  outCp.set(px, py, pz).addScaledVector(outN, best);
+  return -best;
 }
 
-function probeFor(f, y, pad) {
-  return f.world.arena?.climbProbe?.(f.pos.x, y, f.pos.z, pad) || null;
+// ...and on a capped cylinder standing on the ground (the prop colliders).
+function cylNearest(c, px, py, pz, outCp, outN) {
+  const dx = px - c.x, dz = pz - c.z;
+  const rad = Math.hypot(dx, dz);
+  const ux = rad > 1e-6 ? dx / rad : 1, uz = rad > 1e-6 ? dz / rad : 0;
+  if (py > c.h) {                       // above it: the top cap, rim included
+    const r = Math.min(rad, c.r);
+    outCp.set(c.x + ux * r, c.h, c.z + uz * r);
+    _a.set(px - outCp.x, py - outCp.y, pz - outCp.z);
+    const d = _a.length();
+    if (d > 1e-6) { outN.copy(_a).multiplyScalar(1 / d); return d; }
+    outN.set(0, 1, 0);
+    return 0;
+  }
+  outCp.set(c.x + ux * c.r, py, c.z + uz * c.r);
+  outN.set(ux, 0, uz);
+  return rad - c.r;
 }
+
+// THE FIELD: everything within `range` of a point, averaged.
+//   n    distance-weighted average outward normal — the orientation
+//   cp   nearest point on any surface — what the feet are pulled to
+//   d    the distance to it (negative = inside something)
+//   push accumulated de-penetration, so a body can never end up in geometry
+const _field = {
+  n: new THREE.Vector3(), cp: new THREE.Vector3(), push: new THREE.Vector3(),
+  d: Infinity, hits: 0,
+  // is the nearest thing underfoot a SOLID (a building, its rubble, a prop)
+  // rather than the arena floor? That one bit decides who owns the body: on
+  // the open ground he is an ordinary mech, and the moment he is on a
+  // structure — flat roof included — he is a surface walker, which is what
+  // lets him tip over the far lip instead of striding off it.
+  onSolid: false,
+};
+const _fcp = new THREE.Vector3();
+const _fn = new THREE.Vector3();
+
+function fieldAt(f, px, py, pz, range) {
+  const out = _field;
+  out.n.set(0, 0, 0);
+  out.push.set(0, 0, 0);
+  out.d = Infinity;
+  out.hits = 0;
+  out.onSolid = false;
+  const add = (dist) => {
+    // the weight falls off with distance and is FULL on contact, so what he is
+    // standing on always outvotes what he is merely walking past
+    const t = clamp01(1 - Math.max(dist, 0) / range);
+    const w = t * t;
+    out.n.addScaledVector(_fn, w);
+    out.hits++;
+    if (dist < out.d) { out.d = dist; out.cp.copy(_fcp); out.onSolid = solid; }
+    if (dist < 0) out.push.addScaledVector(_fn, -dist);
+  };
+  let solid = true;
+  for (let i = 0; i < _nBoxes; i++) {
+    const d = boxNearest(_boxes[i], px, py, pz, _fcp, _fn);
+    if (d < range) add(d);
+  }
+  for (let i = 0; i < _nCyls; i++) {
+    const d = cylNearest(_cyls[i], px, py, pz, _fcp, _fn);
+    if (d < range) add(d);
+  }
+  // the ground itself — terrain where there is any, the arena floor otherwise
+  const gy = f.world.arena?.terrainHeightAt?.(px, pz) ?? 0;
+  const gd = py - gy;
+  if (gd < range) {
+    _fcp.set(px, gy, pz);
+    _fn.set(0, 1, 0);
+    solid = false;
+    add(gd);
+  }
+  if (out.hits) {
+    if (out.n.lengthSq() > 1e-8) out.n.normalize();
+    else out.n.set(0, 1, 0);
+  }
+  return out;
+}
+
+// The single nearest surface to a point, no averaging — what a HAND or a FOOT
+// is placed on. Asking per limb is what lets one claw take the wall while the
+// other takes the roof.
+const _limbCp = new THREE.Vector3();
+const _limbN = new THREE.Vector3();
+function nearestSurface(f, px, py, pz, range) {
+  let best = Infinity;
+  for (let i = 0; i < _nBoxes; i++) {
+    const d = boxNearest(_boxes[i], px, py, pz, _fcp, _fn);
+    if (d < best) { best = d; _limbCp.copy(_fcp); _limbN.copy(_fn); }
+  }
+  for (let i = 0; i < _nCyls; i++) {
+    const d = cylNearest(_cyls[i], px, py, pz, _fcp, _fn);
+    if (d < best) { best = d; _limbCp.copy(_fcp); _limbN.copy(_fn); }
+  }
+  const gy = f.world.arena?.terrainHeightAt?.(px, pz) ?? 0;
+  if (py - gy < best) { best = py - gy; _limbCp.set(px, gy, pz); _limbN.set(0, 1, 0); }
+  return best < range ? best : Infinity;
+}
+
+// ===========================================================================
+// THE WALKER
+// ===========================================================================
 
 // nothing else owns this body right now
 function bodyFree(f) {
@@ -119,143 +299,156 @@ function bodyFree(f) {
     !f._carry && !f.hanging && !f.plunging && !f._airRoll && !f.cinePuppet;
 }
 
-// ---------------------------------------------------------------------------
-// the per-frame entry point. Returns TRUE when the climb owns this frame's
-// movement (fighter.js then runs climbPhysics instead of applyPhysics). `mv`
-// is the movement input the fighter would feed applyPhysics — already zeroed
-// by rooted states, which is what freezes climb motion during an attack.
+// The rotation carrying the world's up onto this body's up: the one mapping
+// that turns stick into travel, travel into facing, and the chase camera's
+// offset into a view from outside the wall.
+export function upRotation(up, out) {
+  if (up.y > 0.9999) return out.identity();
+  if (up.y < -0.9999) return out.setFromAxisAngle(_a.set(1, 0, 0), Math.PI);
+  return out.setFromUnitVectors(UP, up);
+}
+
+// keep fwd perpendicular to up and unit-length, whatever the damps did
+function orthonormalize(up, fwd) {
+  fwd.addScaledVector(up, -fwd.dot(up));
+  if (fwd.lengthSq() < 1e-6) {
+    fwd.set(0, 0, 1).addScaledVector(up, -up.z);
+    if (fwd.lengthSq() < 1e-6) fwd.set(1, 0, 0).addScaledVector(up, -up.x);
+  }
+  fwd.normalize();
+}
+
 export function climbStep(f, dt, mv) {
   if (!f.def.climb) return false;
   if (f._climbCd > 0) f._climbCd = Math.max(0, f._climbCd - dt);
-  // A LET-GO STAYS LET GO for as long as he is still brushing the face he let
-  // go of — otherwise the body falling down it would touch it again the very
-  // next frame and re-grab, and "drop straight down like anyone else" would be
-  // impossible anywhere near a wall. It expires the moment he lands or reaches
-  // open air (touchAttach), never on a timer and never on the jump button:
-  // this fires in the same frame the jump does, and a two-frame press would
-  // have cancelled its own let-go.
-  if (f._climbRelease && f.grounded) f._climbRelease = false;
-  if (f.climb) {
-    updateAttached(f, dt, mv);
-    return !!f.climb;
+  if (!f.climbUp) {
+    f.climbUp = new THREE.Vector3(0, 1, 0);
+    f.climbFwd = new THREE.Vector3(0, 0, 1);
   }
-  touchAttach(f, mv);
-  return !!f.climb;
-}
-
-// ---------------------------------------------------------------------------
-// TOUCHING A CLIMBABLE SURFACE. There is no mode to enter: a body built to
-// climb is climbing, and this is simply what happens when it meets a face.
-//   grounded  — walking INTO something too tall to step over takes it. (The
-//               into-test is the only gate left, and it is not a gate so much
-//               as a fact: you cannot walk up a wall you are walking along.)
-//   airborne  — CONTACT IS ENOUGH. Jump at a building and you land on it, no
-//               direction to hold, nothing to press.
-function touchAttach(f, mv) {
-  // THE CPU DOES NOT CLIMB. Nothing about ai.js knows a wall is a route: it
-  // steers at an enemy on the ground, so a CPU that latched would climb
-  // whatever it happened to be walking into and then sit forty units up
-  // pressing forward at a rooftop. Everything BELOW the climb is shared —
-  // stepping over small obstacles — so a CPU jerry still reads as the same
-  // body. (Drop this clause the day the AI can want height.)
-  if (f.isAI || !bodyFree(f) || f._climbCd > 0) return;
+  const up = f.climbUp, fwd = f.climbFwd;
   const D = f.def.climb;
-  const pad = f.radius + D.reach * f.height;
-  const s = probeFor(f, f.pos.y + f.height * 0.42, pad);
-  const len = Math.hypot(mv.x, mv.z);
-  if (f._climbRelease) {
-    // out of contact with everything: the let-go has served its purpose and
-    // the next surface he meets is his again
-    if (!s || s.gap >= f.radius * 1.2) f._climbRelease = false;
-    return;
+  const range = D.reach * f.height;
+  // THE STANDOFF. The field is sampled a little way OFF the surface, along the
+  // body's own up — above his soles on a floor, out from the face on a wall —
+  // and the same number is the distance the walker holds him at. Asking at the
+  // contact point itself would make "am I on it" a coin-toss between 0 and a
+  // rounding error, and pulling the SAMPLE onto the surface (rather than to
+  // the standoff) buries the body by exactly this much: measured, that put his
+  // feet 0.5 under the pavement on flat ground.
+  const stand = f.height * 0.06;
+  collectSolids(f, range + f.radius);
+
+  // THE CPU DOES NOT SURFACE-WALK. Nothing in ai.js knows a wall is a route: it
+  // steers at an enemy on the ground, so a CPU that went up would climb
+  // whatever it walked into and then sit forty units up pressing forward at a
+  // rooftop. (Drop this the day the AI can want height.)
+  const may = !f.isAI && bodyFree(f) && !f._climbRelease && f._climbCd <= 0;
+  _p.copy(f.pos).addScaledVector(up, stand);
+  const fld = may ? fieldAt(f, _p.x, _p.y, _p.z, range) : null;
+
+  // FLAT GROUND IS NOT CLIMBING, and this is the line that keeps the whole
+  // feature cheap: with only the floor in reach the field's answer is straight
+  // up, and the walker hands the body back to applyPhysics — dash, knockdown,
+  // the landing, the jump arc all belong to the code that has always owned
+  // them, and a mech walking about the arena is not running any of this.
+  //   TAKING OVER  needs a STRUCTURE underfoot, or something not flat within
+  //                reach — so stepping onto a roof, or up to a wall, engages.
+  //   GIVING BACK  waits for the open floor with the body already upright, so
+  //                a flat ROOF stays the walker's (which is what lets him tip
+  //                over its far lip rather than striding off into the air).
+  const inReach = !!fld && fld.hits > 0 && fld.d < range;
+  const flat = !fld || fld.n.y >= C.flatCos;
+  const surfaced = inReach && (f.climb
+    ? !(flat && !fld.onSolid && up.y > C.flatCos)
+    : (fld.onSolid || !flat) && fld.d < f.radius * 1.4);
+
+  if (!surfaced) {
+    if (f.climb) release(f, false);
+    // ease the frame back to standing, and keep the heading live underneath so
+    // the next surface picks the body up exactly where it already is
+    const k = 1 - Math.exp(-C.tiltRate * dt);
+    up.lerp(UP, k).normalize();
+    _want.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
+    fwd.lerp(_want, k);
+    orthonormalize(up, fwd);
+    f._climbTilt = clamp01((1 - up.y) / C.tiltFull);
+    return false;
   }
-  if (s && s.gap < f.radius * 1.2) {
-    const rise = s.top - f.pos.y;
-    if (rise > D.stepUp * f.height + 0.1) {
-      if (!f.grounded) return attach(f, s, len > 0.3 ? mv : null);
-      if (len > 0.3 && -(mv.x / len * s.nx + mv.z / len * s.nz) > C.grabDot) {
-        return attach(f, s, mv);
-      }
+
+  f.climb = true;
+  if (f.intent.jump) { wallJump(f); return false; }
+
+  // ---- 1. ORIENTATION IS THE FIELD ----
+  up.lerp(fld.n, 1 - Math.exp(-C.tiltRate * dt)).normalize();
+  upRotation(up, _qUp);
+  const tilt = clamp01((1 - up.y) / C.tiltFull);
+
+  // ---- 2. INPUT THROUGH THE SAME ROTATION ----
+  _dir.set(mv.x, 0, mv.z);
+  const drive = Math.min(_dir.length(), 1);
+  _dir.applyQuaternion(_qUp);
+  // full pace on the flat, the climbing pace once he is genuinely on a wall
+  const speed = f.moveSpeed() * f.speedMult() * (1 - (1 - D.speed) * tilt) *
+    (f.blocking ? TUNING.movement.blockMoveMult : 1);
+  if (_dir.lengthSq() > 1e-8) _dir.setLength(drive * speed);
+  f._climbSpeed = drive * speed;
+  f.pos.addScaledVector(_dir, dt);
+  f.vel.copy(_dir);
+
+  // ---- 3. PULLED TO THE SURFACE, NEVER TELEPORTED ----
+  // The sample rides `stand` off the body along its own up, so the body is at
+  // the right height exactly when the sample's distance IS `stand` — pull the
+  // error out along the line to the surface, and floors and walls are the same
+  // arithmetic.
+  _p.copy(f.pos).addScaledVector(up, stand);
+  const post = fieldAt(f, _p.x, _p.y, _p.z, range);
+  if (post.hits) {
+    f.pos.add(post.push);                       // never inside anything
+    const err = post.d - stand;
+    if (Math.abs(err) > 0.02 && post.d > 1e-4) {
+      // the vector that puts the sample exactly `stand` off the surface
+      _want.copy(post.cp).sub(_p).multiplyScalar(err / post.d);
+      // EXACT while he is walking a surface (a rate here is outrun by his own
+      // stride), CAPPED while he is still arriving at one (that is the glide)
+      if (Math.abs(err) > C.stickGlide) _want.setLength(C.stickMax * dt);
+      f.pos.add(_want);
     }
   }
-  // the far lip: walking off a real drop wraps him over onto the face below
-  if (f.grounded && len > 0.3 && f.pos.y > f.height * 0.6) {
-    wrapDown(f, mv, mv.x / len, mv.z / len);
-  }
-}
 
-function wrapDown(f, mv, ix, iz) {
-  const D = f.def.climb;
-  const ahead = f.radius + f.height * 0.2;
-  const x = f.pos.x + ix * ahead, z = f.pos.z + iz * ahead;
-  if (groundUnder(f, x, z, f.pos.y) > f.pos.y - f.height * C.wrapDrop) return;
-  const s = f.world.arena?.climbProbe?.(
-    x, f.pos.y - f.height * 0.35, z, f.radius + D.reach * f.height);
-  if (!s) return;                  // nothing to hold below: he just walks off
-  f.pos.y -= f.height * 0.22;      // feet below the lip, onto the face
-  attach(f, s, null);
-  f.climb.fwd.set(0, -1, 0);       // over the edge head-first, the way he is going
-}
-
-// ---------------------------------------------------------------------------
-function attach(f, s, mv) {
-  f._climbRelease = false;
-  f.climb = { surf: s, phase: 'wall', t: 0, lostT: 0, fwd: new THREE.Vector3(0, 1, 0) };
-  // face the way the stick is about to carry him along the face
-  if (mv) {
-    normalAt(s, f.pos, _n);
-    _side.crossVectors(UP, _n).normalize();
-    const into = -(mv.x * _n.x + mv.z * _n.z);
-    const lat = mv.x * _side.x + mv.z * _side.z;
-    _want.set(_side.x * lat, Math.max(into, 0.2), _side.z * lat);
-    if (_want.lengthSq() > 1e-4) f.climb.fwd.copy(_want.normalize());
+  // facing: the way he is going, damped exactly like a turn on the ground
+  if (f._climbSpeed > 0.4) {
+    _want.copy(_dir).normalize();
+    fwd.lerp(_want, 1 - Math.exp(-C.faceRate * dt));
   }
-  f.vel.set(0, 0, 0);
+  orthonormalize(up, fwd);
+  f._climbTilt = tilt;
+
   f.grounded = false;
   f.hovering = false;
   f.plunging = false;
-  f._climbSpeed = 0;
-  f.duckT = 0;
-  projectTo(s, f.pos, _p, 0.02);
-  f.pos.x = _p.x; f.pos.z = _p.z;
-  f.world.audio?.play('servo');
-  f.world.effects?.dustPuff(_p.set(s.x, f.pos.y + f.height * 0.25, s.z), 4, 0xa8a8a8);
+  return true;
 }
 
-// off the wall. He keeps climbing whatever he meets next — there is no mode to
-// end — so the only thing this owes the player is not re-grabbing the face he
-// just left in the same breath, which the cooldown handles.
-function detach(f) {
-  if (!f.climb) return;
-  f.climb = null;
+// leaving the surface. `release` is the mechanism; the JUMP is how a player
+// asks for it.
+function release(f, cooldown) {
+  f.climb = false;
   f._climbSpeed = 0;
-  f._climbCd = 0.2;
+  if (cooldown) f._climbCd = 0.25;
   f.grounded = false;
-  // NO COYOTE GRACE. The punch-hold wall grab leaves one behind (let go, and a
-  // jump still fires for a beat) because there letting go is not itself a jump.
-  // Here the jump IS the exit, so a grace period only means a second jump
-  // fires out of the first — a let-go that shoots him skyward instead of
-  // dropping him.
-  f._hangCoyote = 0;
 }
 
-// THE JUMP OFF A WALL, and it is two different moves by whether the stick is
-// pushed:
-//   DIRECTION HELD — he springs off THAT WAY, a real leap: the stick sets the
-//     heading, with just enough outward speed folded in that a stick aimed
-//     back INTO the face still clears it rather than re-latching a frame later.
-//   NOTHING HELD  — he simply LETS GO. No push, no arc: he drops straight down
-//     the way any other mech falls off anything, and `_climbRelease` keeps the
-//     face he is sliding past from grabbing him on the way.
+// THE JUMP OFF A SURFACE, two moves by whether the stick is pushed:
+//   DIRECTION HELD — a real leap THAT WAY, with enough of the surface normal
+//     folded in that a stick aimed back into the face still clears it.
+//   NOTHING HELD  — he simply LETS GO: no push, no arc, straight down like any
+//     other mech falling off anything. `_climbRelease` keeps the surface he is
+//     sliding past from catching him again on the way down.
 function wallJump(f) {
-  const c = f.climb;
-  normalAt(c.surf, f.pos, _n);
-  // the RAW stick, not the movement input: a rooted state (an attack thrown
-  // from the wall) zeroes that, and reading it here would turn a directed leap
-  // into a let-go for no reason the player can see
-  const mv = f.intent;
-  const len = Math.hypot(mv.moveX, mv.moveZ);
-  detach(f);
+  const up = f.climbUp;
+  const mv = f.intent;                        // the RAW stick: a rooted state
+  const len = Math.hypot(mv.moveX, mv.moveZ); // zeroes the movement input
+  release(f, true);
   if (len < 0.3) {
     f._climbRelease = true;
     f.vel.set(0, 0, 0);
@@ -263,276 +456,66 @@ function wallJump(f) {
   }
   const dx = mv.moveX / len, dz = mv.moveZ / len;
   const speed = f.moveSpeed() * C.leapMult;
-  // outward floor: `out` is how much of the leap is guaranteed to be away from
-  // the wall, whatever the stick says
-  const away = Math.max(0, C.leapOut - (dx * _n.x + dz * _n.z) * speed);
-  f.vel.set(dx * speed + _n.x * away,
-    f.def.stats.jump * TUNING.movement.jumpMult * C.leapRise,
-    dz * speed + _n.z * away);
+  const away = Math.max(0, C.leapOut - (dx * up.x + dz * up.z) * speed);
+  f.vel.set(dx * speed + up.x * away,
+    f.def.stats.jump * TUNING.movement.jumpMult * C.leapRise + Math.max(0, up.y) * away,
+    dz * speed + up.z * away);
   f.targetYaw = Math.atan2(dx, dz);
-  f._climbCd = 0.3;
   f.world.audio?.play('jump');
   f.world.effects?.dustPuff(f.pos, 5);
 }
 
-// ---------------------------------------------------------------------------
-// ON THE WALL
-function updateAttached(f, dt, mv) {
-  const c = f.climb;
-  const D = f.def.climb;
-  c.t += dt;
-  // anything that takes the body away takes the wall with it
-  if (!f.alive || f.controlsLocked || f._carry || f.cinePuppet ||
-      (f.state !== 'normal' && f.state !== 'attack' && f.state !== 'channel')) {
-    return detach(f);
-  }
-  // A ALWAYS GETS YOU OFF, the haul over a lip included: that is half a second
-  // of scripted travel, and swallowing a jump for it is half a second of dead
-  // controller. The surface is still known, so the same two-way jump applies.
-  if (f.intent.jump) return wallJump(f);
-  if (c.phase === 'top') return updateTopOut(f, dt);
-
-  // re-probe every frame: this is what follows a stepped facade up and carries
-  // him around a cylinder. Two heights are asked — chest and ankle — and the
-  // NEARER face wins: taking the first non-null answer instead once switched a
-  // descent below a terrace onto the tower behind it, three units away through
-  // solid roof. A couple of frames of nothing is a blown-out chunk or a corner
-  // turned — he comes off.
-  const pad = f.radius + D.reach * f.height;
-  const s1 = probeFor(f, f.pos.y + f.height * 0.3, pad);
-  const s2 = probeFor(f, f.pos.y + 0.4, pad);
-  const s = !s1 ? s2 : !s2 ? s1 : (Math.abs(s2.gap) < Math.abs(s1.gap) ? s2 : s1);
-  if (s) { c.surf = s; c.lostT = 0; } else if ((c.lostT += dt) > 0.12) return detach(f);
-
-  const surf = c.surf;
-  normalAt(surf, f.pos, _n);
-  _side.crossVectors(UP, _n).normalize();          // along the face, horizontal
-  // THE STICK, read against the face: pushing IN is up, pulling BACK is down,
-  // the sideways half scuttles across. Let go of it and he simply stays where
-  // he is — a climber at rest is holding on, and that IS the grip.
-  const into = -(mv.x * _n.x + mv.z * _n.z);
-  const lat = mv.x * _side.x + mv.z * _side.z;
-  const speed = f.moveSpeed() * f.speedMult() * D.speed *
-    (f.blocking ? TUNING.movement.blockMoveMult : 1);
-  const vUp = into * speed, vLat = lat * speed;
-  f.pos.y += vUp * dt;
-  f.pos.x += _side.x * vLat * dt;
-  f.pos.z += _side.z * vLat * dt;
-  f.vel.set(_side.x * vLat, vUp, _side.z * vLat);
-  f._climbSpeed = Math.hypot(vUp, vLat);
-
-  // hug the surface (a cylinder curves away as he goes round it)
-  projectTo(surf, f.pos, _p, 0.02);
-  f.pos.x = _p.x; f.pos.z = _p.z;
-
-  // WHICH WAY HE FACES ON THE WALL: the way he is travelling — up, across, or
-  // head-first down — reached by a damp, exactly like a ground turn. Standing
-  // still he keeps the heading he arrived with.
-  if (f._climbSpeed > 0.4) {
-    _want.set(_side.x * vLat, vUp, _side.z * vLat).normalize();
-    c.fwd.lerp(_want, 1 - Math.exp(-8 * dt));
-  }
-  c.fwd.addScaledVector(_n, -c.fwd.dot(_n));       // keep it on the face
-  if (c.fwd.lengthSq() < 1e-4) c.fwd.copy(UP);     // a 180° turn passes through 0
-  c.fwd.normalize();
-
-  // the lip: his claws are over it, haul him up
-  if (vUp > 0.05 && f.pos.y >= surf.top - f.height * 0.45) return startTopOut(f, surf);
-  // the bottom: back on the dirt, and he walks on. The floor is only a floor
-  // if he has actually DESCENDED onto it — a column base sitting
-  // well above his feet (he wrapped over a terrace lip and is on the face
-  // below it) must not teleport him back up onto the ledge he just left.
-  const floor = Math.max(surf.base || 0, f.world.arena?.terrainHeightAt?.(f.pos.x, f.pos.z) || 0);
-  if (f.pos.y <= floor + 0.05 && floor - f.pos.y < 0.6 && vUp <= 0) {
-    f.pos.y = floor;
-    detach(f);
-    f._climbCd = 0.1;   // stepping off the bottom, not leaving on purpose
-    f.grounded = true;
-    f.vel.set(0, 0, 0);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// OVER THE LIP. A scripted haul: the feet travel from the face onto the roof
-// while the body damps back upright, so he rolls over the edge instead of
-// teleporting onto it. The heading is a targetYaw ASK, not a snap — the
-// ordinary yaw servo turns him in over the roof at the rate every other turn
-// uses, which is what keeps a sideways scuttle's top-out from popping.
-function startTopOut(f, surf) {
-  const c = f.climb;
-  c.phase = 'top';
-  c.t = 0;
-  normalAt(surf, f.pos, _n);
-  c.from = f.pos.clone();
-  c.to = new THREE.Vector3(
-    f.pos.x - _n.x * (f.radius * 1.4), surf.top + 0.02, f.pos.z - _n.z * (f.radius * 1.4));
-  f.targetYaw = Math.atan2(-_n.x, -_n.z);
-  f.vel.set(0, 0, 0);
-  f.world.audio?.play('servo');
-}
-
-function updateTopOut(f, dt) {
-  const c = f.climb;
-  const k = clamp01(c.t / C.topSeconds);
-  const e = k * k * (3 - 2 * k);
-  f.pos.x = c.from.x + (c.to.x - c.from.x) * e;
-  f.pos.z = c.from.z + (c.to.z - c.from.z) * e;
-  // the feet clear the lip BEFORE the body swings in — rise first, then travel
-  f.pos.y = c.from.y + (c.to.y - c.from.y) * clamp01(e * 1.7);
-  f._climbSpeed = 0;
-  f.vel.set(0, 0, 0);
-  if (k < 1) return;
-  f.climb = null;       // on the roof — still in the mode, walking
-  f.grounded = true;
-}
-
-// The highest thing to stand on under (x, z), searching DOWN from `fromY`.
-//
-// A SOLID CHUNK AT HIS OWN HEIGHT IS NOT A DROP, it is the next tier's WALL,
-// and that distinction is the whole reason this is a function and not a
-// terrain lookup: on a stepped building the point a couple of paces ahead of a
-// mech standing on a terrace is often INSIDE the tower above it, whose chunk
-// tops are all far overhead. Read as "nothing underneath", that would wrap him
-// down at the foot of a wall he is about to climb.
-function groundUnder(f, x, z, fromY) {
-  const arena = f.world.arena;
-  let best = arena?.terrainHeightAt?.(x, z) ?? 0;
-  const d = arena?.destructo;
-  if (d) {
-    for (const b of d.buildings) {
-      if (b.alive <= 0) continue;
-      const a = b.aabb;
-      if (x < a.minX - 0.2 || x > a.maxX + 0.2 || z < a.minZ - 0.2 || z > a.maxZ + 0.2) continue;
-      for (const c of b.grid.values()) {
-        if (!c.alive) continue;
-        if (Math.abs(x - c.x) > c.w / 2 || Math.abs(z - c.z) > c.d / 2) continue;
-        const top = c.y + c.h / 2, bot = c.y - c.h / 2;
-        if (bot <= fromY + f.height * 0.5 && top > fromY + 0.4) return fromY; // a wall
-        if (top <= fromY + 0.4 && top > best) best = top;
-      }
-    }
-  }
-  return best;
-}
-
-// ---------------------------------------------------------------------------
-// PHYSICS while attached. The surface is the constraint; nothing else applies.
-// (Position is already integrated in updateAttached — this is the part
-// applyPhysics would otherwise do: the wrap and nothing else.)
+// PHYSICS while surfaced: the field is the constraint, so all that is left of
+// applyPhysics is the toroidal wrap.
 export function climbPhysics(f) {
   const w = f.world;
-  if (w.wrapHalf) {
-    const wx = w.wrapCoord(f.pos.x), wz = w.wrapCoord(f.pos.z);
-    if (wx !== f.pos.x || wz !== f.pos.z) {
-      f._wrap = { dx: wx - f.pos.x, dz: wz - f.pos.z };
-      f.pos.x = wx; f.pos.z = wz;
-    }
+  if (!w.wrapHalf) return;
+  const wx = w.wrapCoord(f.pos.x), wz = w.wrapCoord(f.pos.z);
+  if (wx !== f.pos.x || wz !== f.pos.z) {
+    f._wrap = { dx: wx - f.pos.x, dz: wz - f.pos.z };
+    f.pos.x = wx; f.pos.z = wz;
   }
 }
 
-// ---------------------------------------------------------------------------
-// THE BODY'S ORIENTATION — the damp between the ground frame and the wall
-// frame (see the header). Runs every frame for a climbing mech and keeps
-// running after he lets go, until the body has rolled back upright. It NEVER
-// writes f.yaw: the stick-driven yaw servo keeps the horizontal heading honest
-// underneath, so both ends of the slerp are always live, damped frames — that
-// is the whole no-snap guarantee. When the blend finishes it squares the
-// group's rotation off exactly once, so no residual tilt can linger in the
-// euler channels the per-frame `rotation.y = yaw` write leaves untouched.
-export function applyClimbOrientation(f, dt) {
-  const c = f.climb;
-  const onWall = !!c && c.phase === 'wall';
-  if (onWall) {
-    normalAt(c.surf, f.pos, _n);
-    const basis = f._climbBasis || (f._climbBasis = { up: new THREE.Vector3(), fwd: new THREE.Vector3() });
-    basis.up.copy(_n);
-    basis.fwd.copy(c.fwd);
+// A let-go stays let go while he is still brushing what he let go of — it
+// expires on landing, or the moment he is clear of everything. (Never on the
+// jump button: that fires in the same frame that sets it.)
+export function climbReleaseTick(f) {
+  if (!f._climbRelease) return;
+  if (f.grounded) { f._climbRelease = false; return; }
+  const range = f.def.climb.reach * f.height;
+  if (nearestSurface(f, f.pos.x, f.pos.y + f.height * 0.06, f.pos.z, range) === Infinity) {
+    f._climbRelease = false;
   }
-  const want = onWall ? 1 : 0;
-  f._climbTilt = damp(f._climbTilt || 0, want, C.tiltRate, dt);
-  if (f._climbTilt < 0.004) {
-    f._climbTilt = 0;
-    if (f._climbTiltOn) {
-      f._climbTiltOn = false;
-      f.group.rotation.set(0, f.yaw, 0);
-    }
+}
+
+// ===========================================================================
+// THE BODY FRAME, built from (up, fwd) — the two vectors the walker damps — so
+// it is continuous by construction. On the flat those are world up and the yaw
+// heading, which IS `rotation.y = yaw`, so this only takes the wheel once the
+// body has actually tilted, and hands it back squared off.
+// ===========================================================================
+export function applyClimbOrientation(f) {
+  const up = f.climbUp;
+  if (!up) return;
+  if (!(f._climbTilt > 0.004)) {
+    if (f._climbTiltOn) { f._climbTiltOn = false; f.group.rotation.set(0, f.yaw, 0); }
     return;
   }
   f._climbTiltOn = true;
-  const basis = f._climbBasis;
-  if (!basis) return;
-  _qA.setFromAxisAngle(UP, f.yaw);                       // the ground frame
-  _by.copy(basis.up).normalize();
-  _bz.copy(basis.fwd);
-  _bz.addScaledVector(_by, -_bz.dot(_by));
-  if (_bz.lengthSq() < 1e-6) _bz.set(0, 1, 0).addScaledVector(_by, -_by.y);
-  _bz.normalize();
-  _bx.crossVectors(_by, _bz).normalize();                // x = right, y = up, z = fwd
+  _by.copy(up);
+  _bz.copy(f.climbFwd);
+  _bx.crossVectors(_by, _bz).normalize();      // x = right, y = up, z = forward
+  _bz.crossVectors(_bx, _by).normalize();
   _mtx.makeBasis(_bx, _by, _bz);
-  _qB.setFromRotationMatrix(_mtx);                       // the wall frame
-  f.group.quaternion.slerpQuaternions(_qA, _qB, f._climbTilt);
+  f.group.quaternion.setFromRotationMatrix(_mtx);
 }
 
-// ---------------------------------------------------------------------------
-// HANDS AND FEET ON THE SURFACE.
-//
-// The frame above puts the BODY where it belongs; this puts the four contact
-// points where they belong, which is the difference between climbing a wall
-// and walking on a rotated floor. For each limb: two-bone IK onto the nearest
-// point of the surface the extremity is crossing, weighted by how near it
-// already is — so the planted limb of a stride is pinned to the wall and the
-// swinging one is only nudged. Then the extremity itself is levelled, its
-// sole/palm turned to face the surface.
-//
-// It runs LAST, after the GLB retarget has synced (fighter.js calls
-// postAnimate first), and writes the bones a rigged model actually renders —
-// `boneMap` where there is one, the virtual joints otherwise, read and written
-// as one set so the solve stays self-consistent on both routes.
-const LIMBS = [
-  { root: 'thighL', mid: 'kneeL', end: 'ankleL', foot: true },
-  { root: 'thighR', mid: 'kneeR', end: 'ankleR', foot: true },
-  { root: 'shoulderL', mid: 'elbowL', end: 'handL', foot: false },
-  { root: 'shoulderR', mid: 'elbowR', end: 'handR', foot: false },
-];
-
-export function conformClimbLimbs(f, dt) {
-  const c = f.climb;
-  if (!c || c.phase !== 'wall' || !(f._climbTilt > 0.05)) return;
-  const surf = c.surf;
-  const mech = f.mech;
-  const bones = mech.boneMap || null;
-  const node = (n) => (bones && bones[n]) || mech.joints?.[n] || null;
-  f.group.updateWorldMatrix(true, true);
-  const range = C.conformRange * f.height;
-  const pull = C.conform * f._climbTilt;
-  const sole = f.animator?.footDepth || 0.32 * f.scale;   // ankle bone above the sole plate
-  for (const L of LIMBS) {
-    const root = node(L.root), mid = node(L.mid), end = node(L.end);
-    if (!root || !mid || !end) continue;
-    end.getWorldPosition(_end);
-    // how far outside the surface this hand/foot is right now
-    const gap = distanceTo(surf, _end) - (L.foot ? sole * 0.35 : 0.06);
-    // FEET are pulled by proximity, so the planted one of a stride is pinned
-    // and the swinging one is left to swing. HANDS keep a floor under that
-    // (`handPlant`): a climber's claws are ON the wall, and where the arm is
-    // too short to get there the solve leaves it REACHING for the surface,
-    // which is the read you want anyway.
-    const near = clamp01(1 - Math.abs(gap) / range);
-    const w = pull * (L.foot ? near : Math.max(C.handPlant, near));
-    if (w < 0.02) continue;
-    projectTo(surf, _end, _tgt, L.foot ? sole * 0.35 : 0.06);
-    _tgt.lerpVectors(_end, _tgt, w);
-    reachTo(root, mid, end, _tgt);
-    levelTip(f, end, surf, w);
-  }
-}
-
-// The climbing CARRIAGE (def.climb.pose, degrees, additive over whatever the
-// animator just posed and faded in with the tilt): claws up in front of the
-// shell, shell flattened toward the wall — and, the important half, `hipsPos`
+// The climbing CARRIAGE (def.climb.pose, degrees, faded in with the tilt):
+// claws up in front of the shell, and — the important half — `hipsPos`
 // dropping the belly toward the surface, because a mech STANDING on a wall is
-// not climbing it. It goes on the VIRTUAL joints — before fighter.js re-syncs
-// the GLB — because it is a pose, not a contact.
+// not climbing it. It goes on the VIRTUAL joints, before fighter.js re-syncs
+// the GLB, because it is a pose and not a contact.
 export function applyClimbPose(f) {
   const pose = f.def.climb?.pose;
   const k = f._climbTilt || 0;
@@ -556,6 +539,57 @@ export function applyClimbPose(f) {
   }
 }
 
+// ===========================================================================
+// HANDS AND FEET ON WHATEVER IS NEAREST THEM.
+//
+// The frame puts the BODY where it belongs; this puts the four contact points
+// where they belong, and it asks PER LIMB — so a mech crossing a corner plants
+// one claw on the wall and one on the roof, which no single surface could
+// express. Two-bone IK onto the nearest point, weighted by how near the limb
+// already is (so the planted foot of a stride is pinned and the swinging one
+// still swings), then the sole/palm turned to face what it found.
+//
+// Runs LAST, after the GLB retarget has synced (fighter.js calls postAnimate
+// first), so it writes the bones a rigged model actually renders.
+// ===========================================================================
+const LIMBS = [
+  { root: 'thighL', mid: 'kneeL', end: 'ankleL', foot: true },
+  { root: 'thighR', mid: 'kneeR', end: 'ankleR', foot: true },
+  { root: 'shoulderL', mid: 'elbowL', end: 'handL', foot: false },
+  { root: 'shoulderR', mid: 'elbowR', end: 'handR', foot: false },
+];
+
+export function conformClimbLimbs(f) {
+  if (!(f._climbTilt > 0.05)) return;
+  const mech = f.mech;
+  const bones = mech.boneMap || null;
+  const node = (n) => (bones && bones[n]) || mech.joints?.[n] || null;
+  f.group.updateWorldMatrix(true, true);
+  const range = C.conformRange * f.height;
+  const pull = C.conform * f._climbTilt;
+  const sole = f.animator?.footDepth || 0.32 * f.scale;
+  for (const L of LIMBS) {
+    const root = node(L.root), mid = node(L.mid), end = node(L.end);
+    if (!root || !mid || !end) continue;
+    end.getWorldPosition(_end);
+    const stand = L.foot ? sole * 0.35 : 0.06;
+    const d = nearestSurface(f, _end.x, _end.y, _end.z, range);
+    if (d === Infinity) continue;
+    // FEET by proximity, so the planted one of a stride is pinned and the
+    // swinging one is left alone; HANDS with a floor under that, because a
+    // climber's claws are on the wall whether or not the swing brought them
+    // near it — and where the arm cannot reach, the solve leaves it REACHING,
+    // which is the read you want anyway.
+    const near = clamp01(1 - Math.abs(d - stand) / range);
+    const w = pull * (L.foot ? near : Math.max(C.handPlant, near));
+    if (w < 0.02) continue;
+    _tgt.copy(_limbCp).addScaledVector(_limbN, stand);
+    _tgt.lerpVectors(_end, _tgt, w);
+    reachTo(root, mid, end, _tgt);
+    levelTip(end, _limbN, w);
+  }
+}
+
 // Two-bone IK in world space: bend the mid joint to the right distance, then
 // aim the whole limb at the target. Both writes are world-space rotations
 // composed onto what the pose left behind, so no rig's local axes are assumed
@@ -567,7 +601,6 @@ function reachTo(root, mid, end, target) {
   const l1 = _root.distanceTo(_mid), l2 = _mid.distanceTo(_end);
   if (l1 < 1e-4 || l2 < 1e-4) return;
   const want = clamp(_root.distanceTo(target), Math.abs(l1 - l2) + 1e-3, l1 + l2 - 1e-3);
-  // the interior angle at the mid joint, now and wanted
   _a.subVectors(_root, _mid);
   _b.subVectors(_end, _mid);
   const now = _a.angleTo(_b);
@@ -581,7 +614,6 @@ function reachTo(root, mid, end, target) {
     worldRotate(mid, _qC);
     mid.updateWorldMatrix(false, true);
   }
-  // …then swing the root so the tip lands on the target
   end.getWorldPosition(_end);
   _a.subVectors(_end, _root);
   _b.subVectors(target, _root);
@@ -591,17 +623,12 @@ function reachTo(root, mid, end, target) {
   root.updateWorldMatrix(false, true);
 }
 
-// Turn the sole/palm to lie on the surface: the tip's own "down" (the body's
-// -Y, which is where a foot presses) is rotated onto the surface's inward
-// normal. At full tilt on a flat face that is already true and this does
-// nothing — it is the transition, the curved prop and the stepped facade it
-// exists for.
-function levelTip(f, tip, surf, w) {
-  tip.getWorldPosition(_p);
-  normalAt(surf, _p, _n);
-  f.group.getWorldQuaternion(_qA);
-  _a.set(0, -1, 0).applyQuaternion(_qA);      // where this body presses
-  _b.copy(_n).multiplyScalar(-1);             // where the surface is
+// Turn the sole/palm onto the surface it is touching: the tip's own "down"
+// (where a foot presses) rotated onto that surface's inward normal.
+function levelTip(tip, n, w) {
+  tip.getWorldQuaternion(_qA);
+  _a.set(0, -1, 0).applyQuaternion(_qA);
+  _b.copy(n).multiplyScalar(-1);
   if (_a.dot(_b) > 0.999) return;
   _qC.setFromUnitVectors(_a, _b);
   _qB.identity().slerp(_qC, clamp01(w));

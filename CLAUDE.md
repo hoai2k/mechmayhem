@@ -593,78 +593,84 @@ audio). Progress history: `TASKS.md`.
   the list (exact, and it reaches a bone with no geometry left to click)
   completes it. The list header and its border go amber while it is armed. The
   bone list sits ABOVE the ops list, since it is the one you work in.
-- WALL CLIMBING (`src/combat/climb.js`, dials in `TUNING.climb`) belongs to
+- SURFACE WALKING (`src/combat/climb.js`, dials in `TUNING.climb`) belongs to
   whichever roster def carries a `climb` block — today only JERRY, who PAID for
   it with his jets (`stats.noHover: true` empties the hover tank, so his second
   airborne A-press falls through to the ball tuck) and got the roster's biggest
   jump in the same trade. fighter.js owns four call sites and no logic.
-  A WALL IS A FLOOR THAT POINTS SIDEWAYS, and that sentence is the geometry:
-  the body's UP (+Y local, feet->head) is the surface's outward NORMAL and its
-  FORWARD (+Z local) is the direction he is TRAVELLING. On the ground that
-  reads up = world +Y, fwd = the yaw heading — the ordinary standing frame — so
-  ONE formula covers both ends and the transition is a slerp between them
-  (`applyClimbOrientation`, damped at `tiltRate`). On a vertical face it stands
-  him on the wall like a floor, facing the way he is moving — up when climbing,
-  sideways when scuttling, head-first DOWN when descending — each reached by
-  the same damp a ground turn uses. NOTHING SNAPS: the climb code never writes
-  `f.yaw` (the stick-driven yaw servo keeps the horizontal heading honest
-  underneath the blend), and when the blend finishes the group's rotation is
-  squared off exactly once so no residual tilt can linger in the euler channels
-  the per-frame `rotation.y = yaw` write leaves untouched. The mech's own walk
-  cycle, run in that frame, IS the climb: nothing in the animator knows a wall
-  from a floor — one thing did, and `soleClearanceBySide` now measures foot
-  height along the BODY's up instead of world y (identical on the floor; on a
-  wall the old version read the distance OUT from the face and inverted every
-  foot rule the gait runs on).
-  THERE IS NO CLIMBING MODE — a body built to climb is always climbing, and
-  the whole feature is "walk into a surface and you are on it". GROUNDED, he
-  takes anything too tall to step over that he is walking INTO (`grabDot` is
-  the only gate left, and it is a fact rather than a gate: you cannot walk up
-  a wall you are walking beside). AIRBORNE, CONTACT IS ENOUGH — jump at a
-  building and you land on it, no direction to hold, nothing to press (the
-  universal punch-hold wall grab still works for him too). The bound on what
-  counts as a wall is `stepUp` alone: `def.climb.stepUp` becomes
-  `Fighter.stepUp`, which destructible.js and arena.js read to turn a low
-  ledge into footing he RISES onto rather than a wall he stops at (zero for
-  every other mech, so those paths are unchanged).
-  ON THE FACE the stick's into-the-face component is the climb (push on to go
-  up, pull back to come down) and its sideways component scuttles him across;
-  let go and he STAYS PUT, because a climber at rest is holding on. A lip is
-  hauled over (`topSeconds`, heading damped through the ordinary yaw servo,
-  never snapped), a roof is crossed, and walking off a drop deeper than
-  `wrapDrop` body-heights WRAPS him over the edge onto the face below,
-  head-first, the way he is going (`groundUnder` tells that drop from the next
-  tier's wall, or the wrap would fire at the foot of a wall he is about to
-  climb).
-  THE WAY OFF IS THE JUMP, and it is two moves by whether the stick is pushed.
-  A DIRECTION HELD is a real leap that way (`leapMult`/`leapRise`, plus a
-  `leapOut` floor of outward speed so a stick aimed back INTO the face still
-  clears it instead of re-latching). NOTHING HELD is a plain LET GO: no push,
-  no arc, he drops straight down like any other mech falling off anything, and
-  `_climbRelease` stops the face he is sliding past from grabbing him on the
-  way (it clears when he lands or jumps again). A works during the lip haul
-  too — half a second of scripted travel is half a second of dead controller
-  otherwise.
-  A CLIMBER'S HANDS AND FEET ARE ON THE SURFACE (`conformClimbLimbs`, run after
-  the GLB retarget has synced, so it writes the bones a rigged model actually
-  renders): two-bone IK onto the nearest point of the face, feet weighted by
-  proximity so the planted one of a stride is pinned and the swinging one still
-  swings, hands with a floor under that (`handPlant`) because a climber's claws
-  are on the wall whether or not the swing brought them near it. The other half
-  is the CROUCH in `def.climb.pose` — a mech STANDING on a wall is not climbing
-  it, since a standing body's hands are 5.4 units off the floor; dropping the
-  belly toward the surface is what brings all four limbs onto it (measured on
-  jerry: hands 5.4 -> ~1.0 off the face, planted foot ~0.3).
-  THE CPU DOES NOT CLIMB (`enterGate` returns early for `isAI`): nothing in
-  ai.js can want height, so a latched CPU would climb whatever it walked into
-  and then sit up a tower pressing forward. Everything below the climb — the
-  step-over — is shared.
-  Judge it with `node tools/climbprobe.mjs "<battle url>"` (four scripted
-  scenarios traced frame by frame — the full traverse, the rest-exit, the
-  mid-air latch, the light grip — with tilt, travel-facing, and each hand/
-  foot's signed distance to the surface it is crossing, the thing no
-  screenshot can prove) and `node tools/climbshot.mjs <out-prefix>` (the
-  pictures).
+  HE DOES NOT WALK ON THE FLOOR, HE WALKS ON THE WORLD: up a facade, over its
+  lip, across the roof, down the far side, over the crates on the way, with no
+  mode change and no scripted move anywhere in it.
+  THE MODEL IS A FIELD, not a surface. Every frame the walker asks one question
+  — what is near my feet — and answers it by gathering the live chunks, settled
+  rubble, prop cylinders and terrain within `def.climb.reach` body-heights and
+  reducing them to two numbers: `n`, the distance-weighted average outward
+  normal (weight is `(1-d/range)²`, so what he stands ON outvotes what he walks
+  PAST), and `cp`, the nearest point on any of it. That is the whole thing.
+  THREE RULES FALL OUT OF IT. (1) ORIENTATION IS THE FIELD: `up` damps toward
+  `n` at `tiltRate` and `fwd` damps toward his travel at `faceRate`, and the
+  body frame is built from those two, so it is continuous BY CONSTRUCTION —
+  there is no case analysis that can disagree with itself and nothing that can
+  snap, because both vectors only ever move by a damp. (2) INPUT IS MAPPED
+  THROUGH THE SAME ROTATION: the stick arrives as a world XZ direction and is
+  turned by `Q = (world up -> body up)`, which is the identity on the floor (so
+  ground movement is untouched to the bit) and a quarter turn on a wall, where
+  "push away from the camera" becomes "climb". One rotation drives movement,
+  facing AND the chase camera, which is why they cannot drift apart. (3) THE
+  FEET ARE PULLED to `cp` at `stickRate` and never teleported to it, with
+  de-penetration keeping the body out of geometry.
+  EVERY CORNER IS THEN ARITHMETIC. Walk at a wall and its weight grows, so `n`
+  tilts, so the same forward push starts carrying him up. Reach the top and the
+  roof enters the field and takes over. Step past the far lip and the only
+  thing in reach is the EDGE, whose normal rotates continuously from up to
+  outward as he crosses it — so he tips over and walks down, with no wrap
+  special case. Measured over one held stick: ground -> wall -> terrace ->
+  wall -> roof -> far lip -> 49 units down, worst single-frame body rotation
+  7.1° and ZERO unexplained movement.
+  FLAT GROUND IS NOT CLIMBING, and that line keeps the feature cheap: the
+  walker only takes over when something NOT flat is genuinely underfoot
+  (`flatCos`), and gives the body back once it is upright again over flat
+  footing — so dash, knockdown, the landing and the jump arc all stay with
+  applyPhysics, and a mech walking about the arena runs none of this. (The
+  arena's step-over is GONE with it: `Fighter.stepUp` and its hooks in
+  destructible.js/arena.js were the "clips the building and hops up one block"
+  artifact, and the walker subsumes them — a knee-high crate is just a surface
+  with a gentle normal.)
+  HANDS AND FEET ARE PLACED PER LIMB (`conformClimbLimbs`, run after the GLB
+  retarget has synced so it writes the bones a rigged model renders): two-bone
+  IK onto the nearest solid to THAT limb, which is how a body crossing a corner
+  gets one claw on the wall and one on the roof — something no single surface
+  could express. Feet are weighted by proximity so the planted one of a stride
+  is pinned and the swinging one still swings; hands keep a floor under that
+  (`handPlant`), and where the arm cannot reach, the solve leaves it REACHING.
+  The other half of the look is the CROUCH in `def.climb.pose`: a mech STANDING
+  on a wall is not climbing it, since a standing body's hands are 5.4 units off
+  the floor.
+  THE WAY OFF IS THE JUMP. A direction held is a real leap that way
+  (`leapMult`/`leapRise`, with a `leapOut` floor of outward speed so a stick
+  aimed back into the face still clears it); nothing held is a plain LET GO —
+  no push, no arc, straight down like any other mech, with `_climbRelease`
+  stopping the face he is sliding past from catching him again (it expires on
+  landing or in open air, never on the jump button, which fires in the same
+  frame that sets it).
+  THE CAMERA NEVER GHOSTS HIS BUILDING (camera.js). You cannot read a climb
+  against a wall you can see through, so the occlusion fade is skipped for a
+  view whose own player is surface-walking, and instead THE ORBIT IS ROTATED
+  INTO HIS FRAME by the same `upRotation`: the offset that sits behind-and-above
+  a mech on the ground sits outside-and-behind one on a facade, and elevation
+  eases toward `CLIMB_EL` with the tilt to pull the eye out perpendicular to
+  the surface. The camera is only MOVED, never rolled — screen up stays world
+  up, so a vertical climb reads as moving up the screen, which is also what the
+  stick does.
+  THE CPU DOES NOT SURFACE-WALK (`climbStep` returns early for `isAI`): nothing
+  in ai.js can want height, so a latched CPU would climb whatever it walked
+  into and then sit up a tower pressing forward.
+  Judge it with `node tools/climbprobe.mjs "<battle url>"` — five scripted
+  scenarios, every frame measured, reporting the WORST single-frame body
+  rotation (a damp cannot exceed a few degrees; a plane swap used to flip it
+  90°) and the worst unexplained movement (the step-over used to show up here
+  as a 2.8-unit hop), plus each hand's and foot's distance to the nearest solid
+  — and `node tools/climbshot.mjs <out-prefix>` for the pictures.
 - A fighter grown at RUNTIME (colossus' COLOSSAL FORM ult scales him 4×) must
   tell the animation layer: `animator.sizeMul = <factor>`. Everything in
   animator.js is authored in the model's own local units, so without it the

@@ -1,16 +1,22 @@
-// WALL CLIMB PROBE — drive a climbing mech into a real arena building and
-// report what the climb actually does, frame by frame.
+// SURFACE WALK PROBE — drive a surface-walking mech at real arena geometry and
+// measure whether the result is CONTINUOUS, which is the whole design claim.
 //
 //   node tools/climbprobe.mjs [battle url]
 //
-// The AI is taken off P1 and its intent is written directly, and the sim is
-// stepped through world.update (no draw — SwiftShader renders at a tenth of
-// real time, so a rendered run would take hours). Each scenario re-parks him
-// in front of the arena's tallest building first, so they are independent.
-// Reported per sample: the mode / attach phase, the body's tilt onto the wall
-// (0 = upright, 1 = standing on the face), where his body forward points
-// (fy: +1 climbing, -1 head-first down), height, and each hand/foot's signed
-// distance to the surface it is crossing — the thing no screenshot can prove.
+// The AI is taken off P1 and its intent is written directly; the sim is stepped
+// through world.update (no draw — SwiftShader renders at a tenth of real time).
+// EVERY frame is measured, and each scenario reports the worst single-frame
+// discontinuity as well as a sampled trace:
+//
+//   up-turn   the body's up vector turning, in degrees per frame. This is the
+//             number the previous implementation failed: swapping which plane
+//             it was attached to flipped the body ~90 degrees in one frame. A
+//             damp cannot exceed a few degrees per frame, so anything large
+//             here is a snap a player would see.
+//   move      how far the body moved in one frame BEYOND what its own speed
+//             explains — i.e. a teleport. The arena step-over used to show up
+//             here as a ~2.8-unit hop onto the first block.
+//   tips      each foot's and hand's distance to the nearest solid (0 = planted).
 import { chromium } from 'playwright-core';
 
 const url = process.argv[2] ||
@@ -26,101 +32,126 @@ page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));
 await page.goto(url, { waitUntil: 'networkidle' });
 await page.waitForTimeout(6000);
 
-// ---- find the tallest building, define the per-scenario park ----
 const setup = await page.evaluate(() => {
   const w = window.__world;
-  window.__ais.length = 0;                 // nobody else drives P1
+  window.__ais.length = 0;
   w.engine.paused = true;
   const f = window.__fighters[0];
   f.isAI = false;
   let best = null;
   for (const b of w.arena.destructo.buildings) {
     if (b.alive <= 0) continue;
-    const h = b.aabb.maxY;
-    if (!best || h > best.h) best = { h, a: b.aabb };
+    if (!best || b.aabb.maxY > best.maxY) best = b.aabb;
   }
   if (!best) return { ok: false, why: 'no buildings' };
-  const a = best.a;
-  const x = (a.minX + a.maxX) / 2;
-  // park `dist` out from the -Z face, facing it
-  window.__park = (dist = 3.5) => {
-    const z = a.minZ - f.radius - dist;
+  const x = (best.minX + best.maxX) / 2;
+  window.__park = (dist = 6) => {
+    const z = best.minZ - f.radius - dist;
     f.resetForRound(f.pos.clone().set(x, 0, z), 0);
     f.pos.set(x, 0, z);
     f.vel.set(0, 0, 0);
   };
   window.__park();
-  return { ok: true, top: +best.h.toFixed(2), height: +f.height.toFixed(2), stepUp: +f.stepUp.toFixed(2) };
+  // distance from a point to the nearest solid, so the trace can say where the
+  // hands and feet actually ARE rather than where the code believes they are
+  window.__nearest = (px, py, pz) => {
+    const w2 = window.__world;
+    let best2 = Math.abs(py - (w2.arena.terrainHeightAt?.(px, pz) ?? 0));
+    for (const b of w2.arena.destructo.buildings) {
+      if (b.alive <= 0) continue;
+      const a = b.aabb;
+      if (px < a.minX - 14 || px > a.maxX + 14 || pz < a.minZ - 14 || pz > a.maxZ + 14) continue;
+      for (const c of b.grid.values()) {
+        if (!c.alive) continue;
+        const cx = Math.max(c.x - c.w / 2, Math.min(px, c.x + c.w / 2));
+        const cy = Math.max(c.y - c.h / 2, Math.min(py, c.y + c.h / 2));
+        const cz = Math.max(c.z - c.d / 2, Math.min(pz, c.z + c.d / 2));
+        const d = Math.hypot(px - cx, py - cy, pz - cz);
+        if (d < best2) best2 = d;
+      }
+    }
+    return best2;
+  };
+  return { ok: true, top: +best.maxY.toFixed(2), height: +f.height.toFixed(2) };
 });
 if (!setup.ok) { console.log('SETUP FAILED:', setup.why); await browser.close(); process.exit(1); }
 console.log('setup', JSON.stringify(setup));
 
-// ---- run a scripted stick against the freshly parked mech ----
 async function run(script, frames, dist) {
   return page.evaluate(({ script, frames, dist }) => {
     const w = window.__world;
     const f = window.__fighters[0];
+    const V = window.__THREE.Vector3;
     window.__park(dist);
-    const trace = [];
     const fn = new Function('t', 'f', `return (${script});`);
+    const trace = [];
+    let worstUp = 0, worstUpT = 0, worstPos = 0, worstPosT = 0;
+    const prevUp = new V(0, 1, 0);
+    const prevPos = f.pos.clone();
     for (let i = 0; i < frames; i++) {
       const t = i / 60;
-      const s = fn(t, f);
       Object.assign(f.intent, {
         moveX: 0, moveZ: 0, jump: false, jumpHeld: false, light: false, lightHeld: false,
         heavy: false, ranged: false, special: false, ult: false, block: false, dash: false,
         chargeDash: false, duck: false, taunt: false,
-      }, s);
+      }, fn(t, f));
       w.update(1 / 60);
-      if (i % 9 === 0 || i === frames - 1) {
-        const c = f.climb;
-        // signed distance from a hand/foot to the surface it is crossing —
-        // 0 = planted on it, positive = out in the air. Off the wall the same
-        // number is just the extremity's height above the floor.
+      const up = f.climbUp || new V(0, 1, 0);
+      const dUp = Math.acos(Math.max(-1, Math.min(1, up.dot(prevUp)))) * 180 / Math.PI;
+      // the toroidal wrap folds the body across the cell (a ~300-unit
+      // coordinate change that is not motion at all) — never a discontinuity
+      const wrapped = !!f._wrap;
+      const moved = wrapped ? 0 : f.pos.distanceTo(prevPos);
+      // what his own speed can account for in one frame, plus slack for the
+      // stick pull and gravity
+      const explained = Math.max(f.vel.length(), 30) / 60 + 0.35;
+      const dPos = Math.max(0, moved - explained);
+      if (i > 4 && dUp > worstUp) { worstUp = dUp; worstUpT = t; }
+      if (i > 4 && dPos > worstPos) { worstPos = dPos; worstPosT = t; }
+      prevUp.copy(up);
+      prevPos.copy(f.pos);
+      if (i % 15 === 0 || i === frames - 1) {
         const tip = (n) => {
           const j = (f.mech.boneMap && f.mech.boneMap[n]) || f.mech.joints[n];
           if (!j) return null;
-          const p = j.getWorldPosition(new window.__THREE.Vector3());
-          if (!c || c.phase !== 'wall') return +p.y.toFixed(2);
-          const su = c.surf;
-          if (su.kind === 'cylinder') return +(Math.hypot(p.x - su.cx, p.z - su.cz) - su.r).toFixed(2);
-          return +((p.x - su.x) * su.nx + (p.z - su.z) * su.nz).toFixed(2);
+          const p = j.getWorldPosition(new V());
+          return +(window.__nearest(p.x, p.y, p.z)).toFixed(2);
         };
         trace.push({
-          t: +t.toFixed(2), state: f.state,
-          y: +f.pos.y.toFixed(2), z: +f.pos.z.toFixed(2),
-          tilt: +(f._climbTilt || 0).toFixed(2),
-          phase: c ? c.phase : (f.grounded ? '-' : 'air'),
-          fy: c ? +c.fwd.y.toFixed(2) : 0,
-          grounded: f.grounded,
-          rel: f._climbRelease ? 1 : 0,
+          t: +t.toFixed(2),
+          y: +f.pos.y.toFixed(1), z: +f.pos.z.toFixed(1),
+          upY: +up.y.toFixed(2), tilt: +(f._climbTilt || 0).toFixed(2),
+          on: f.climb ? 'surf' : (f.grounded ? 'grnd' : 'air '),
           tips: [tip('ankleL'), tip('ankleR'), tip('handL'), tip('handR')],
         });
       }
     }
-    return trace;
+    return { trace, worstUp: +worstUp.toFixed(1), worstUpT: +worstUpT.toFixed(2),
+      worstPos: +worstPos.toFixed(2), worstPosT: +worstPosT.toFixed(2) };
   }, { script, frames, dist });
 }
 
 const SCENARIOS = [
-  ['walk in and hold forward: straight up, over, across, wrap down, walk on',
-    '{ moveZ: 1 }', 420, 3.5],
-  ['climb, then release the stick: he STAYS on the wall (a climber at rest holds on)',
-    't < 0.55 ? { moveZ: 1 } : {}', 200, 3.5],
-  ['jump at the wall, stick RELEASED before contact: contact alone lands him on it',
-    '{ moveZ: t < 0.5 ? 1 : 0, jump: t > 0.149 && t < 0.151, jumpHeld: t > 0.15 && t < 0.5 }', 220, 7],
-  ['climb, then JUMP with no direction: lets go, drops straight down past the face',
-    't < 0.45 ? { moveZ: 1 } : { jump: t > 0.449 && t < 0.451 }', 200, 3.5],
-  ['climb, then JUMP with the stick back: leaps away from the wall that way',
-    't < 0.45 ? { moveZ: 1 } : { moveZ: -1, jump: t > 0.449 && t < 0.451 }', 200, 3.5],
+  ['hold forward from open ground: floor -> wall -> roof -> far lip -> down',
+    '{ moveZ: 1 }', 480, 6],
+  ['walk at it, then stop dead halfway up: he holds where he is',
+    't < 1.4 ? { moveZ: 1 } : {}', 200, 6],
+  ['up the wall, then sideways across the facade',
+    't < 1.0 ? { moveZ: 1 } : { moveX: 1 }', 240, 6],
+  ['up the wall, then pull back: he walks back DOWN it',
+    't < 1.2 ? { moveZ: 1 } : { moveZ: -1 }', 240, 6],
+  ['jump with no direction while on the wall: lets go and drops',
+    't < 1.0 ? { moveZ: 1 } : { jump: t > 0.999 && t < 1.001 }', 200, 6],
 ];
 for (const [label, script, frames, dist] of SCENARIOS) {
-  const trace = await run(script, frames, dist);
-  console.log('\n== ' + label);
-  for (const s of trace) {
-    console.log(` t=${String(s.t).padStart(5)} ${s.phase.padEnd(5)} tilt=${String(s.tilt).padStart(4)} ` +
-      `fy=${String(s.fy).padStart(5)} y=${String(s.y).padStart(6)} z=${String(s.z).padStart(7)} ` +
-      `grnd=${s.grounded ? 'Y' : 'n'} rel=${s.rel} tips=[${s.tips.join(', ')}]`);
+  const r = await run(script, frames, dist);
+  console.log(`\n== ${label}`);
+  console.log(`   WORST per-frame: up-turn ${r.worstUp} deg (t=${r.worstUpT}), ` +
+    `unexplained move ${r.worstPos} (t=${r.worstPosT})`);
+  for (const s of r.trace) {
+    console.log(` t=${String(s.t).padStart(5)} ${s.on} upY=${String(s.upY).padStart(5)} ` +
+      `tilt=${String(s.tilt).padStart(4)} y=${String(s.y).padStart(6)} z=${String(s.z).padStart(7)} ` +
+      `tips=[${s.tips.join(', ')}]`);
   }
 }
 

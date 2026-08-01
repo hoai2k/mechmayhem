@@ -567,74 +567,6 @@ export class DestructibleSystem {
     return null;
   }
 
-  // THE CLIMBING PROBE (combat/climb.js). grabProbe answers "is there a face
-  // here to hang off"; this answers the two further things a body walking UP
-  // the building needs: WHERE the face plane is (so hands, feet and the body
-  // can be planted on it rather than near it) and HOW HIGH that column of the
-  // building goes (so the top-out starts at the real lip, not at whichever
-  // chunk happens to be under the hands). Nearest face wins.
-  climbProbe(px, py, pz, pad = 1) {
-    let best = null;
-    for (const b of this.buildings) {
-      if (b.alive <= 0) continue;
-      const a = b.aabb;
-      if (px < a.minX - pad || px > a.maxX + pad ||
-          pz < a.minZ - pad || pz > a.maxZ + pad ||
-          py < -1 || py > a.maxY + 2) continue;
-      for (const c of b.grid.values()) {
-        if (!c.alive) continue;
-        const dx = px - c.x, dz = pz - c.z;
-        // how far OUTSIDE the chunk on each horizontal axis (negative = inside)
-        const ex = Math.abs(dx) - c.w / 2, ez = Math.abs(dz) - c.d / 2;
-        if (ex > pad || ez > pad) continue;
-        if (Math.abs(py - c.y) > c.h / 2 + 0.5) continue;
-        // the face is the one you are LEAST far outside of — for a point
-        // beyond a corner that is the nearer of the two, and for a point
-        // already inside it is the shallower penetration, same rule the
-        // pushout uses.
-        let nx = 0, nz = 0, gap;
-        if (ex > ez) { nx = Math.sign(dx || 1); gap = ex; } else { nz = Math.sign(dz || 1); gap = ez; }
-        if (best && gap >= best.gap) continue;
-        best = {
-          kind: 'plane', gap, nx, nz, chunk: c, building: b,
-          // a point ON the face plane, which is what the body and the limbs
-          // are projected onto
-          x: nx ? c.x + nx * (c.w / 2) : px,
-          y: py,
-          z: nz ? c.z + nz * (c.d / 2) : pz,
-          top: this.columnTop(b, c),
-          base: this.columnBase(b, c),
-        };
-      }
-    }
-    return best;
-  }
-
-  // Top of the unbroken run of live chunks straight above this one — the lip
-  // the climber tops out over. (A blown-out chunk mid-facade ends the run: the
-  // hole IS the top of that column as far as anything climbing it is
-  // concerned, and it tops out into the gap.)
-  columnTop(b, c) {
-    let top = c.y + c.h / 2;
-    for (let gy = c.gy + 1; ; gy++) {
-      const n = b.grid.get(`${c.gx},${gy},${c.gz}`);
-      if (!n || !n.alive) break;
-      top = n.y + n.h / 2;
-    }
-    return top;
-  }
-
-  // ...and the bottom of that same run, which is where a climb DOWN ends.
-  columnBase(b, c) {
-    let base = c.y - c.h / 2;
-    for (let gy = c.gy - 1; ; gy--) {
-      const n = b.grid.get(`${c.gx},${gy},${c.gz}`);
-      if (!n || !n.alive) break;
-      base = n.y - n.h / 2;
-    }
-    return base;
-  }
-
   collideFighter(f) {
     let support = -Infinity;
     for (const b of this.buildings) {
@@ -652,14 +584,7 @@ export class DestructibleSystem {
         // feet at/above an EXPOSED top while descending: that's a floor.
         // (chunks with a live chunk directly above are wall interior — no
         // footing, or falling mechs would stick to facades)
-        //
-        // …and a WALKING CLIMBER (f.stepUp > 0 — see combat/climb.js) treats a
-        // top within its step height the same way even though the top is ABOVE
-        // its feet: a knee-high ledge is a floor you rise onto, not a wall you
-        // stop at. Everything without a stepUp is byte-identical.
-        const stepping = f.stepUp > 0 && f.grounded && top > f.pos.y &&
-          top <= f.pos.y + f.stepUp;
-        if ((f.pos.y >= top - 0.9 || stepping) && f.vel.y <= 0.01) {
+        if (f.pos.y >= top - 0.9 && f.vel.y <= 0.01) {
           const above = b.grid.get(`${c.gx},${c.gy + 1},${c.gz}`);
           if ((!above || !above.alive) &&
               Math.abs(dx) < c.w / 2 + f.radius * 0.4 &&
@@ -684,8 +609,7 @@ export class DestructibleSystem {
       const dx = f.pos.x - it.px, dz = f.pos.z - it.pz;
       if (Math.abs(dx) >= hw || Math.abs(dz) >= hd) continue;
       const top = it.py + it.h / 2;
-      const stepping = f.stepUp > 0 && f.grounded && top > f.pos.y && top <= f.pos.y + f.stepUp;
-      if ((f.pos.y >= top - 0.7 || stepping) && f.vel.y <= 0.01 &&
+      if (f.pos.y >= top - 0.7 && f.vel.y <= 0.01 &&
           Math.abs(dx) < it.w / 2 + f.radius * 0.5 && Math.abs(dz) < it.d / 2 + f.radius * 0.5) {
         support = Math.max(support, top);
         continue;
@@ -695,9 +619,8 @@ export class DestructibleSystem {
       if (px < pz) { f.pos.x += Math.sign(dx || 1) * px; f.vel.x *= 0.5; }
       else { f.pos.z += Math.sign(dz || 1) * pz; f.vel.z *= 0.5; }
     }
-    // stand on the highest rooftop / rubble found underfoot — or RISE onto it,
-    // where the mech carries a step height and the ledge is inside it
-    if (support > -Infinity && f.pos.y <= support + Math.max(0.9, f.stepUp || 0)) {
+    // stand on the highest rooftop / rubble found underfoot
+    if (support > -Infinity && f.pos.y <= support + 0.9) {
       const fallSpeed = -f.vel.y;
       f.pos.y = support;
       if (f.vel.y < 0) f.vel.y = 0;

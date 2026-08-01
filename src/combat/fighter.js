@@ -10,7 +10,8 @@ import { stackState, burnStacks, stackBlast } from '../mechs/stackfx.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
-  climbStep, climbPhysics, applyClimbOrientation, applyClimbPose, conformClimbLimbs,
+  climbStep, climbPhysics, climbReleaseTick, applyClimbOrientation, applyClimbPose,
+  conformClimbLimbs,
 } from './climb.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
@@ -251,15 +252,14 @@ export class Fighter {
     this.targetYaw = yaw;
     this.grounded = true;
 
-    // ---- WALL CLIMBING (combat/climb.js) — only for a def that carries a
-    // `climb` block. `stepUp` is the OTHER half of it and is read by the arena
-    // itself: a ledge this low is footing to rise onto rather than a wall to
-    // stop at, so small obstacles are walked over instead of climbed. Zero for
-    // everyone else, which leaves every collision path byte-identical.
-    this.climb = null;        // the attached state: {surf, phase, fwd, …}
-    this.stepUp = def.climb ? def.climb.stepUp * this.height : 0;
-    this._climbTilt = 0;      // 0 = standing on the ground, 1 = on the wall
-    this._climbCd = 0;        // short re-latch cooldown after leaving a face
+    // ---- SURFACE WALKING (combat/climb.js) — only for a def that carries a
+    // `climb` block. He walks on the world rather than the floor: up facades,
+    // over lips, across roofs, over the crates on the way.
+    this.climb = false;       // the walker owns movement this frame
+    this.climbUp = null;      // his own up — the field's average normal, damped
+    this.climbFwd = null;     // ...and the direction he is travelling along it
+    this._climbTilt = 0;      // 0 = standing on the flat, 1 = fully on a wall
+    this._climbCd = 0;        // short re-grab cooldown after leaving a surface
     this._climbRelease = false; // let go on purpose: fall past faces, don't grab
 
     // resources
@@ -3028,11 +3028,12 @@ export class Fighter {
     } else {
       this.lockTarget = null;
     }
-    // ---- WALL CLIMBING (combat/climb.js). A mech with a `climb` block is
-    // ALWAYS climbing: walk into a face too tall to step over, or simply land
-    // on one, and he is on it. While attached the climb owns movement
-    // outright — the surface is the constraint, so gravity and the arena
-    // pushout are both off — and the way off is the jump.
+    // ---- SURFACE WALKING (combat/climb.js). A mech with a `climb` block walks
+    // on the world, not the floor: the field of everything near his feet gives
+    // him an up, his stick is rotated by the same amount, and walking at a wall
+    // becomes walking up it. It owns movement only while he is genuinely on a
+    // surface that is not flat ground — on the flat it hands him straight back
+    // to applyPhysics, so every ordinary behaviour is untouched.
     let climbing = false;
     if (this.def.climb) {
       const mv = this._climbMv || (this._climbMv = { x: 0, z: 0 });
@@ -3040,7 +3041,10 @@ export class Fighter {
       climbing = climbStep(this, dt, mv);
     }
     if (climbing) climbPhysics(this);
-    else this.applyPhysics(dt, ax, az);
+    else {
+      this.applyPhysics(dt, ax, az);
+      if (this.def.climb) climbReleaseTick(this);
+    }
 
     // dash trail (sprint leaves a sparser one — moving fast, not blinking)
     if (this.dashT > 0) {
@@ -3079,7 +3083,7 @@ export class Fighter {
       speed: this.climb ? this._climbSpeed || 0
         : canMove || this._charging ? spd : proneScuttle,
       maxSpeed: maxSpd,
-      grounded: this.grounded || this.climb?.phase === 'wall',
+      grounded: this.grounded || this.climb,
       vy: this.vel.y,
       dashT: this.dashT,
       firing: this.firing,
@@ -3142,7 +3146,7 @@ export class Fighter {
     // …and for a CLIMBER the whole frame is damped between the ground and the
     // wall instead (climb.js owns the quaternion outright, and keeps running
     // after he lets go until the body has rolled back upright).
-    if (this.def.climb) applyClimbOrientation(this, dt);
+    if (this.def.climb) applyClimbOrientation(this);
     // twist = how far the torso leads the legs, folded into the pose the
     // animator just applied (clamped so the waist never looks snapped), and
     // faded out by the same ramped lock the strike servo uses
@@ -3205,7 +3209,7 @@ export class Fighter {
     // ---- …and the hands and feet onto the surface they are crossing, AFTER
     // it: that one is a CONTACT, solved on the bones a rigged model renders,
     // and re-syncing over it would throw it away ----
-    if (this.climb) conformClimbLimbs(this, dt);
+    if (this.def.climb) conformClimbLimbs(this);
     // ---- weapon trails: glowing streaks ride the blade/spear tips while a
     // one-shot attack clip swings, so cuts and thrusts read as EDGES ----
     if (this.def.bladeTrail) this.updateBladeTrail(dt);
@@ -3825,11 +3829,14 @@ export class Fighter {
     this._flipT = 0;
     this._rollUp = null;
     this.endAirRoll();     // a round never opens mid-somersault
-    this.climb = null;     // …nor halfway up a building
+    this.climb = false;    // …nor halfway up a building
     this._climbTilt = 0;
+    this._climbTiltOn = false;
     this._climbCd = 0;
     this._climbRelease = false;
     this._climbSpeed = 0;
+    this.climbUp?.set(0, 1, 0);
+    this.climbFwd?.set(Math.sin(yaw), 0, Math.cos(yaw));
     this.hovering = false;
     this.hoverFuel = this.hoverFuelMax;
     this.sprintEnergy = this.sprintEnergyMax;

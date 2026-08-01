@@ -75,26 +75,41 @@ export const TUNING = {
     tuckOnlyWeight: 0.8,
   },
 
-  // ---- WALL CLIMB ----------------------------------------------------------
-  // The gecko route up a building, for the mechs whose roster def carries a
-  // `climb` block (JERRY, who trades the hover jets for it). Shared feel
-  // lives here; per-mech reach/speed/step live on the def.
+  // ---- SURFACE WALKING -----------------------------------------------------
+  // Walking on the WORLD rather than the floor, for the mechs whose roster def
+  // carries a `climb` block (JERRY, who trades the hover jets for it). Shared
+  // feel lives here; per-mech reach and pace live on the def.
   //
-  // THERE IS NO CLIMBING MODE (combat/climb.js): a body built to climb is
-  // always climbing. Walk into anything too tall to step over and he takes it;
-  // jump at it and he lands on it, contact alone. The way off is the JUMP —
-  // with a direction it is a leap that way, with nothing held he lets go and
-  // drops straight down.
+  // THERE IS NO MODE AND NO NAMED SURFACE (combat/climb.js). Every frame the
+  // walker asks what is near his feet and averages it into one normal; his up
+  // damps toward that, his stick is rotated by the same amount, and so walking
+  // at a wall becomes walking up it with no event in between. The way off is
+  // the JUMP — with a direction it is a leap that way, with nothing held he
+  // lets go and drops.
   climb: {
-    // walking INTO a face rather than along it — the only gate left on a
-    // grounded grab, and it is a fact rather than a gate (you cannot walk up a
-    // wall you are walking beside). Airborne, contact alone is enough.
-    grabDot: 0.35,
-    tiltRate: 6.5,         // how fast the body damps between ground and wall
-    topSeconds: 0.55,      // the haul over the lip, in seconds
-    // a drop this many body-heights ahead is a face to wrap over and climb
-    // down; anything shallower he just walks off
-    wrapDrop: 0.75,
+    // FLAT IS NOT CLIMBING. While he is walking on open ground the field's
+    // answer is straight up, and anything this close to vertical hands the body
+    // back to the ordinary physics — so nothing but an actual slope or wall
+    // takes the walker's path (cos ~8 degrees).
+    flatCos: 0.99,
+    // ...and how far from straight up counts as FULLY on a wall, for the
+    // carriage, the limb pull and the camera (cos-space: 1 - n.y).
+    tiltFull: 0.5,
+    tiltRate: 7,           // how fast the body's up damps toward the field's
+    faceRate: 8,           // ...and how fast his facing follows his travel
+    // HOW THE FEET ARE HELD TO THE SURFACE, and it is deliberately TWO rules
+    // either side of `stickGlide` — the error where "arriving at a surface"
+    // stops and "walking on one" starts.
+    //   BELOW it the correction is EXACT: while he is walking the surface, the
+    //     constraint is not negotiable. A rate or a speed cap here can simply
+    //     be OUTRUN — he covers ~0.5 units a frame at walking pace, so a cap of
+    //     18/s (0.3 a frame) let him sail off the top of a 49-unit tower
+    //     instead of tipping over its lip.
+    //   ABOVE it the pull is capped to `stickMax` units/second, which is what
+    //     makes first contact with a wall a GLIDE rather than a snap — that is
+    //     the only place the error is ever large.
+    stickGlide: 1,
+    stickMax: 16,
     // THE JUMP OFF A WALL, with a direction held: leap speed x the mech's walk,
     // the rise x his own jump, and the outward speed guaranteed to be away from
     // the face however the stick is aimed (without it, a stick pointed back
