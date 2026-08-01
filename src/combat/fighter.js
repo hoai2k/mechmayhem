@@ -9,6 +9,9 @@ import { buildBoneShell } from '../mechs/glbshell.js';
 import { stackState, burnStacks, stackBlast } from '../mechs/stackfx.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
+import {
+  climbStep, climbPhysics, applyClimbOrientation, applyClimbPose, conformClimbLimbs,
+} from './climb.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -248,6 +251,16 @@ export class Fighter {
     this.targetYaw = yaw;
     this.grounded = true;
 
+    // ---- WALL CLIMBING (combat/climb.js) — only for a def that carries a
+    // `climb` block. `stepUp` is the OTHER half of it and is read by the arena
+    // itself: a ledge this low is footing to rise onto rather than a wall to
+    // stop at, so small obstacles are walked over instead of climbed. Zero for
+    // everyone else, which leaves every collision path byte-identical.
+    this.climb = null;        // the attached state: {surf, phase, fwd, …}
+    this.stepUp = def.climb ? def.climb.stepUp * this.height : 0;
+    this._climbTilt = 0;      // 0 = standing on the ground, 1 = on the wall
+    this._climbEdge = null;   // the rooftop-lip crouch, while it is running
+
     // resources
     this.maxHp = def.stats.hp;
     this.hp = this.maxHp;
@@ -278,8 +291,12 @@ export class Fighter {
 
     // hover jets: double-tap jump and HOLD to fly. Lighter mechs get more
     // fuel and stronger jets — the little ones really take to the air.
+    // …EXCEPT a mech whose def says `noHover`: JERRY has no jets at all (an
+    // empty tank, so every jet check downstream already answers no, and his
+    // second airborne A-press falls through to the ball tuck). He buys height
+    // with the biggest jump on the roster and with WALLS — see combat/climb.js.
     const lightness = 1 - def.stats.weight;
-    this.hoverFuelMax = 1.5 + lightness * 1.9;   // seconds of thrust
+    this.hoverFuelMax = def.stats.noHover ? 0 : 1.5 + lightness * 1.9;   // seconds of thrust
     this.hoverFuel = this.hoverFuelMax;
     this.hoverRise = 7 + lightness * 8;          // max climb speed
     this.hovering = false;
@@ -599,7 +616,9 @@ export class Fighter {
 
   doHeavy() {
     const mv = this.def.moves.heavy;
-    if (!this.grounded && this.pos.y > 2.5) {
+    // (a climber's heavy is a plain swing off the wall — the plunge is a
+    // controlled FALL, and he isn't falling)
+    if (!this.grounded && !this.climb && this.pos.y > 2.5) {
       // aerial ground smash: ride the swing all the way down and detonate
       // on landing — fall speed feeds the damage
       this._moveAttack = false;
@@ -2736,7 +2755,7 @@ export class Fighter {
     // eat the tuck's prone-landing risk without asking for it. (The A-press
     // descent tuck further down is the free-of-stamina one, available only
     // once the hover tank is spent.)
-    if (this.blocking && !this.grounded && !this.hovering && !this._airRoll &&
+    if (this.blocking && !this.grounded && !this.hovering && !this._airRoll && !this.climb &&
         this.state === 'normal' && I.block && !this._blockPrev) {
       this.startAirRoll('block');
     }
@@ -2862,6 +2881,9 @@ export class Fighter {
           this.world.audio?.play('jump');
           this.world.effects.dustPuff(this.pos, 6);
         }
+      } else if (I.jump && this.climb) {
+        // ON A WALL, A is the way OFF it (climb.js springs him clear) — never
+        // the jets, never the tuck
       } else if (I.jump && !this.grounded && this._hangCoyote > 0 && this.state === 'normal') {
         // just let go of a wall: for a beat, a jump still fires in mid-air —
         // that's the release-then-jump climbing rhythm
@@ -2944,7 +2966,7 @@ export class Fighter {
     // the stretch compresses into the crouch with no seam. The recovery
     // yields immediately to anything the player would rather do: steering,
     // jumping or leaving the ground fades it out mid-crouch.
-    const reaching = !this.grounded && !this.hovering && !this._airRoll &&
+    const reaching = !this.grounded && !this.hovering && !this._airRoll && !this.climb &&
       !this.plunging && this.state === 'normal' && this.vel.y < -3;
     if (reaching && this.pos.y < -this.vel.y * 0.4 && !this.animator.action) {
       this.animator.play('landReach');
@@ -3005,7 +3027,20 @@ export class Fighter {
     } else {
       this.lockTarget = null;
     }
-    this.applyPhysics(dt, ax, az);
+    // ---- WALL CLIMBING (combat/climb.js). For a mech with a `climb` block,
+    // walking into a building face can become walking UP it. While he is
+    // attached the climb owns movement outright — the surface is the
+    // constraint, so gravity and the arena pushout are both off — and the
+    // rooftop-edge crouch only rewrites the stick, holding him at the lip.
+    let climbing = false;
+    if (this.def.climb) {
+      const mv = this._climbMv || (this._climbMv = { x: 0, z: 0 });
+      mv.x = ax; mv.z = az;
+      climbing = climbStep(this, dt, mv);
+      ax = mv.x; az = mv.z;
+    }
+    if (climbing) climbPhysics(this);
+    else this.applyPhysics(dt, ax, az);
 
     // dash trail (sprint leaves a sparser one — moving fast, not blinking)
     if (this.dashT > 0) {
@@ -3036,9 +3071,15 @@ export class Fighter {
       // speed while charging so the locomotion layer runs its speed-matched
       // stride under him; the charge clip owns the upper body (it keys torso,
       // head, hips and both arms), so only the LEGS come from the run.
-      speed: canMove || this._charging ? spd : proneScuttle,
+      // ON A WALL the locomotion layer is handed the climb's own pace and told
+      // the mech is grounded, because it IS: the body frame has been damped
+      // onto the surface (climb.js), so the ordinary walk cycle running in that
+      // frame is the climb. Nothing else in the animator knows a wall from a
+      // floor.
+      speed: this.climb ? this._climbSpeed || 0
+        : canMove || this._charging ? spd : proneScuttle,
       maxSpeed: maxSpd,
-      grounded: this.grounded,
+      grounded: this.grounded || this.climb?.phase === 'wall',
       vy: this.vel.y,
       dashT: this.dashT,
       firing: this.firing,
@@ -3098,6 +3139,10 @@ export class Fighter {
     this.yaw = angleDamp(this.yaw, this.targetYaw, lerp(13, 7, runK), dt);
     this.torsoYaw = angleDamp(this.torsoYaw, this.targetYaw, lerp(18, 12, runK), dt);
     this.group.rotation.y = this.yaw;
+    // …and for a CLIMBER the whole frame is damped between the ground and the
+    // wall instead (climb.js owns the quaternion outright, and keeps running
+    // after he lets go until the body has rolled back upright).
+    if (this.def.climb) applyClimbOrientation(this, dt);
     // twist = how far the torso leads the legs, folded into the pose the
     // animator just applied (clamped so the waist never looks snapped), and
     // faded out by the same ramped lock the strike servo uses
@@ -3153,7 +3198,14 @@ export class Fighter {
     // inside animator.update(), so those writes never reached the model
     // (procedural mechs show their joints directly; GLB heavies didn't spin).
     // Re-sync once so post-pose joint motion lands on the skin too.
+    // ---- the climbing carriage, before that re-sync (it is a POSE, so it goes
+    // on the virtual joints and rides the retarget like any other) ----
+    if (this._climbTilt > 0.01) applyClimbPose(this);
     if (this.mech.isGLB) this.mech.postAnimate?.();
+    // ---- …and the hands and feet onto the surface they are crossing, AFTER
+    // it: that one is a CONTACT, solved on the bones a rigged model renders,
+    // and re-syncing over it would throw it away ----
+    if (this.climb) conformClimbLimbs(this, dt);
     // ---- weapon trails: glowing streaks ride the blade/spear tips while a
     // one-shot attack clip swings, so cuts and thrusts read as EDGES ----
     if (this.def.bladeTrail) this.updateBladeTrail(dt);
@@ -3773,6 +3825,11 @@ export class Fighter {
     this._flipT = 0;
     this._rollUp = null;
     this.endAirRoll();     // a round never opens mid-somersault
+    this.climb = null;     // …nor halfway up a building
+    this._climbTilt = 0;
+    this._climbEdge = null;
+    this._climbPress = 0;
+    this._climbSpeed = 0;
     this.hovering = false;
     this.hoverFuel = this.hoverFuelMax;
     this.sprintEnergy = this.sprintEnergyMax;

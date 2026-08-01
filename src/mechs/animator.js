@@ -15,6 +15,8 @@ const _wp = new THREE.Vector3();
 const _sp = new THREE.Vector3();
 const _qa = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
+const _up = new THREE.Vector3();
+const _qup = new THREE.Quaternion();
 // Aegis tower shield: local rest carry, and the brace tilt applied when the
 // shield is squared to the front during a block
 
@@ -275,16 +277,26 @@ export class Animator {
   // quadruped, whose hock calibrateFeet deliberately skips).
   soleClearanceBySide() {
     if (!this.soles) return null;
-    const ground = this.J.root.getWorldPosition(_wp).y;
+    // MEASURED ALONG THE BODY'S OWN UP, not world +Y. They are the same thing
+    // for anything standing on the floor — but a WALL CLIMBER (combat/climb.js)
+    // has had his whole frame damped over onto a facade, and a height taken in
+    // world y there reads the distance out from the wall instead of the
+    // distance off the surface: every foot rule the gait runs on ("is this one
+    // down?") inverts, and the pelvis follow below drives the body with it.
+    // Projecting onto the group's up axis costs one dot product and is exact
+    // on both.
+    this.J.root.getWorldPosition(_wp);
+    this.mech.group.getWorldQuaternion(_qup);
+    _up.set(0, 1, 0).applyQuaternion(_qup);
     const out = { L: null, R: null };
     for (const f of this.soles) {
       f.bone.updateMatrixWorld(true);
       let low = Infinity;
       for (const p of f.points) {
-        const y = _sp.copy(p).applyMatrix4(f.bone.matrixWorld).y;
-        if (y < low) low = y;
+        const h = _sp.copy(p).applyMatrix4(f.bone.matrixWorld).sub(_wp).dot(_up);
+        if (h < low) low = h;
       }
-      if (Number.isFinite(low)) out[f.side] = low - ground;
+      if (Number.isFinite(low)) out[f.side] = low;
     }
     return out;
   }

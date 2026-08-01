@@ -12,7 +12,38 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** `sprint.adductTrail` 0.15 -> **0.215**, the owner's value from the
+- **Latest:** JERRY CLIMBS BUILDINGS, and has no jets. The trade: `noHover` empties
+  his hover tank (his second airborne A-press now falls straight through to the
+  ball tuck, which is what an empty tank has always meant), his jump goes 24 ->
+  **30** — the biggest on the roster by a clear margin — and a new `climb` block on
+  his def opens `src/combat/climb.js`.
+  A WALL IS A FLOOR THAT POINTS SIDEWAYS: the body's UP is the surface's outward
+  normal and its FORWARD is the direction of travel along it, which on the ground
+  reads as the ordinary standing frame, so the transition is one slerp and his own
+  walk cycle run in that frame IS the climb. He latches only if the stick keeps
+  pushing squarely into a face for 0.34s (walking into a wall stays walking into a
+  wall, and knockback can never stick him to one); anything shorter than 0.85 body
+  heights isn't a wall at all and he STEPS OVER it; A springs him off; the stamina
+  bar pays for the grip. At the lip he hauls himself over and comes upright.
+  Walking off a roof stops at the lip in a CROUCH — hold the direction through the
+  window and he turns over the edge and climbs down that face, tap A or steer away
+  and he drops.
+  The claws and boots are put ON the surface by two-bone IK after the GLB retarget
+  (feet weighted by proximity so the planted one of a stride is pinned and the
+  swinging one still swings, hands with a floor under that), and the other half of
+  that is a CROUCH in the climb pose: a mech standing on a wall is not climbing it,
+  because a standing body's hands are 5.4 units off the floor. Measured on the
+  neon tower: hands 5.4 -> ~1.0 off the face, planted foot ~0.3, tilt reaching a
+  clean 1.0. One thing in the animator had to learn the difference —
+  `soleClearanceBySide` measured foot height in WORLD y, which on a wall reads the
+  distance out from the face and inverts every foot rule the gait runs on; it now
+  measures along the body's own up (identical on the floor).
+  The CPU does not climb: nothing in ai.js can want height. Files:
+  `src/combat/climb.js` (new), `src/core/tuning.js` (`TUNING.climb`),
+  `src/mechs/roster.js` (jerry), `src/combat/fighter.js` (four call sites),
+  `src/arena/destructible.js` + `src/arena/arena.js` (`climbProbe`, step-over),
+  `src/mechs/animator.js`, `tools/climbprobe.mjs` + `tools/climbshot.mjs` (new).
+- **Previous:** `sprint.adductTrail` 0.15 -> **0.215**, the owner's value from the
   gait workbench (tuned on viper at full throttle). Measured across the four
   mechs that run sprint: the trailing paw comes to 0.267 of wraith's 0.776 stance
   width, 0.476 of tempest's 0.913, 0.062 of nova's 0.187 — and -0.008 on viper,
