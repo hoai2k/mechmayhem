@@ -64,6 +64,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { subjectSelect } from '../ui/subjectpick.js';
+import { setupMobileChrome, barField, isMobileLayout } from '../ui/mobile.js';
 import { altChoice, altCheckbox } from '../ui/variantpick.js';
 
 const STORE_KEY = 'rw.gaitEdits';
@@ -1063,13 +1064,19 @@ export async function runGaitWorkbench(config, params) {
     label: 'throttle — how fast it is moving', min: 0, max: 1, step: 0.01, value: throttle,
     fmtVal: (v) => `${Math.round(v * 100)}%`,
     title: 'Fraction of this mech\'s own top speed. Drives the animator\'s `ratio`, so every "@run" dial fades in with it.',
-    onInput: (v) => { throttle = v; scheduleEffects(); },
+    onInput: (v) => { throttle = v; mirrorThrottle(); scheduleEffects(); },
   });
   panel.appendChild(thr.wrap);
+  // ONE PLACE THAT MOVES THE THROTTLE. The panel slider, the preset buttons,
+  // the mobile bar's copy of the dial and the headless api all set the same
+  // number, and each has to leave the others showing it — `mirrorThrottle` is
+  // the hook the mobile bar hangs its own readout off (a no-op on desktop).
+  let mirrorThrottle = () => {};
+  const setThrottleTo = (v) => { throttle = clamp(v, 0, 1); thr.set(throttle); mirrorThrottle(); scheduleEffects(); };
   const preRow = row('');
   for (const [lbl, v] of [['idle', 0.05], ['walk', 0.3], ['jog', 0.6], ['run', 1]]) {
     const b = el('button', `${btnCss};padding:2px 8px;font-size:11px`, lbl);
-    b.onclick = () => { throttle = v; thr.set(v); scheduleEffects(); };
+    b.onclick = () => setThrottleTo(v);
     preRow.appendChild(b);
   }
   const sprintChk = el('label', 'display:flex;gap:4px;align-items:center;font-size:11px;margin-left:auto;cursor:pointer');
@@ -1454,8 +1461,44 @@ export async function runGaitWorkbench(config, params) {
     catch (e) { statusLine.textContent = `${name} downloaded`; }
   };
 
-  panel.appendChild(el('div', 'margin-top:8px;color:#5d6b7d;font-size:10.5px;line-height:1.5',
-    'Space pause · [ ] step the cycle · Esc deselect · click a limb, then drag it where you want it.'));
+  const helpLine = el('div', 'margin-top:8px;color:#5d6b7d;font-size:10.5px;line-height:1.5',
+    'Space pause · [ ] step the cycle · Esc deselect · click a limb, then drag it where you want it.');
+  panel.appendChild(helpLine);
+
+  // ---------- MOBILE ----------
+  // Sixty dials in nine groups do not fit beside a running mech on a phone.
+  // The two things you move constantly — WHICH BODY and HOW FAST IT IS GOING —
+  // go to a bar across the top, the rest of the screen is the mech, and ⚙
+  // raises the whole panel (every dial, unchanged) as a sheet. Desktop is
+  // untouched: setupMobileChrome is a no-op unless the screen is small AND the
+  // pointer is coarse.
+  let mobThr = null;
+  if (isMobileLayout()) {
+    mobThr = el('input', '');
+    mobThr.type = 'range'; mobThr.min = 0; mobThr.max = 1; mobThr.step = 0.01; mobThr.value = throttle;
+    mobThr.title = 'how fast the mech is moving, as a fraction of its own top speed — '
+      + 'the gait speeds up with it, and every "@run" dial fades in with it';
+    mobThr.oninput = () => { throttle = Number(mobThr.value); mirrorThrottle(); scheduleEffects(); };
+  }
+  const mobField = mobThr ? barField('speed', mobThr, { value: `${Math.round(throttle * 100)}%` }) : null;
+  const mobile = setupMobileChrome(panel, {
+    primary: [mechSel],                       // MOVED out of the panel, same element
+    secondary: mobField ? [mobField] : [],
+    orbit,
+    title: 'Gait workbench',
+    // the sheet covers the bottom of the view; give the mech the top half back
+    // when it is dismissed rather than leaving it framed for a cropped screen
+    onClose: () => frameCamera(),
+  });
+  if (mobile.active) {
+    mechRow.remove();                         // its label and its select are the bar now
+    mirrorThrottle = () => {
+      mobThr.value = throttle;
+      if (mobField._value) mobField._value.textContent = `${Math.round(throttle * 100)}%`;
+    };
+    helpLine.textContent = 'One finger: orbit · two fingers: pan + pinch to zoom · '
+      + 'tap a limb, then drag it where you want it. Done dismisses this sheet.';
+  }
 
   // headless hook — tools/*.mjs drive the workbench through this
   window.__gaitWork = {
@@ -1467,7 +1510,7 @@ export async function runGaitWorkbench(config, params) {
     get gaitId() { return gaitId; },
     get gait() { return gaitOf(gaitId); },
     load,
-    setThrottle: (v) => { throttle = clamp(v, 0, 1); thr.set(throttle); scanEffects(); },
+    setThrottle: (v) => { throttle = clamp(v, 0, 1); thr.set(throttle); mirrorThrottle(); scanEffects(); },
     setGameSpeed: (v) => { gameSpeed = clamp(v, 0.5, 2); gs.set(gameSpeed); },
     setAnimSpeed: (v) => { animSpeed = clamp(v, 0.05, 2); as.set(animSpeed); },
     setPaused, setPhase,

@@ -25,6 +25,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
+import { setupMobileChrome, barField, isMobileLayout } from '../ui/mobile.js';
 import { describeAction, ACTIONS } from '../adapters/actionchars.js';
 
 const R2D = 180 / Math.PI;
@@ -76,6 +77,10 @@ export async function runAnimationWorkbench(config, params) {
   const glbIds = config.catalogue.list().filter((c) => c.hasModel).map((c) => c.id);
   let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || config.catalogue.list()[0].id);
   let timeScale = 1;
+  // Set by the mobile chrome below: the fixed desktop camera is framed for a
+  // landscape window, and on a portrait phone it cuts both fighters in half.
+  // Null (and so a no-op) on a desktop.
+  let mobileFrame = null;
 
   // ---- live state ----
   let procF = null, glbF = null;
@@ -275,6 +280,7 @@ export async function runAnimationWorkbench(config, params) {
     anchorNote.textContent = '';
     anchorOut.style.display = 'none';
     setStatus('idle');
+    mobileFrame?.();   // solo re-centres the survivor, so the fit changes with it
   }
 
   // ---- action input ----
@@ -549,7 +555,8 @@ export async function runAnimationWorkbench(config, params) {
   document.body.appendChild(panel);
   const panelUI = setupDevPanel(panel, { key: 'models', workbench: 'models' });
 
-  panel.appendChild(label('Mech'));
+  const mechLabel = label('Mech');
+  panel.appendChild(mechLabel);
   // subjectSelect owns the ordering rule (alphabetical, work-in-progress mechs
   // under a rule at the end); `label` keeps this tool's bare-id text.
   const mechSel = subjectSelect({
@@ -630,6 +637,20 @@ export async function runAnimationWorkbench(config, params) {
   actionModeUI.appendChild(btnGrid);
   const uiPress = {};
   const pulse = {};   // one-shot presses, consumed by the next update
+
+  // Which kind of press an action wants. The buttons above express this with
+  // the pointer itself (hold the button, hold the move); a dropdown — which is
+  // what the mobile bar offers instead of a nine-button grid — has no press to
+  // hold, so it says it here: HOLD actions stay down until the choice changes,
+  // the rest are a press and a release a moment later.
+  const HOLD_ACTIONS = new Set(['walk', 'block', 'ranged']);
+  function triggerAction(act, { release = 240 } = {}) {
+    for (const k of Object.keys(uiPress)) uiPress[k] = false;
+    if (!act) return;
+    if (ONE_SHOT.has(act)) { pulse[act] = true; return; }
+    uiPress[act] = true;
+    if (!HOLD_ACTIONS.has(act)) setTimeout(() => { uiPress[act] = false; }, release);
+  }
 
   actionModeUI.appendChild(label('Animation time scale'));
   const spdRow = el('div', 'display:flex;gap:6px;align-items:center;margin-bottom:6px');
@@ -804,6 +825,60 @@ export async function runAnimationWorkbench(config, params) {
   function toggle(text, fn) { const b = el('button', 'flex:1;padding:5px;border-radius:4px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:#1a2433;color:#9fb2c8'); b.textContent = text; b.onclick = fn; return b; }
   function btn(text, fn, primary) { const b = el('button', `width:100%;flex:1;padding:6px;border-radius:5px;border:1px solid #2c3648;cursor:pointer;font-size:11px;background:${primary ? '#1f7a4d' : '#1a2433'};color:${primary ? '#fff' : '#cfe0f5'}`); b.textContent = text; b.onclick = fn; return b; }
   function rnd(v, d = 2) { const m = 10 ** d; return Math.round(v * m) / m; }
+
+  // ---------- MOBILE ----------
+  // On a phone the panel above is the whole screen, and the model — the thing
+  // this tool exists to show — is a sliver beside it. So the two controls you
+  // touch constantly (which mech, which action) move to a bar across the top,
+  // the rest of the screen is the viewer, and ⚙ raises the panel as a sheet
+  // when you want anything else. Nothing here runs on a desktop.
+  let actionSel = null;
+  if (isMobileLayout()) {
+    actionSel = document.createElement('select');
+    actionSel.title = 'trigger this action on both models';
+    actionSel.innerHTML = '<option value="">— no action —</option>'
+      + BTNS.map(([act, txt]) => {
+        // the button captions name the key/pad binding, which a touch screen
+        // has neither of
+        const name = txt.replace(/\s*[—(].*$/, '').trim();
+        return `<option value="${act}">${name}${HOLD_ACTIONS.has(act) ? ' (hold)' : ''}</option>`;
+      }).join('');
+    actionSel.onchange = () => {
+      const act = actionSel.value;
+      triggerAction(act);
+      // a HELD move stays selected — it is a state you are in, and choosing
+      // something else leaves it. Everything else falls back to "no action",
+      // so picking the same move twice fires it twice.
+      if (act && !HOLD_ACTIONS.has(act)) actionSel.value = '';
+    };
+  }
+  const mobile = setupMobileChrome(panel, {
+    primary: [mechSel],                                    // MOVED, same element
+    secondary: actionSel ? [barField('action', actionSel)] : [],
+    orbit,
+    title: 'Animation workbench',
+  });
+  if (mobile.active) {
+    mechLabel.remove();          // the bar is the label now
+    // FIT THE PAIR TO A PORTRAIT SCREEN. The desktop camera is a hand-picked
+    // point that suits a wide window; solve the distance instead, off the real
+    // fov and aspect, keeping the same viewing direction. Re-run on rotation.
+    mobileFrame = () => {
+      const halfW = soloMode ? 4.5 : PAIR_X + 4.5;   // the pair, plus air
+      const halfH = 6.5;                             // a tall mech, plus air
+      const vfov = camera.fov * Math.PI / 180;
+      const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (camera.aspect || 1));
+      const dist = Math.max(halfW / Math.tan(hfov / 2), halfH / Math.tan(vfov / 2)) * 1.06;
+      orbit.target.set(0, 4, 0);
+      camera.position.copy(new THREE.Vector3(14, 8, 15).normalize().multiplyScalar(dist));
+      orbit.update();
+    };
+    window.addEventListener('resize', () => mobileFrame());
+    mobileFrame();
+    help.innerHTML = 'One finger: orbit · two fingers: pan + pinch to zoom<br>'
+      + 'Left = what you compare to · Right = this mech\'s GLB<br>'
+      + 'Everything else is in this sheet — ⚙ opens it, Done dismisses it.';
+  }
 
   setSpeed(100);
   await load(curId);
