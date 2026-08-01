@@ -327,6 +327,18 @@ export const GAIT_SCHEMA = [
           + 'horizontal distance from the hip, and that has to keep up with the floor' },
       { key: 'sweepRun', label: 'fore-aft sweep @run', min: 0, max: 1.2, step: 0.01,
         joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip'] },
+      // THE ONE THAT MAKES IT AN ARTHROPOD RATHER THAN A SHORT HUMANOID.
+      { key: 'yaw', label: 'swing AROUND the hip, not under it', min: 0, max: 1, step: 0.01,
+        joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip', 'thighL', 'thighR'],
+        help: 'how much of the stride is a HORIZONTAL rotation about the body\'s up axis rather '
+          + 'than a fore-aft pitch under the hip. 0 is what a humanoid does — the leg is a '
+          + 'pendulum and the step is a PUSH-OFF. 1 is what a crab does — the leg lifts, swings '
+          + 'round the hip like a hand on a clock face, and sets down again. It applies to all '
+          + 'SIX legs: the four here directly, and the back pair by taking that fraction of its '
+          + 'thigh pitch back out and putting the same swing in as yaw. Turning it up SHORTENS '
+          + 'the step, because a splayed leg\'s foot sits further below its hip than out from it '
+          + '— so `cadence` has to come down with it or the feet stop keeping up with the floor '
+          + '(node tools/hexprobe.mjs says by how much)' },
       { key: 'lift', label: 'hip lift on recovery', min: -0.6, max: 1.2, step: 0.01,
         joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip'],
         help: 'how far the hip raises the whole leg while it is swinging forward — half of the '
@@ -589,33 +601,41 @@ export const GAITS = {
   // which is what keeps his soles honest — and the `hex` block below drives the
   // other four off the SAME phase, in the tripod an insect walks on.
   //
-  // The numbers are the no-skate solve, not taste. At full throttle he covers
-  // 15.6 u/s; `cadence` fixes how much ground one step is asked to cover
-  // (pi * legLen * cadence * swing), and the two stride amplitudes are set so
-  // the feet actually travel that far:
-  //   back pair   the thigh pitch swings the foot 3.55 u per radian on this body
-  //               (the foot hangs that far below the hip), so swing 0.55 at full
-  //               speed = 3.7 u of travel per step
-  //   other four  their feet hang ~2.4 u below their hips, so they need a WIDER
-  //               arc for the same ground: sweep 0.90 = 3.7 u
-  // and cadence 0.65 asks for 3.7 u. All three agree, which is the whole point —
-  // that is a foot that stays where it was put. Judge it in
-  // /workbench/?edit=gait&mech=cranky with FOOTPRINTS on: "landed" and the
-  // derived "u per step" beside it are the two halves of the same claim.
+  // HE ROTATES HIS LEGS, HE DOES NOT PUSH OFF THEM. `hex.yaw` 0.6 makes most of
+  // the stride a flat swing ROUND each hip rather than a pendulum under it, on
+  // all six legs, so the cycle reads lift -> rotate -> lower instead of the
+  // humanoid drive. That is what an arthropod does, and it is the one dial the
+  // whole rest of this table is arranged around.
+  //
+  // The numbers are then the no-skate solve, not taste. At full throttle he
+  // covers 15.6 u/s; `cadence` fixes how much ground one step is asked to cover
+  // (pi * legLen * cadence * swing), and every leg's arc is set so its foot
+  // actually travels that far. What makes that arithmetic rather than guesswork
+  // is that a leg has TWO lever arms and hexLegsOf measures both: a radian of
+  // pitch carries the foot as far as it hangs BELOW the hip, a radian of yaw as
+  // far as it sits OUT from it, and on these legs the second is a third to a half
+  // of the first. So 60% yaw costs about a third of the step, and cadence comes
+  // down 0.70 -> 0.48 to pay for it (2.75 u per step, against 4.01 before).
+  // MEASURED, `node tools/hexprobe.mjs cranky` — travel over ground asked, per
+  // leg: 1.11 / 1.12 / 1.11 / 1.26 / 0.97 / 0.95, where the roster's own baseline
+  // (titanus, standard gait) is 0.73. Judge it in /workbench/?edit=gait&mech=cranky
+  // with FOOTPRINTS on too: "landed" and the derived "u per step" beside it are
+  // the two halves of the same claim.
   hexapod: {
     base: 'standard',
     name: 'Hexapod',
     note: 'Six-legged crab scuttle: a tripod of legs steps while the other three carry, shell level and low, pincers held up and ready.',
-    // SHORT STEPS, MANY OF THEM. cadence 0.92 -> 0.70 is the crab admitting his
+    // SHORT STEPS, MANY OF THEM. cadence 0.92 -> 0.48 is the crab admitting his
     // legs are not a biped's: at 0.92 the floor moved 7.9 u per step under a
     // foot that travelled 0.3, which is the "wiggling his legs and floating
-    // along" the owner reported.
+    // along" the owner reported. (0.70 was the answer before the legs started
+    // swinging round the hip instead of under it — see `hex.yaw` below.)
     legs: {
       swing: 0.35, swingRun: 0.20, reach: 0, extend: 0,
       adduct: 0, adductRun: 0, adductTrail: 0,
       stanceBend: 0.10, stanceBendRun: 0,
       kneeLift: 0.30, kneeLiftRun: 0.15, kneePhase: 1.57, phase: 0,
-      cadence: 0.70, cadenceCap: 20,
+      cadence: 0.48, cadenceCap: 20,
     },
     // a crab's leg tip is a POINT, not a sole: little roll, a modest push, and
     // `level` doing the work of keeping the tip down through the stance
@@ -627,24 +647,47 @@ export const GAITS = {
     // sides, and the swing/pump is the small sway of something heavy being
     // carried at speed. The no-droop floor in the profile still guarantees they
     // can never be driven back down through the pavement.
+    //
+    // OWNER-TUNED (?edit=gait on cranky at 100%) to hold the claws STILL: the
+    // swing went to 0 outright — a pincer that big reads as flailing if it
+    // pendulums with the stride at all — the tuck reversed to carry them out to
+    // the sides rather than rolled in, and the carry came down to -0.57, which
+    // is as high as they go before the elbows crowd the shell.
     arms: {
-      swing: 0.25, swingRun: 0.10, lift: 0, elbow: 0, elbowRun: 0,
-      elbowPump: 0.15, tuck: 0.23, cross: 0, phase: 0,
-      carry: -0.86, foldClear: 0, handGround: 0, handClear: 0,
+      swing: 0, swingRun: 0, lift: 0, elbow: 0, elbowRun: 0,
+      elbowPump: 0.15, tuck: -0.15, cross: 0, phase: 0,
+      carry: -0.57, foldClear: 0, handGround: 0, handClear: 0,
     },
     // a shell has no chest to pitch and no waist to twist: level, with the
     // side-to-side waggle that reads as a scuttle
     body: { bob: 0.05, pitch: 0, yaw: 0.10, roll: 0.06, lean: 0.04, twist: 0.02, head: 0 },
     hex: {
       sweep: 0.58, sweepRun: 0.32,
-      lift: 0.22, liftRun: 0.10,
-      fold: 0.45, foldRun: 0.20,
+      // HE IS AN ARTHROPOD, SO HE ROTATES HIS LEGS RATHER THAN PUSHING OFF THEM:
+      // 0.6 of the stride is a flat swing round the hip and only 0.4 is the
+      // humanoid pendulum. It costs ground — a splayed foot sits ~1 u out from
+      // its hip and ~2.4 u below it, so a radian of yaw carries it less than half
+      // as far as a radian of pitch — which is what the cadence above pays for.
+      yaw: 0.6,
+      // A YAW SWING DOES NOT LIFT THE FOOT — that is the other half of the trade.
+      // A pendulum raises its own foot at both ends of the arc for free; a leg
+      // swinging flat round the hip stays at exactly the height it started, so
+      // every bit of "lift, rotate, lower" has to come from these two. They went
+      // up by half again when the yaw came in, which is what puts the clearance
+      // back (measured, peak foot travel as a fraction of body height: front pair
+      // 13/16% before the bump, 19/24% after; mid pair 23/25% -> 31/33%).
+      lift: 0.34, liftRun: 0.16,
+      fold: 0.62, foldRun: 0.26,
       liftPhase: 1.57, splay: 0, crouch: 0,
       // a touch of wave down the body rather than three legs landing as one
       lag: 0.35,
-      // the front pair sits against the pincer bases, so it steps a little
-      // smaller — big steps there drag the claw skin with them
-      midAmp: 1.0, frontAmp: 0.85,
+      // …and the two pairs are trimmed against each other, because this rig's
+      // legs are NOT equal: the mid pair's feet sit barely half a unit out from
+      // their hips, so a yaw-heavy stride shortchanges them most and they need
+      // the bigger arc to keep up. The front pair sits against the pincer bases
+      // and steps a little smaller for the opposite reason — big steps there
+      // drag the claw skin with them.
+      midAmp: 1.25, frontAmp: 0.80,
     },
   },
 
@@ -1392,12 +1435,17 @@ export function applyTailGait(tgt, gait, env = {}) {
 // TWO THINGS ARE DERIVED RATHER THAN AUTHORED, because getting either wrong is
 // invisible in the numbers and obvious on screen:
 //
-//  1. WHICH AXIS IS FORWARD. A leg swings fore-aft about the body's LATERAL axis
-//     — not about its up axis, however far out to the side the leg is carried.
-//     The lever arm is how far the foot hangs BELOW the hip, which is why a
-//     crab's stubby side legs still take a real step. Both axes are read off the
-//     rig itself (up from hips->torso, lateral from the two back hips), so this
-//     works on a body facing any way, with the legs anywhere.
+//  1. WHICH AXIS IS FORWARD — and there are TWO of them, which is the whole
+//     difference between a crab and a short humanoid. Turn the leg about the
+//     body's LATERAL axis and it swings under the hip like a pendulum: that is a
+//     PUSH-OFF, and its lever arm is how far the foot hangs BELOW the hip. Turn
+//     it about the body's UP axis and the leg swings ROUND the hip, flat, like a
+//     hand on a clock face: that is what an arthropod does, and its lever arm is
+//     how far the foot sits OUT from the hip. `hex.yaw` mixes the two, and both
+//     levers are measured per leg so the mix can be costed rather than guessed.
+//     All three axes are read off the rig itself (up from hips->torso, lateral
+//     from the two back hips), so this works on a body facing any way with its
+//     legs anywhere.
 //  2. WHICH TRIPOD EACH LEG IS IN. An insect walks on alternating triangles —
 //     front-left, mid-right, back-left, then the other three — which is just
 //     "flip the phase for each rank down the body, and again for the other
@@ -1474,19 +1522,29 @@ export function hexLegsOf(byName) {
     const side = v3dot(v3sub(hp, hipsP), left) >= 0 ? 1 : -1;
     const out = Math.hypot(flat[0], flat[1], flat[2]) > 1e-4
       ? v3norm(flat) : left.map((c) => c * side);
+    const driven = l.driven && !!l.knee;
     return {
       hip: l.hip.name, knee: l.knee?.name || null, foot: l.foot?.name || null,
-      driven: l.driven && !!l.knee,
+      driven,
+      // the two the GAME drives: the hip bone IS a game joint, so the yaw mix is
+      // applied to it in joint space (see applyHexGait) rather than on the bone
+      joint: driven ? null : l.hip.name,
       side, fore: v3dot(v3sub(hp, hipsP), fwd),
       // + swings every foot FORWARD, whichever side it is on: the foot hangs
       // below the hip, so a turn about `left` carries it along `fwd`
-      sweepAxis: left,
+      pitchAxis: left,
+      // …and about the body's UP axis it swings round the hip instead — forward
+      // on the left, backward on the right, hence `side` at the call site
+      yawAxis: up,
       // …and about this one it rises (see the note above: `out x up`)
       liftAxis: v3norm(v3cross(out, up)),
       restHip: restRot(l.hip), restKnee: restRot(l.knee),
-      // how far the foot hangs below its hip — the stride's lever arm, reported
-      // so a probe can say what arc this leg needs rather than guessing
+      // THE TWO LEVER ARMS, in the rig's own units: how far the foot travels
+      // fore-aft per radian of pitch (it hangs this far below the hip) and per
+      // radian of yaw (it sits this far out from it). A probe can then say what
+      // arc a leg needs, and what a yaw mix costs it, rather than guessing.
       drop: Math.abs(v3dot(span, up)),
+      reach: Math.hypot(flat[0], flat[1], flat[2]),
     };
   });
   // RANK: front to back, down each side independently, so the two sides mirror
@@ -1518,6 +1576,7 @@ export function applyHexGait(tgt, gait, env = {}) {
   const sweep = (H.sweep || 0) + (H.sweepRun || 0) * ratio;
   const lift = (H.lift || 0) + (H.liftRun || 0) * ratio;
   const fold = (H.fold || 0) + (H.foldRun || 0) * ratio;
+  const mix = clamp01(H.yaw || 0);
   for (const l of rig.legs) {
     if (!l.driven) continue;
     const h = tgt[l.hip], k = tgt[l.knee];
@@ -1529,13 +1588,40 @@ export function applyHexGait(tgt, gait, env = {}) {
     // on, since the stride above drives thighL by -swing*sin(ph) and a negative
     // thigh pitch is forward.
     const fore = sweep * amp * Math.sin(p);
+    // …split between swinging UNDER the hip and swinging ROUND it (`yaw`). Both
+    // carry the foot along the body's forward axis; what changes is the shape of
+    // the arc it takes to get there, and how much ground it covers doing it.
+    const pitch = fore * (1 - mix), turn = fore * mix * l.side;
     // …and OFF THE GROUND through the forward half of that swing
     const air = Math.max(0, Math.sin(p + (H.liftPhase ?? 1.57)));
     const up = (H.splay || 0) + lift * amp * air;
-    if (h) for (let i = 0; i < 3; i++) h[i] += l.sweepAxis[i] * fore + l.liftAxis[i] * up;
+    if (h) {
+      for (let i = 0; i < 3; i++) {
+        h[i] += l.pitchAxis[i] * pitch + l.yawAxis[i] * turn + l.liftAxis[i] * up;
+      }
+    }
     if (k) {
       const bend = (H.crouch || 0) + fold * amp * air;
       for (let i = 0; i < 3; i++) k[i] += l.liftAxis[i] * bend;
+    }
+  }
+  // THE BACK PAIR rides the ordinary stride (it carries the game leg joints, so
+  // applyGait and every foot rule already own it) — but the yaw mix is a
+  // property of the BODY, not of one layer, and legs that swing round the hip
+  // beside legs that pendulum under it read as two animals. So take `mix` of
+  // what the stride wrote as thigh PITCH back out, and put the same swing in as
+  // thigh YAW. Joint space, before the foot rule runs, so nothing downstream
+  // sees a leg that disagrees with its own ankle.
+  if (mix > 1e-4 && gait.legs) {
+    const L = gait.legs;
+    const phL = ph + (L.phase || 0);
+    const swingAmt = (L.swing || 0) + (L.swingRun || 0) * ratio;
+    for (const l of rig.legs) {
+      const t = l.joint && tgt[l.joint];
+      if (!t) continue;
+      const s = Math.sin(phL + (l.side > 0 ? 0 : Math.PI));
+      t[0] += mix * swingAmt * s;              // undo that share of the pendulum
+      t[1] += mix * swingAmt * s * l.side;     // …and swing it round instead
     }
   }
 }

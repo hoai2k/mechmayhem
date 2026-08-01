@@ -6177,3 +6177,60 @@ and 2.6% running, and the second one is the true number.
 ranges were the sane band for a biped; a body whose legs cannot swing far covers
 the same ground with many more, much shorter steps, and there has to be a way to
 say so.
+
+## …and he rotates his legs instead of pushing off them
+
+Two things from the owner. The claw tune came back as a paste from
+`?edit=gait` — `arms.swing` and `swingRun` to 0 outright (a pincer that big
+reads as flailing if it pendulums with the stride at all), `tuck` reversed to
+-0.15 so they carry out to the sides, `carry` up to -0.57 — and it went in
+verbatim.
+
+The other: "relative to his facing can we have his outward legs yaw more and
+pitch less… like an arthropod his legs should feel like they are lifting,
+rotating, and then lowering more than 'pushing off' the way humanoids do."
+
+A LEG HAS TWO LEVER ARMS, and until now the hexapod layer only used one of them.
+Turn a leg about the body's LATERAL axis and it swings under the hip like a
+pendulum: that is the humanoid push-off, and how far the foot travels per radian
+is how far it hangs BELOW the hip. Turn it about the body's UP axis and the leg
+swings ROUND the hip, flat, like a hand on a clock face: that is what an
+arthropod does, and the lever is how far the foot sits OUT from the hip.
+`hexLegsOf` now measures both (`drop` and `reach`), so `hex.yaw` can mix them
+and the cost of the mix is arithmetic rather than a guess.
+
+It applies to all six legs, or he reads as two animals from the waist: the four
+extra ones directly, and the BACK pair — which carries the game leg joints and
+rides the ordinary stride — by taking that share of its thigh PITCH back out and
+putting the same swing in as thigh YAW. In joint space, and the whole hex pass
+moved to BEFORE `applyToeHang`, so no foot rule ever levels an ankle against a
+leg that has since moved.
+
+TWO THINGS IT COSTS, both measured, both paid for:
+
+  GROUND. On these legs the yaw lever is a third to a half of the pitch one, so
+  60% yaw takes about a third off the step. `cadence` 0.70 -> 0.48 (2.75 u asked
+  per step, against 4.01). `node tools/hexprobe.mjs cranky` — travel over ground
+  asked, per leg: 1.11 / 1.12 / 1.11 / 1.26 / 0.97 / 0.95, tighter than the
+  0.88-1.13 the pure-pitch version managed, against the roster's 0.73 baseline.
+  `midAmp` 1.0 -> 1.25 and `frontAmp` 0.85 -> 0.80 trim the two pairs against
+  each other, because this rig's legs are not equal — the mid pair's feet sit
+  barely half a unit out from their hips, so a yaw-heavy stride shortchanges
+  them most.
+
+  LIFT. A pendulum raises its own foot at both ends of the arc for free; a leg
+  swinging flat round the hip stays at exactly the height it started, so every
+  bit of "lift, rotate, lower" has to come from `hex.lift`/`fold`. Straight after
+  the yaw went in the front pair's foot clearance had fallen to 13/16% of body
+  height. lift 0.22 -> 0.34, fold 0.45 -> 0.62 (and their @run twins) puts it at
+  19/24%, and the mid pair at 31/33%.
+
+Shell heave fell to 0.7% of body height running (from 2.6%) — a flat swing does
+not heave the body the way a pendulum does. hexprobe prints both levers and the
+mix per leg now, so the next person to move that dial can see what it will cost
+before they move it.
+
+NOT DONE: the mid pair's feet still dip ~2% of body height below the floor at
+the bottom of the stance and the front pair's still float ~3% above it. That is
+the rig placing the right-hand legs lower than the left, not the gait — one
+`splay` cannot raise one pair and lower the other.

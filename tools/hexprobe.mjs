@@ -56,7 +56,7 @@ const out = await page.evaluate(async ({ n }) => {
     for (const l of hex.legs) {
       legs.push({
         name: l.hip, rank: l.rank, side: l.side > 0 ? 'L' : 'R', group: l.group,
-        driven: l.driven,
+        driven: l.driven, drop: l.drop, reach: l.reach,
         // the far end of the leg: its foot bone where there is one
         tip: bones[l.foot] || bones[l.knee] || bones[l.hip],
       });
@@ -160,6 +160,7 @@ const out = await page.evaluate(async ({ n }) => {
     pausedDrift, restDrift,
     legs: legs.map((l, j) => ({
       name: l.name, side: l.side, rank: l.rank, group: l.group, driven: l.driven,
+      drop: l.drop ?? null, reach: l.reach ?? null,
       travel: Math.max(...acc[j].fore) - Math.min(...acc[j].fore),
       lift: Math.max(...acc[j].up) - Math.min(...acc[j].up),
       low: Math.min(...acc[j].up),
@@ -181,14 +182,26 @@ console.log(`\n${mech} @ throttle ${out.ratio} — gait '${out.gaitId}'`);
 console.log(`  body height ${out.h.toFixed(2)} u · leg length ${out.legLen.toFixed(2)} u`);
 console.log(`  the floor moves ${groundPerStep.toFixed(2)} u under each step `
   + `(cadence ${L.cadence} x swing ${swing.toFixed(2)})\n`);
-console.log('  leg          rank  tripod  travel      keep   lift    low');
+// THE TWO LEVER ARMS, so a yaw mix can be costed rather than guessed: a radian
+// of pitch carries the foot `drop` forward, a radian of yaw carries it `reach`.
+// Both are in the RIG's own units (they are measured off the bind skeleton), so
+// read the RATIO between them, not the number — `travel` is the world one.
+const yawMix = out.gait.hex?.yaw ?? 0;
+if (out.gait.hex) {
+  console.log(`  stride is ${Math.round(yawMix * 100)}% a swing ROUND the hip, `
+    + `${Math.round((1 - yawMix) * 100)}% a pendulum under it (hex.yaw)\n`);
+}
+console.log('  leg          rank  tripod   drop  reach  lever   travel   keep   lift    low');
 let worst = null;
 for (const l of out.legs) {
   const keep = groundPerStep > 1e-6 ? l.travel / groundPerStep : 0;
   if (worst === null || keep < worst) worst = keep;
+  const lever = l.drop === null ? null : (1 - yawMix) * l.drop + yawMix * l.reach;
+  const n = (v, w = 5) => (v === null ? '—'.padStart(w) : v.toFixed(2).padStart(w));
   console.log(`  ${l.name.padEnd(12)} ${String(l.rank ?? '-').padStart(3)}  `
-    + `${String(l.group ?? '-').padStart(5)}   ${l.travel.toFixed(2).padStart(5)} u  `
-    + `${keep.toFixed(2).padStart(5)}  ${pc(l.lift).padStart(6)} ${pc(l.low).padStart(6)}`);
+    + `${String(l.group ?? '-').padStart(5)}  ${n(l.drop)} ${n(l.reach)}  ${n(lever)}   `
+    + `${l.travel.toFixed(2).padStart(5)} u  ${keep.toFixed(2).padStart(5)}  `
+    + `${pc(l.lift).padStart(6)} ${pc(l.low).padStart(6)}`);
 }
 console.log(`\n  shell heave ${out.liveHeave === null ? '?' : pc(out.liveHeave)} of body height RUNNING`
   + ` (${pc(out.heave)} stepped phase by phase, of which the pelvis`
