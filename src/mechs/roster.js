@@ -523,13 +523,15 @@ export const ROSTER = [
   {
     id: 'jerry', name: 'JERRY', title: 'The Tide-Bringer', icon: '\u{1F990}', seed: 179,
     gait: 'arthropod', // crustacean scuttle: short quick splayed steps, claws carried, shell waggle
-    // heavy = the giant pincer CLAP (cranky's clawSnap — arms stretch wide,
-    // smash together at the centerline). The default two-hand overhead smash
-    // meant nothing on claw-arms that hang low in front: it read as a
-    // faceplant. Same no-body-twist rule as cranky, or the servo slews the
-    // shell around while the claws travel.
-    heavyClip: 'clawSnap',
-    noTwistClips: ['clawSnap'],
+    // Lights are OVERHAND CLAW RAKES (bespoke — the shared jab trio is a
+    // boxer's kit and read as torso-twists with claw passengers): each claw
+    // chambers up over the shell and slams down-and-forward, alternating, and
+    // the third blow brings BOTH claws down together. Heavy is the BARRAGE —
+    // rear back, then eight quick forward-and-downward strikes, arms
+    // alternating; it replaced the pincer clap (clawSnap), which replaced the
+    // overhead smash that read as a faceplant on this body.
+    lightClips: ['jerryRakeR', 'jerryRakeL', 'jerryRake2'],
+    heavyClip: 'jerryBarrage',
     blurb: 'Dredged from a flooded aquaculture lab, JERRY is a colony pretending to be a mech. The cannons are full of something alive. He would like you to hold still.',
     quotes: { win: '"*wet clicking* ...the swarm is fed. For now."', intro: '"They\u2019re hungry. I\u2019m generous."' },
     // canonical image: weathered coral-pink shrimp carapace over black mech
@@ -564,7 +566,11 @@ export const ROSTER = [
     combatPose: { hipsPos: [0, -0.14, 0], torso: [6, 0, 0], shoulderL: [-16, 0, -6], shoulderR: [-16, 0, 6], elbowL: [-24, 0, 0], elbowR: [-24, 0, 0], thighL: [-8, 0, -4], thighR: [-8, 0, 4], kneeL: [12, 0, 0], kneeR: [12, 0, 0] },
     moves: {
       light: { dmg: [28, 30, 44], knock: [4, 4, 10], range: 3.4 },
-      heavy: { dmg: 76, knock: 18, range: 3.6, launch: 8 },
+      // PER HIT: jerryBarrage lands 8 hit events, so this is 8 x 11 = 88
+      // potential (a shared heavy is ~76 in one blow; the barrage trades a
+      // launcher for chip volume). Knock small on purpose — the victim is
+      // pummelled in place through the flurry, not launched off the second hit.
+      heavy: { dmg: 11, knock: 3, range: 3.6, launch: 0 },
       // BILGE SPIT: a short burst of black sticky goo out of ONE cannon pod
       // (alternating), thrown much further than CRANKY's water hose and
       // gunking whoever it lands on like FROGGER's slime. `ticks` wads per
