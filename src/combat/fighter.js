@@ -257,11 +257,10 @@ export class Fighter {
     // stop at, so small obstacles are walked over instead of climbed. Zero for
     // everyone else, which leaves every collision path byte-identical.
     this.climb = null;        // the attached state: {surf, phase, fwd, …}
-    this.climbMode = false;   // the gecko MODE: he climbs whatever he touches
     this.stepUp = def.climb ? def.climb.stepUp * this.height : 0;
     this._climbTilt = 0;      // 0 = standing on the ground, 1 = on the wall
-    this._climbRest = 0;      // how long the stick has been at rest (the way out)
-    this._climbCd = 0;        // short re-latch cooldown after a deliberate departure
+    this._climbCd = 0;        // short re-latch cooldown after leaving a face
+    this._climbRelease = false; // let go on purpose: fall past faces, don't grab
 
     // resources
     this.maxHp = def.stats.hp;
@@ -2864,9 +2863,7 @@ export class Fighter {
     if (acting && !this.blocking) {
       if (I.ult && (this.ult >= 1 || this.ultCheat())) this.doUlt();
       else if (I.special) this.doSpecial();
-      else if (I.light && !this.climb) {
-        // (on a wall, LIGHT is the GRIP — he holds his spot instead of
-        // punching; climb.js reads lightHeld directly)
+      else if (I.light) {
         if (this.state === 'attack') this.queuedLight = true;
         else this.doLight();
       } else if (I.heavy) this.doHeavy();
@@ -3031,12 +3028,11 @@ export class Fighter {
     } else {
       this.lockTarget = null;
     }
-    // ---- WALL CLIMBING (combat/climb.js). For a mech with a `climb` block,
-    // walking into a building face can become walking UP it — a MODE he enters
-    // with a little push (or by jumping at a wall with a direction held) and
-    // leaves by resting the stick. While he is attached the climb owns
-    // movement outright: the surface is the constraint, so gravity and the
-    // arena pushout are both off.
+    // ---- WALL CLIMBING (combat/climb.js). A mech with a `climb` block is
+    // ALWAYS climbing: walk into a face too tall to step over, or simply land
+    // on one, and he is on it. While attached the climb owns movement
+    // outright — the surface is the constraint, so gravity and the arena
+    // pushout are both off — and the way off is the jump.
     let climbing = false;
     if (this.def.climb) {
       const mv = this._climbMv || (this._climbMv = { x: 0, z: 0 });
@@ -3830,11 +3826,9 @@ export class Fighter {
     this._rollUp = null;
     this.endAirRoll();     // a round never opens mid-somersault
     this.climb = null;     // …nor halfway up a building
-    this.climbMode = false;
     this._climbTilt = 0;
-    this._climbRest = 0;
     this._climbCd = 0;
-    this._climbPress = 0;
+    this._climbRelease = false;
     this._climbSpeed = 0;
     this.hovering = false;
     this.hoverFuel = this.hoverFuelMax;
