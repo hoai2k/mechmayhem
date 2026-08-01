@@ -5939,3 +5939,53 @@ NOT BUGS, but worth knowing, both pre-existing:
    is close to meaningless as an AI statistic; he wins those fights with the
    Bilge Spit. This only matters when a HUMAN drives him, which is the case
    the fix above addresses.
+
+CRANKY REPAINTED, AND THE HITBOX LEARNED TO SEE A CRAB
+--------------------------------------------------------
+He was the hardest target in the game (51% of his rendered body inside any
+capsule, worst on the roster by 11 points). Two independent causes, both fixed.
+
+1. THE CARAPACE WAS BOUND TO `head`. 41% of his vertices — the entire shell —
+   rode the head bone, and `head` is a TERMINAL BLOB in the part table: fitted
+   along its own longest axis with outliers culled, which is right for a skull
+   and hopeless for a metre-wide crab shell. 61% of it fell outside its own
+   capsule. Repainted onto `torso` (with the mouth plate, and `belly` onto
+   `hips`) so the shell is ONE RIGID PIECE on the body bone, which is also what
+   it should be visually — nothing about a carapace deforms; his motion is legs,
+   arms and whole-body. The `chest` capsule now fits the shell: 39% -> 81%
+   contained, and a real 855-vertex head remains for the head capsule. Selectors
+   are BY BONE (`{sel:{bone:'head'}}`), not island ordinals, so a rig edit cannot
+   renumber them. His arms and claws were left exactly as they were, as asked.
+
+2. THE PART TABLE CANNOT NAME A SIX-LEGGED BODY. It describes a humanoid, and
+   bucketsFromSkin folds every non-game bone UP into its nearest named ancestor
+   — so cranky's four extra crab legs all landed in the `hips` bucket, and the
+   pelvis capsule was asked to contain six legs pointing four different ways. It
+   could not, and was bloated for trying. Now any bone carrying >=1% of the mesh
+   that the table cannot name gets its OWN capsule (`x:<bone>`), derived from the
+   skin so a new rig is covered the day it lands.
+   ADDITIVE, and that is the whole design. Taking the geometry away from the
+   ancestor was tried first and MEASURED: the big body capsules shrink onto
+   what's left and containment fell on nine mechs (wraith 62->47, frogger 81->63)
+   to buy cranky ten points. Overlap is free; a hole is not.
+   Extra capsules are capped at half the torso radius — they are appendages, and
+   uncapped the ±r box around a capsule out at the end of aegis' spear or
+   frogger's fourth arm pushed both further into the bloat the metric exists to
+   catch (3.00x / 3.08x; at half they sit at 2.56x, where they started).
+
+MEASURED ACROSS THE WHOLE ROSTER, contain / bloat, before -> after:
+  cranky  51->73  0.79->1.22     wraith  62->82  0.71->0.79
+  fenrir  67->80  0.46->1.05     saurion 70->78  0.96->1.16
+  tempest 75->80  1.43->1.43     titanus 63->66  0.87->1.02
+  viper   72->75  0.59->1.00     colossus 80->82 1.26->1.33
+  frogger 81->84  2.51->2.56     aegis   88->90  2.21->2.56
+  rhino   84->84  jerry 82->83   nullbot 76->77  nova 64->65
+  vulcan / inferno / glacier unchanged (no unnamed bone carries 1%)
+Containment rose on twelve and fell on none; bloat moved TOWARD 1.0 on the four
+that were furthest under it (viper 0.59, fenrir 0.46 — capsules that were
+smaller than the mech they belonged to). Only aegis moved meaningfully the wrong
+way, and it was already the roster's worst.
+
+NOT DONE, deliberately: cranky's `shinL` still has no capsule (no geometry on
+that span) and his hand/claw regions sit at ~48% — the claws are the skinning
+the owner asked to keep.

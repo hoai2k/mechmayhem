@@ -285,6 +285,107 @@ function fitBlob(pts, minR) {
 
 // GLB: bucket skinned vertices by their dominant bone, folded up to the
 // nearest MAPPED semantic bone, expressed in that bone's bind-local frame.
+// ---------------------------------------------------------------------
+// EXTRA REGIONS — the parts of a body the 15-joint table cannot name.
+//
+// PART_TABLE describes a humanoid, and bucketsFromSkin walks UP the bone
+// chain until it finds a game joint, so anything hanging off a non-game bone
+// is folded into its nearest named ancestor. On a humanoid that is right (a
+// finger belongs to the hand). On a body that is not a humanoid it is a
+// disaster: cranky's four extra crab legs all roll up into `hips`, so the
+// pelvis capsule is fitted to a bucket containing six legs' worth of
+// geometry — it cannot contain them (they point four different ways) and it
+// is bloated by trying. Measured, half his rendered body sat outside every
+// capsule, which is exactly what "my blows go through him" feels like.
+//
+// So: any bone carrying a real share of the mesh that the table cannot name
+// gets its OWN capsule, ON TOP OF the ancestor's. Purely ADDITIVE — the
+// ancestor's bucket is left exactly as it was, so every existing capsule fits
+// identically and no shipped mech's hitbox shrinks. Taking the geometry away
+// from the ancestor instead was tried and measured: it shrinks the big body
+// capsules onto what is left, and containment fell on nine mechs (wraith
+// 62%->47%, frogger 81%->63%) to buy cranky ten points. Overlap is free here;
+// a hole is not. Named `x:<bone>` so nothing keyed on part names (strike
+// limbs, the torso clamp) can collide, and derived from the skin, so a new
+// rig with new bones is covered the day it lands.
+const EXTRA_MIN_SHARE = 0.01;   // of sampled vertices, per bone
+const EXTRA_MAX = 14;           // don't turn a finger rig into 60 capsules
+const EXTRA_R_CAP = 0.5;        // extra capsule radius ceiling, x the torso's
+
+function extraBones(mech) {
+  const named = new Set(Object.values(mech.boneMap || {}));
+  const skins = [];
+  mech.group.traverse((o) => { if (o.isSkinnedMesh) skins.push(o); });
+  if (!skins.length) return [];
+  const count = new Map();
+  let total = 0;
+  let all = 0;
+  for (const sk of skins) all += sk.geometry?.attributes?.position?.count || 0;
+  const stride = Math.max(1, Math.floor(all / SAMPLE_TARGET));
+  for (const sk of skins) {
+    const pos = sk.geometry?.attributes?.position;
+    const ji = sk.geometry?.attributes?.skinIndex;
+    const wt = sk.geometry?.attributes?.skinWeight;
+    if (!pos || !ji || !wt) continue;
+    const bones = sk.skeleton.bones;
+    for (let i = 0; i < pos.count; i += stride) {
+      let b = ji.getX(i), w = wt.getX(i);
+      if (wt.getY(i) > w) { w = wt.getY(i); b = ji.getY(i); }
+      if (wt.getZ(i) > w) { w = wt.getZ(i); b = ji.getZ(i); }
+      if (wt.getW(i) > w) { w = wt.getW(i); b = ji.getW(i); }
+      total++;
+      const bone = bones[b];
+      if (!bone || named.has(bone)) continue;
+      count.set(bone, (count.get(bone) || 0) + 1);
+    }
+  }
+  if (!total) return [];
+  return [...count.entries()]
+    .filter(([, n]) => n / total >= EXTRA_MIN_SHARE)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, EXTRA_MAX)
+    .map(([bone]) => bone);
+}
+
+// Vertices whose dominant bone IS one of `bones`, in that bone's local frame.
+// Same bind-space transform as bucketsFromSkin; no walking up the chain,
+// because here the bone is the region.
+function bucketsForBones(mech, bones) {
+  const out = new Map();
+  if (!bones.length) return out;
+  const want = new Map(bones.map((b) => [b, `x:${b.name}`]));
+  const skins = [];
+  mech.group.traverse((o) => { if (o.isSkinnedMesh) skins.push(o); });
+  let all = 0;
+  for (const sk of skins) all += sk.geometry?.attributes?.position?.count || 0;
+  const stride = Math.max(1, Math.floor(all / SAMPLE_TARGET));
+  for (const sk of skins) {
+    const pos = sk.geometry?.attributes?.position;
+    const ji = sk.geometry?.attributes?.skinIndex;
+    const wt = sk.geometry?.attributes?.skinWeight;
+    if (!pos || !ji || !wt) continue;
+    const sbones = sk.skeleton.bones;
+    const inv = sk.skeleton.boneInverses;
+    const idxOf = new Map(sbones.map((b, i) => [b, i]));
+    for (let i = 0; i < pos.count; i += stride) {
+      let b = ji.getX(i), w = wt.getX(i);
+      if (wt.getY(i) > w) { w = wt.getY(i); b = ji.getY(i); }
+      if (wt.getZ(i) > w) { w = wt.getZ(i); b = ji.getZ(i); }
+      if (wt.getW(i) > w) { w = wt.getW(i); b = ji.getW(i); }
+      const name = want.get(sbones[b]);
+      if (!name) continue;
+      const oi = idxOf.get(sbones[b]);
+      if (oi === undefined) continue;
+      _v.fromBufferAttribute(pos, i).applyMatrix4(sk.bindMatrix).applyMatrix4(inv[oi]);
+      if (!Number.isFinite(_v.x + _v.y + _v.z)) continue;
+      let arr = out.get(name);
+      if (!arr) out.set(name, arr = []);
+      arr.push(_v.clone());
+    }
+  }
+  return out;
+}
+
 function bucketsFromSkin(mech) {
   const buckets = new Map();   // joint name -> Vector3[] (bone-local)
   const semOf = new Map();     // THREE.Bone -> joint name
@@ -397,8 +498,14 @@ function measureHurtbox(mech) {
   // 15 bones without being a GLB, and measures like one. No shipped mech changes
   // hands: `boneMap` only exists on the GLB path.
   const skinned = mech.isGLB || !!(mech.boneMap && mech.skeleton);
-  const node = (j) => (skinned ? (mech.boneMap?.[j] || null) : (mech.joints?.[j] || null));
+  // regions the 15-joint table cannot name (see extraBones) — GLB path only:
+  // a procedural body has no bones but its own rig joints
+  const extra = skinned ? extraBones(mech) : [];
+  const byName = new Map(extra.map((b) => [`x:${b.name}`, b]));
+  const node = (j) => (byName.get(j)
+    || (skinned ? (mech.boneMap?.[j] || null) : (mech.joints?.[j] || null)));
   const buckets = skinned ? bucketsFromSkin(mech) : bucketsFromRig(mech);
+  const exBuckets = skinned ? bucketsForBones(mech, extra) : new Map();
   const spec = [];
   for (const [name, aName, bName] of PART_TABLE) {
     const a = node(aName);
@@ -415,6 +522,18 @@ function measureHurtbox(mech) {
     const fit = fitPart(pts, tip, MIN_R / Math.max(1e-6, worldScale(a)));
     if (fit) spec.push({ name, bone: aName, ...fit, scale: worldScale(a) });
   }
+  // …and one capsule per extra region, along the bone's own segment (to its
+  // first child) or as a terminal blob if it ends there — the same fit the
+  // table's parts get, just for a bone nobody could name in advance.
+  for (const b of extra) {
+    const name = `x:${b.name}`;
+    const pts = exBuckets.get(name);
+    if (!pts || pts.length < 6) continue;
+    const child = b.children?.find((c) => c.isBone) || null;
+    const tip = child ? b.worldToLocal(child.getWorldPosition(_v3.set(0, 0, 0)).clone()) : null;
+    const fit = fitPart(pts, tip, MIN_R / Math.max(1e-6, worldScale(b)));
+    if (fit) spec.push({ name, bone: name, ...fit, scale: worldScale(b) });
+  }
   // NO LIMB IS FATTER THAN THE BODY IT HANGS OFF. Auto-rigged GLBs
   // occasionally map a hand or forearm bone to something across the model
   // (nova's staff), and everything welded to that bone then reads as arm:
@@ -426,7 +545,14 @@ function measureHurtbox(mech) {
   if (torso > 0) {
     for (const s of spec) {
       if (s.name === 'chest' || s.name === 'pelvis' || s.name === 'head') continue;
-      s.r = Math.min(s.r, torso / s.scale);
+      // an EXTRA region is an appendage by definition — a crab leg, a claw
+      // jaw, a tail link — so it gets a tighter ceiling than a limb does.
+      // Without it the ± r box around a capsule out at the end of a spear
+      // (aegis) or a fourth arm (frogger) is what the bloat metric sees, and
+      // both went from bad to worse; at half the torso they land back where
+      // they started while keeping the containment the extras bought.
+      const cap = s.name.startsWith('x:') ? torso * EXTRA_R_CAP : torso;
+      s.r = Math.min(s.r, cap / s.scale);
     }
   }
   for (const s of spec) delete s.scale;
@@ -473,9 +599,18 @@ export class Hurtbox {
     this.spec = spec;
     this.parts = [];
     this.byName = new Map();
+    // `x:` regions name a bone that is NOT in boneMap, so resolve them off the
+    // skinned meshes' own skeletons — mech.skeleton only exists on the
+    // mannequin path, and using it here silently dropped every extra capsule.
+    const extraNode = new Map();
+    mech.group.traverse((o) => {
+      if (!o.isSkinnedMesh || !o.skeleton) return;
+      for (const b of o.skeleton.bones) if (b?.name) extraNode.set(`x:${b.name}`, b);
+    });
     for (const s of spec) {
-      const node = (mech.isGLB || (mech.boneMap && mech.skeleton))
-        ? mech.boneMap?.[s.bone] : mech.joints?.[s.bone];
+      const node = extraNode.get(s.bone)
+        || ((mech.isGLB || (mech.boneMap && mech.skeleton))
+          ? mech.boneMap?.[s.bone] : mech.joints?.[s.bone]);
       if (!node) continue;
       const part = {
         name: s.name, node,
