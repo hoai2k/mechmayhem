@@ -12,7 +12,38 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** JERRY CLIMBS BUILDINGS, and has no jets. The trade: `noHover` empties
+- **Latest:** CLIMBING IS A MODE now, and nothing about it snaps. The rework, on
+  owner feedback ("orientation gets weird after climbing a little bit", "only a
+  little push", "climb over everything until the stick rests"):
+  ORIENTATION — the climb code no longer writes `f.yaw` anywhere. On the wall the
+  body faces the way it is TRAVELLING (up climbing, sideways scuttling, head-first
+  DOWN descending), reached by the same damp a ground turn uses; the horizontal
+  heading underneath stays with the ordinary stick-driven yaw servo, so both ends
+  of the ground↔wall slerp are always live, damped frames — attach, detach and
+  top-out are all the turn a player already knows. The two hard snaps (yaw forced
+  to face the wall on attach, and again at the lip) are gone, and when the blend
+  finishes the group's rotation is squared off once, so no residual tilt can
+  linger in the euler channels `rotation.y = yaw` never touches.
+  THE MODE — in: a LITTLE push into a face (`grabSeconds` 0.34 -> **0.15**), or
+  jumping at a building with a direction held (latches on impact; no direction
+  and he bounces off like anyone else). Out: the stick at rest for `restSeconds`
+  (0.25) — back to standing or falling, whatever the spot he is in would do.
+  While it is on he climbs EVERYTHING he touches: walls with no gate, lips hauled
+  over, and walking off a roof edge WRAPS him straight over onto the face below,
+  head-first — the edge crouch/decision window is deleted wholesale. Holding
+  LIGHT on a wall is the GRIP: he stays put (no punch), ignores the rest clock,
+  and keeps the mode on release if the stick is held. A still springs him off,
+  and the mode survives it, so jump-and-regrab works.
+  Two real bugs the probe caught on the way: the attached re-probe took the
+  first non-null of its two heights instead of the NEAREST face, which switched
+  a descent below a terrace onto the tower three units behind it; and the
+  bottom-of-face check would snap him UP onto a column base above his feet —
+  the ledge he had just wrapped over — making a once-a-frame teleport loop at
+  every terrace lip. Verified end to end by `tools/climbprobe.mjs` scenarios:
+  push-up-over-across-wrap-down-walk-on in one stick hold, rest-exit mid-wall,
+  mid-air latch from a jump, and the light grip. Files: `src/combat/climb.js`
+  (rewritten), `src/core/tuning.js`, `src/combat/fighter.js`, tools.
+- **Previous:** JERRY CLIMBS BUILDINGS, and has no jets. The trade: `noHover` empties
   his hover tank (his second airborne A-press now falls straight through to the
   ball tuck, which is what an empty tank has always meant), his jump goes 24 ->
   **30** — the biggest on the roster by a clear margin — and a new `climb` block on

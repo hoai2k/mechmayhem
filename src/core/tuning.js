@@ -80,28 +80,29 @@ export const TUNING = {
   // `climb` block (JERRY, who trades the hover jets for it). Shared feel
   // lives here; per-mech reach/speed/step live on the def.
   //
-  // WHY THE GRAB IS GATED. Walking into a wall must stay walking into a wall:
-  // the climb only starts if the stick keeps pushing INTO the face for
-  // `grabSeconds` (`grabDot` is how squarely — a glancing scrape along a
-  // facade never latches). That is the whole "block a little bit, so he only
-  // climbs if the user keeps pressing" rule, and it is also what keeps a mech
-  // shoved into a wall by knockback from sticking to it.
+  // CLIMBING IS A MODE (combat/climb.js). In: a LITTLE push into a face
+  // (`grabSeconds` — enough to tell a climb from a scrape or a knockback
+  // shove, and no more), or jumping at a building with a direction held.
+  // While it is on he climbs everything he touches — walls with no gate, lips
+  // hauled over, roof edges wrapped straight over onto the face below. Out:
+  // the stick at rest for `restSeconds`, and he goes back to whatever a body
+  // does where he is (standing on a top, falling off a face).
   climb: {
-    grabSeconds: 0.34,     // how long the stick must hold INTO a face to latch
-    grabDot: 0.55,         // ...and how squarely (cos of the angle to the face)
+    grabSeconds: 0.15,     // the little push into a face that starts the mode
+    grabDot: 0.5,          // ...and how squarely (cos of the angle to the face)
+    airDot: 0.2,           // airborne: stick-into-face needed to latch on impact
+    restSeconds: 0.25,     // stick at rest this long leaves the mode
     tiltRate: 6.5,         // how fast the body damps between ground and wall
     stamina: 0.055,        // fraction of a full bar per second spent hanging on
-    // A face has to be worth climbing: anything shorter than this (x the
-    // mech's own height, measured from his feet) is an OBSTACLE — he steps
-    // over it instead (see `stepUp` on the def).
+    // A face has to be worth STARTING a climb over: anything shorter than this
+    // (x the mech's own height, measured from his feet) is an OBSTACLE — he
+    // steps over it instead (see `stepUp` on the def). Once the mode is ON,
+    // the bound is stepUp itself: he climbs everything his step can't take.
     minFace: 0.85,
     topSeconds: 0.55,      // the haul over the lip, in seconds
-    // ROOFTOP EDGE. Walking off a roof stops at the lip in a crouch instead:
-    // hold the same direction through the window and he turns around and
-    // climbs down that face, tap A (or steer anywhere else) and he drops.
-    edgeSeconds: 0.42,     // how long the crouch holds him at the lip
-    edgeDrop: 1,           // ...only where the drop is this many body-heights
-    edgeCommit: 0.45,      // stick-vs-edge dot that counts as "still going over"
+    // in the mode, a drop this many body-heights ahead is a face to wrap over
+    // and climb down; anything shallower he just walks off
+    wrapDrop: 0.75,
     // How hard the hands/feet are pulled onto the surface they are crossing,
     // and how near an extremity has to be (x body height) before that pull
     // reaches it at all. 1 = planted exactly on the face.

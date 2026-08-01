@@ -66,11 +66,11 @@ async function shoot(name, cond, waitMs = 90000) {
 await shoot('wall', 'f.climb && f.climb.phase === "wall" && f._climbTilt > 0.9');
 await shoot('top', 'f.climb && f.climb.phase === "top"');
 
-// THE ROOFTOP CROUCH has to be SET UP, not climbed to. The engine runs live
-// here and SwiftShader advances game time at about a tenth of real time, so
-// waiting for him to climb fifty units and cross a roof outlives any sane
-// timeout. Put him on the roof a couple of paces back from a lip instead — the
-// crouch only cares that he is grounded, high up, and walking at an edge.
+// THE EDGE WRAP has to be SET UP, not climbed to. The engine runs live here
+// and SwiftShader advances game time at about a tenth of real time, so waiting
+// for him to climb fifty units and cross a roof outlives any sane timeout. Put
+// him on the roof a couple of paces back from a lip instead — the wrap only
+// cares that he is in climbing mode, grounded, high up, and walking at a drop.
 await page.evaluate(() => {
   const w = window.__world, [j, v] = window.__fighters;
   let best = null;
@@ -78,14 +78,16 @@ await page.evaluate(() => {
     if (b.alive <= 0) continue;
     if (!best || b.aabb.maxY > best.maxY) best = b.aabb;
   }
-  j.climb = null; j._climbTilt = 0; j._climbEdge = null; j._climbEdgeSkip = null;
+  j.climb = null; j._climbTilt = 0; j._climbCd = 0; j._climbRest = 0;
+  j.climbMode = true;    // walked up here in the mode — the wrap needs it on
   j.vel.set(0, 0, 0);
   j.pos.set((best.minX + best.maxX) / 2, best.maxY, best.maxZ - j.radius * 3);
   j.yaw = j.targetYaw = j.torsoYaw = 0;   // yaw 0 is +z, which is the lip ahead
   j.grounded = true;
   v.pos.set(j.pos.x + 7, best.maxY, j.pos.z - 5);
 });
-await shoot('edge', 'f._climbEdge', 60000);
+// descending the far face head-first is the wrap made visible
+await shoot('wrap', 'f.climb && f.climb.phase === "wall" && f.climb.fwd.y < -0.3', 60000);
 
 if (errors.length) console.log('PAGE ERRORS:\n' + errors.join('\n'));
 await browser.close();
