@@ -686,6 +686,7 @@ export class Arena {
     this.terrain.collideFighter(f);
     if (this.world?.sandbox) return;
     const w = this.world;
+    let step = -Infinity;
     for (const p of this.propBodies) {
       if (!p.alive) continue;
       if (f.pos.y > p.h) continue; // cleared it airborne
@@ -694,12 +695,64 @@ export class Arena {
       const rr = p.r + f.radius;
       const d2 = dx * dx + dz * dz;
       if (d2 >= rr * rr || d2 < 1e-6) continue;
+      // A CLIMBER STEPS OVER THE LOW STUFF (f.stepUp — combat/climb.js): a
+      // barricade or a crate shorter than his step height is footing, not a
+      // cylinder to be shouldered around. Everything else is unchanged.
+      if (f.stepUp > 0 && f.grounded && p.h > f.pos.y && p.h <= f.pos.y + f.stepUp) {
+        step = Math.max(step, p.h);
+        continue;
+      }
       const d = Math.sqrt(d2);
       f.pos.x += (dx / d) * (rr - d);
       f.pos.z += (dz / d) * (rr - d);
       f.vel.x *= 0.5;
       f.vel.z *= 0.5;
     }
+    if (step > -Infinity && f.pos.y < step) {
+      f.pos.y = step;
+      if (f.vel.y < 0) f.vel.y = 0;
+      f.grounded = true;
+    }
+  }
+
+  // ---- climbing (combat/climb.js) ----
+  // The nearest climbable face to a world point: a building facade (a PLANE)
+  // or a solid prop body (a CYLINDER — walking sideways on one carries you
+  // around it). Null in the warm-up sandbox, where nothing solid is on the
+  // board yet and a mech climbing an invisible tower would be a mystery.
+  climbProbe(x, y, z, pad = 1) {
+    if (this.world?.sandbox) return null;
+    const wall = this.destructo.climbProbe(x, y, z, pad);
+    const prop = this.propClimbProbe(x, y, z, pad);
+    if (!wall) return prop;
+    if (!prop) return wall;
+    return prop.gap < wall.gap ? prop : wall;
+  }
+
+  propClimbProbe(x, y, z, pad) {
+    const w = this.world;
+    let best = null;
+    for (const p of this.propBodies) {
+      if (!p.alive) continue;
+      if (y > p.h + 1 || y < -1) continue;
+      const dx = w ? w.wrapDelta(x - p.x) : x - p.x;
+      const dz = w ? w.wrapDelta(z - p.z) : z - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 1e-4 || d - p.r > pad) continue;
+      const gap = d - p.r;
+      if (best && gap >= best.gap) continue;
+      const nx = dx / d, nz = dz / d;
+      // the prop's IMAGE next to the querying point (arena space wraps), so a
+      // climber near the seam rides the copy he is actually touching
+      const cx = x - dx, cz = z - dz;
+      best = {
+        kind: 'cylinder', gap, nx, nz, body: p,
+        cx, cz, r: p.r,
+        x: cx + nx * p.r, y, z: cz + nz * p.r,
+        top: p.h, base: 0,
+      };
+    }
+    return best;
   }
 
   // ---- explosive props (fuel tanks): cook off into a fiery inferno ----

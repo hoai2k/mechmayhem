@@ -545,7 +545,42 @@ export const ROSTER = [
     // grasshopper crouch: legs splayed wide, deeply folded, ready to spring
     restPose: { torso: [14, 0, 0], head: [-8, 0, 0], shoulderL: [-30, 0, -14], shoulderR: [-30, 0, 14], elbowL: [22, 0, 0], elbowR: [22, 0, 0], thighL: [-26, 0, -24], thighR: [-26, 0, 24], kneeL: [58, 0, 4], kneeR: [58, 0, -4], ankleL: [-30, 0, 20], ankleR: [-30, 0, -20] },
     // jumpWindup: he CROUCHES first, then launches — highest jump in the game
-    stats: { hp: 980, speed: 9.8, jump: 24, jumpWindup: 0.18, weight: 0.45, armor: 0.08, duck: 0.9, blockMult: 0.15 },
+    // by a clear margin (nothing else is over 24), and `noHover` is the price:
+    // JERRY has NO JETS. Every other mech double-taps A into a hover; his
+    // second A-press in the air goes straight to the ball tuck, because the
+    // way he gets height is the spring in his legs and then the WALL (see
+    // `climb` below + combat/climb.js).
+    stats: { hp: 980, speed: 9.8, jump: 30, jumpWindup: 0.18, weight: 0.45, armor: 0.08, duck: 0.9, blockMult: 0.15, noHover: true },
+    // WALL CLIMBING (combat/climb.js; shared feel in TUNING.climb). The
+    // splayed arthropod legs that make him look wrong as a biped make him
+    // right as a gecko: keep walking into a building face and he goes UP it,
+    // body damping over onto the wall until he is facing straight up, hands
+    // and feet planted on the surface he is crossing.
+    //   speed   — climbing pace, x his own walk speed
+    //   reach   — how far ahead of his skin a face is felt, x body height
+    //   stepUp  — anything shorter than this (x body height) is not a wall at
+    //             all: he STEPS OVER it without breaking stride
+    //   pose    — additive body-space bias while on the wall, faded in with the
+    //             tilt. `hipsPos` is in the same units as combatPose (x
+    //             dims.scale) and is the important one: a mech STANDING on a
+    //             wall is not climbing it, because a standing body's hands are
+    //             nowhere near the floor (measured: 5.4 units off it). Dropping
+    //             the belly toward the surface is what brings all four limbs
+    //             onto it — then the claws reach ahead up the face, the shell
+    //             flattens, and the head cranes back to look where he is going.
+    climb: {
+      speed: 0.72, reach: 0.28, stepUp: 0.34,
+      pose: {
+        hipsPos: [0, -2.3, 0],
+        torso: [-30, 0, 0], head: [34, 0, 0],
+        // (the z term is arm SPREAD. Wide reads as a starfish pinned to the
+        //  wall; the claws want to be ahead of the shell, up the face)
+        shoulderL: [-46, 0, -10], shoulderR: [-46, 0, 10],
+        elbowL: [-20, 0, 0], elbowR: [-20, 0, 0],
+        thighL: [8, 0, -14], thighR: [8, 0, 14],
+        kneeL: [16, 0, 0], kneeR: [16, 0, 0],
+      },
+    },
     // air somersault: a BIG frame on a middleweight stat line — the shell
     // alone is a storey tall — so he CURLS into the ball but never
     // cartwheels (the same tuck-without-spin the weight>0.8 heavies get,

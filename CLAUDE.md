@@ -593,6 +593,56 @@ audio). Progress history: `TASKS.md`.
   the list (exact, and it reaches a bone with no geometry left to click)
   completes it. The list header and its border go amber while it is armed. The
   bone list sits ABOVE the ops list, since it is the one you work in.
+- WALL CLIMBING (`src/combat/climb.js`, dials in `TUNING.climb`) belongs to
+  whichever roster def carries a `climb` block — today only JERRY, who PAID for
+  it with his jets (`stats.noHover: true` empties the hover tank, so his second
+  airborne A-press falls through to the ball tuck) and got the roster's biggest
+  jump in the same trade. fighter.js owns four call sites and no logic.
+  A WALL IS A FLOOR THAT POINTS SIDEWAYS, and that sentence is the geometry:
+  the body's UP (+Y local, feet->head) is the surface's outward NORMAL and its
+  FORWARD (+Z local) is the direction of travel along it. On the ground that
+  reads up = world +Y, fwd = the yaw heading — the ordinary standing frame — so
+  ONE formula covers both ends and the transition is a slerp between them
+  (`applyClimbOrientation`, damped at `tiltRate`). On a vertical face it puts
+  his soles and claws on the wall with his body standing off it, travelling up,
+  FACING UPWARD. The mech's own walk cycle, run in that frame, IS the climb:
+  nothing in the animator knows a wall from a floor — one thing did, and
+  `soleClearanceBySide` now measures foot height along the BODY's up instead of
+  world y (identical on the floor; on a wall the old version read the distance
+  OUT from the face and inverted every foot rule the gait runs on).
+  THE GRAB IS GATED so that walking into a wall stays walking into a wall: the
+  stick must keep pushing squarely into the face (`grabDot`) for `grabSeconds`
+  before he latches. A face shorter than `minFace` body-heights is not a wall
+  at all — `def.climb.stepUp` becomes `Fighter.stepUp`, which destructible.js
+  and arena.js read to turn a low ledge into footing he RISES onto rather than
+  a wall he stops at (zero for every other mech, so those paths are unchanged).
+  On the wall the stick's into-the-face component is the climb (push on to go
+  up, pull back to come down) and its sideways component scuttles him across;
+  A springs him off; running the stamina bar out peels him off. At the lip he
+  hauls himself over (`topSeconds`) and the body damps back upright.
+  WALKING OFF A ROOF stops at the lip in a CROUCH (`edgeSeconds`) instead of
+  stepping into space: hold the same direction through that window and he turns
+  over the edge and climbs down that face, tap A — pressed and released, not
+  held — or steer anywhere else and he drops. The suppression that stops the
+  crouch re-arming on a lip he already decided about is a PLACE, not a timer.
+  A CLIMBER'S HANDS AND FEET ARE ON THE SURFACE (`conformClimbLimbs`, run after
+  the GLB retarget has synced, so it writes the bones a rigged model actually
+  renders): two-bone IK onto the nearest point of the face, feet weighted by
+  proximity so the planted one of a stride is pinned and the swinging one still
+  swings, hands with a floor under that (`handPlant`) because a climber's claws
+  are on the wall whether or not the swing brought them near it. The other half
+  is the CROUCH in `def.climb.pose` — a mech STANDING on a wall is not climbing
+  it, since a standing body's hands are 5.4 units off the floor; dropping the
+  belly toward the surface is what brings all four limbs onto it (measured on
+  jerry: hands 5.4 -> ~1.0 off the face, planted foot ~0.3).
+  THE CPU DOES NOT CLIMB (`tryAttach` returns early for `isAI`): nothing in
+  ai.js can want height, so a latched CPU would climb whatever it walked into
+  and then sit up a tower pressing forward. Everything below the climb — the
+  step-over, the edge crouch — is shared.
+  Judge it with `node tools/climbprobe.mjs "<battle url>"` (the whole loop
+  traced frame by frame: tilt, height gained, and each hand/foot's signed
+  distance to the surface it is crossing — the thing no screenshot can prove)
+  and `node tools/climbshot.mjs <out-prefix>` (the pictures).
 - A fighter grown at RUNTIME (colossus' COLOSSAL FORM ult scales him 4×) must
   tell the animation layer: `animator.sizeMul = <factor>`. Everything in
   animator.js is authored in the model's own local units, so without it the
