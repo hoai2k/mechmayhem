@@ -5569,3 +5569,45 @@ exception expressible at all — no flag, no special case, just the same
 group-by-group, key-by-key merge the base does. Measured at full gallop: every
 joint except the ankles is 0.00e+0 rad from the old gallop, and the ankles are
 up to 40 degrees away from it, which is the point.
+
+JERRY MOVES LIKE WHAT HE IS
+----------------------------
+His "arms" are the two big claw-limbs in front, his legs the smaller pair at
+the back — and everything animating him assumed the opposite kind of body.
+
+THE ARTHROPOD GAIT (`gait: 'arthropod'`, new in the GAITS table). A humanoid
+walk read wrong on every count: the long stride swung his stubby back legs like
+a man's, the counter-swing pumped the pincers like handbags, the upright
+carriage stood the shell up like a suit. The new gait inverts all three — a
+short quick SKITTER (stride 46.5% of body height vs 80.4% under standard,
+cadence reach down/cap up so the step rate climbs instead of the stride),
+SPLAYED CROUCHED legs (negative adduct, track 29.1% vs 21.9%, deep stance
+bend), the CLAWS CARRIED raised and out instead of swinging (arm travel 9.5°
+vs 69.9°), and a low level shell with a side-to-side scuttle waggle. Bonus:
+sole min improved -6.6% -> -1.0% of body height (the shorter stride stops the
+back legs reaching through the pavement).
+
+THE HEAVY IS A PINCER CLAP. The default two-hand overhead smash meant nothing
+on claw-arms that hang low in front — the impact frame showed him buried
+face-first in the target, claws idle, landing at 0.95 of the victim's height
+(crown-clipping). `heavyClip: 'clawSnap'` (cranky's clap: arms stretch wide,
+smash together at the centerline) + the same `noTwistClips` rule, and the blow
+lands at 0.72 — mid-chest, both claws visibly the weapon. Lights checked and
+LEFT ALONE: on claw-arms the shared jab chain already reads as claw jabs, and
+the only claw-authored alternatives (saurion's rakes) are tuned to a different
+body's proportions.
+
+THE BILGE SPIT NO LONGER LIFTS A CLAW OR SHOOTS SIDEWAYS — one fix, not two.
+The pods do the aiming (the glbanim hook swings the firing pod onto his
+facing), so the CLIP must not: the shared `shoot` raises an arm (hoisting a
+claw for a shot that comes from a hull mount) and yaws the torso -18°, and the
+pods are bolted to the torso — measured at the pod's peak swing, the left
+barrel was still 13° across his body and the right 14° wide. The pod-swing
+constants themselves were solved statically and are CORRECT to 0.03°
+(L 0.512 rad wanted vs 0.515 shipped, R -0.612 vs -0.620); the clip's twist was
+the whole error. New `jerryShootGlb`/`jerryShootLGlb` variants (GLB route only):
+pitch-only shell-nod recoil, hips dip, claws untouched, and deliberately NOT
+mirrored for the L side — any yaw moves the pods, so both sides share one
+symmetric body. Measured at the fire line after: right -0.3°, left +0.2°.
+Procedural jerry keeps the shared arm-raise clip on purpose — his muzzles ARE
+in-hand there.

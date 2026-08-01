@@ -522,6 +522,14 @@ export const ROSTER = [
   },
   {
     id: 'jerry', name: 'JERRY', title: 'The Tide-Bringer', icon: '\u{1F990}', seed: 179,
+    gait: 'arthropod', // crustacean scuttle: short quick splayed steps, claws carried, shell waggle
+    // heavy = the giant pincer CLAP (cranky's clawSnap — arms stretch wide,
+    // smash together at the centerline). The default two-hand overhead smash
+    // meant nothing on claw-arms that hang low in front: it read as a
+    // faceplant. Same no-body-twist rule as cranky, or the servo slews the
+    // shell around while the claws travel.
+    heavyClip: 'clawSnap',
+    noTwistClips: ['clawSnap'],
     blurb: 'Dredged from a flooded aquaculture lab, JERRY is a colony pretending to be a mech. The cannons are full of something alive. He would like you to hold still.',
     quotes: { win: '"*wet clicking* ...the swarm is fed. For now."', intro: '"They\u2019re hungry. I\u2019m generous."' },
     // canonical image: weathered coral-pink shrimp carapace over black mech
