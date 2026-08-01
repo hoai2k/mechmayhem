@@ -1,9 +1,9 @@
 // Fighter: movement physics, combat state machine, resources, hit reactions.
 // Driven each frame by an intent (from human input or AI).
 import * as THREE from 'three';
-import { clamp, clamp01, lerp, angleDamp, angleDiff, TAU, rand } from '../core/utils.js';
+import { clamp, clamp01, lerp, damp, angleDamp, angleDiff, TAU, rand } from '../core/utils.js';
 import { buildMech } from '../mechs/factory.js';
-import { Animator } from '../mechs/animator.js';
+import { Animator, LEG_BACK_OFF } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
 import { stackState, burnStacks, stackBlast } from '../mechs/stackfx.js';
@@ -86,6 +86,7 @@ const SPRINT_REGEN = STAMINA_REGEN;
 const BLOCK_DASH_MULT = TUNING.stamina.dashCostBlockMult;
 const DASH_COST = TUNING.stamina.dashCost;
 const BLOCK_MOVE_MULT = TUNING.movement.blockMoveMult;
+const BACK_MOVE_MULT = TUNING.movement.backMult;
 // The half-arc a raised guard covers, as a COSINE. takeHit tests the same
 // arc in radians; the bubble shader fades out past it, so what you see
 // covered is exactly what is covered.
@@ -3663,9 +3664,30 @@ export class Fighter {
     } else if (this.state !== 'dash') this._stackDashed = false;
   }
 
+  // HOW FAR BEHIND HIM HE IS TRYING TO GO, 0..1 and damped.
+  //
+  // Only target lock can produce this at all — free camera turns the body to
+  // face travel, so the offset is ~0 and the whole thing is inert. The ramp
+  // starts where the legs stop being able to face the way they are going
+  // (animator LEG_BACK_OFF) and reaches 1 at a dead-straight retreat, which is
+  // what makes a strafe cost nothing and a back-pedal cost the run.
+  backpedalT(dt, ax, az) {
+    const m = Math.hypot(ax, az);
+    let want = 0;
+    if (m > 0.05) {
+      const off = Math.abs(angleDiff(this.yaw, Math.atan2(ax, az)));
+      want = clamp01((off - LEG_BACK_OFF) / (Math.PI - LEG_BACK_OFF));
+    }
+    this._backT = damp(this._backT ?? 0, want, 6, dt);
+    return this._backT;
+  }
+
   applyPhysics(dt, ax, az) {
+    // a retreat is not a run: the cap falls off and the sprint bonus with it
+    const bk = this.backpedalT(dt, ax, az);
     const speedCap = this.moveSpeed() * this.speedMult() *
-      (this.sprinting ? SPRINT_MULT : 1) * (this.blocking ? BLOCK_MOVE_MULT : 1) *
+      (this.sprinting ? lerp(SPRINT_MULT, 1, bk) : 1) * lerp(1, BACK_MOVE_MULT, bk) *
+      (this.blocking ? BLOCK_MOVE_MULT : 1) *
       (this.state === 'channel' ? 0.45 : 1) * (1 - 0.55 * this.duckT);
 
     if (this.state !== 'dash') {

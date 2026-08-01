@@ -11,10 +11,17 @@ import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
 import { ease, lerp, clamp, clamp01, damp, angleDamp, TAU } from '../core/utils.js';
 
+// WHEN THE LEGS GIVE UP AND WALK BACKWARDS. A strafe is not a back-pedal: only
+// travel that is very nearly straight AT the camera reverses the cycle, and
+// everything short of that — sideways, sideways-and-a-bit-behind — turns the
+// hips to face the way he is going and keeps striding forwards. Hysteresis, so
+// a stick wobbling on the boundary cannot flutter between the two.
+export const LEG_BACK_ON = 150 * Math.PI / 180;   // enter the reversed cycle
+export const LEG_BACK_OFF = 130 * Math.PI / 180;  // and leave it
 // HOW FAR THE HIPS MAY TURN off the body's facing, and how fast they get there.
-// A quarter turn is the limit on purpose: past it the reversed cycle takes over
-// (see legFrame), so nothing ever has to spin the legs the long way round.
-const LEG_TURN_MAX = Math.PI / 2;
+// Exactly the reversal threshold: past it the reversed cycle takes over (see
+// legFrame), so nothing ever has to spin the legs the long way round.
+const LEG_TURN_MAX = LEG_BACK_ON;
 const LEG_TURN_RATE = 9;
 const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -163,27 +170,50 @@ export class Animator {
   // the legs take it while the torso counter-rotates by the same amount, so the
   // lower body walks where it is going and the upper body still aims.
   //
-  // …UP TO A POINT. Past a quarter turn, spinning the legs round to follow is
-  // worse than the disease — he pirouettes. Past that the OTHER answer applies:
-  // measure the drift against the REVERSED facing (a 180° back-pedal becomes 0°
-  // of leg turn) and run the walk cycle BACKWARDS, so he back-pedals with the
-  // feet pushing the right way. Between them they cover the whole circle: strafe
-  // turns the hips, backpedal reverses the cycle, and back-strafing does both.
+  // …UP TO A POINT. Aimed almost straight back at the camera there is nothing
+  // left to turn toward, so the OTHER answer applies: measure the drift against
+  // the REVERSED facing (a 180° back-pedal becomes 0° of leg turn) and run the
+  // walk cycle BACKWARDS, so he back-pedals with the feet pushing the right way.
+  //
+  // WHERE THAT LINE SITS IS THE WHOLE FEEL. It used to be a quarter turn, which
+  // made "sideways with a little bit of backwards" a REVERSED cycle — a strafe
+  // that walked backwards, which is not what a strafe looks like. It is 150°
+  // now (LEG_BACK_ON): a STRAFE NEVER REVERSES, only a genuine retreat does, and
+  // the hips are allowed the full 150° to get there.
+  //
+  // Crossing that line is a real half-turn of the pelvis — the two answers put
+  // the legs on opposite sides of the body, so there is no sleight of hand that
+  // makes it free — and it is DAMPED like every other leg turn, which reads as
+  // the mech pivoting his lower body to back away. What keeps it from happening
+  // twice a second is the 20° of hysteresis: he commits to the retreat at 150°
+  // and does not come out of it until 130°.
   //
   // Humanoids only. A crab does not counter-rotate its waist, and neither does a
   // wolf on four legs — gated on the gait (`standard`/`sprint`) plus a roster
   // opt-out (`strafeLegs: false`) for the bodies that walk upright but are not
   // built like people.
   legFrame(ctx, speed, dt) {
-    const st = this._legFrame || (this._legFrame = { turn: 0, rev: 0 });
+    const st = this._legFrame || (this._legFrame = { turn: 0, rev: 0, back: false });
     const on = this.canStrafeTurn() && ctx.grounded !== false && speed > 0.4;
-    const drift = on ? (ctx.drift || 0) : 0;
-    // which way round is he actually walking?
-    const back = Math.abs(drift) > Math.PI / 2;
+    // OFF is an unwind, not a crossing: a mech that stops, jumps or leaves the
+    // strafe eases both back to neutral. Rebasing here instead would spin the
+    // legs a full half turn every time he came to a halt mid-retreat.
+    if (!on) {
+      st.back = false;
+      st.turn = angleDamp(st.turn, 0, LEG_TURN_RATE, dt);
+      st.rev = damp(st.rev, 0, LEG_TURN_RATE, dt);
+      return st;
+    }
+    const drift = ctx.drift || 0;
+    // which way round is he actually walking? (hysteresis: enter late, leave
+    // early, so the boundary cannot chatter)
+    const mag = Math.abs(drift);
+    const back = st.back ? mag > LEG_BACK_OFF : mag > LEG_BACK_ON;
+    st.back = back;
     const want = back ? wrapPi(drift - Math.PI) : drift;
     st.turn = angleDamp(st.turn, clamp(want, -LEG_TURN_MAX, LEG_TURN_MAX), LEG_TURN_RATE, dt);
-    // the cycle's direction is a 0..1 blend rather than a switch, so crossing
-    // the quarter-turn does not jump the stride to the other foot
+    // the cycle's direction is a 0..1 blend rather than a switch, so the stride
+    // eases through the reversal instead of jumping to the other foot
     st.rev = damp(st.rev, back ? 1 : 0, LEG_TURN_RATE, dt);
     return st;
   }
