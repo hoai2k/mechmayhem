@@ -272,6 +272,16 @@ export const GAIT_SCHEMA = [
         help: 'the speed ratio where the gallop STARTS coming in. Below it the body runs its biped '
           + 'gait untouched — for fenrir that is the sprint gait, so he jogs like a runner and only '
           + 'goes quadruped when he opens up' },
+      { key: 'snap', label: 'commit time (state transition)', min: 0, max: 1.5, step: 0.01,
+        joints: [], runtime: true,
+        help: 'SECONDS to cross from two legs to four, instead of crossing it by SPEED. 0 = off: the '
+          + 'blend is `blend-in speed` below, a straight function of the throttle, so a mech held at '
+          + 'the middle of that band stands there permanently half-galloping — fine for a body that '
+          + 'genuinely mixes the two. Above 0 the crossing becomes a STATE TRANSITION: past `drops to '
+          + 'four legs at` he commits to the gallop over this many seconds, below it he commits back, '
+          + 'and the only time he is in between is while the animation is blending. A fenrir thing. '
+          + '(Poses nothing on its own — it is a rate, and it needs the animator\'s memory, so the '
+          + 'workbench\'s throttle slider still previews the speed ramp underneath it.)' },
       { key: 'blend', label: 'blend-in speed', min: 0.05, max: 1, step: 0.01, joints: [],
         help: 'ratio span over which the gallop takes over from the biped stride, starting at the '
           + 'onset above: onset + this = fully on four legs' },
@@ -463,9 +473,18 @@ export const GAITS = {
   // sprinter, it is a different animal, and the honest way to say that is to
   // write it out.
   quad: {
-    base: 'sprint',
+    // BASE `standard`, not `sprint`. He is not a runner who drops onto all
+    // fours — below the onset he is a plain biped jogging, and above it he is a
+    // wolf. Two states with a transition between them, which is what `snap`
+    // below enforces; nothing should ever see him half-way for longer than the
+    // blend takes.
+    base: 'standard',
     name: 'Quadruped',
-    note: 'Sprinter\'s jog that opens into a wolf gallop: hinds drive as a pair against the fronts, spine arching on the gather.',
+    note: 'A standard jog that COMMITS into a wolf gallop: hinds drive as a pair against the fronts, spine arching on the gather.',
+    // his own rear extension, a walk-table dial: shorter than standard's so his
+    // back feet stop passing through the blade-tail behind him. Only fenrir runs
+    // this gait, so `standard` itself is untouched.
+    legs: { extend: -0.93 },
     // ---- AT FULL GALLOP: the owner's tuning, verbatim ----
     runLegs: {
       // reach 1.2 -> 0 (owner): the forward half of the stride was being shaped
@@ -499,7 +518,10 @@ export const GAITS = {
     runArms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
     runBody: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
     quad: {
-      onset: 0.40, blend: 0.35, stride: 0.85, lag: 0.30,
+      // `snap`: he COMMITS in a quarter of a second rather than crossfading over
+      // a third of his speed range — see Animator.gallopState. `blend` is still
+      // what a stateless reader (the workbench's dial sweep) uses.
+      onset: 0.40, blend: 0.35, snap: 0.25, stride: 0.85, lag: 0.30,
       // drop 0.32 -> 0.30: the 180-degree hind stride below needs the room, and
       // at 0.32 the paws swung 0.44 units UNDER the floor at full gallop
       bodyPitch: 0.60, bodyArch: 0.50, drop: 0.30, heave: 0.15,
@@ -545,9 +567,18 @@ export const GAITS = {
  * `effectiveGait` crossfades the dials with it, so the carriage and the gallop
  * are never out of step with each other.
  */
-export function gallopBlend(gait, ratio) {
+export function gallopBlend(gait, ratio, q) {
   const Q = gait?.quad;
   if (!Q) return 0;
+  // A CALLER MAY OWN THIS INSTEAD. `quad.snap` turns the crossfade from a
+  // function of SPEED into a state transition (see Animator.gallopState): the
+  // mech commits to four legs or two and only passes through the middle, rather
+  // than jogging along half-way between them at a steady 55% throttle. That
+  // needs memory, which a pure function has none of, so the animator works the
+  // number out and hands it in. Everything that has no state — the workbench's
+  // dial sweep, any probe — leaves it undefined and gets the speed ramp, which
+  // is still the honest answer to "what does this dial do across the band".
+  if (typeof q === 'number') return clamp01(q);
   return clamp01((ratio - (Q.onset ?? 0.4)) / Q.blend);
 }
 
@@ -562,9 +593,9 @@ export function gallopBlend(gait, ratio) {
  * `out` is a caller-owned scratch object so the per-frame path allocates
  * nothing; the source gait is never written to.
  */
-export function effectiveGait(gait, ratio, out) {
+export function effectiveGait(gait, ratio, out, qIn) {
   if (!MORPH_GROUPS.some((g) => gait[runGroupId(g)])) return gait;
-  const q = gallopBlend(gait, ratio);
+  const q = gallopBlend(gait, ratio, qIn);
   if (q <= 1e-4) return gait;
   const dst = out || {};
   const own = dst.__morph || (dst.__morph = { legs: {}, ankle: {}, arms: {}, body: {} });
@@ -838,7 +869,7 @@ export function applyQuadGait(tgt, gait, env) {
   // BELOW THE ONSET THIS PASS DOES NOTHING, which is the point: what is left is
   // the base gait, untouched. Fenrir's base is `sprint`, so his jog is a
   // runner's jog and the wolf only arrives as he opens up.
-  const q = clamp01((ratio - (Q.onset ?? 0.4)) / Q.blend);
+  const q = gallopBlend(gait, ratio, env.quadQ);
   if (q <= 0.01) return;
   const g = ph * Q.stride;                       // longer gallop stride
   const hind = Math.sin(g), hind2 = Math.sin(g + Q.lag);
