@@ -699,6 +699,19 @@ audio). Progress history: `TASKS.md`.
   striking hand/foot (clip `strikeArm` / `strikeLimb`, else the extremity
   leading furthest forward), and bullets/beams test the swept segment.
   `Fighter.hitRadius` is unchanged and still owns AoE falloff + broad phase.
+  THE PART TABLE DESCRIBES A HUMANOID, and `bucketsFromSkin` folds every
+  non-game bone UP into its nearest named ancestor — right for a finger, a
+  disaster for a body that is not a humanoid (cranky's four extra crab legs all
+  landed in the `hips` bucket, which then could not contain any of them). So any
+  bone carrying >=1% of the mesh that the 15 joints cannot name gets its OWN
+  capsule, `x:<bone>`, derived from the skin so a new rig is covered the day it
+  lands. ADDITIVE — the ancestor keeps its geometry, so no existing capsule
+  changes; taking it away instead was measured and cost nine mechs their
+  containment. Extras are capped at half the torso radius (they are appendages;
+  uncapped, a capsule at the end of a spear bloats the target). Judge it with
+  `node tools/hurtboxfit.mjs` (contain must not fall, bloat should sit near 1.0)
+  and `node tools/hitprobe.mjs` A/B'd against a stashed copy — the connect rate
+  swings ±5 points run to run, so a single run proves nothing.
 - MELEE AUTO-AIM steers a live swing on BOTH axes, in `fighter.js`:
   `aimStrikeAt` laterally (torso twist + palm clamp) and `elevateStrikeAt` in
   HEIGHT — the striking limb is pulled into the target's CHEST-TO-CROWN band
