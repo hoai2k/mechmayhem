@@ -7,7 +7,7 @@
 // legacy ?debug=3d that now just means "default") is deliberately NOT handled
 // here — choosing the model set is a real game toggle, routed through the
 // normal boot path, not a dev mode.
-// The five model workbenches moved to their own page (/workbench/), so the
+// The model workbenches live on their own page (/workbench/), so the
 // old URLs are now redirects. Every node tool, bookmark and doc link that says
 // ?debug=skin keeps working, and lands on the same tool with the same mech.
 const WORKBENCH_REDIRECTS = {
@@ -18,18 +18,18 @@ const WORKBENCH_REDIRECTS = {
   'debug=gait': 'gait',
   'rigedit': 'rig',
 };
-// The workbench page also answers ?edit=<tool>, and the LEVEL BUILDER (the one
-// editor that stays on the game page, because it needs a real arena) answers
-// ?edit=level. Anything else asking for ?edit= on the game page means a
-// workbench tool — send it next door rather than silently booting the game.
-const GAME_PAGE_EDITORS = ['level'];
+// ?edit=<tool> is the workbench page's own url, so ANY ?edit= on the game page
+// means a workbench tool — send it next door rather than silently booting the
+// game. The arena editor (?edit=level) was the last one that lived here; it
+// moved with the rest, so the game page now carries no authoring surface at
+// all and this is a pure redirect.
 
 function workbenchRedirect(params) {
   const debug = params.get('debug');
   let tool = debug ? WORKBENCH_REDIRECTS['debug=' + debug] : null;
   if (!tool && params.has('rigedit')) tool = 'rig';
   const edit = params.get('edit');
-  if (!tool && edit && !GAME_PAGE_EDITORS.includes(edit)) tool = edit;
+  if (!tool && edit) tool = edit;
   if (!tool) return false;
   const next = new URLSearchParams();
   next.set('edit', tool);
@@ -40,7 +40,8 @@ function workbenchRedirect(params) {
   if (mech) next.set('mech', mech);
   // per-tool params that still mean the same thing on the other side
   for (const k of ['alt', 'variant', 'model', 'clip', 'left', 'at', 'dummy', 'ball',
-    'prop', 'throttle', 'game', 'anim', 'compare']) {
+    'prop', 'throttle', 'game', 'anim', 'compare',
+    'arena', 'seed', 'load', 'theme']) {   // the arena editor's own subject params
     if (params.has(k)) next.set(k, params.get(k));
   }
   const base = location.pathname.replace(/[^/]*$/, '');
@@ -55,9 +56,7 @@ export function runDevMode(params) {
   // — without this every debug page (and so every tools/shot.mjs screenshot)
   // renders behind a full-screen ROBOTWORLD curtain.
   const dropSplash = () => document.getElementById('boot-splash')?.remove();
-  if (params.get('edit') === 'level') {
-    import('../editor/leveleditor.js').then(({ runLevelEditor }) => runLevelEditor(params));
-  } else if (params.has('showcase')) {
+  if (params.has('showcase')) {
     import('./showcase.js').then(({ runShowcase }) => runShowcase(params.get('showcase')));
   } else if (debug === 'actions') {
     import('./actiontest.js').then(({ runActionTest }) => runActionTest());

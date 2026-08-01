@@ -1,7 +1,8 @@
 # The workbenches
 
-Model-authoring tools, on their own page, for a game they only know through a
-config object.
+Model- and level-authoring tools, on their own page, for a game they only know
+through a config object. Nothing here ships with the game: a `RW_DIST=1` build
+(tools/dist.mjs) drops this whole page from the build inputs.
 
 ```
 /workbench/?edit=animation&mech=colossus   GLB vs procedural, trigger moves, anchors
@@ -13,6 +14,8 @@ config object.
 /workbench/?edit=rig&mech=colossus         hand-place a skeleton
 /workbench/?edit=collider&mech=colossus    what combat actually hits
 /workbench/?edit=props&prop=toriiGate      arena props: original vs optimized
+/workbench/?edit=level&arena=neon         THE ARENA EDITOR: bake one of the 12
+                                          shipped arenas and move what's in it
 
 The chevron beside the panel title switches between them, carrying the current
 mech across. `?edit=hurtbox` is the collider tool's old name and still resolves.
@@ -42,9 +45,13 @@ workbench/
   adapters/
     robotworld/       the only place under workbench/ that imports from src/
     actionchars.js    robotworld's move descriptions
+    robotworld/arenapalette.js  what this game lets you place in an arena
     anchoruses.js     robotworld's "what does this anchor drive"
     mechclips.js      robotworld's per-mech clip list
-  tools/              the eight workbenches — no game imports at all
+  tools/              the nine workbenches — no game imports at all
+    level.js          the ARENA editor: everything about places arrives as
+                      config.arena, so the tool itself knows no theme, no prop
+                      and no level format
     stretchscan.js    the skin-deformation maths ?edit=skindebug measures with
   ui/                 shared chrome: panel, subject picker, variant picker, save
     mobile.js         the small-touch-screen layout (see below)

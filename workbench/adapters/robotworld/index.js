@@ -43,9 +43,13 @@ import {
   blendPatch, weldedAdjacency, enclaveScan,
 } from '../../../src/mechs/skinops.js';
 import { buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } from '../../../src/combat/hurtbox.js';
-import { PROPS } from '../../../src/arena/props.js';
+import { PROPS, PROP_MATS, mergePropMeshes } from '../../../src/arena/props.js';
 import { propManifest, loadPropModel, setPropAssetBase } from '../../../src/arena/propglb.js';
-import { THEMES, themePropNames } from '../../../src/arena/themes.js';
+import { THEMES, THEMES_BY_ID, themePropNames } from '../../../src/arena/themes.js';
+import { Arena } from '../../../src/arena/arena.js';
+import { emptyLevel, LEVEL_VERSION, PLAYTEST_KEY } from '../../../src/arena/level.js';
+import { levelFromArena } from '../../../src/arena/bake.js';
+import { ARENA_PALETTE, ARENA_PALETTE_BY_ID, ARENA_SWATCHES } from './arenapalette.js';
 import { Engine } from '../../../src/core/engine.js';
 import { World } from '../../../src/game/world.js';
 import { Input } from '../../../src/game/input.js';
@@ -68,6 +72,10 @@ export async function loadRobotworldConfig() {
 }
 
 const entryOf = (id, alt) => (alt ? manifest?.[id]?.alt : manifest?.[id]) || null;
+
+// A theme is shared config and an Arena is handed one to keep — the editor
+// builds arenas over and over, so every build gets its own copy.
+const detachTheme = (id) => JSON.parse(JSON.stringify(THEMES_BY_ID[id] || THEMES[0]));
 
 // SUBJECTS THAT ARE NOT GAME CONTENT. The reference body is pickable in every
 // workbench (bottom of the list, under the rule, like the work-in-progress
@@ -411,6 +419,88 @@ const CONFIG = defineWorkbenchConfig({
     // the loader + fitting rule the game itself uses, so what the workbench
     // stands in a viewport is scaled and seated exactly like the in-game prop
     load: (name, which) => loadPropModel(name, which === 'source' ? 'source' : 'optimized'),
+  },
+
+  // A THIRD FAMILY: the PLACES the subjects fight in. Characters and scenery
+  // are models; an arena is a recipe — a theme plus a seed that generates one
+  // particular city — so what ?edit=level needs is not "load this asset" but
+  // "build one of these, and tell me what you built".
+  arena: {
+    version: LEVEL_VERSION,
+    themes: () => THEMES.map((t) => ({ id: t.id, name: t.name })),
+    // per-theme defaults the palette seeds a new object with
+    tints: (id) => (THEMES_BY_ID[id] || THEMES[0]).buildings.tints,
+    bridgeColor: (id) => (THEMES_BY_ID[id] || THEMES[0]).layout?.bridges?.color,
+    blank: (id) => emptyLevel(id),
+
+    // BUILD ONE FOR REAL. The editor opens a shipped arena by building it
+    // exactly as a match does and reading `arena.recipe` back (see bake()) —
+    // anything cheaper would be a second implementation of the scatter rules.
+    // The caller disposes it; the far skyline is hidden because it is
+    // camera-locked in a match and reads as unselectable black boxes in a
+    // free-orbit editor.
+    build: (engine, id, seed = 7) => {
+      const theme = detachTheme(id);
+      theme.recordRecipe = true;   // the one caller that wants the placement list
+      const a = new Arena(engine, theme, seed);
+      if (engine.backdrop) engine.backdrop.visible = false;
+      return a;
+    },
+    bake: (a, opts) => levelFromArena(a, opts),
+
+    // THE STAGE a level is edited ON: the same themed environment — sky,
+    // lights, ground, spawn plaza, exposure — with nothing placed in it,
+    // because everything placed is an editor proxy the tool owns.
+    stage: (engine, level) => {
+      const env = detachTheme(level.theme);
+      env.bounds = level.bounds / 2;             // Arena doubles it back
+      env.authored = [];
+      env.layout = {
+        clearing: level.clearing, plaza: level.plaza,
+        clusters: { count: 0, size: [2, 3] },
+        lanes: [], hills: null, bridges: null, viaduct: null, patches: [],
+      };
+      const a = new Arena(engine, env, 7);
+      engine.renderer.toneMappingExposure = (THEMES_BY_ID[level.theme] || THEMES[0]).exposure ?? 1.0;
+      if (engine.backdrop) engine.backdrop.visible = false;
+      return a;
+    },
+
+    // WHAT CAN BE PLACED, and how to build a stand-in for one
+    palette: () => ARENA_PALETTE,
+    paletteEntry: (id) => ARENA_PALETTE_BY_ID[id] || null,
+    swatches: () => ARENA_SWATCHES,
+    // a lone prop with no arena around it, baked per material the way the game
+    // bakes them — a full arena is 150+ props and each is a pile of meshes
+    prop: (name, opts = {}) => {
+      const build = PROPS[name];
+      if (!build) return null;
+      const o = { ...opts };
+      if (o.mat === 'ice') o.mat = PROP_MATS.ice;
+      const g = build(o);
+      mergePropMeshes(g);
+      return g;
+    },
+    // materials shared by every prop of a kind: an editor that disposes its
+    // proxies must not dispose these or it breaks the next prop built
+    sharedMaterials: () => new Set(Object.values(PROP_MATS)),
+
+    // authored level FILES, relative to the workbench page one directory down
+    levels: {
+      list: () => fetch('../levels/manifest.json').then((r) => (r.ok ? r.json() : [])).catch(() => []),
+      load: (name) => fetch(`../levels/${name}.json`).then((r) => (r.ok ? r.json() : null)),
+    },
+
+    // PLAY WHAT YOU ARE EDITING. The game reads the stash under PLAYTEST_KEY
+    // when a battle names the level `__edit`, so handing it over is a
+    // sessionStorage write plus the url that consumes it (`../` — the game
+    // page is one up from here).
+    fighters: () => playableRoster().map((m) => ({ id: m.id, name: m.name })),
+    playtest: (level, { p1, p2 } = {}) => {
+      sessionStorage.setItem(PLAYTEST_KEY, JSON.stringify(level));
+      const q = new URLSearchParams({ battle: level.theme, level: '__edit', p1, p2 });
+      return `../?${q.toString()}`;
+    },
   },
 
   // measurement helpers the tools need but that are engine-shaped, not

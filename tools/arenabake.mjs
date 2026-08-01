@@ -23,7 +23,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
-await page.goto('http://localhost:5173/?edit=level&arena=neon', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:5173/workbench/?edit=level&arena=neon', { waitUntil: 'networkidle' });
 await page.waitForFunction(() => window.__leveleditor, null, { timeout: 30000 });
 
 const results = await page.evaluate(async ({ seed, themes }) => {
@@ -59,6 +59,7 @@ const results = await page.evaluate(async ({ seed, themes }) => {
   });
   for (const id of list) {
     const base = JSON.parse(JSON.stringify(THEMES.find((t) => t.id === id)));
+    base.recordRecipe = true;   // Arena only writes the placement list when asked
     const a1 = new Arena(eng, base, seed);
     const f1 = fingerprint(a1);
     const level = levelFromArena(a1, { name: id });

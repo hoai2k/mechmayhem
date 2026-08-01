@@ -17,6 +17,7 @@ const shots = [
   ['gait',      'http://localhost:5173/workbench/?edit=gait&mech=viper&model=mannequin&throttle=0.5', 20000],
   ['collider',  'http://localhost:5173/workbench/?edit=collider&mech=titanus&clip=heavy&at=hit', 16000],
   ['props',     'http://localhost:5173/workbench/?edit=props&prop=toriiGate&spin=0', 14000],
+  ['level',     'http://localhost:5173/workbench/?edit=level&arena=uptown', 40000],
 ];
 // a name filter keeps one tool's re-shoot from disturbing the others
 const only = process.argv.slice(2);

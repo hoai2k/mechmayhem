@@ -1,4 +1,4 @@
-// ?edit=level — the ROBOTWORLD ARENA EDITOR.
+// /workbench/?edit=level — THE ARENA EDITOR.
 //
 // This is an editor of ARENAS, not a blank-canvas builder. Pick one of the 12
 // shipped arenas from the top bar and the editor BAKES it: the arena is built
@@ -22,8 +22,13 @@
 // a drawer behind ＋ ADD.
 //
 // Design notes:
-// - The environment (sky, lights, ground, spawn plaza) is a real Arena built
-//   from the current theme with no placed objects, so the stage looks in-game.
+// - Like every workbench, this tool imports NO GAME CODE. Arenas, themes,
+//   props, the palette, the level format and the playtest hand-off all arrive
+//   through `config.arena` (workbench/config/contract.js documents it,
+//   workbench/adapters/robotworld/ answers it). three.js is not game code —
+//   it is the renderer both sides share — so it is imported directly.
+// - The environment (sky, lights, ground, spawn plaza) is a real arena stage
+//   built from the current theme with no placed objects, so it looks in-game.
 //   It's rebuilt only when the theme / size / plaza changes.
 // - Everything you place is a lightweight editor proxy in `worldGroup`; the 8
 //   tiling ghosts are clones. Nothing here mutates the shared prop materials.
@@ -32,20 +37,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Engine } from '../core/engine.js';
-import { Arena } from '../arena/arena.js';
-import { THEMES, THEMES_BY_ID } from '../arena/themes.js';
-import { PROPS, PROP_MATS, mergePropMeshes } from '../arena/props.js';
-import { ROSTER } from '../mechs/roster.js';
-import { emptyLevel, LEVEL_VERSION, PLAYTEST_KEY } from '../arena/level.js';
-import { levelFromArena } from '../arena/bake.js';
-import { CATALOG, CATALOG_BY_ID, SWATCHES } from './catalog.js';
-import { setupDevPanel } from '../../workbench/ui/panel.js';
+import { setupDevPanel } from '../ui/panel.js';
 
 const WRAP = 1.35;                 // arena wrapHalf = bounds * 1.35
 const LS_PREFIX = 'rw_level:';     // saved-slot keys
 const LS_AUTOSAVE = 'rw_level:__autosave';
-const SHARED_MATS = new Set(Object.values(PROP_MATS));  // never dispose these
 
 // kinds that live across the whole wrap cell rather than at an (x,z) — they
 // get no tiling ghosts, and a drag adjusts their centreline offset
@@ -55,8 +51,17 @@ const TURNABLE = new Set(['prop', 'bridge', 'spawn']);
 const _bar = new THREE.Vector3();  // scratch, for projecting the selection anchor
 const DEFAULT_HINT = 'Drag an object to move it · shift-click adds to the selection · shift-drag marquees · R turns · Alt-drag copies · ＋ ADD for new pieces';
 
-export async function runLevelEditor(params) {
-  const engine = new Engine(document.getElementById('game-canvas'));
+export async function runLevelWorkbench(config, params) {
+  const AR = config.arena;
+  const THEMES = AR.themes();
+  const THEME_NAME = (id) => THEMES.find((t) => t.id === id)?.name || id;
+  const IS_THEME = (id) => THEMES.some((t) => t.id === id);
+  const CATALOG = AR.palette();
+  const SWATCHES = AR.swatches();
+  const SHARED_MATS = AR.sharedMaterials();   // never dispose these
+  const LEVEL_VERSION = AR.version;
+
+  const engine = config.stage.engine(document.getElementById('game-canvas'));
   const { scene, camera, renderer } = engine;
 
   // ---------------------------------------------------------------- state
@@ -67,7 +72,7 @@ export async function runLevelEditor(params) {
   const loadName = params.get('load');
   const arenaName = params.get('arena');
   const blankTheme = params.get('theme');
-  let level = emptyLevel('neon');
+  let level = AR.blank('neon');
   let items = [];          // { id, def, obj3d, ghosts:[] } — EVERY editable thing
   let sel = [];            // current selection (array — multi-select is normal)
   let paletteSel = null;   // active palette entry (place mode) or null
@@ -79,7 +84,8 @@ export async function runLevelEditor(params) {
   // rather than <select> elements: everything the UI builds lives below the
   // `return engine`, so a handle declared down there is never initialised —
   // which is exactly why Playtest used to throw on its own mech pickers.
-  let ptP1 = ROSTER[0].id, ptP2 = ROSTER[1]?.id || ROSTER[0].id;
+  const FIGHTERS = AR.fighters();
+  let ptP1 = FIGHTERS[0].id, ptP2 = FIGHTERS[1]?.id || FIGHTERS[0].id;
   let bakeSeed = +(params.get('seed') || 7) || 7;
   let sourceLabel = '';    // what the top bar says we are editing
   const spinners = [];     // editor proxies that idle-spin for life
@@ -143,44 +149,30 @@ export async function runLevelEditor(params) {
   // ================================================================ ENV
   function rebuildEnv() {
     if (envArena) { envArena.dispose(); envArena = null; }
-    // a themed stage with NO placed objects and no procedural terrain — just
-    // sky, lights, ground and the spawn plaza. Everything else is an editor proxy.
-    const base = THEMES_BY_ID[level.theme] || THEMES[0];
-    const env = JSON.parse(JSON.stringify(base));
-    env.bounds = level.bounds / 2;                 // Arena doubles it back
-    env.authored = [];
-    env.layout = { clearing: level.clearing, plaza: level.plaza, clusters: { count: 0, size: [2, 3] }, lanes: [], hills: null, bridges: null, viaduct: null, patches: [] };
-    envArena = new Arena(engine, env, 7);
-    renderer.toneMappingExposure = base.exposure ?? 1.0;
-    // the arena's far skyline is camera-locked in a real match, but in the
-    // editor's free-orbit view it just reads as static black boxes you can't
-    // select — hide it so only the editable play cell shows.
-    if (engine.backdrop) engine.backdrop.visible = false;
+    // the themed environment with NO placed objects — sky, lights, ground and
+    // the spawn plaza. Everything else on it is an editor proxy.
+    envArena = AR.stage(engine, level);
   }
 
   // ================================================================ BAKING AN ARENA
   // Build the chosen arena for real, read it back as a level, throw the build
   // away. Anything the editor can't hold onto would be a fidelity bug, so this
-  // deliberately goes through the same Arena the game runs.
+  // deliberately goes through the game's own arena builder.
   function bakeArena(themeId, seed) {
-    const base = THEMES_BY_ID[themeId] || THEMES[0];
-    // detached copy: Arena mutates nothing, but a theme is shared config
-    const t = JSON.parse(JSON.stringify(base));
-    const tmp = new Arena(engine, t, seed);
-    const baked = levelFromArena(tmp, { name: `${base.name} (edit)` });
+    const tmp = AR.build(engine, themeId, seed);
+    const baked = AR.bake(tmp, { name: `${THEME_NAME(themeId)} (edit)` });
     tmp.dispose();
-    if (engine.backdrop) engine.backdrop.visible = false;
     return baked;
   }
 
   function openArena(themeId, seed) {
-    setHint(`Baking ${(THEMES_BY_ID[themeId] || THEMES[0]).name}…`);
+    setHint(`Baking ${THEME_NAME(themeId)}…`);
     // one frame of breathing room so the hint actually paints before the
     // (synchronous, ~half-second) arena build blocks the thread
     requestAnimationFrame(() => {
       const baked = bakeArena(themeId, seed);
       loadLevelData(baked);
-      sourceLabel = `${(THEMES_BY_ID[themeId] || THEMES[0]).name} · seed ${seed}`;
+      sourceLabel = `${THEME_NAME(themeId)} · seed ${seed}`;
       setHint(`${baked.objects.length} objects loaded from ${sourceLabel}. Click anything to edit it.`);
       refreshSource();
     });
@@ -351,16 +343,10 @@ export async function runLevelEditor(params) {
   }
 
   function buildPropProxy(def) {
-    const builder = PROPS[def.name];
-    if (!builder) return new THREE.Group();
-    const opts = { ...(def.opts || {}), seed: def.opts?.seed || def.seed || 1, ry: 0 };
-    if (opts.mat === 'ice') opts.mat = PROP_MATS.ice;
-    const g = builder(opts);
+    const g = AR.prop(def.name, { ...(def.opts || {}), seed: def.opts?.seed || def.seed || 1, ry: 0 });
+    if (!g) return new THREE.Group();
     if (def.s && def.s !== 1) g.scale.setScalar(def.s);
     if (g.userData.spin) spinners.push(g);
-    // a baked arena is 150+ props and each is a pile of small meshes; the game
-    // bakes them per material for exactly this reason, so the editor does too
-    mergePropMeshes(g);
     return g;
   }
 
@@ -660,7 +646,6 @@ export async function runLevelEditor(params) {
   function placeFromPalette(p) {
     const world = marker.userData.pos;
     if (!world) return;
-    const theme = THEMES_BY_ID[level.theme] || THEMES[0];
     let def;
     if (p.k === 'lane') {
       const axis = Math.abs(world.x) > Math.abs(world.z) ? 'x' : 'z';
@@ -670,11 +655,11 @@ export async function runLevelEditor(params) {
       const axis = Math.abs(world.x) > Math.abs(world.z) ? 'x' : 'z';
       def = { k: 'viaduct', axis, at: axis === 'z' ? snap(world.x) : snap(world.z), amp: 0, phase: 0, h: 6.8, w: 7.5, rampL: 14, r0: 0, pylonEvery: 3, color: 0x3a3f46, edge: null };
     } else if (p.k === 'building') {
-      def = { k: 'building', x: snap(world.x), z: snap(world.z), nx: 2, ny: 5, nz: 2, cw: 3.6, ch: 3.3, cd: 3.6, tint: theme.buildings.tints[0] };
+      def = { k: 'building', x: snap(world.x), z: snap(world.z), nx: 2, ny: 5, nz: 2, cw: 3.6, ch: 3.3, cd: 3.6, tint: AR.tints(level.theme)[0] };
     } else if (p.k === 'hill') {
       def = { k: 'hill', x: snap(world.x), z: snap(world.z), R: 13, H: 4, deck: !!p.deck, color: p.deck ? 0x515a68 : undefined, edge: p.deck ? 0x53e8ff : undefined };
     } else if (p.k === 'bridge') {
-      def = { k: 'bridge', x: snap(world.x), z: snap(world.z), axis: 'x', flat: 12, H: 3.2, color: theme.layout?.bridges?.color, edge: 0x53e8ff };
+      def = { k: 'bridge', x: snap(world.x), z: snap(world.z), axis: 'x', flat: 12, H: 3.2, color: AR.bridgeColor(level.theme), edge: 0x53e8ff };
     } else if (p.k === 'patch') {
       def = { k: 'patch', kind: p.kind, x: snap(world.x), z: snap(world.z), r: 9, glow: null, color: null };
     } else if (p.k === 'spawn') {
@@ -887,14 +872,14 @@ export async function runLevelEditor(params) {
 
   const resume = loadAutosave();
   if (loadName) {
-    fetch(`levels/${loadName}.json`).then((r) => r.ok ? r.json() : null).then((d) => {
+    AR.levels.load(loadName).then((d) => {
       if (d) { loadLevelData(d); sourceLabel = `level “${d.name || loadName}”`; refreshSource(); setHint(`Loaded “${d.name || loadName}”.`); }
       else { console.error('level load: not found', loadName); openArena('neon', bakeSeed); }
     }).catch((e) => { console.error('level load failed:', e); openArena('neon', bakeSeed); });
-  } else if (arenaName && THEMES_BY_ID[arenaName]) {
+  } else if (arenaName && IS_THEME(arenaName)) {
     openArena(arenaName, bakeSeed);
-  } else if (blankTheme && THEMES_BY_ID[blankTheme]) {
-    loadLevelData(emptyLevel(blankTheme));
+  } else if (blankTheme && IS_THEME(blankTheme)) {
+    loadLevelData(AR.blank(blankTheme));
     sourceLabel = 'blank arena';
     refreshSource();
     setHint('Empty arena — ＋ ADD to place your first object, or pick an arena above to edit one.');
@@ -932,8 +917,12 @@ export async function runLevelEditor(params) {
       btn('⟳', () => { bakeSeed = Math.floor(Math.random() * 9999) + 1; seedIn.value = bakeSeed; if (level.theme) openArena(level.theme, bakeSeed); }, 'mini'));
     seedRow.querySelector('.le-mini').title = 'Reroll this arena with a new seed';
 
+    // the logo is the way back to the other workbenches — this tool has its own
+    // chrome, so it doesn't wear the shared title bar with the switcher chevron
+    const logo = tag('a', 'le-logo', 'ARENA EDITOR');
+    logo.href = './'; logo.title = 'All workbenches';
     bar.append(
-      tag('span', 'le-logo', 'ARENA EDITOR'),
+      logo,
       arenaSel, seedRow,
       tag('span', 'le-sep'),
       btn('↶', undo, 'mini'), btn('↷', redo, 'mini'),
@@ -1004,7 +993,7 @@ export async function runLevelEditor(params) {
       for (const n of slots) { const o = document.createElement('option'); o.value = 'slot:' + n; o.textContent = n; sg.append(o); }
       s.append(sg);
     }
-    fetch('levels/manifest.json').then((r) => r.ok ? r.json() : []).then((list) => {
+    AR.levels.list().then((list) => {
       if (!Array.isArray(list) || !list.length) return;
       const fg = document.createElement('optgroup'); fg.label = 'Level files';
       for (const n of list) { const o = document.createElement('option'); o.value = 'file:' + n; o.textContent = n; fg.append(o); }
@@ -1014,13 +1003,13 @@ export async function runLevelEditor(params) {
     s.onchange = () => {
       const v = s.value;
       if (v.startsWith('theme:')) openArena(v.slice(6), bakeSeed);
-      else if (v.startsWith('blank:')) { loadLevelData(emptyLevel(v.slice(6))); sourceLabel = 'blank arena'; refreshSource(); setHint('Empty arena — ＋ ADD to place your first object.'); }
+      else if (v.startsWith('blank:')) { loadLevelData(AR.blank(v.slice(6))); sourceLabel = 'blank arena'; refreshSource(); setHint('Empty arena — ＋ ADD to place your first object.'); }
       else if (v.startsWith('slot:')) {
         const raw = localStorage.getItem(LS_PREFIX + v.slice(5));
         if (raw) { loadLevelData(JSON.parse(raw)); sourceLabel = `save “${v.slice(5)}”`; refreshSource(); }
       } else if (v.startsWith('file:')) {
         const n = v.slice(5);
-        fetch(`levels/${n}.json`).then((r) => r.ok ? r.json() : null).then((d) => {
+        AR.levels.load(n).then((d) => {
           if (d) { loadLevelData(d); sourceLabel = `level “${d.name || n}”`; refreshSource(); setHint(`Loaded “${d.name || n}”.`); }
           else alert('Could not load level: ' + n);
         }).catch((err) => alert('Load failed: ' + err.message));
@@ -1131,10 +1120,10 @@ export async function runLevelEditor(params) {
         addNum('Depth (chunks)', () => d.nz, (v) => { d.nz = clampi(v, 1, 8); rebuildProxy(it); }, 1);
         addNum('Height (chunks)', () => d.ny, (v) => { d.ny = clampi(v, 1, 16); rebuildProxy(it); }, 1);
       }
-      addColor('Tint', () => d.tint, (v) => { d.tint = v; rebuildProxy(it); }, (THEMES_BY_ID[level.theme] || THEMES[0]).buildings.tints);
+      addColor('Tint', () => d.tint, (v) => { d.tint = v; rebuildProxy(it); }, AR.tints(level.theme));
     } else if (d.k === 'prop') {
       addNum('Scale', () => d.s || 1, (v) => { d.s = clampf(v, 0.3, 4); rebuildProxy(it); }, 0.1);
-      const cat = CATALOG_BY_ID[propCatId(d.name)];
+      const cat = AR.paletteEntry(propCatId(d.name));
       if (cat && cat.color) addColor('Colour', () => d.opts?.color ?? SWATCHES[0], (v) => { d.opts = { ...(d.opts || {}), color: v }; rebuildProxy(it); }, SWATCHES);
     } else if (d.k === 'hill') {
       addToggle('Platform deck', () => !!d.deck, (v) => { d.deck = v; if (v && !d.edge) d.edge = 0x53e8ff; rebuildProxy(it); reseatProps(); });
@@ -1218,8 +1207,8 @@ export async function runLevelEditor(params) {
       rowSelect('Grid size', ['1', '2', '4', '5', '8'].map((x) => ({ v: x, l: x + 'm' })), String(gridSize), (v) => { gridSize = +v; rebuildHelpers(); updatePivot(); }),
       btnRow('⤓ Top-down view', () => { camera.position.set(0, P() * 0.9, 0.01); orbit.target.set(0, 0, 0); orbit.update(); }),
       tag('div', 'le-h', 'PLAYTEST'),
-      rowSelect('Fighter 1', ROSTER.map((m) => ({ v: m.id, l: m.name })), ptP1, (v) => { ptP1 = v; }),
-      rowSelect('Fighter 2', ROSTER.map((m) => ({ v: m.id, l: m.name })), ptP2, (v) => { ptP2 = v; }),
+      rowSelect('Fighter 1', FIGHTERS.map((m) => ({ v: m.id, l: m.name })), ptP1, (v) => { ptP1 = v; }),
+      rowSelect('Fighter 2', FIGHTERS.map((m) => ({ v: m.id, l: m.name })), ptP2, (v) => { ptP2 = v; }),
     );
     showModal('<h3>Arena settings</h3>', body);
   }
@@ -1254,14 +1243,14 @@ export async function runLevelEditor(params) {
     const fname = (level.name || 'level').replace(/\W+/g, '-').toLowerCase() + '.json';
     a.download = fname; a.click();
     const body = el('div');
-    body.innerHTML = `Exported <b>${fname}</b> (also copied to clipboard).<br><br>To play it in the game:<br>1. Save the file to <code>public/levels/${fname}</code><br>2. Open <code>?battle=${level.theme}&amp;level=${fname.replace('.json', '')}&amp;p1=titanus&amp;p2=viper</code><br><br>Or just hit <b>▶ Playtest</b> to try it right now.<br><textarea class="le-out" readonly>${txt.replace(/</g, '&lt;')}</textarea>`;
+    body.innerHTML = `Exported <b>${fname}</b> (also copied to clipboard).<br><br>To play it in the game:<br>1. Save the file to <code>public/levels/${fname}</code><br>2. Open <code>../?battle=${level.theme}&amp;level=${fname.replace('.json', '')}&amp;p1=titanus&amp;p2=viper</code><br><br>Or just hit <b>▶ Playtest</b> to try it right now.<br><textarea class="le-out" readonly>${txt.replace(/</g, '&lt;')}</textarea>`;
     showModal('<h3>Export</h3>', body);
   }
   function playtest() {
-    try { sessionStorage.setItem(PLAYTEST_KEY, serialize()); }
+    let url;
+    try { url = AR.playtest(JSON.parse(serialize()), { p1: ptP1, p2: ptP2 }); }
     catch { alert('Could not stash level for playtest.'); return; }
-    const q = new URLSearchParams({ battle: level.theme, level: '__edit', p1: ptP1, p2: ptP2 });
-    window.open('?' + q.toString(), '_blank');
+    window.open(url, '_blank');
   }
 
   // ================================================================ MODALS
@@ -1313,7 +1302,7 @@ export async function runLevelEditor(params) {
 
   // Dispose a proxy. `keepShared` (ghost clones) shares geometry+materials with
   // its source proxy, so it disposes NOTHING. For a real proxy we dispose the
-  // per-instance geometry always, but never the shared PROP_MATS singletons
+  // per-instance geometry always, but never the shared prop-material singletons
   // (disposing those would break every other prop using them).
   function disposeObj(o, keepShared) {
     if (keepShared) return;
@@ -1352,7 +1341,8 @@ function injectCss() {
   #ui-root { pointer-events: none; }
   .le-bar { position:fixed; top:0; left:0; right:0; height:44px; display:flex; align-items:center; gap:6px; padding:0 10px;
     background:linear-gradient(#0e1420ee,#0a0f18ee); border-bottom:1px solid #223047; z-index:60; font:13px system-ui,sans-serif; }
-  .le-logo { color:#7fe9ff; font-weight:700; letter-spacing:.06em; margin-right:8px; font-size:12px; }
+  .le-logo { color:#62ff9a; font-weight:700; letter-spacing:.06em; margin-right:8px; font-size:12px; text-decoration:none; }
+  .le-logo:hover { color:#a6ffc6; }
   .le-sep { width:1px; height:22px; background:#22314c; margin:0 4px; }
   .le-btn { background:#182338; color:#cfe0f5; border:1px solid #2c3d57; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:12px; }
   .le-btn:hover { background:#22314c; }

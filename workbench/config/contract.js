@@ -155,6 +155,32 @@
  *   toJson(ops, ind)  -> the manifest text for a skinOps array
  *   blendPatch / weldedAdjacency / enclaveScan — selection helpers
  *   ops(id, opts) / seamCuts(id, opts) / save(id, ops, opts)
+ * @property {Object} arena          a THIRD family after characters and props:
+ *                                  the PLACES a match happens in. An arena is
+ *                                  not an asset but a RECIPE — a theme plus a
+ *                                  seed that generates one particular city — so
+ *                                  what an editor needs is "build one of these,
+ *                                  and tell me what you built". Omit the
+ *                                  section and ?edit=level isn't offered.
+ *   version           -> the level format's version number
+ *   themes()          -> [{ id, name }] the arenas this game ships
+ *   tints(id) / bridgeColor(id) -> per-theme defaults a new object is seeded with
+ *   blank(id)         -> an empty level on that theme
+ *   build(engine, id, seed) -> a REAL arena, built the way a match builds it.
+ *                        The caller disposes it. This is what makes editing a
+ *                        shipped arena possible without a second copy of the
+ *                        generation rules living in the tool.
+ *   bake(arena, {name}) -> that arena as an editable level
+ *   stage(engine, level) -> the same themed environment with NOTHING placed in
+ *                        it — sky, lights, ground, exposure — because
+ *                        everything placed is an editor proxy the tool owns
+ *   palette() / paletteEntry(id) / swatches() -> WHAT can be placed
+ *   prop(name, opts)  -> a stand-in for one placed thing
+ *   sharedMaterials() -> materials the editor must never dispose
+ *   levels.list() / levels.load(name) -> authored level files
+ *   fighters()        -> who can be dropped into a playtest
+ *   playtest(level, {p1,p2}) -> hand the level to the game; returns the url
+ *
  * @property {Object} hurtbox         hit-volume measurement
  * @property {Object} stage           a live 3D scene with the game's own loop
  * @property {Object} persist         where edits go: manifest / rig / changes

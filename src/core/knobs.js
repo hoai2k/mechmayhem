@@ -145,7 +145,7 @@ export const KNOWN_PARAMS = [
   'ref', 'vert', 'vs', 'prints', 'scan', 'i', 'alldials',
   // player / input harness switches
   'p', 'p1', 'p2', 'p3', 'p4', 'kb1', 'kb2', 'pad', 'input', 'touch',
-  'notouch', 'desktop', 'layout',
+  'notouch', 'desktop', 'layout', 'mobile', 'phone',
   // scripted-input harness (dev/actiontest.js)
   'light', 'heavy', 'special', 'ult', 'ranged', 'jump', 'dash', 'block',
   'duck', 'taunt', 'strafe', 'fin', 'c', 'c1',

@@ -19,6 +19,7 @@ audio). Progress history: `TASKS.md`.
 - WORKBENCHES LIVE ON THEIR OWN PAGE: `/workbench/?edit=<tool>&mech=<id>` —
   `animation` (procedural-vs-GLB action comparison + anchor editor),
   `pose` (joints + clip keyframes), `gait` (the walk/run cycle's own dials),
+  `level` (THE ARENA EDITOR — see below),
   `skin` (bone-island repair),
   `skindebug` (the SKIN AUDIT — see below), `rig`
   (hand-placed skeletons), `collider` (what combat hits), `props`
@@ -695,7 +696,7 @@ audio). Progress history: `TASKS.md`.
   in twin viewports with one shared camera, with triangle/texture/VRAM/file
   deltas and a size check; the mesh merge is judged by flipping `?props=raw`
   on a battle URL, since it changes draw calls and not pixels.
-- THE ARENA EDITOR (`?edit=level`) EDITS THE SHIPPED ARENAS, not just blank
+- THE ARENA EDITOR (`/workbench/?edit=level`) EDITS THE SHIPPED ARENAS, not just blank
   canvases. Pick one of the 12 from the top-bar dropdown and it is BAKED: the
   arena is built for real, exactly as a match builds it, and every massed
   tower, every prop with its own yaw and seed, the lanes, hills, bridges,
@@ -704,6 +705,17 @@ audio). Progress history: `TASKS.md`.
   directly, `&seed=<n>` picks the layout, `&theme=<id>` still means a BLANK
   level on that theme and `&load=<name>` still edits
   `public/levels/<name>.json`. `?battle=<theme>&level=<name>` plays one.
+  IT IS A WORKBENCH like the rest: it lives at `/workbench/?edit=level`, imports
+  no game code, and reaches arenas / themes / props / the palette / the level
+  format / the playtest hand-off through `config.arena` (contract.js documents
+  it, `workbench/adapters/robotworld/` answers it, and the palette of placeable
+  things is adapter data in `arenapalette.js`). The old game-page url
+  `?edit=level` redirects here carrying `arena`/`seed`/`load`/`theme`. So the
+  GAME PAGE now carries no authoring surface at all, and a `RW_DIST=1` build —
+  which drops the /workbench/ page — contains none of the editor.
+  `Arena` writes its `recipe` ONLY when the theme says `recordRecipe` (the
+  adapter's `arena.build()` is the one caller that does): a match has no use for
+  the placement list and should not be building it.
   THE BAKE READS A BUILT ARENA rather than re-running the generator: `Arena`
   writes every building and prop it places into `arena.recipe` as it places
   them (raw tint — the authored path re-applies `tintFor`), Terrain already

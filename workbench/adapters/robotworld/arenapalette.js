@@ -1,20 +1,26 @@
-// Palette catalog for the level editor. Every placeable thing the game knows
-// about, grouped for the palette UI. Prop entries map straight onto PROPS[name]
-// in src/arena/props.js; terrain entries (building / hill / bridge / lane) are
-// handled specially by the editor. `color: true` surfaces a colour swatch in
-// the inspector; the default opts seed the first placement.
+// WHAT THIS GAME LETS YOU PLACE IN AN ARENA — the arena editor's palette.
 //
-// This list intentionally covers ALL arena props (so anything that can appear
-// in a shipped arena can be placed by hand) plus the editor's new obstacle and
-// terrain types.
+// Adapter data, not tool data: every entry names a robotworld prop, lane kind
+// or terrain type, so it belongs beside the rest of the answers to "what does
+// this game mean by …" rather than inside `workbench/tools/level.js`, which
+// knows nothing about any particular game's scenery. The tool reads it as
+// `config.arena.palette()`.
+//
+// Prop entries map straight onto PROPS[name] in src/arena/props.js; terrain
+// entries (building / hill / bridge / lane / patch / viaduct) are handled
+// specially by the editor. `color: true` surfaces a colour swatch in the
+// inspector; the default opts seed the first placement.
+//
+// This list intentionally covers ALL arena props, so anything that can appear
+// in a shipped arena can also be placed by hand.
 
 // shared accent swatches for colourable props/terrain
-export const SWATCHES = [
+export const ARENA_SWATCHES = [
   0x53e8ff, 0xff4dd8, 0x62ff9a, 0xffb43c, 0xff5040,
   0xb46bff, 0xffd23c, 0x2ee6c8, 0x9bff3c, 0xffffff,
 ];
 
-export const CATALOG = [
+export const ARENA_PALETTE = [
   {
     group: 'Structures', items: [
       { id: 'building', label: 'Tower', k: 'building', hint: 'Destructible chunk tower — footprint & height in the inspector' },
@@ -198,5 +204,5 @@ export const CATALOG = [
 ];
 
 // flat lookup by palette id
-export const CATALOG_BY_ID = {};
-for (const g of CATALOG) for (const it of g.items) CATALOG_BY_ID[it.id] = it;
+export const ARENA_PALETTE_BY_ID = {};
+for (const g of ARENA_PALETTE) for (const it of g.items) ARENA_PALETTE_BY_ID[it.id] = it;

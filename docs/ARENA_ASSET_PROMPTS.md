@@ -153,7 +153,7 @@ background, soft even studio light, no ground shadow, no scene, no text.
 - **snowcat** (frozen) > A tracked snowcat utility vehicle, orange cab with roof lights, wide rubber-steel tracks, front dozer blade, frost on the windows, single object centered, 3/4 view, plain grey background, soft even lighting
 
 After dropping GLBs in, check any arena with that prop — or the level editor
-(`?edit=level`, palette places every prop) — and tweak the `fit` height in
+(`/workbench/?edit=level`, the ＋ ADD palette places every prop) — and tweak the `fit` height in
 `public/models/props/manifest.json` if a model reads too big/small.
 
 ---

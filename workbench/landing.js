@@ -1,6 +1,6 @@
 // The workbench FRONT DOOR — /workbench/ with no ?edit=.
 //
-// Seven tools share this page, and the URL used to be the only map of them:
+// Nine tools share this page, and the URL used to be the only map of them:
 // land here bare and you were silently dropped into the animation workbench,
 // mistype a tool id and you got a terse error. Both now come here instead — a
 // card per workbench, its real screenshot, what it is for, click to open.
@@ -72,6 +72,13 @@ const TOOLS = [
       + 'viewports with one shared camera — judge the model diet, catch any '
       + 'size drift.',
   },
+  {
+    id: 'level', title: 'Arena Editor', color: '#62ff9a',
+    tag: 'arenas · levels',
+    desc: 'Open one of the 12 shipped arenas and change it. Every tower, prop, '
+      + 'lane and hill it generated becomes something you can drag, turn, copy '
+      + 'or delete — then play it, or export it as a level.',
+  },
 ];
 
 export function runLanding(unknownTool = null) {
@@ -118,10 +125,11 @@ export function runLanding(unknownTool = null) {
   <div class="wb-land"><div class="wb-wrap">
     <div class="wb-head">
       <h1>ROBOTWORLD <b>WORKBENCHES</b></h1>
-      <p>The model-authoring tools, on their own page. Every tool opens on a
-      subject and keeps it in the URL, so a link or a screenshot always lands
-      back on the same thing; the chevron in a tool’s title bar hops between
-      them without losing your place.</p>
+      <p>The authoring tools — models, and the arenas they fight in — on their
+      own page. Every tool opens on a subject and keeps it in the URL, so a link
+      or a screenshot always lands back on the same thing; the chevron in a
+      tool’s title bar hops between them without losing your place. None of this
+      ships with the game.</p>
       ${unknownTool ? `<div class="wb-warn">No workbench called
         “${String(unknownTool).replace(/[<>&"]/g, '')}” — pick one below.</div>` : ''}
     </div>
@@ -137,8 +145,7 @@ export function runLanding(unknownTool = null) {
         </a>`).join('')}
     </div>
     <div class="wb-foot">
-      Also lives on the game page: the <a href="../?edit=level">arena editor</a>
-      (<code>?edit=level</code>) and the <a href="../?showcase">mech showcase</a>
+      Also lives on the game page: the <a href="../?showcase">mech showcase</a>
       (<code>?showcase</code>). Back to <a href="../">the game</a>.
     </div>
   </div></div>`;
