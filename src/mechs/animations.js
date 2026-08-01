@@ -1115,6 +1115,77 @@ const CLIPS_RAW = {
     ],
     events: [{ t: 0.29, type: 'sfx', arg: 'whooshBig' }, { t: 0.32, type: 'hit', arg: 0 }, { t: 0.33, type: 'sfx', arg: 'block' }, { t: 0.34, type: 'shake', arg: 0.5 }],
   },
+  // ---------- JERRY: the claw rakes (his light chain) ----------
+  // The shared jab trio is a BOXER's kit — punches sold with torso twist, and
+  // the third one an uppercut. On a shrimp none of that reads: the carapace
+  // slewing around was the visible motion, and an uppercut swings a downward-
+  // hanging claw the wrong way entirely. These are OVERHAND RAKES: the claw
+  // chambers UP AND OVER the shell, past vertical, then slams down-and-forward
+  // through the target — a claw is a pick, not a fist. The shell stays nearly
+  // square throughout (torso yaw ≤5° against the shared trio's 22-30°): the
+  // arm is the whole show. R first, L is the mirror, and the finisher below
+  // brings both down together.
+  jerryRakeR: {
+    strikeArm: 'R', // ONE-ARMED blow — see Fighter.aimStrikeAt
+    dur: 0.55,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.18, ease: 'outCubic', pose: { shoulderR: [-148, -8, 14], elbowR: [-64, 0, 0], handR: [-24, 0, 0], shoulderL: [4, 0, -14], torso: [-4, 5, 2], head: [-4, -4, 0], hipsPos: [0, -0.05, -0.05] } },
+      { t: 0.3, ease: 'inCubic', pose: { shoulderR: [-34, 4, -6], elbowR: [-4, 0, 0], handR: [26, 0, 0], shoulderL: [8, 0, -16], torso: [9, -5, -2], head: [2, 3, 0], hipsPos: [0, -0.1, 0.08] } },
+      { t: 0.4, ease: 'outQuad', pose: { shoulderR: [-42, 2, -2], handR: [12, 0, 0], torso: [6, -3, -1] } },
+      { t: 0.55, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0], shoulderR: [0, 0, 10], elbowR: [-12, 0, 0], handR: [0, 0, 0], shoulderL: [0, 0, -10] } },
+    ],
+    events: [{ t: 0.2, type: 'sfx', arg: 'whoosh' }, { t: 0.3, type: 'hit', arg: 0 }],
+  },
+  jerryRake2: { // combo finisher: BOTH claws chamber over the shell and come
+    // down as one — the two-arm blow at the end of the rake chain. Slightly
+    // longer wind-up than the singles, a knee dip under the impact, and still
+    // no body yaw: symmetric limbs, square shell.
+    dur: 0.62,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.2, ease: 'outCubic', pose: { shoulderL: [-152, 6, -16], shoulderR: [-152, -6, 16], elbowL: [-60, 0, 0], elbowR: [-60, 0, 0], handL: [-24, 0, 0], handR: [-24, 0, 0], torso: [-6, 0, 0], head: [-6, 0, 0], hipsPos: [0, -0.06, -0.08] } },
+      { t: 0.34, ease: 'inCubic', pose: { shoulderL: [-36, -4, -4], shoulderR: [-36, 4, 4], elbowL: [-4, 0, 0], elbowR: [-4, 0, 0], handL: [28, 0, 0], handR: [28, 0, 0], torso: [10, 0, 0], head: [3, 0, 0], hipsPos: [0, -0.12, 0.1], kneeL: [10, 0, 0], kneeR: [10, 0, 0] } },
+      { t: 0.46, ease: 'outQuad', pose: { torso: [7, 0, 0], hipsPos: [0, -0.06, 0.04] } },
+      { t: 0.62, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], handL: [0, 0, 0], handR: [0, 0, 0] } },
+    ],
+    events: [{ t: 0.24, type: 'sfx', arg: 'whooshBig' }, { t: 0.34, type: 'hit', arg: 2 }, { t: 0.36, type: 'shake', arg: 0.3 }],
+  },
+  // ---------- JERRY: the barrage (his heavy) ----------
+  // REAR BACK, then eight quick forward-and-downward claw strikes, arms
+  // alternating — a frenzy, not one blow. Every `hit` event resolves a full
+  // strike, so the roster's heavy dmg/knock are PER HIT (8 × 11 ≈ one shared
+  // heavy when most land) and knock stays small so the victim is pummelled in
+  // place rather than launched off the second hit. The shell leans in and
+  // stays leaned — all the travel is in the claws.
+  jerryBarrage: {
+    dur: 1.3,
+    keys: [
+      { t: 0, pose: {} },
+      // the rear-back: shell tips back and low, both claws cocked over the top
+      { t: 0.3, ease: 'outCubic', pose: { torso: [-14, 0, 0], head: [-10, 0, 0], hipsPos: [0, -0.08, -0.18], shoulderL: [-150, 6, -16], shoulderR: [-150, -6, 16], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0], handL: [-24, 0, 0], handR: [-24, 0, 0], kneeL: [12, 0, 0], kneeR: [12, 0, 0] } },
+      // the barrage: one claw down-and-forward while the other re-cocks, at a
+      // strike every 0.09s — each key IS one alternation extreme
+      { t: 0.38, ease: 'inCubic', pose: { torso: [8, -3, 0], head: [0, 0, 0], hipsPos: [0, -0.1, 0.06], shoulderR: [-34, 2, -4], elbowR: [-6, 0, 0], handR: [24, 0, 0], shoulderL: [-128, 4, -10], elbowL: [-56, 0, 0], handL: [-20, 0, 0] } },
+      { t: 0.47, ease: 'inOutQuad', pose: { torso: [8, 3, 0], shoulderL: [-34, -2, 4], elbowL: [-6, 0, 0], handL: [24, 0, 0], shoulderR: [-128, -4, 10], elbowR: [-56, 0, 0], handR: [-20, 0, 0] } },
+      { t: 0.56, ease: 'inOutQuad', pose: { torso: [8, -3, 0], shoulderR: [-34, 2, -4], elbowR: [-6, 0, 0], handR: [24, 0, 0], shoulderL: [-128, 4, -10], elbowL: [-56, 0, 0], handL: [-20, 0, 0] } },
+      { t: 0.65, ease: 'inOutQuad', pose: { torso: [8, 3, 0], shoulderL: [-34, -2, 4], elbowL: [-6, 0, 0], handL: [24, 0, 0], shoulderR: [-128, -4, 10], elbowR: [-56, 0, 0], handR: [-20, 0, 0] } },
+      { t: 0.74, ease: 'inOutQuad', pose: { torso: [8, -3, 0], shoulderR: [-34, 2, -4], elbowR: [-6, 0, 0], handR: [24, 0, 0], shoulderL: [-128, 4, -10], elbowL: [-56, 0, 0], handL: [-20, 0, 0] } },
+      { t: 0.83, ease: 'inOutQuad', pose: { torso: [8, 3, 0], shoulderL: [-34, -2, 4], elbowL: [-6, 0, 0], handL: [24, 0, 0], shoulderR: [-128, -4, 10], elbowR: [-56, 0, 0], handR: [-20, 0, 0] } },
+      { t: 0.92, ease: 'inOutQuad', pose: { torso: [8, -3, 0], shoulderR: [-34, 2, -4], elbowR: [-6, 0, 0], handR: [24, 0, 0], shoulderL: [-128, 4, -10], elbowL: [-56, 0, 0], handL: [-20, 0, 0] } },
+      { t: 1.01, ease: 'inOutQuad', pose: { torso: [8, 3, 0], shoulderL: [-34, -2, 4], elbowL: [-6, 0, 0], handL: [24, 0, 0], shoulderR: [-128, -4, 10], elbowR: [-56, 0, 0], handR: [-20, 0, 0] } },
+      { t: 1.3, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], handL: [0, 0, 0], handR: [0, 0, 0] } },
+    ],
+    events: [
+      { t: 0.28, type: 'sfx', arg: 'whooshBig' },
+      { t: 0.38, type: 'hit', arg: 0 }, { t: 0.47, type: 'hit', arg: 0 },
+      { t: 0.56, type: 'hit', arg: 0 }, { t: 0.6, type: 'sfx', arg: 'whoosh' },
+      { t: 0.65, type: 'hit', arg: 0 }, { t: 0.74, type: 'hit', arg: 0 },
+      { t: 0.83, type: 'hit', arg: 0 }, { t: 0.87, type: 'sfx', arg: 'whoosh' },
+      { t: 0.92, type: 'hit', arg: 0 }, { t: 1.01, type: 'hit', arg: 0 },
+      { t: 1.04, type: 'shake', arg: 0.4 },
+    ],
+  },
   pounceLeap: { // SAURION pounce airtime — legs cocked under the body, sickle claws
     // raised to strike, arms swept back, head locked on prey (values are deltas
     // over his raptor rest pose)
@@ -1196,6 +1267,7 @@ CLIPS_RAW.fistCatchL = mirrorRaw(CLIPS_RAW.fistCatch);   // ...and catching it b
 CLIPS_RAW.bigPunch2 = mirrorRaw(CLIPS_RAW.bigPunch1); // right haymaker, same wind-up
 CLIPS_RAW.punchHold2 = mirrorRaw(CLIPS_RAW.punchHold1); // right-arm charge
 CLIPS_RAW.punchRelease2 = mirrorRaw(CLIPS_RAW.punchRelease1);
+CLIPS_RAW.jerryRakeL = mirrorRaw(CLIPS_RAW.jerryRakeR); // the other claw's rake
 CLIPS_RAW.stomp2 = mirrorRaw(CLIPS_RAW.stomp); // left-foot trample
 CLIPS_RAW.rollUpL = mirrorRaw(CLIPS_RAW.rollUpR); // righting roll the other way
 // Opposite-arm twins of the shared punch trio, so a light combo can be thrown
@@ -1334,6 +1406,10 @@ export const LIGHT_ARM = {
   // is described correctly if either ever drops the hold.
   bigPunch1: { arm: 'L', twin: 'bigPunch2' },
   bigPunch2: { arm: 'R', twin: 'bigPunch1' },
+  // jerry's claw rakes: the alternation machinery works the same, the finisher
+  // (jerryRake2) is two-armed and symmetric so it has no twin and no entry
+  jerryRakeR: { arm: 'R', twin: 'jerryRakeL' },
+  jerryRakeL: { arm: 'L', twin: 'jerryRakeR' },
 };
 
 // ---------- GLB clip variants (glbanim clipOverrides) ----------

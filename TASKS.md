@@ -5729,3 +5729,28 @@ Files: `src/editor/leveleditor.js` (rewritten), `src/arena/bake.js` (new),
 `src/arena/level.js` (viaduct passthrough + cells), `src/arena/terrain.js`
 (`V.r0`), `src/editor/catalog.js` (patches, elevated loop),
 `tools/arenabake.mjs` (new), `src/core/knobs.js` (`arena`, `seed`).
+
+JERRY'S ATTACKS ARE HIS OWN NOW
+--------------------------------
+LIGHTS: OVERHAND CLAW RAKES (bespoke jerryRakeR / jerryRakeL / jerryRake2,
+LIGHT_ARM-registered so the combo alternation machinery works unchanged). The
+shared jab trio was a boxer's kit — punches sold with 22-30 degrees of torso
+twist and an uppercut third — and on a shell none of it reads: the carapace
+slewing around was the visible motion, and an uppercut swings a downward-
+hanging claw the wrong way. Each rake chambers the claw UP AND OVER the shell
+past vertical, then slams it down-and-forward through the target; torso yaw
+stays under 5 degrees, the arm is the whole show. The third blow is the
+two-claw version: both chamber together and come down as one, with a knee dip
+under the impact. The glbanim light-shaping hook (torso damp + arm boost over
+the shared clips) is gone — bespoke clips authored with a quiet shell replace
+what it was patching.
+
+HEAVY: THE BARRAGE (jerryBarrage). Rear back — shell tips back and low, both
+claws cocked over the top — then EIGHT quick forward-and-downward strikes,
+arms alternating at 0.09s a swing, and a leaned-in shell that holds still
+while the claws work. Every `hit` event resolves a full strike, so the
+roster's heavy numbers are now PER HIT: dmg 11 x 8 = 88 potential against the
+old single 76, knock 3 so the victim is pummelled in place rather than
+launched off the second hit, launch 0. clawSnap goes back to being cranky's
+(with its noTwistClips rule, which the barrage does not want — tracking the
+victim through eight strikes is the point).
