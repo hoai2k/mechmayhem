@@ -565,17 +565,22 @@ export const ROSTER = [
     // way he gets height is the spring in his legs and then the WALL (see
     // `climb` below + combat/climb.js).
     stats: { hp: 980, speed: 9.8, jump: 30, jumpWindup: 0.18, weight: 0.45, armor: 0.08, duck: 0.9, blockMult: 0.15, noHover: true },
-    // WALL CLIMBING (combat/climb.js; shared feel in TUNING.climb). The
-    // splayed arthropod legs that make him look wrong as a biped make him
-    // right as a gecko, so he is ALWAYS climbing: walk into a building face
-    // and he goes up it, jump at one and he lands on it, with the body damping
-    // over onto the surface and hands and feet planted on whatever he is
-    // crossing. The way off is the jump — with a direction, a leap that way;
-    // with nothing held, he lets go and drops.
-    //   speed   — climbing pace, x his own walk speed
-    //   reach   — how far ahead of his skin a face is felt, x body height
-    //   stepUp  — anything shorter than this (x body height) is not a wall at
-    //             all: he STEPS OVER it without breaking stride
+    // SURFACE WALKING (combat/climb.js; shared feel in TUNING.climb). The
+    // splayed arthropod legs that make him look wrong as a biped make him right
+    // as a gecko, so he does not walk on the FLOOR, he walks on the WORLD: up a
+    // facade, over its lip, across the roof, down the far side, over the crates
+    // on the way, with his body riding the average orientation of whatever is
+    // under his feet and each claw planted on whatever is nearest it. There is
+    // no mode and no moment of attaching — walking at a wall simply becomes
+    // walking up it. The way off is the jump: with a direction, a leap that
+    // way; with nothing held, he lets go and drops.
+    //   speed   — climbing pace, x his own walk speed (only at full tilt: over
+    //             a low bump he keeps his ordinary pace)
+    //   reach   — how far from his feet a surface is FELT, x body height. This
+    //             is the one number that decides the whole feel: it is the
+    //             radius of the field the walker averages, so it is both how
+    //             early a wall starts tipping him onto it and how far he can
+    //             stray from a surface before he is simply falling.
     //   pose    — additive body-space bias while on the wall, faded in with the
     //             tilt. `hipsPos` is in the same units as combatPose (x
     //             dims.scale) and is the important one: a mech STANDING on a
@@ -585,7 +590,7 @@ export const ROSTER = [
     //             onto it — then the claws reach ahead up the face, the shell
     //             flattens, and the head cranes back to look where he is going.
     climb: {
-      speed: 0.72, reach: 0.28, stepUp: 0.34,
+      speed: 0.72, reach: 0.3,
       pose: {
         hipsPos: [0, -2.3, 0],
         torso: [-30, 0, 0], head: [34, 0, 0],

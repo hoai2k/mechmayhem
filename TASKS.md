@@ -12,7 +12,42 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE CLIMBING MODE IS GONE — Jerry is simply always climbing, which
+- **Latest:** CLIMBING REBUILT AS A SURFACE WALKER, from scratch. The owner's
+  report: walking Jerry into a building clipped it, hopped him up one block, made
+  the building turn transparent, and flipped his facing between forward and
+  upward. Every one of those is the same root cause — the old code ATTACHED TO
+  ONE PLANE, and a single plane cannot express a corner, so every corner was a
+  discontinuity with a scripted special case bolted over it.
+  THE NEW MODEL NEVER NAMES A SURFACE. Each frame it asks what is near his feet
+  and reduces the answer to a FIELD: `n`, the distance-weighted average outward
+  normal of every live chunk, settled rubble block, prop cylinder and patch of
+  terrain in reach, and `cp`, the nearest point on any of it. His `up` damps
+  toward `n` (literally "the average orientation his feet indicate"), his stick
+  is rotated by the same `Q = world-up -> body-up` (identity on the floor, a
+  quarter turn on a wall), and his feet are eased to a standoff off the surface.
+  That is the whole thing — and every corner in the arena becomes arithmetic:
+  walking at a wall grows the wall's weight until forward IS up; stepping past a
+  roof lip leaves only the EDGE in reach, whose normal rotates from up to outward
+  as he crosses it, so he tips over and walks down with no wrap special case.
+  MEASURED on one held stick: ground -> wall -> terrace -> wall -> roof -> far lip
+  -> 49 units down, worst single-frame body rotation **7.1 degrees** and **zero**
+  unexplained movement (the probe now measures continuity every frame, which is
+  the thing that was actually broken).
+  DELETED: `Fighter.stepUp` and its hooks in destructible.js/arena.js — that was
+  literally the "hops up one block"; the walker subsumes it, since a knee-high
+  crate is just a surface with a gentle normal. Also `arena.climbProbe`,
+  `propClimbProbe`, `destructo.climbProbe`/`columnTop`/`columnBase`, and the
+  attach/top-out/wrap phases.
+  THE CAMERA NO LONGER GHOSTS HIS BUILDING: you cannot read a climb against a
+  wall you can see through, so the occlusion fade is skipped for a view whose own
+  player is surface-walking, and the chase ORBIT is rotated into his frame by the
+  same `upRotation` — the offset that sits behind-and-above a mech on the ground
+  sits outside-and-behind one on a facade. Moved, never rolled: screen up stays
+  world up, so a vertical climb reads as moving up the screen, which is what the
+  stick does too.
+  One real bug found by the rewritten probe: the stick-pull targeted the sample
+  point rather than the standoff, burying his feet 0.5 units under the pavement.
+- **Previous:** THE CLIMBING MODE IS GONE — Jerry is simply always climbing, which
   is both what the owner asked for and a lot less machinery. Walk into anything
   too tall to step over and he takes it; JUMP at one and he lands on it, contact
   alone, nothing held and nothing pressed. Deleted with the mode: the grab press

@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { clamp, lerp, damp, angleDamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
+import { upRotation } from '../combat/climb.js';
 
 // WHICH WAY IS UP. Every pitch input — right stick, touch look-drag, combined
 // view or split — goes through this, so the two view modes can't drift apart
@@ -23,6 +24,11 @@ const _lift = new THREE.Vector3();   // per-frame scratch (was allocated per fig
 // fighter's raw `pos` orbits at the spin rate — every framing read below goes
 // through focusPos so the camera tracks the smooth falling base instead.
 const _fpA = new THREE.Vector3();
+// SURFACE WALKING (combat/climb.js): the chase orbit is rotated into the
+// walker's own frame, and pulled out toward the surface normal as he tips onto
+// it, so the eye ends up outside the wall looking back at him.
+const _climbQ = new THREE.Quaternion();
+const CLIMB_EL = 0.6;
 const _fpB = new THREE.Vector3();
 const _fpSeg = new THREE.Vector3();
 
@@ -413,7 +419,9 @@ export class CameraSystem {
     // solo chase cam rides low — ghost buildings that hide the PLAYER's own
     // mech (enemies may still use cover; the camera never physically
     // reacts to buildings, it only fades the ones hiding your character)
-    if (solo) {
+    // A SURFACE WALKER'S BUILDING IS NEVER GHOSTED (see the note on the chase
+    // cams below): the thing he is standing on must stay solid.
+    if (solo && !humans[0]?.climb) {
       const seg = this._segs[0];
       seg.from.copy(this.cPos);
       this.fillSegTargets(seg, this.cPos, humans[0]);
@@ -506,12 +514,31 @@ export class CameraSystem {
       // tight. Near-instant when not a giant, so normal framing is unchanged.
       if (ch.dist === undefined) ch.dist = baseDist;
       ch.dist = this.giantZoomDamp(ch.dist, baseDist * this.zoomMul, gf, 12, dt);
-      const el = ch.el;
+      // A SURFACE WALKER (combat/climb.js) ORBITS IN HIS OWN FRAME. A mech on a
+      // facade has the building between him and a world-space chase cam, and
+      // the answer is NOT to ghost the building he is standing on — you cannot
+      // read a climb against a wall you can see through. So the whole orbit is
+      // rotated by his own up: the offset that sits behind-and-above a mech on
+      // the ground sits outside-and-behind one on a wall, which keeps him in
+      // clear view with the surface solid underneath. The camera is only MOVED,
+      // never rolled — screen up stays world up, so a vertical climb still
+      // reads as moving up the screen, which is also what the stick does (the
+      // same rotation maps both).
+      // Elevation eases toward `CLIMB_EL` with the tilt, pulling the eye out
+      // perpendicular to the surface rather than skimming along it.
+      const tilt = f._climbTilt || 0;
+      const el = ch.el + (CLIMB_EL - ch.el) * tilt;
       _v.set(
         Math.sin(ch.az) * Math.cos(el), Math.sin(el), Math.cos(ch.az) * Math.cos(el)
       ).multiplyScalar(ch.dist);
       const fp = f.focusPos(_fpA);
-      const wantPos = _v.add(fp).add(_lift.set(0, 2 * gf, 0));
+      _lift.set(0, 2 * gf, 0);
+      if (tilt > 0.01 && f.climbUp) {
+        upRotation(f.climbUp, _climbQ);
+        _v.applyQuaternion(_climbQ);
+        _lift.applyQuaternion(_climbQ);
+      }
+      const wantPos = _v.add(fp).add(_lift);
       // the chase cam tracks ONLY its own mech — opponents never pull the
       // frame; use the right stick to look around
       const lookAhead = _center.copy(fp);
@@ -533,8 +560,13 @@ export class CameraSystem {
       views.push({ camera: cam, ...vp });
 
       // ghost any building between this camera and its own mech — tagged
-      // with THIS view's camera so the fade renders only in this viewport
+      // with THIS view's camera so the fade renders only in this viewport.
+      // NOT while he is surface-walking: the building he is on stays solid,
+      // and the orbit above has already moved the eye somewhere it can see him.
+      // (A hole in `segsUsed` is fine — setOccluders indexes by view and skips
+      // an empty one.)
       const seg = this._segs[i];
+      if (f.climb) { segsUsed.push(null); continue; }
       seg.from.copy(ch.pos);
       this.fillSegTargets(seg, ch.pos, f);
       seg.cam = ch.camera;
