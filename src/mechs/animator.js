@@ -139,6 +139,38 @@ export class Animator {
     this.fired = false;                 // convenience flag combat can poll
   }
 
+  // ---------------------------------------------------------------------------
+  // TWO LEGS OR FOUR — a state, not a mixture.
+  //
+  // The gallop normally crosses in as a function of SPEED: `quad.onset` to
+  // `onset + blend`, so at the middle of that band the mech is permanently
+  // half-wolf. For a body that genuinely mixes the two that is right. FENRIR is
+  // not that body — he jogs like a biped and gallops like a wolf, and there is
+  // no animal that spends its afternoon halfway between. `quad.snap` (seconds)
+  // turns the crossing into a transition he PASSES THROUGH: past the onset he
+  // commits to four legs over `snap` seconds, below it he commits back, and the
+  // only time he is in between is while that blend runs.
+  //
+  // HYSTERESIS is what makes it a state rather than a twitch. Without it, a mech
+  // held at exactly the onset flips target every frame that the speed noise
+  // crosses it and the body shivers between gaits; the threshold to commit UP is
+  // a little above the one to fall back DOWN, so the decision sticks.
+  //
+  // Returns undefined when the dial is off, which is the signal to gaits.js to
+  // use the speed ramp it always did — every other mech is untouched, and so is
+  // every stateless caller (the workbench's dial sweep, tools/gaitprobe).
+  gallopState(ratio, dt) {
+    const Q = this.gait?.quad;
+    const snap = Q?.snap || 0;
+    if (!Q || snap <= 0) { this._quadQ = undefined; return undefined; }
+    const onset = Q.onset ?? 0.4;
+    const hyst = Math.min(0.08, (Q.blend ?? 0.35) * 0.5);
+    const was = this._quadQ ?? (ratio >= onset ? 1 : 0);
+    const want = ratio >= onset + hyst ? 1 : ratio <= onset - hyst ? 0 : (was > 0.5 ? 1 : 0);
+    this._quadQ = damp(was, want, 1 / Math.max(0.02, snap), dt);
+    return this._quadQ;
+  }
+
   // The tail chain this body has, measured once (see tailChainOf). Null for
   // every mech without one, which is all of them but fenrir today.
   tailChain() {
@@ -360,7 +392,8 @@ export class Animator {
       // this speed. Everything below runs on THIS, phase rate included, or half
       // the body would get the jog's numbers and half the run's. The scratch
       // object means the per-frame path still allocates nothing.
-      const gait = effectiveGait(this.gait, ratio, this._effGait || (this._effGait = {}));
+      const gait = effectiveGait(this.gait, ratio, this._effGait || (this._effGait = {}),
+        this.gallopState(ratio, dt));
       this._gait = gait;
       const legLen = this.D.thighLen + this.D.shinLen;
       this.phase += gaitPhaseRate(gait, { speed, ratio, legLen, sizeMul: this.sizeMul }) * dt;
@@ -429,6 +462,9 @@ export class Animator {
     // Rides OVER the biped stride above (which is what it lerps out of at
     // walking pace); the numbers are the gait's `quad` section — see gaits.js.
     if (grounded && speed > 0.4 && this.gait.quad) {
+      // …the SAME commitment the crossfade used, so the two layers cannot
+      // disagree about how much wolf is on screen
+      this._gaitEnv.quadQ = this._quadQ;
       applyQuadGait(tgt, this._gait, this._gaitEnv);
     }
     // hand-keyed corrections over the cycle, BEFORE the foot rule — a gait's

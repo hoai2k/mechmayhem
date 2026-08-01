@@ -136,7 +136,22 @@ audio). Progress history: `TASKS.md`.
   foot is the one part of the old gallop not worth restoring, so `runAnkle`
   names only the back-extension angle and the rest of the group stays sprint's,
   which is what `hang 0.26` on an airborne paw buys. A run table that names two
-  keys morphs two keys). The `run*` groups are DERIVED from
+  keys morphs two keys).
+  …AND FOR FENRIR IT IS NOT A MIXTURE BUT A STATE. `quad.snap` (seconds) turns
+  the crossfade from a function of SPEED into a transition he PASSES THROUGH:
+  past `quad.onset` he commits to four legs over `snap` seconds, below it he
+  commits back, and the only time he is in between is while that blend runs — no
+  throttle leaves him permanently half-wolf (measured: q = 0 at every settled
+  speed up to 45%, 1 from 50%, and hysteresis holds the state on the way back
+  down so a body sitting on the threshold cannot shiver between gaits). The
+  memory lives in `Animator.gallopState`, which hands the number to
+  `gallopBlend` through `effectiveGait`'s 4th argument and `env.quadQ`; leave it
+  out — as every stateless caller does, the workbench's dial sweep included —
+  and you get the speed ramp `quad.blend` always described. `snap: 0` is off,
+  which is every other gait. It is flagged `runtime: true` in the schema,
+  because it is neither a pose term nor the phase rate and no sweep can see it:
+  the workbench OFFERS a runtime dial rather than measuring it dead.
+  The `run*` groups are DERIVED from
   the four they mirror, so a new dial appears in both and in the workbench with
   no edit anywhere. Everything downstream must run on `effectiveGait`, phase
   rate included — the animator caches it per frame in `_gait`, the adapter
