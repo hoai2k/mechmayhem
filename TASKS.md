@@ -5874,3 +5874,49 @@ Files: `workbench/tools/level.js` (moved from `src/editor/leveleditor.js`),
 `workbench/ui/panel.js`, `workbench/README.md`, `src/dev/index.js`,
 `src/arena/arena.js` (`recordRecipe`), `src/core/knobs.js`,
 `tools/wbconfig.mjs`, `tools/wbthumbs.mjs`, `tools/arenabake.mjs`.
+
+WHY JERRY'S BLOWS WERE MISSING — THE HIT FIRED BEFORE THE CLAW ARRIVED
+-----------------------------------------------------------------------
+Reported as "the light and heavy attacks don't seem to land". Measured, it was
+three separate things, only one of which was a bug.
+
+THE BUG: A CLIP'S `hit` EVENT IS USUALLY AUTHORED ON THE STRIKE KEYFRAME, which
+quietly assumes the body arrives the instant the key does. It does not — the
+animator SMOOTHS toward each target, so the rendered pose lags the clip by a
+fixed wall-clock amount. A gentle swing hides that. Jerry's claw rake travels
+114 degrees in 0.12s, and at the authored hit time (t=0.30) the claw was still
+UP OVER HIS OWN BACK: measured 0.25 body heights forward and 1.0 up — at his
+own crown — reaching down-and-forward (0.57 fwd, 0.73 up) only at t≈0.32. The
+blow resolved at the top of the chamber and swung at the air behind him. The
+hit test was perfectly correct about a claw that was not there yet.
+
+Fixed by moving each hit one arrival-lag past its own strike key: rake
+0.30 -> 0.35, two-claw finisher 0.34 -> 0.39, and all eight barrage strikes
++0.03. Measured after: the rake resolves with the claw at 0.26 fwd / 0.50 up
+(chest height, out front) and every barrage strike with its own arm forward at
+0.24-0.40 fwd. Against cranky it now lands at 4, 6 and 8 units.
+
+NEW TOOL, because this class of bug is invisible by eye and silent in every
+existing check: `node tools/striketime.mjs <mech> [clips]` plays each clip on
+the real fighter and prints where the striking hand is AT EACH HIT EVENT, in
+the mech's own frame, next to where that hand's forward peak actually falls. A
+healthy strike has them together; a sick one has the peak later, and the gap
+IS the correction.
+
+NOT BUGS, but worth knowing, both pre-existing:
+
+ · CRANKY IS THE HARDEST TARGET IN THE GAME. His GLB hurtbox contains 51% of
+   his geometry — worst on the roster by 11 points (next is titanus 63%,
+   wraith 62%; jerry is 82%). His carapace is weighted almost entirely to the
+   hips, so `pelvis` fits a 2.46 capsule while `chest` gets 0.71 — the big
+   shell is nearly unhittable and `shinL` has no capsule at all. Any attacker
+   whiffs on cranky more than on anyone else. Fixing it is a skin repaint, not
+   a tuning change, so it is left as found and recorded here.
+
+ · JERRY'S AI BARELY MELEES, BY DESIGN. `preferredRange` maps his `goo` to 18
+   units ("outranges a slime gun"), and `melee` is `rangedPref <= 6` — so the
+   CPU plays him as a zoner. Measured over 5400 steps: titanus threw 97 swings
+   at viper, jerry threw 3 at cranky and 1 at titanus. His melee connect rate
+   is close to meaningless as an AI statistic; he wins those fights with the
+   Bilge Spit. This only matters when a HUMAN drives him, which is the case
+   the fix above addresses.
