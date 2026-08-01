@@ -14,10 +14,18 @@ import { ease, lerp, clamp, clamp01, damp, angleDamp, TAU } from '../core/utils.
 // WHEN THE LEGS GIVE UP AND WALK BACKWARDS. A strafe is not a back-pedal: only
 // travel that is very nearly straight AT the camera reverses the cycle, and
 // everything short of that — sideways, sideways-and-a-bit-behind — turns the
-// hips to face the way he is going and keeps striding forwards. Hysteresis, so
-// a stick wobbling on the boundary cannot flutter between the two.
-export const LEG_BACK_ON = 150 * Math.PI / 180;   // enter the reversed cycle
-export const LEG_BACK_OFF = 130 * Math.PI / 180;  // and leave it
+// hips to face the way he is going and keeps striding forwards.
+//
+// READ THESE OFF A CLOCK FACE, because that is how the complaint arrives: noon
+// is his facing, 3 is a pure right strafe, 6 is straight back. 5 o'clock is
+// 150°, and this line USED to sit exactly there — so the one direction most
+// likely to be held (sideways-and-back, retreating while circling) landed on
+// the boundary and flipped in and out of a backwards walk. It is 170° now:
+// everything up to and including 5 o'clock strides FORWARD with the hips turned
+// under a still-aiming chest, and only very nearly 6 reverses. 20° of
+// hysteresis on top, so the boundary itself cannot flutter.
+export const LEG_BACK_ON = 170 * Math.PI / 180;   // enter the reversed cycle
+export const LEG_BACK_OFF = 150 * Math.PI / 180;  // and leave it
 // HOW FAR THE HIPS MAY TURN off the body's facing, and how fast they get there.
 // Exactly the reversal threshold: past it the reversed cycle takes over (see
 // legFrame), so nothing ever has to spin the legs the long way round.
@@ -177,9 +185,9 @@ export class Animator {
   //
   // WHERE THAT LINE SITS IS THE WHOLE FEEL. It used to be a quarter turn, which
   // made "sideways with a little bit of backwards" a REVERSED cycle — a strafe
-  // that walked backwards, which is not what a strafe looks like. It is 150°
+  // that walked backwards, which is not what a strafe looks like. It is 170°
   // now (LEG_BACK_ON): a STRAFE NEVER REVERSES, only a genuine retreat does, and
-  // the hips are allowed the full 150° to get there.
+  // the hips are allowed the full 170° to get there.
   //
   // Crossing that line is a real half-turn of the pelvis — the two answers put
   // the legs on opposite sides of the body, so there is no sleight of hand that

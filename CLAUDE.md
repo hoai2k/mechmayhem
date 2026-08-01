@@ -150,13 +150,19 @@ audio). Progress history: `TASKS.md`.
   (`standard`/`sprint`) plus a roster opt-out `strafeLegs: false` — a crab does
   not counter-rotate its waist (cranky), and jerry (`arthropod`) and fenrir
   (`quad`) are excluded by their gaits.
-  A STRAFE NEVER REVERSES. That line was at a quarter turn, which made "sideways
-  with a little bit of backwards" a backwards walk; it is 150° now
-  (`LEG_BACK_ON`, leaving at 130° — 20° of hysteresis so it cannot flutter), and
-  the hips are allowed the full 150° of turn to reach it. Everything up to there
-  faces the way it is travelling with the cycle running FORWARD; only a genuine
-  retreat flips. Measured on titanus (legTurn / cycle direction): 45° +45 / + ·
-  90° +90 / + · 120° +120 / + · 150° +150 / + · 165° -15 / - · 180° 0 / -.
+  A STRAFE NEVER REVERSES, and READ THE LINE OFF A CLOCK FACE, because that is
+  how the complaint arrives: noon is his facing, 3 is a pure right strafe, 6 is
+  straight back. It was at a quarter turn (3 o'clock!), which made "sideways with
+  a little bit of backwards" a backwards walk; moving it to 150° put it exactly
+  on 5 O'CLOCK, one of the most-held directions there is (retreat while
+  circling), so it sat on the boundary and flipped in and out. It is 170° now
+  (`LEG_BACK_ON`, leaving at 150° — 20° of hysteresis so it cannot flutter), and
+  the hips are allowed the full 170° of turn to reach it. Everything up to and
+  including 5 o'clock faces the way it is travelling with the cycle running
+  FORWARD; only very nearly 6 flips. Measured on titanus, stance-foot drift along
+  travel (negative = pushing against the ground) with legTurn / cycle direction:
+  0° -3.95, 0 / + · 60° -3.93, +60 / + · 120° -4.61, +120 / + · 150° -5.55,
+  +150 / + · 165° -5.79, +165 / + · 180° -4.67, 0 / -. No moonwalk anywhere.
   Crossing it is a real half-turn of the pelvis — the two answers put the legs on
   opposite sides of the body, so nothing makes it free — and it is DAMPED like
   any other leg turn (~25°/frame at the peak, ~0.4s), reading as the mech
@@ -167,9 +173,9 @@ audio). Progress history: `TASKS.md`.
   as the intended direction swings behind the body the speed cap ramps down to
   `backMult` (0.7 x the WALK cap) and the sprint multiplier fades out with it —
   a dead-straight back-pedal is a fast walk at 0.44 of the run, whether or not B
-  is held. The ramp starts at `LEG_BACK_OFF`, so strafing costs nothing;
-  measured on titanus (walk 20.7, run 33.2): 0-120° 33.2 · 135° 31.0 · 150° 24.8
-  · 165° 19.3 · 180° 14.5. Only target lock can produce it at all — free camera
+  is held. The ramp starts at `LEG_BACK_OFF`, so everything the legs can still
+  face costs nothing; measured on titanus (walk 20.7, run 33.2): 0-150° 33.2 ·
+  160° 26.1 · 165° 22.9 · 170° 19.9 · 180° 14.5. Only target lock can produce it — free camera
   turns the body to face travel, so the offset is ~0 and it never engages.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
   `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
