@@ -657,8 +657,13 @@ audio). Progress history: `TASKS.md`.
   with a gentle normal.)
   THE LIMBS ARE A SPIDER STEPPER (`conformClimbLimbs`, run after the GLB
   retarget has synced so it writes the bones a rigged model renders). Each limb
-  has a HOME — the nearest surface to the spot under its own root, led along
-  the travel — and lives in one of three states: PLANTED (tip pinned to its
+  has a HOME — searched along a LADDER that starts OUT along the limb's own
+  SPLAY (its outboard direction in the body frame, `step.spread` x reach) and
+  walks inward only when the outer rungs have no reachable surface: a building
+  face plants the limb EXTENDED (stability through spread, and the symmetric
+  splay evens the extensions out around the body), a pole closes the grip in,
+  which is the "inward is a last resort" order — led along the travel — and
+  lives in one of three states: PLANTED (tip pinned to its
   plant point, however the body moves), SWINGING (a lifted arc to a new home
   when the plant falls `step.len` x reach behind, or the limb nears full
   stretch), or AIRBORNE (home beyond full extension l1+l2, measured live off
@@ -698,7 +703,14 @@ audio). Progress history: `TASKS.md`.
   rolls), and the reverse of his travel (it trails him). A deadband ignores
   seam jitter, and the rate cap makes a FLIP impossible by construction: the
   only path from behind one face to behind the other is the smooth crane over
-  the building. Engaged/released by an eased blend seeded from where the
+  the building. THE POLE IS CLAMPED (`polarMin`/`polarMax`): on a rooftop
+  every goal term points straight up, and a spherical orbit AT the pole has no
+  defined azimuth — yaw spins in place, pitch has nowhere to go — so the
+  goal's polar angle stays off both poles, its azimuth falls back to wherever
+  the camera already is when the goal is vertical, and the PLAYER's pitch
+  stick slides a persistent polar offset (yaw turns the orbit about his up
+  directly): the view can always be pulled down to near-horizontal, and stays
+  where the player puts it. Engaged/released by an eased blend seeded from where the
   camera already is, with the ordinary azimuth synced underneath so the
   hand-back lands on the view the player is looking at. It runs in BOTH camera
   paths (the solo combined view and the split chase cams), TARGET LOCK never

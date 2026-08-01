@@ -132,6 +132,9 @@ export const TUNING = {
     scuttleDrift: 1.0,
     step: {
       rate: 6,        // activation ease in/out (1/s)
+      // how far OUT along its splay a limb looks for a home first, x reach —
+      // limbs prefer extending wide over pulling in (see SPLAY_LADDER)
+      spread: 0.55,
       hang: 0.55,     // the home probe: this far below the limb root, x reach
       lead: 0.13,     // ...led along the travel by this many seconds
       len: 0.30,      // step when the plant is this far behind home, x reach

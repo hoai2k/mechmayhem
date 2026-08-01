@@ -53,6 +53,18 @@ const CLIMB_CAM = {
   trail: 0.5,      // opposite-of-travel weight (stay behind him)
   upRate: 2.2,     // how fast the camera's copy of his up follows the body's
   engage: 2.8,     // blend in/out rate
+  // THE POLE CLAMP. On a rooftop every term of the goal points straight up,
+  // and a spherical orbit AT the pole is degenerate: yaw spins in place and
+  // pitch has no defined direction to move in — exactly the "stick does
+  // nothing" report. So the goal's POLAR angle (off his up) is clamped away
+  // from both poles, its azimuth falls back to wherever the camera already
+  // is when the goal itself is vertical, and the PLAYER'S pitch stick slides
+  // a persistent polar offset — the camera can always be pulled down to a
+  // near-horizontal view of him, from anywhere, and it stays where it is put.
+  polarMin: 0.24,  // never nearer the overhead pole than this (rad)
+  polarMax: 1.52,  // ...nor past near-horizontal
+  pitchRate: 2.0,  // player pitch authority, rad/s at full stick
+  yawRate: 2.8,    // player yaw authority, rad/s at full stick
 };
 const _ccGoal = new THREE.Vector3();
 const _ccAxis = new THREE.Vector3();
@@ -65,7 +77,7 @@ const _ccUp = new THREE.Vector3(0, 1, 0);
 // camera). Returns the engage factor 0..1; when > 0, _ccPos/_ccTgt hold the
 // climb camera's own want, to be lerped over the ordinary one BEFORE the
 // ordinary position damps run — so both hand-offs inherit that smoothing.
-function climbCam(st, f, dt, dist, seedPos) {
+function climbCam(st, f, dt, dist, seedPos, yawIn = 0, pitchIn = 0) {
   if (!st.dir) {
     st.dir = new THREE.Vector3(0, 0.5, -1).normalize();
     st.up = new THREE.Vector3(0, 1, 0);
@@ -93,6 +105,32 @@ function climbCam(st, f, dt, dist, seedPos) {
     .addScaledVector(st.up, CLIMB_CAM.normBias)
     .addScaledVector(st.trail, CLIMB_CAM.trail)
     .normalize();
+  // ---- the player's hands on the orbit ----
+  // pitch slides a persistent polar offset (camera rises = smaller polar);
+  // yaw turns the orbit direction about his up directly, same muscle memory
+  // as the ordinary cameras
+  if (st.polarOff === undefined) st.polarOff = 0;
+  st.polarOff = clamp(st.polarOff - pitchIn * CLIMB_CAM.pitchRate * dt, -1.3, 1.3);
+  if (yawIn) {
+    _ccQ.setFromAxisAngle(st.up, -yawIn * CLIMB_CAM.yawRate * dt);
+    st.dir.applyQuaternion(_ccQ).normalize();
+  }
+  // ---- rebuild the goal at a POLE-SAFE polar angle ----
+  // polar = angle off his up; azimuth = the goal's own horizontal part, or —
+  // when the goal is vertical (a rooftop: everything points up) — wherever
+  // the camera already is, which is what keeps yaw meaningful up there
+  const gUp = _ccGoal.dot(st.up);
+  const p0 = Math.acos(clamp(gUp, -1, 1));
+  _ccAxis.copy(_ccGoal).addScaledVector(st.up, -gUp);        // azimuthal part
+  if (_ccAxis.lengthSq() < 0.0025) {
+    _ccAxis.copy(st.dir).addScaledVector(st.up, -st.dir.dot(st.up));
+    if (_ccAxis.lengthSq() < 1e-6) _ccAxis.set(st.up.y, st.up.z, -st.up.x)
+      .addScaledVector(st.up, -st.up.dot(_ccAxis));
+  }
+  _ccAxis.normalize();
+  const polar = clamp(p0 + st.polarOff, CLIMB_CAM.polarMin, CLIMB_CAM.polarMax);
+  _ccGoal.copy(st.up).multiplyScalar(Math.cos(polar))
+    .addScaledVector(_ccAxis, Math.sin(polar));
   const ang = st.dir.angleTo(_ccGoal);
   if (ang > CLIMB_CAM.dead) {
     _ccAxis.crossVectors(st.dir, _ccGoal);
@@ -250,6 +288,10 @@ export class CameraSystem {
   applyLook(dx, dy) {
     this.lookAzOffset -= dx * 0.006;
     this.lookElOffset = clamp(this.lookElOffset + pitchY(dy) * 0.004, -0.40, 0.45);
+    // raw per-frame pulses for the climb camera, which owns the orbit
+    // directly while engaged and cannot read the blended-away offsets
+    this._lookPX = (this._lookPX || 0) + dx * 0.006;
+    this._lookPY = (this._lookPY || 0) + pitchY(dy) * 0.004;
     this.lookCd = 3.0;
     this.azInit = true; // ensure the auto base eases (never snaps) under us
   }
@@ -487,7 +529,12 @@ export class CameraSystem {
     // it so the hand-back lands where the player is already looking.
     if (solo && humans[0].def?.climb) {
       const cst = this._climbCam || (this._climbCam = {});
-      const ck = climbCam(cst, humans[0], dt, this.dist, this.cPos);
+      // consume the raw look pulses (already in radians-this-frame): divide by
+      // dt to hand climbCam a rate, so touch-drag and stick feel the same
+      const px = (this._lookPX || 0) / Math.max(dt, 1e-4) / CLIMB_CAM.yawRate;
+      const py = (this._lookPY || 0) / Math.max(dt, 1e-4) / CLIMB_CAM.pitchRate;
+      this._lookPX = 0; this._lookPY = 0;
+      const ck = climbCam(cst, humans[0], dt, this.dist, this.cPos, px, py);
       if (ck > 0) {
         wantPos.lerp(_ccPos, ck);
         _center.lerp(_ccTgt, ck);
@@ -625,7 +672,7 @@ export class CameraSystem {
       let ck = 0;
       if (f.def?.climb) {
         const cst = ch.cc || (ch.cc = {});
-        ck = climbCam(cst, f, dt, ch.dist, ch.pos);
+        ck = climbCam(cst, f, dt, ch.dist, ch.pos, ch.lookX, pitchY(ch.lookY));
         if (ck > 0) {
           wantPos.lerp(_ccPos, ck);
           if (ck > 0.5) ch.az = Math.atan2(cst.dir.x, cst.dir.z);

@@ -12,7 +12,30 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE CLIMB CAMERA INTEGRATES, THE LIMBS BECAME A SPIDER. Owner
+- **Latest:** THE ROOFTOP CAMERA GETS A POLE CLAMP AND THE PLAYER'S HANDS; THE
+  LIMBS REACH OUT. Owner feedback on the spider pass: on top of a building the
+  camera parks straight overhead where the pitch stick does nothing and yaw just
+  spins ("perhaps it's gimbal lock" — it is: a spherical orbit AT the pole has
+  no defined azimuth), and the feet plant too close under his center — limbs
+  should PREFER extending outward, inward being the pole-hug last resort, with
+  the symmetric spread evening the extensions out around the body.
+  THE CAMERA (`CLIMB_CAM`): the goal's POLAR angle (off his up) is clamped away
+  from both poles (`polarMin`/`polarMax`), its azimuth falls back to wherever the
+  camera already is when the goal itself is vertical (the rooftop case — that is
+  what keeps yaw meaningful up there), and the player's pitch stick slides a
+  persistent polar offset while yaw turns the orbit about his up directly — the
+  camera can always be pulled down to a near-horizontal view, from anywhere, and
+  stays where it is put. Wired in both paths: the split chase reads its own
+  stick, the solo view taps raw look pulses in `applyLook` (the blended-away
+  offsets are unreadable while the climb cam owns the orbit).
+  THE LIMBS: each carries a SPLAY (its outboard direction in the body frame,
+  feet biased back, hands forward) and the home search is a LADDER out along it
+  — outermost rung first (`step.spread` x reach), walking inward only when the
+  outer rungs have no reachable surface. A building face answers the first rung
+  and the limb plants EXTENDED; a pole fails the outer rungs and the grip closes
+  in. Measured by the probe's new `spr=` column (mean planted-tip distance from
+  the body center).
+- **Previous:** THE CLIMB CAMERA INTEGRATES, THE LIMBS BECAME A SPIDER. Owner
   reports: the camera "kind of flips around so you get confused" going up and
   over a building; feet float in the air as a neutral pose on uneven ground; the
   body flickers between orientations on complex territory.
