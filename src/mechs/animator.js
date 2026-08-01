@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { CLIPS, UPPER_JOINTS, defClipVariants } from './animations.js';
 import {
   gaitFor, gaitIdFor, applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
-  effectiveGait, applyTailGait, tailChainOf,
+  effectiveGait, applyTailGait, tailChainOf, applyHexGait, hexLegsOf,
 } from './gaits.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
@@ -269,6 +269,13 @@ export class Animator {
   tailChain() {
     if (this._tail === undefined) this._tail = tailChainOf(this.mech.rigBones) || null;
     return this._tail;
+  }
+
+  // …and the extra legs a hexapod carries (see hexLegsOf). Null for every body
+  // that walks on the two the game knows about.
+  hexLegs() {
+    if (this._hex === undefined) this._hex = hexLegsOf(this.mech.rigBones) || null;
+    return this._hex;
   }
 
   makeRestTarget() {
@@ -620,6 +627,31 @@ export class Animator {
       applyTailGait(tgt, this._gait, e);
     }
 
+    // ===== the extra legs =====
+    // A hexapod's other four (see hexLegsOf). Unlike the tail these are LEGS, so
+    // they get the same deal the two the game knows about get: they hold their
+    // rest shape unless he is actually walking, and the pose smoother eases them
+    // back into it when he stops. Seeded here so that settling happens at all —
+    // without the rest target they would simply keep the last frame of a stride
+    // and freeze mid-step.
+    const hex = this.gait?.hex ? this.hexLegs() : null;
+    if (hex) {
+      for (const l of hex.legs) {
+        if (!l.driven) continue;
+        tgt[l.hip] = [...l.restHip];
+        if (l.knee) tgt[l.knee] = [...l.restKnee];
+      }
+      // …and the stride itself only while there is one. `_gaitEnv` is built in
+      // the walk block above and carries THIS frame's phase, so the extra legs
+      // run on the same clock as the two the stride drives — which is what makes
+      // the cadence match the ground speed, and what makes the gait workbench's
+      // pause freeze them (it freezes the phase, and there is no other clock).
+      if (grounded && speed > 0.4 && this._gaitEnv) {
+        this._gaitEnv.hex = hex;
+        applyHexGait(tgt, this._gait, this._gaitEnv);
+      }
+    }
+
     // ===== dash: coil, gather, LUNGE =====
     // A dash used to be a 2-line torso lean over a big velocity change, so it
     // read as the mech SLIDING rather than pushing off. Now it's a real
@@ -884,6 +916,7 @@ export class Animator {
     // it survives to the draw untouched. Smoothed for free: the keys went into
     // `tgt`, so the same filter the rest of the pose gets applies to them.
     this.applyTailPose();
+    this.applyHexPose();
     // where the sole ended up this frame — the input to the pelvis follow above
     if (this.soles) {
       this._soleClrSide = this.soleClearanceBySide();
@@ -918,6 +951,24 @@ export class Animator {
       const v = this.cur['tail' + i];
       const b = bones['tail' + i];
       if (v && b) b.rotation.set(v[0], v[1], v[2]);
+    }
+  }
+
+  // The extra legs' smoothed angles onto the rig's own bones. Same placement as
+  // the tail — after the retarget, because these bones are not game joints and
+  // adapter.sync never writes them.
+  applyHexPose() {
+    const hex = this._hex;
+    if (!hex) return;
+    const bones = this.mech.rigBones;
+    if (!bones) return;
+    for (const l of hex.legs) {
+      if (!l.driven) continue;
+      for (const key of [l.hip, l.knee]) {
+        const v = key && this.cur[key];
+        const b = key && bones[key];
+        if (v && b) b.rotation.set(v[0], v[1], v[2]);
+      }
     }
   }
 

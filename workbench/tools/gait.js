@@ -657,6 +657,9 @@ export async function runGaitWorkbench(config, params) {
       tail: animator?.tailChain?.() || null,
       tailT: 1,                      // one second along the tail's own clock,
                                      // so `tail.idle` (a rate) is measurable
+      // …and the extra legs a hexapod carries, for the same reason: which bones
+      // they are, and which tripod each is in, is measured off the rig
+      hex: animator?.hexLegs?.() || null,
 
       ratio, s: mech.dims.scale || 1,
       ankleGain: animator.ankleGain, footFlat: animator.footFlat,
@@ -907,7 +910,6 @@ export async function runGaitWorkbench(config, params) {
     selJoint = j || null;
     activeDial = null;
     refreshSelection();
-    refreshGizmo();
   });
   canvas.addEventListener('pointercancel', endDrag);
   canvas.addEventListener('pointerleave', () => { hoverJoint = null; });
