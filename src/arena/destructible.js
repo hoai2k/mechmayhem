@@ -174,7 +174,14 @@ export class DestructibleSystem {
   // OWN player character. Targets/eased values live per (view, copy); the
   // shared fade attribute is (re)stamped right before each view renders.
   applyViewFade(cam) {
-    const v = this._viewSegs ? this._viewSegs.findIndex((s) => s.cam === cam) : -1;
+    // A HOLE IN THE LIST IS A VIEW THAT WANTS NO FADE AT ALL (camera.js pushes
+    // null for a player who is surface-walking — you cannot read a climb
+    // against a wall you can see through). The index has to stay aligned with
+    // the view it belongs to, so the entry is null rather than absent, and a
+    // camera that finds no segment of its own falls through to `val = 1`:
+    // every building solid, which is exactly what was asked for.
+    const v = this._viewSegs
+      ? this._viewSegs.findIndex((s) => s && s.cam === cam) : -1;
     const nCopies = 1 + this.ghostOffsets.length;
     let touched = false;
     for (const b of this.buildings) {

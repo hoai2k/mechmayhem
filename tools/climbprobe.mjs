@@ -155,5 +155,45 @@ for (const [label, script, frames, dist] of SCENARIOS) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// A RENDERED SPLIT-SCREEN PASS. Everything above runs world.update only — no
+// draw — which is what makes it fast enough to be worth running, and also what
+// makes it BLIND to anything on the render path. That blindness shipped a
+// crash: the surface walker pushes a null into the per-view occluder list (a
+// climbing player's building must not be ghosted), and the fade pass walked
+// that list dereferencing every entry — a TypeError in applyViewFade, on a
+// SPLIT view only, since the solo camera passes an empty list instead. So the
+// tool now ends by actually DRAWING some frames, in split screen, with the mech
+// on a wall, and fails on any page error.
+console.log('\n== rendered split-screen pass (the render path the sim skips)');
+await page.goto(url + '&forcesplit=1', { waitUntil: 'networkidle' });
+await page.waitForTimeout(6000);
+errors.length = 0;
+const split = await page.evaluate(async () => {
+  const w = window.__world;
+  window.__ais.length = 0;
+  const f = window.__fighters[0];
+  f.isAI = false;
+  let best = null;
+  for (const b of w.arena.destructo.buildings) {
+    if (b.alive <= 0) continue;
+    if (!best || b.aabb.maxY > best.maxY) best = b.aabb;
+  }
+  if (!best) return { ok: false };
+  f.pos.set((best.minX + best.maxX) / 2, 0, best.minZ - f.radius - 5);
+  f.yaw = f.targetYaw = f.torsoYaw = 0;
+  w.engine.paused = true;
+  for (let i = 0; i < 90; i++) {
+    Object.assign(f.intent, { moveX: 0, moveZ: 1, jump: false, jumpHeld: false });
+    w.update(1 / 60);
+    if (i % 3 === 0) w.engine.step(1 / 60);   // …and DRAW, which is the point
+  }
+  return { ok: true, y: +f.pos.y.toFixed(1), tilt: +(f._climbTilt || 0).toFixed(2),
+    climbing: !!f.climb };
+});
+console.log(`   drew split frames with him at y=${split.y} tilt=${split.tilt} ` +
+  `climbing=${split.climbing}: ${errors.length ? 'PAGE ERRORS' : 'no page errors'}`);
+
 if (errors.length) console.log('\nPAGE ERRORS:\n' + errors.join('\n'));
 await browser.close();
+process.exit(errors.length ? 1 : 0);
