@@ -236,6 +236,23 @@ audio). Progress history: `TASKS.md`.
   readout prints both, and they agreeing is the no-skate proof), the sideways
   offset is the track, and a stance foot sliding off its own print is a cadence
   that doesn't match the speed.
+- SKINNING A BONE CHAIN (`node tools/tailskin.mjs <mech> [--prefix tail]
+  [--band 0.35] [--root hips]`): a chain like fenrir's blade-tail is easy to
+  skin badly, and the bad way is the obvious one — each segment's geometry
+  handed rigidly to its own bone. That is five hard bands with a seam at every
+  joint: the tail bends in five visible kinks and the BASE cannot articulate at
+  all, because the geometry where it meets the body is welded half to `hips` and
+  half to `tail0` with nothing between. The tool projects every vertex the chain
+  ALREADY owns onto the chain's own polyline, which gives it a position measured
+  in segments, and weights it from where it sits: rigid mid-segment, a smooth
+  blend reaching 50/50 exactly at each joint, and — before the first bone — a
+  blend into the body bone the chain hangs off, which is what lets the very base
+  bend rather than tear. Only the vertices the current skinOps already give the
+  chain are looked at, so it cannot touch the rest of the body; it emits the
+  WHOLE skinOps list with the chain's ops replaced in place and every other op
+  passed through, and prints it as a patch (nothing writes). Measured on fenrir:
+  10 tail findings / 74.2 severity -> 10 / 19.8, worst single 14.2 -> 4.2, every
+  non-tail finding byte-identical.
 - THE TAIL IS GAIT DATA (`tail` dial group in gaits.js, `applyTailGait`,
   `Animator.applyTailPose`). A tail is NOT one of the 15 game joints: nothing
   retargets onto it, and only a custom rig even has one (fenrir's blade is

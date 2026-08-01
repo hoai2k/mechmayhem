@@ -62,12 +62,20 @@ export const FENRIR_RIG = {
     { name: 'ankleR', parent: 'kneeR', pos: [0.05, 0.02, -0.09] },
     { name: 'footR', parent: 'ankleR', pos: [0.16, 0.02, -0.12] },
     // ---- tail: a long blade that leaves the pelvis, sweeps back and down and
-    //      curls around the RIGHT leg to the floor
-    { name: 'tail0', parent: 'hips', pos: [-0.06, 0.51, 0.06] },
-    { name: 'tail1', parent: 'tail0', pos: [-0.14, 0.43, 0.04] },
-    { name: 'tail2', parent: 'tail1', pos: [-0.23, 0.32, -0.04] },
-    { name: 'tail3', parent: 'tail2', pos: [-0.22, 0.24, -0.20] },
-    { name: 'tail4', parent: 'tail3', pos: [-0.14, 0.18, -0.30] },
-    { name: 'tail5', parent: 'tail4', pos: [-0.03, 0.08, -0.31] },
+    //      curls around the RIGHT leg to the floor.
+    //      RE-PLACED BY THE OWNER for the gait's tail dials (gaits.js `tail`
+    //      group): `tail0` moved forward and up onto the pelvis proper, so the
+    //      chain ARTICULATES FROM ITS BASE the way a shoulder does instead of
+    //      starting already halfway down the blade. The skin was re-derived for
+    //      it (`node tools/tailskin.mjs fenrir`) and is a BLEND now — every
+    //      vertex weighted along the chain's own polyline, 50/50 at each joint,
+    //      and the root band shared with `hips` so the base bends instead of
+    //      tearing. Nothing outside the tail was touched.
+    { name: 'tail0', parent: 'hips', pos: [0.02, 0.56, 0.07] },
+    { name: 'tail1', parent: 'tail0', pos: [-0.14, 0.42, 0.04] },
+    { name: 'tail2', parent: 'tail1', pos: [-0.22, 0.33, -0.03] },
+    { name: 'tail3', parent: 'tail2', pos: [-0.23, 0.26, -0.19] },
+    { name: 'tail4', parent: 'tail3', pos: [-0.17, 0.21, -0.30] },
+    { name: 'tail5', parent: 'tail4', pos: [-0.07, 0.12, -0.33] },
   ],
 };
