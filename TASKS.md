@@ -5611,3 +5611,41 @@ mirrored for the L side — any yaw moves the pods, so both sides share one
 symmetric body. Measured at the fire line after: right -0.3°, left +0.2°.
 Procedural jerry keeps the shared arm-raise clip on purpose — his muzzles ARE
 in-hand there.
+
+JERRY ROUND TWO: THE LEFT CANNON, CLAWS ON THE GROUND, ARM-LED LIGHTS
+----------------------------------------------------------------------
+THE LEFT CANNON WAS NEVER THE POD'S FAULT. The pod-swing constants and the new
+recoil clip left both barrels within 0.3° of the facing — and the left stream
+still flew wide in game, because World.fireRanged CHOSE THE WRONG MUZZLE to aim
+with: `goo` was missing from the `_shotSide -> muzzleL` list, so a left-pod
+spit computed its base aim, its barrel deflection AND its no-target fallback
+point off muzzleR — which is not firing and rests splayed 35° outboard (only
+the FIRING pod is swung onto the facing). Every left burst converged on a point
+built 35° off the fire line. One word in the muzzle pick fixes it; measured in
+a live battle after, both pods' wads fly within a few degrees of facing (the
+authored ±0.03 rad spatter jitter is the remainder).
+
+THE CLAWS TOUCH THE GROUND NOW, AND THEY CARRY THE GAIT. Four new arms dials —
+FORELEG dials, 0 on every humanoid gait so the block never runs there:
+  · `carry` — constant shoulder pitch planting the claw tips on the ground, at
+    every speed (lift rides the throttle; a limb that bears weight cannot).
+  · `foldClear` — elbow fold through the recovery swing, extend to plant.
+  · `handGround` — the wrist doing ankle work: cancels what hips + shoulder +
+    elbow pitched into the PLANTED claw so it stays parallel to the ground
+    (footFlat, one limb pair up), fading as the limb lifts.
+  · `handClear` — tips the SWINGING claw up so it doesn't plough a furrow.
+The planted half of each claw's cycle is its backward sweep (cos-phase window,
+smoothed like footStates); the counter-swing already runs the claws on the
+opposite back leg's beat, which IS the diagonal-couplet timing insects walk on,
+so nothing rephases. On jerry: arms.swing up 0.12 -> 0.45 (the claws are the
+biggest limbs — they carry the bulk of the visible motion), carry measured on
+the GLB at -0.30 = planted tip at -0.5% of body height (touchdown) with +37%
+clearance on the recovery swing.
+
+LIGHTS ARE CLAW WORK. The shared jab chain sells its punches with torso twist —
+right for a boxer, wrong for a shell: the carapace slewing around WAS the
+visible motion and the claws read as passengers. The jerry glbanim hook now
+keeps the shell nearly square through light1/2/3 (torso pitch delta x0.35, yaw
+x0.25, hips yaw x0.3 — cranky's crab rule) and scales the arms' travel AROUND
+the rest carriage x1.35. Impact frame: the claw arcs overhead as the visible
+striker, shell square, still landing in the aim band.

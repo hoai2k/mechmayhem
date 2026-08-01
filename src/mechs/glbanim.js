@@ -655,9 +655,26 @@ export const GLB_ANIM = {
       shootL: GLB_CLIP_VARIANTS.jerryShootLGlb,
     },
     post(anim, dt, ctx, tgt) {
+      // LIGHTS ARE CLAW WORK, NOT SHOULDER-CHECKS. The shared jab chain sells
+      // its punches with torso twist — right for a boxer's frame, wrong for a
+      // shell: on jerry the carapace slewing around IS most of what you see and
+      // the claws read as passengers. Keep the shell nearly square (the same
+      // move cranky's crab body makes on his strikes) and put the motion where
+      // his weapons are: scale the arms' travel AROUND the rest carriage up.
+      const act = anim.action;
+      if (act && !act.fadingOut && /^light\d/.test(act.clip.name)) {
+        tgt.torso[0] = anim.rest.torso[0] + (tgt.torso[0] - anim.rest.torso[0]) * 0.35;
+        tgt.torso[1] *= 0.25; tgt.torso[2] *= 0.4;
+        tgt.hipsRot[1] *= 0.3;
+        for (const j of ['shoulderL', 'shoulderR', 'elbowL', 'elbowR']) {
+          for (let i = 0; i < 3; i++) {
+            tgt[j][i] = anim.rest[j][i] + (tgt[j][i] - anim.rest[j][i]) * 1.35;
+          }
+        }
+      }
       const bones = anim.mech.rigBones;
       if (!bones) return;                       // stock auto-rig: no pod bones
-      const n = anim.action && !anim.action.fadingOut ? anim.action.clip.name : '';
+      const n = act && !act.fadingOut ? act.clip.name : '';
       const firing = n === 'shoot' || n === 'shootL' || ctx.firing;
       const side = n === 'shootL' ? 'L' : 'R';
       for (const [key, name, aim] of [['R', 'strutMidR', -0.620], ['L', 'strutMidL', 0.515]]) {
