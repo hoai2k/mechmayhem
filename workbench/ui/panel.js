@@ -51,11 +51,12 @@ export const WORKBENCHES = {
   collider: { tool: 'collider', title: 'Hurtbox Workbench', color: '#7fd8ff' },
   props: { tool: 'props', title: 'Props Workbench', color: '#ffd23c' },
   gait: { tool: 'gait', title: 'Gait Workbench', color: '#ff9f43' },
+  level: { tool: 'level', title: 'Arena Editor', color: '#62ff9a' },
 };
 
 // Order the switcher offers them in: the order you actually move through a
 // model — shape it, rig it, weight it, pose it, then check what it hits.
-const SWITCH_ORDER = ['models', 'rig', 'skin', 'skindebug', 'pose', 'gait', 'collider', 'props']
+const SWITCH_ORDER = ['models', 'rig', 'skin', 'skindebug', 'pose', 'gait', 'collider', 'props', 'level']
   .map((k) => (WORKBENCHES[k] ? k : 'rigedit'));
 
 /**

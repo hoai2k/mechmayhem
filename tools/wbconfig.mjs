@@ -29,6 +29,7 @@ const out = await page.evaluate(async () => {
   const { rigIds } = await import('/src/mechs/rigs/index.js');
   const { PROPS } = await import('/src/arena/props.js');
   const { GAITS, gaitIdFor } = await import('/src/mechs/gaits.js');
+  const { THEMES } = await import('/src/arena/themes.js');
   const propMan = await (await fetch('/models/props/manifest.json')).json();
   const manifest = cfg.manifest();
 
@@ -60,6 +61,17 @@ const out = await page.evaluate(async () => {
   check('prop models', Object.keys(propMan).filter((k) => propMan[k]?.file),
     props.filter((p) => p.hasModel).map((p) => p.id));
 
+  // the ARENAS the level workbench can open are the game's themes, derived —
+  // add a 13th arena and it is in the editor's dropdown with no edit here
+  check('arenas', THEMES.map((t) => t.id), (cfg.arena?.themes() || []).map((t) => t.id));
+  // …the PALETTE, by contrast, is an authored list (what a designer may place),
+  // so it can't be compared to anything — but every PROP it names must exist,
+  // or a renamed prop leaves a button that silently places nothing
+  const palProps = [...new Set((cfg.arena?.palette() || [])
+    .flatMap((g) => g.items).filter((i) => i.k === 'prop').map((i) => i.name))];
+  const badPalette = palProps.filter((n) => !PROPS[n])
+    .map((n) => `palette names a prop the game does not have: ${n}`);
+
   // the gait table and every mech's gait assignment come from the game, so a
   // gait added to GAITS (or a def re-pointed at one) shows up in ?edit=gait
   // with no edit to the adapter
@@ -81,7 +93,7 @@ const out = await page.evaluate(async () => {
     const stray = list.map((x) => x.name).filter((n) => !clipNames.has(n));
     if (stray.length) badClips.push(`${c.id}: unknown ${stray.slice(0, 3).join(', ')}`);
   }
-  return { rows, badClips, badGaits, refIds, vocab: cfg.vocab, game: cfg.game };
+  return { rows, badClips, badGaits, badPalette, palProps: palProps.length, refIds, vocab: cfg.vocab, game: cfg.game };
 });
 await browser.close();
 
@@ -98,6 +110,8 @@ for (const r of out.rows) {
 }
 for (const b of out.badClips) { bad++; console.log(`  clip list    ${b}`); }
 for (const b of out.badGaits || []) { bad++; console.log(`  gait         ${b}`); }
+for (const b of out.badPalette || []) { bad++; console.log(`  palette      ${b}`); }
+console.log(`  palette      ${out.palProps} placeable props, all present in the game`);
 if (errs.length) console.log('\npage errors:\n' + errs.slice(0, 4).join('\n'));
 console.log(bad ? `\nFAIL — ${bad} mismatch(es): the adapter is not deriving something it should\n`
   : '\nPASS — every workbench list is derived from the game, nothing hand-copied\n');

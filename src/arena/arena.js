@@ -124,10 +124,14 @@ export class Arena {
     this.ambientT = 0;
     // RECIPE: every building / prop this arena placed, written down in the
     // level editor's own authored format as it is placed. A procedural arena
-    // is a seeded one-off — the editor turns one into an editable level by
-    // building it and reading this back (src/arena/bake.js), so there is no
+    // is a seeded one-off — the arena editor turns one into an editable level
+    // by building it and reading this back (src/arena/bake.js), so there is no
     // second copy of the generation rules to drift out of sync.
-    this.recipe = { buildings: [], props: [] };
+    //
+    // OFF unless asked for (`theme.recordRecipe`, set by the workbench adapter
+    // and by nothing else). A match has no use for the list and the game does
+    // not ship the tool that reads it, so it should not be building it either.
+    this.recipe = theme.recordRecipe ? { buildings: [], props: [] } : null;
     const rng = makeRng(seed * 31 + theme.id.length * 77);
 
     // Toroidal cell: coordinates wrap at ±wrapHalf (world.bind reads this).
@@ -369,7 +373,7 @@ export class Arena {
         const cwE = Math.min(cw, 19 / m.nx), cdE = Math.min(cd, 19 / m.nz);
         this.destructo.addBuildingCells(site.x, site.z, m.cells, cwE, ch, cdE, { tint, rng });
         // recorded with the RAW tint: the authored path runs tintFor again
-        this.recipe.buildings.push({
+        this.recipe?.buildings.push({
           k: 'building', x: round1(site.x), z: round1(site.z),
           cells: m.cells, nx: m.nx, ny: m.ny, nz: m.nz,
           cw: round2(cwE), ch: round2(ch), cd: round2(cdE), tint: rawTint,
@@ -438,7 +442,7 @@ export class Arena {
         const g = placeProp(this.propGroup, this.objects, spec.name, x, z, opts);
         if (g && gy > 0.01) g.position.y += gy; // seat the prop on the terrain surface
         if (g) this._regProp(g, x, z, gy);
-        if (g) {
+        if (g && this.recipe) {
           this.recipe.props.push({
             k: 'prop', name: spec.name, x: round1(x), z: round1(z),
             ry: round2(g.rotation.y), s: 1, opts: recOpts,

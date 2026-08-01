@@ -5754,3 +5754,61 @@ old single 76, knock 3 so the victim is pummelled in place rather than
 launched off the second hit, launch 0. clawSnap goes back to being cranky's
 (with its noTwistClips rule, which the barrage does not want — tracking the
 victim through eight strikes is the point).
+
+## Phase 17 — the arena editor becomes a WORKBENCH (user request, 2026-08-01)
+
+`?edit=level` was the one authoring tool still living on the game page, because
+it needed a real arena and the workbenches are a separate tree that imports no
+game code. It now lives at `/workbench/?edit=level` like the other eight, and
+the reason it can is a new contract section rather than an exception.
+
+**`config.arena` — a THIRD family after characters and props.** A mech is an
+asset you load; an arena is a RECIPE — a theme plus a seed that generates one
+particular city — so what an editor needs from a game is not "load this" but
+"build one of these, and tell me what you built". The section answers exactly
+that: `themes()`, `build(engine, id, seed)` (a real arena, the way a match
+builds one), `bake(arena)`, `stage(engine, level)` (the same themed environment
+with nothing placed in it), `blank(id)`, `palette()`, `prop(name, opts)`,
+`sharedMaterials()`, `levels.list/load`, `fighters()` and
+`playtest(level, {p1,p2})`. `workbench/tools/level.js` now names no theme, no
+prop, no level field and no game module — it imports three.js and the shared
+panel chrome, nothing else, which is the same deal every other tool honours.
+
+WHAT PLACEABLE THINGS EXIST is adapter data, not tool data: `src/editor/catalog.js`
+moved to `workbench/adapters/robotworld/arenapalette.js`, since every entry in
+it names a robotworld prop or lane kind. `src/editor/` is gone.
+
+**NOTHING AUTHORING-SHAPED IS LEFT ON THE GAME PAGE.** `?edit=level` joins the
+`?debug=skin` / `?rigedit=` redirects — it lands next door carrying `arena`,
+`seed`, `load` and `theme`, so every bookmark, doc link and tools/*.mjs script
+still works. `src/dev/index.js` no longer imports an editor at all; ANY `?edit=`
+on the game page is now a pure redirect. A `RW_DIST=1` build already dropped the
+/workbench/ page from the build inputs, so the distribution now contains none of
+the editor — verified by grepping the emitted JS for its strings.
+
+The last thing the game was still carrying was `arena.recipe`, the placement
+list the bake reads. It is now written ONLY when the theme says
+`recordRecipe`, which the adapter's `arena.build()` sets and nothing else does:
+a match has no use for the list and does not ship the tool that reads it, so it
+should not be building it either.
+
+Two checks grew to cover the new surface. `tools/wbconfig.mjs` now proves the
+editor's arena list is the game's THEMES (add a 13th arena and it is in the
+dropdown with no edit to the adapter) and that every prop the palette names
+still exists — the palette is an authored list, so it cannot be compared to
+anything, but a renamed prop leaving a button that silently places nothing is
+exactly the rot the tool exists to catch. `tools/arenabake.mjs` opens the
+workbench page and asks Arena for its recipe explicitly.
+
+Also fixed here, from the merged mobile-workbench work rather than this change:
+`?mobile=` and `?phone` were read by `workbench/ui/mobile.js` but missing from
+`KNOWN_PARAMS`, so `node tools/params.mjs` was failing and the boot warning
+called two real switches typos.
+
+Files: `workbench/tools/level.js` (moved from `src/editor/leveleditor.js`),
+`workbench/adapters/robotworld/arenapalette.js` (moved from
+`src/editor/catalog.js`), `workbench/adapters/robotworld/index.js` (+`arena`),
+`workbench/config/contract.js`, `workbench/main.js`, `workbench/landing.js`,
+`workbench/ui/panel.js`, `workbench/README.md`, `src/dev/index.js`,
+`src/arena/arena.js` (`recordRecipe`), `src/core/knobs.js`,
+`tools/wbconfig.mjs`, `tools/wbthumbs.mjs`, `tools/arenabake.mjs`.
