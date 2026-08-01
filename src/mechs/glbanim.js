@@ -646,6 +646,14 @@ export const GLB_ANIM = {
   // every tick. He alternates sides shot to shot, so the clip tells us which
   // pod is working: `shootL` is the left one, `shoot` the right.
   jerry: {
+    // The pods do the aiming, so the CLIP must not: the shared shoot raises an
+    // arm (hoisting a claw) and yaws the torso — which carries the torso-bolted
+    // pods 13-14° off the fire line even with the pod swung dead ahead. The
+    // variants are pitch-only recoil, claws untouched (see animations.js).
+    clipOverrides: {
+      shoot: GLB_CLIP_VARIANTS.jerryShootGlb,
+      shootL: GLB_CLIP_VARIANTS.jerryShootLGlb,
+    },
     post(anim, dt, ctx, tgt) {
       const bones = anim.mech.rigBones;
       if (!bones) return;                       // stock auto-rig: no pod bones

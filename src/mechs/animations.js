@@ -1352,6 +1352,29 @@ export const LIGHT_ARM = {
 // twist onto the firing side, then a hard recoil kick back through torso and
 // hips. Arms are left untouched so the combat carriage holds. shootL is the
 // mirror, for the alternating other cannon (fighter.doRanged picks the side).
+// JERRY's Bilge Spit fires from the CANNON PODS bolted to his shell (the
+// manifest pins muzzleR/L to the strutMid pod bones, and the glbanim hook
+// swings the firing pod onto his facing), so the shared `shoot` clip was wrong
+// twice over: the raised arm hoisted a giant claw for no reason, and — the
+// part that showed downrange — its torso YAW (-18° at t=0) carried the pods
+// off the fire line, since they are parented to the torso the clip twists.
+// Measured: with the pod swung fully onto the facing, the shared clip still
+// left the left barrel 13° across his body and the right 14° wide; with the
+// pods solved statically the residual is 0.02°. So the recoil here is
+// PITCH-ONLY — the shell nods and the hips dip, nothing yaws — and the claws
+// are left entirely to the combat carriage. One clip serves both sides: the
+// asymmetry is the pod swing itself, not the body.
+const JERRY_SHOOT_GLB = {
+  dur: 0.5, upper: true,
+  keys: [
+    { t: 0, pose: { torso: [2, 0, 0], head: [2, 0, 0] } },
+    { t: 0.12, ease: 'outBack', pose: { torso: [-5, 0, 0], head: [-5, 0, 0], hipsPos: [0, -0.07, -0.03], hipsRot: [-2, 0, 0] } },
+    { t: 0.3, ease: 'outQuad', pose: { torso: [3, 0, 0], head: [1, 0, 0], hipsPos: [0, -0.02, 0], hipsRot: [0, 0, 0] } },
+    { t: 0.5, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0] } },
+  ],
+  events: [{ t: 0.1, type: 'fire' }],
+};
+
 const FROGGER_SHOOT_GLB = {
   dur: 0.5, upper: true,
   keys: [
@@ -1511,6 +1534,10 @@ export const GLB_CLIP_VARIANTS = {
   infernoFlameGlb: compile('shootLoop', INFERNO_FLAME_GLB),
   froggerShootGlb: compile('shoot', FROGGER_SHOOT_GLB),
   froggerShootLGlb: compile('shootL', mirrorRaw(FROGGER_SHOOT_GLB)),
+  // jerry's is NOT mirrored for the L side: the body motion is symmetric on
+  // purpose (any yaw moves the pods), so both compile from the same raw
+  jerryShootGlb: compile('shoot', JERRY_SHOOT_GLB),
+  jerryShootLGlb: compile('shootL', JERRY_SHOOT_GLB),
   wraithLasersGlb: compile('wraithLasers', {
     dur: 1.45,
     keys: [

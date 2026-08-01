@@ -404,6 +404,46 @@ export const GAITS = {
     body: { bob: 0.21, pitch: 0.12, yaw: 0.10, roll: 0.05, lean: 0.46, twist: 0.15, head: -0.36 },
   },
 
+  // JERRY — the shrimp. Two big claw-ARMS in front (the game's arm joints, his
+  // strikers), two smaller true legs at the back (the leg joints, his walkers),
+  // a body that is mostly shell. A humanoid walk read wrong on every count: the
+  // long stride swung his stubby back legs like a man's, the counter-swing
+  // pumped the great pincers back and forth like handbags, and the upright
+  // carriage stood the shell up like a suit.
+  //
+  // An ARTHROPOD moves the other way round on all three:
+  //   · the step is SHORT and QUICK — a skitter. Little swing, next to no
+  //     reach/extend asymmetry (insect legs paddle, they do not stride), a low
+  //     cadence reach so the step rate climbs fast with speed, and a higher cap.
+  //   · the legs stay SPLAYED and CROUCHED: negative adduct pushes the track
+  //     wide of his already-wide rest stance, and a deep stance bend keeps the
+  //     body carried low between bent legs instead of vaulting over straight
+  //     ones.
+  //   · the CLAWS ARE NOT ARMS. No counter-swing to speak of; they ride
+  //     RAISED and OUT in front (negative lift, wide negative tuck), elbows
+  //     folded, with a small pump so they breathe with the cycle — a mantis
+  //     carriage, weapons held ready, not pendulums.
+  //   · the body stays LEVEL and LOW — small bob, little forward lean (a shell
+  //     has no chest to pitch), but a distinct side-to-side WAGGLE (yaw + roll)
+  //     which is the scuttle read.
+  arthropod: {
+    name: 'Arthropod',
+    note: 'Crustacean scuttle: quick short skittering steps on splayed crouched legs, shell low and level with a side-to-side waggle, claws carried raised and ready.',
+    legs: {
+      swing: 0.30, swingRun: 0.16, reach: 0.10, extend: 0.14,
+      adduct: -0.08, adductRun: -0.04, adductTrail: 0,
+      stanceBend: 0.30, stanceBendRun: 0.10,
+      kneeLift: 0.58, kneeLiftRun: 0.42, kneePhase: 1.15,
+      cadence: 0.58, cadenceCap: 19,
+    },
+    ankle: { roll: 0.35, tilt: -0.06, push: 0.5, pushRun: 0.3, level: 0, hang: 0 },
+    arms: {
+      swing: 0.12, swingRun: 0.06, lift: -0.30, elbow: 0.40, elbowRun: 0.25,
+      elbowPump: 0.14, tuck: -0.16, cross: 0,
+    },
+    body: { bob: 0.11, pitch: 0.06, yaw: 0.16, roll: 0.08, lean: 0.12, twist: 0.05, head: -0.10 },
+  },
+
   // FENRIR — A SPRINTER WHO OPENS INTO A WOLF.
   //
   // TWO TABLES, ONE GAIT. `base: 'sprint'` is his slow end: below `quad.onset`
