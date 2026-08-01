@@ -134,8 +134,10 @@ export const GAIT_SCHEMA = [
         help: 'stride amplitude at a standstill-to-walk pace' },
       { key: 'swingRun', label: 'thigh swing @run', min: 0, max: 1.6, step: 0.01, joints: ['thighL', 'thighR'],
         help: 'extra stride amplitude added at full speed' },
-      { key: 'reach', label: 'forward reach', min: 0, max: 1.2, step: 0.01, joints: ['thighL', 'thighR'],
-        help: 'asymmetric extra swing on the FORWARD half — the leg reaching out ahead' },
+      { key: 'reach', label: 'forward reach', min: -1.2, max: 1.2, step: 0.01, joints: ['thighL', 'thighR'],
+        help: 'asymmetric extra swing on the FORWARD half — the leg reaching out ahead. NEGATIVE is '
+          + 'legitimate for the same reason `extend` is: on a body whose thighs are carried out sideways '
+          + 'rather than under the hips (the arthropod) the joint reads the other way round' },
       { key: 'extend', label: 'rear extension', min: -2, max: 1.2, step: 0.01, joints: ['thighL', 'thighR'],
         help: 'asymmetric extra swing BEHIND — the trailing leg finishing its push. NEGATIVE is legitimate: '
           + 'on a body whose hips are carried horizontally (the quadruped) the same joint reads the other '
@@ -148,14 +150,23 @@ export const GAIT_SCHEMA = [
         help: 'midline pull on the leg that is BEHIND AND OFF THE GROUND — the flick after '
           + 'toe-off. Fades as the leg swings forward, so the foot lands at its normal width '
           + 'and a PLANTED foot is never pulled sideways (that would be a skate)' },
-      { key: 'stanceBend', label: 'knee stance bend', min: 0, max: 1.0, step: 0.01, joints: ['kneeL', 'kneeR'],
-        help: 'springy knees that never lock' },
-      { key: 'stanceBendRun', label: 'knee bend @run', min: 0, max: 1.0, step: 0.01, joints: ['kneeL', 'kneeR'] },
+      { key: 'stanceBend', label: 'knee stance bend', min: -1.2, max: 1.0, step: 0.01, joints: ['kneeL', 'kneeR'],
+        help: 'springy knees that never lock. Negative on a leg whose knee folds the other way — the '
+          + 'arthropod stands on splayed legs whose stifle opens where a humanoid knee closes' },
+      { key: 'stanceBendRun', label: 'knee bend @run', min: -1.2, max: 1.0, step: 0.01, joints: ['kneeL', 'kneeR'] },
       { key: 'kneeLift', label: 'knee lift', min: 0, max: 2.4, step: 0.01, joints: ['kneeL', 'kneeR'],
         help: 'how far the swing leg folds up under the body' },
       { key: 'kneeLiftRun', label: 'knee lift @run', min: 0, max: 2.4, step: 0.01, joints: ['kneeL', 'kneeR'] },
       { key: 'kneePhase', label: 'knee phase', min: -3.14, max: 3.14, step: 0.01, joints: ['kneeL', 'kneeR'],
         help: 'where in the cycle the fold peaks (radians of lead over the thigh)' },
+      // WHERE THE LEG CYCLE SITS ON THE BEAT. Everything else in this group
+      // shapes the stride; this one slides the whole thing round the clock,
+      // against the body (bob, yaw, roll) which stays on the raw phase.
+      { key: 'phase', label: 'leg phase offset', min: -3.14, max: 3.14, step: 0.01,
+        joints: ['thighL', 'thighR', 'kneeL', 'kneeR', 'ankleL', 'ankleR'],
+        help: 'radians the LEG cycle runs ahead of the beat. The legs keep their own alternation '
+          + '(L and R stay half a cycle apart) — what moves is where they sit relative to the arms '
+          + 'and the body bob. π swaps which leg leads' },
       { key: 'cadence', label: 'cadence reach', min: 0.4, max: 1.6, step: 0.01, joints: [],
         help: 'fraction of leg length a stride is assumed to cover — SMALLER = faster steps for the same ground speed' },
       { key: 'cadenceCap', label: 'cadence cap', min: 4, max: 30, step: 0.5, joints: [],
@@ -203,6 +214,15 @@ export const GAIT_SCHEMA = [
         help: 'roll the arms in toward the ribs instead of leaving them winged out' },
       { key: 'cross', label: 'arm cross @run', min: -0.8, max: 0.8, step: 0.01, joints: ['shoulderL', 'shoulderR'],
         help: 'yaw the forward-swinging arm across the chest' },
+      // THE ARM CYCLE'S OWN PLACE ON THE BEAT — the dial that answers "which
+      // leg does this arm (or foreleg) answer to?".
+      { key: 'phase', label: 'arm phase offset', min: -3.14, max: 3.14, step: 0.01,
+        joints: ['shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'handL', 'handR'],
+        help: 'radians the ARM cycle runs ahead of the leg cycle, carrying the elbow pump, the cross '
+          + 'and — on a foreleg gait — the claw plant/lift window with it. 0 is the counter-swing '
+          + 'every humanoid gait wants (left leg forward, left arm back). π SWAPS which arm answers '
+          + 'which leg, which is how a foreleg is matched to the other diagonal; anything in between '
+          + 'slides the claw touchdown onto the footfall you want it on' },
       // ---- FORELEGS: the arms as a second pair of legs (arthropod — jerry).
       //      All four are 0 on a humanoid gait and the block never runs.
       { key: 'carry', label: 'foreleg carry', min: -1.2, max: 1.2, step: 0.01, joints: ['shoulderL', 'shoulderR'],
@@ -395,11 +415,11 @@ export const GAITS = {
       swing: 0.42, swingRun: 0.40, reach: 0.51, extend: 0.47,
       adduct: 0.08, adductRun: 0, adductTrail: 0.25,
       stanceBend: 0.14, stanceBendRun: 0.14,
-      kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05,
+      kneeLift: 0.70, kneeLiftRun: 0.65, kneePhase: 1.05, phase: 0,
       cadence: 0.92, cadenceCap: 14,
     },
     ankle: { roll: 0.51, tilt: -0.10, push: 0.70, pushRun: 0.80, level: 0, hang: 0 },
-    arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0 },
+    arms: { swing: 0.75, swingRun: 0, lift: 0, elbow: 0.25, elbowRun: 0, elbowPump: 0.30, tuck: 0, cross: 0, phase: 0 },
     body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
   },
 
@@ -422,11 +442,11 @@ export const GAITS = {
       swing: 0.44, swingRun: 0.36, reach: 0.28, extend: 0.16,
       adduct: 0.105, adductRun: 0, adductTrail: 0.215,
       stanceBend: 0.14, stanceBendRun: 0.16,
-      kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.93,
+      kneeLift: 0.72, kneeLiftRun: 0.86, kneePhase: 1.93, phase: 0,
       cadence: 0.95, cadenceCap: 16,
     },
     ankle: { roll: 0.55, tilt: -0.14, push: 0.75, pushRun: 0.85, level: 0, hang: 0.26 },
-    arms: { swing: 0.78, swingRun: 0.89, lift: -0.10, elbow: 0.25, elbowRun: 0.55, elbowPump: 0.40, tuck: 0.18, cross: 0.12 },
+    arms: { swing: 0.78, swingRun: 0.89, lift: -0.10, elbow: 0.25, elbowRun: 0.55, elbowPump: 0.40, tuck: 0.18, cross: 0.12, phase: 0 },
     body: { bob: 0.21, pitch: 0.12, yaw: 0.10, roll: 0.05, lean: 0.46, twist: 0.15, head: -0.36 },
   },
 
@@ -438,13 +458,13 @@ export const GAITS = {
   // carriage stood the shell up like a suit.
   //
   // An ARTHROPOD moves the other way round on all three:
-  //   · the step is SHORT and QUICK — a skitter. Little swing, next to no
-  //     reach/extend asymmetry (insect legs paddle, they do not stride), a low
-  //     cadence reach so the step rate climbs fast with speed, and a higher cap.
+  //   · the step is QUICK — a skitter: a low cadence reach so the step rate
+  //     climbs fast with speed, and a higher cap. (The SIZE of the paddle is a
+  //     tuned number and it ended up big; see the block on the legs below.)
   //   · the legs stay SPLAYED and CROUCHED: negative adduct pushes the track
-  //     wide of his already-wide rest stance, and a deep stance bend keeps the
+  //     wide of his already-wide rest stance, and the stance bend keeps the
   //     body carried low between bent legs instead of vaulting over straight
-  //     ones.
+  //     ones — on his backwards stifle that is a NEGATIVE number.
   //   · the CLAWS ARE NOT ARMS. No counter-swing to speak of; they ride
   //     RAISED and OUT in front (negative lift, wide negative tuck), elbows
   //     folded, with a small pump so they breathe with the cycle — a mantis
@@ -455,11 +475,18 @@ export const GAITS = {
   arthropod: {
     name: 'Arthropod',
     note: 'Crustacean scuttle: quick short skittering steps on splayed crouched legs, shell low and level with a side-to-side waggle, claws carried raised and ready.',
+    // OWNER-TUNED on the GLB at full throttle. The three that moved furthest are
+    // the three a shrimp does backwards: the swing got BIG (the back legs
+    // paddle hard rather than mincing), `reach` and `stanceBend` both went
+    // NEGATIVE — his thighs are carried out sideways and his stifle opens where
+    // a humanoid knee closes, so the same number reads the other way round on
+    // his body — and the track now narrows with speed instead of splaying
+    // further (`adductRun`).
     legs: {
-      swing: 0.30, swingRun: 0.16, reach: 0.10, extend: 0.14,
-      adduct: -0.08, adductRun: -0.04, adductTrail: 0,
-      stanceBend: 0.30, stanceBendRun: 0.10,
-      kneeLift: 0.58, kneeLiftRun: 0.42, kneePhase: 1.15,
+      swing: 0.57, swingRun: 0.51, reach: -1.0, extend: 0.14,
+      adduct: -0.08, adductRun: 0.15, adductTrail: 0,
+      stanceBend: -1.0, stanceBendRun: 0,
+      kneeLift: 0.58, kneeLiftRun: 0.42, kneePhase: 1.15, phase: 0,
       cadence: 0.58, cadenceCap: 19,
     },
     ankle: { roll: 0.35, tilt: -0.06, push: 0.5, pushRun: 0.3, level: 0, hang: 0 },
@@ -470,13 +497,21 @@ export const GAITS = {
     // work — `handGround` keeps the planted claw parallel to the ground the
     // way footFlat levels a planted sole, `handClear` tips the swinging one up.
     // The counter-swing already puts each claw on the beat of the OPPOSITE back
-    // leg, which is the diagonal-couplet timing an insect actually walks on.
+    // leg, which is the diagonal-couplet timing an insect actually walks on —
+    // and `phase` below is the dial that slides that timing if a particular
+    // claw should land with a particular foot instead.
     arms: {
       swing: 0.45, swingRun: 0.15, lift: 0, elbow: 0.15, elbowRun: 0,
       elbowPump: 0, tuck: -0.16, cross: 0,
       // carry measured on the GLB: -0.3 puts the planted tip at -0.5% of body
       // height (touchdown) with the swinging one clearing at +37%
       carry: -0.30, foldClear: 0.50, handGround: 0.8, handClear: 0.30,
+      // WHICH FOOTFALL EACH CLAW LANDS ON. Measured on the shipped tune (
+      // `node tools/gaitprobe.mjs jerry 1`): at 0 each claw reaches down with
+      // the foot on its OWN side (8% of a cycle apart), and at π it swaps to
+      // the DIAGONAL — right claw with left leg, 3% apart. Left at 0; the swap
+      // is one slider away in /workbench/?edit=gait.
+      phase: 0,
     },
     body: { bob: 0.11, pitch: 0.06, yaw: 0.16, roll: 0.08, lean: 0.12, twist: 0.05, head: -0.10 },
   },
@@ -731,9 +766,20 @@ export function applyGait(tgt, gait, env) {
   const L = gait.legs, A = gait.ankle, R = gait.arms, B = gait.body;
 
   const swing = L.swing + L.swingRun * ratio;
-  const sinL = Math.sin(ph), sinR = Math.sin(ph + Math.PI);
+  // THREE CLOCKS, ONE BEAT. `ph` is the beat itself and the BODY stays on it
+  // (bob, yaw, roll, lean — the things that read as the frame's rhythm). The
+  // legs and the arms each get to sit somewhere on it: `legs.phase` and
+  // `arms.phase` slide their whole cycle round, keeping each pair's own L/R
+  // alternation. Both default to 0, which is the counter-swing every gait
+  // shipped with — an arm opposite its own leg — so a gait that names neither
+  // is bit-identical to before the dials existed.
+  const phL = ph + (L.phase || 0);
+  const phA = ph + (R.phase || 0);
+  const sinL = Math.sin(phL), sinR = Math.sin(phL + Math.PI);
   const fwdL = Math.max(0, sinL), fwdR = Math.max(0, sinR);
   const backL = Math.max(0, -sinL), backR = Math.max(0, -sinR);
+  // the arms' own copies of the same four weights, on the arm clock
+  const aSinL = Math.sin(phA), aSinR = Math.sin(phA + Math.PI);
 
   // ===== legs =====
   // A symmetric pendulum reads as a march; a run REACHES ahead and FINISHES
@@ -746,8 +792,8 @@ export function applyGait(tgt, gait, env) {
   // leg leaves the ground — the mech pushes itself forward
   const stanceBend = L.stanceBend + L.stanceBendRun * ratio;
   const lift = L.kneeLift + L.kneeLiftRun * ratio;
-  tgt.kneeL[0] += stanceBend + lift * Math.max(0, Math.sin(ph + L.kneePhase));
-  tgt.kneeR[0] += stanceBend + lift * Math.max(0, Math.sin(ph + Math.PI + L.kneePhase));
+  tgt.kneeL[0] += stanceBend + lift * Math.max(0, Math.sin(phL + L.kneePhase));
+  tgt.kneeR[0] += stanceBend + lift * Math.max(0, Math.sin(phL + Math.PI + L.kneePhase));
   // TRACK WIDTH: a runner's feet fall nearly single-file under the centre of
   // mass. Straddling a shoulder-width base at speed is the single loudest
   // "stiff" tell on the fast mechs.
@@ -811,12 +857,13 @@ export function applyGait(tgt, gait, env) {
   // original engine used sinR here, which is why every mech's arms went along
   // for the ride instead of counterbalancing.
   const armSwing = swing * (R.swing + R.swingRun * ratio);
-  tgt.shoulderL[0] += armSwing * sinL + R.lift * ratio;
-  tgt.shoulderR[0] += armSwing * sinR + R.lift * ratio;
+  tgt.shoulderL[0] += armSwing * aSinL + R.lift * ratio;
+  tgt.shoulderR[0] += armSwing * aSinR + R.lift * ratio;
   // how far FORWARD each arm is right now, 0..1 — the pump and the cross both
   // want the arm at the front of its swing, and with the counter-swing above
-  // that is the moment its OWN leg is at the back
-  const armFwdL = backL, armFwdR = backR;
+  // that is the moment its OWN leg is at the back. Measured on the ARM clock,
+  // so it follows `arms.phase` instead of quietly staying on the legs'.
+  const armFwdL = Math.max(0, -aSinL), armFwdR = Math.max(0, -aSinR);
   const elbow = R.elbow + R.elbowRun * ratio;
   tgt.elbowL[0] += -elbow - R.elbowPump * ratio * armFwdL;
   tgt.elbowR[0] += -elbow - R.elbowPump * ratio * armFwdR;
@@ -830,9 +877,10 @@ export function applyGait(tgt, gait, env) {
   }
 
   // ===== FORELEGS (arthropod bodies — jerry): the arms ARE front legs =====
-  // The counter-swing above already gives them the right BEAT — an arm moves
-  // with the opposite leg, which is exactly the diagonal-couplet timing an
-  // insect walks on — so nothing rephases. What changes is the JOB:
+  // The counter-swing above already gives them a sensible BEAT — an arm moves
+  // with the opposite leg, which is the diagonal-couplet timing an insect walks
+  // on — and `arms.phase` slides that beat when a particular body wants a
+  // particular claw landing with a particular foot. What changes here is the JOB:
   //   · `carry` plants the claws: a constant shoulder pitch onto the ground,
   //     there at a walk and a sprint alike (lift rides the throttle; a limb
   //     that bears weight cannot).
@@ -847,7 +895,7 @@ export function applyGait(tgt, gait, env) {
   //     parallel to the ground (footFlat, one limb pair up), while `handClear`
   //     tips the swinging claw up so the tip doesn't plough a furrow forward.
   if (R.carry || R.foldClear || R.handGround || R.handClear) {
-    const cosP = Math.cos(ph);
+    const cosP = Math.cos(phA);   // the claw plant window rides the ARM clock
     const plantL = clamp01(0.5 + 0.85 * cosP);
     const plantR = clamp01(0.5 - 0.85 * cosP);
     tgt.shoulderL[0] += R.carry || 0;

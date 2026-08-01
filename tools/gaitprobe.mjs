@@ -77,7 +77,8 @@ const out = await page.evaluate(async ({ n }) => {
         ? clr[side] > 0.15 * legLen                 // measured: sole off the pavement
         : (p.y - g.position.y) > 0.20 * (m.dims.hipHeight + m.dims.torsoH + m.dims.headSize * 2);
       feet[side] = { fore: p.z - hip.z, up: p.y - g.position.y, side: p.x - hip.x, toe: toe.z, air };
-      hands[side] = m.joints['hand' + side].getWorldPosition(new V3()).z - hip.z;
+      const hp = m.joints['hand' + side].getWorldPosition(new V3());
+      hands[side] = { fore: hp.z - hip.z, up: hp.y - g.position.y };
     }
     return {
       feet, hands,
@@ -99,6 +100,27 @@ const out = await page.evaluate(async ({ n }) => {
       airOff: 0, airN: 0,
       // paired samples for the counter-swing correlation
       pairs: [],
+      // WHEN EACH LIMB REACHES DOWN — the number behind "does his right claw
+      // land with his left leg?".
+      //
+      // Measured RELATIVE TO THE HIPS, deliberately. A limb's absolute height
+      // is its own cycle PLUS the body's, and on a body with a real bob (and a
+      // pelvis follower on top of it) the shared term can dominate: jerry's
+      // claws bottom out at the same phase whatever `arms.phase` says, because
+      // that phase is the shell dropping, not the claw reaching. Taking the hips
+      // out leaves each limb's own cycle, which is what the phase dials move.
+      // `clr` keeps the absolute answer alongside it — how close that limb gets
+      // to the floor at all, so "landing" can be told from "waving".
+      //
+      // …and the phase is taken from the FUNDAMENTAL HARMONIC of the height
+      // curve, not from its lowest sample. A limb's bottom is often a plateau
+      // (jerry's claw sits within a few percent of its lowest over a third of
+      // the cycle), so argmin hops around inside the flat and reads as "the dial
+      // did nothing" when the whole curve has in fact slid. One cosine fit per
+      // limb — cos/sin sums over the cycle — gives a phase that moves with the
+      // curve, which is what a timing comparison needs.
+      wave: { footL: [0, 0], footR: [0, 0], handL: [0, 0], handR: [0, 0] },
+      clr: { footL: 1e9, footR: 1e9, handL: 1e9, handR: 1e9 },
     };
     runs[key] = acc;
   }
@@ -131,7 +153,17 @@ const out = await page.evaluate(async ({ n }) => {
         // in the air, the ankle belongs at its resting line (+ the gait's `hang`)
         if (f.air) { acc.airOff += Math.abs(s.ankleOff[side] - s.hang); acc.airN++; }
       }
-      for (const side of ['L', 'R']) acc.pairs.push([s.feet[side].fore, s.hands[side]]);
+      for (const side of ['L', 'R']) acc.pairs.push([s.feet[side].fore, s.hands[side].fore]);
+      // reach-down = the phase at which this limb hangs lowest BELOW THE HIPS
+      // (its own cycle, one cosine fit); clearance = how low it gets absolutely
+      const th = (i / n) * Math.PI * 2;
+      for (const [name, up] of [['footL', s.feet.L.up], ['footR', s.feet.R.up],
+        ['handL', s.hands.L.up], ['handR', s.hands.R.up]]) {
+        const rel = up - s.hipY;
+        acc.wave[name][0] += rel * Math.cos(th);
+        acc.wave[name][1] += rel * Math.sin(th);
+        if (up < acc.clr[name]) acc.clr[name] = up;
+      }
       acc.hipMin = Math.min(acc.hipMin, s.hipY);
       acc.hipMax = Math.max(acc.hipMax, s.hipY);
       acc.lean = Math.max(acc.lean, s.lean);
@@ -161,9 +193,22 @@ const out = await page.evaluate(async ({ n }) => {
     toeFwd: a.toeFwd < -8 ? null : a.toeFwd,
     ankleAir: a.airN ? a.airOff / a.airN : null,
     armPhase: corr(a.pairs),
+    // peak of the fitted cosine is the limb's HIGHEST; half a turn on is its
+    // lowest — the moment it is reaching for the ground
+    reachDown: Object.fromEntries(Object.entries(a.wave).map(([k, [c, s2]]) => {
+      if (Math.hypot(c, s2) < 1e-6) return [k, null];
+      const up = Math.atan2(s2, c) / (Math.PI * 2);
+      return [k, ((up + 0.5) % 1 + 1) % 1];
+    })),
+    clearance: Object.fromEntries(Object.entries(a.clr).map(([k, v]) => [k, v > 1e8 ? null : v / a.h])),
   });
   return {
     mech: w.mech.def.id, gait: w.gaitId, vs: w.compareGait,
+    // the claws only touch the ground on a foreleg gait; on a humanoid the
+    // hand minimum is just the bottom of an arm swing and means nothing
+    foreleg: !!(w.gait?.arms?.carry || w.gait?.arms?.handGround),
+    armPhaseDial: w.gait?.arms?.phase || 0,
+    legPhaseDial: w.gait?.legs?.phase || 0,
     mine: norm(runs.mine), other: norm(runs.vs),
   };
 }, { n: Number(steps) });
@@ -196,6 +241,38 @@ console.log(`\n  airborne foot: ${out.mine.ankleAir === null ? 'never leaves the
   + (out.mine.toeFwd === null ? ''
     : out.mine.toeFwd > 0.6 ? `, and its toes still point FORWARD (${out.mine.toeFwd.toFixed(2)})`
     : `, toes ${out.mine.toeFwd < 0 ? 'back' : 'down'} (${out.mine.toeFwd.toFixed(2)})`));
+// ---- WHO LANDS WITH WHOM ----
+// Only meaningful when the claws are feet (a foreleg gait); on a humanoid the
+// lowest point of a hand is just the bottom of an arm swing.
+if (out.foreleg) {
+  const td = out.mine.reachDown, clr = out.mine.clearance;
+  const turn = (v) => (v === null ? '—' : `${(v * 100).toFixed(0)}%`);
+  // shortest way round the circle, in cycles: 0 = together, 0.5 = opposite
+  const gap = (a, b) => {
+    if (a === null || b === null) return null;
+    const d = Math.abs(a - b) % 1;
+    return Math.min(d, 1 - d);
+  };
+  const NAME = { footL: 'foot L', footR: 'foot R', handL: 'claw L', handR: 'claw R' };
+  console.log(`\n  reach-down — where each limb sits lowest in its OWN cycle (hips taken out),`);
+  console.log('  and how close it gets to the floor at all (% of body height, ~0 = it lands)'
+    + `${out.armPhaseDial ? `   [arms.phase ${out.armPhaseDial.toFixed(2)}]` : ''}`
+    + `${out.legPhaseDial ? `   [legs.phase ${out.legPhaseDial.toFixed(2)}]` : ''}`);
+  for (const k of ['footL', 'footR', 'handL', 'handR']) {
+    console.log(`    ${NAME[k].padEnd(7)} at ${turn(td[k]).padStart(4)} of the cycle`
+      + `   clearance ${clr[k] === null ? '—' : pct(clr[k]).padStart(7)}`
+      + (clr[k] !== null && clr[k] > 0.12 ? '  (never reaches the ground)' : ''));
+  }
+  for (const [a, b] of [['handR', 'footL'], ['handL', 'footR'], ['handR', 'footR'], ['handL', 'footL']]) {
+    const g = gap(td[a], td[b]);
+    if (g === null) continue;
+    console.log(`    ${NAME[a]} vs ${NAME[b]}: ${(g * 100).toFixed(0)}% apart`
+      + (g < 0.08 ? '  ← together' : g > 0.42 ? '  ← dead opposite' : ''));
+  }
+  console.log('    (arms.phase slides the claws round this clock — π swaps the pair;'
+    + ' legs.phase does the same for the legs)');
+}
+
 console.log(`\n  arms ${out.mine.armPhase < -0.3 ? 'COUNTER-swing the legs (correct)'
   : out.mine.armPhase > 0.3 ? 'swing WITH the legs — WRONG, they should counter'
   : 'barely swing / out of phase with the legs'}`);

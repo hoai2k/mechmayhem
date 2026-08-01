@@ -194,6 +194,22 @@ audio). Progress history: `TASKS.md`.
   the leg geometry otherwise — a deep-booted heavy stands with its ankle a fifth
   of a body height up, so ankle height alone calls a planted foot raised. The
   gallop overrides it again for fenrir, whose hinds both leave the ground at once.
+  WHO IS ON WHICH BEAT is two dials, `legs.phase` and `arms.phase` (radians,
+  0 on every shipped gait). `ph` is the beat and the BODY stays on it (bob, yaw,
+  roll, lean); each limb pair rides its own clock offset from it, keeping its own
+  L/R alternation, so what the dials move is which leg an arm answers to — π
+  swaps the pair outright. On a FORELEG gait (arthropod) the claw's plant/lift
+  window, elbow fold and wrist levelling all ride the arm clock too, which is
+  what makes "land the right claw with the left leg" a single number: measured on
+  jerry, 0 puts each claw down with the foot on its own side (8% of a cycle
+  apart) and π puts it on the diagonal (3%). `node tools/gaitprobe.mjs <mech>`
+  prints that table — REACH-DOWN, the phase each limb sits lowest RELATIVE TO
+  THE HIPS (the body's own bob is common to every limb and swamps the absolute
+  height; on jerry it made all four bottom out together whatever the dials said)
+  taken from a one-harmonic fit rather than the lowest sample (a claw sits within
+  a few percent of its floor for a third of the cycle, and argmin inside a
+  plateau hops about and reads as "the dial did nothing"), alongside each limb's
+  absolute CLEARANCE so a landing can be told from a wave.
   Judge it with `node tools/gaitprobe.mjs` (`ankleAir°` ~0 = the airborne foot is
   at its resting line; `toeFwd` is the bound on how far forward its toes still
   point).
