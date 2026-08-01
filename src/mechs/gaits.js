@@ -167,9 +167,14 @@ export const GAIT_SCHEMA = [
         help: 'radians the LEG cycle runs ahead of the beat. The legs keep their own alternation '
           + '(L and R stay half a cycle apart) — what moves is where they sit relative to the arms '
           + 'and the body bob. π swaps which leg leads' },
-      { key: 'cadence', label: 'cadence reach', min: 0.4, max: 1.6, step: 0.01, joints: [],
+      // THE RANGE IS THE SANE BAND FOR A BIPED, NOT A LIMIT. A body whose legs
+      // cannot swing far — six short splayed crab legs — covers the same ground
+      // by taking many more, much shorter steps, and the honest way to say that
+      // is a small `cadence` and a high cap. Both ends are widened for it: the
+      // alternative is a mech whose feet cannot keep up with the floor.
+      { key: 'cadence', label: 'cadence reach', min: 0.1, max: 1.6, step: 0.01, joints: [],
         help: 'fraction of leg length a stride is assumed to cover — SMALLER = faster steps for the same ground speed' },
-      { key: 'cadenceCap', label: 'cadence cap', min: 4, max: 30, step: 0.5, joints: [],
+      { key: 'cadenceCap', label: 'cadence cap', min: 4, max: 60, step: 0.5, joints: [],
         help: 'ceiling on steps per second (rad/s of gait phase)' },
     ],
   },
@@ -299,6 +304,66 @@ export const GAIT_SCHEMA = [
           + 'on top, radians per second — it is what keeps a standing wolf alive. It is a RATE, so '
           + 'the workbench sweeps it a second along the tail\'s own clock to have something to '
           + 'measure (see `tailT` in the adapter)' },
+    ],
+  },
+  {
+    // THE OTHER FOUR LEGS. Same deal as the tail: these are not the 15 game
+    // joints, nothing retargets onto them, and only some bodies have them — so
+    // the group is OPTIONAL and a gait without a `hex` block never shows it.
+    //
+    // A hexapod's BACK pair carries the game leg joints (cranky's thighL/thighR
+    // ARE his back-left and back-right crab legs), so the stride, the knee lift
+    // and the foot rules above already drive two of the six. This group drives
+    // the other four, off the SAME gait phase, in the tripod an insect walks on:
+    // front-left + mid-right + back-left step together, then the other three.
+    // Which leg is in which tripod is DERIVED from the rig (see hexLegsOf), not
+    // listed here, so it stays right on a body with the legs somewhere else.
+    id: 'hex', label: 'Extra legs — the hexapod tripod', optional: true,
+    params: [
+      { key: 'sweep', label: 'fore-aft sweep', min: 0, max: 1.2, step: 0.01,
+        joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip'],
+        help: 'how far each extra leg swings forward and back about the body\'s UP axis, radians. '
+          + 'This is the stride these legs take: the foot travels twice this times its own '
+          + 'horizontal distance from the hip, and that has to keep up with the floor' },
+      { key: 'sweepRun', label: 'fore-aft sweep @run', min: 0, max: 1.2, step: 0.01,
+        joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip'] },
+      { key: 'lift', label: 'hip lift on recovery', min: -0.6, max: 1.2, step: 0.01,
+        joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip'],
+        help: 'how far the hip raises the whole leg while it is swinging forward — half of the '
+          + 'ground clearance (the knee fold below is the other half)' },
+      { key: 'liftRun', label: 'hip lift @run', min: -0.6, max: 1.2, step: 0.01,
+        joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip'] },
+      { key: 'fold', label: 'knee fold on recovery', min: -1.2, max: 1.2, step: 0.01,
+        joints: ['legFLknee', 'legMLknee', 'legFRknee', 'legMRknee'],
+        help: 'the knee tucking the foot up out of the way through the swing. On a leg that '
+          + 'hangs nearly straight down this does most of the clearing, because rotating the '
+          + 'hip mostly swings such a foot sideways rather than up' },
+      { key: 'foldRun', label: 'knee fold @run', min: -1.2, max: 1.2, step: 0.01,
+        joints: ['legFLknee', 'legMLknee', 'legFRknee', 'legMRknee'] },
+      { key: 'liftPhase', label: 'lift phase', min: -3.14, max: 3.14, step: 0.01,
+        joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip'],
+        help: 'where in the cycle the leg picks up, radians after the leg is furthest BACK. '
+          + '1.57 lifts through the middle of the forward swing, which is the one that keeps '
+          + 'the planted half of the stride on the floor' },
+      { key: 'splay', label: 'leg splay', min: -0.8, max: 0.8, step: 0.01,
+        joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip'],
+        help: 'constant hip rotation about the same axis as the lift: positive carries the legs '
+          + 'out flatter and the shell lower, negative tucks them under' },
+      { key: 'crouch', label: 'knee crouch', min: -1.2, max: 1.2, step: 0.01,
+        joints: ['legFLknee', 'legMLknee', 'legFRknee', 'legMRknee'],
+        help: 'constant knee bend — the standing shape of the leg, before any stride' },
+      { key: 'lag', label: 'metachronal lag', min: -1.5, max: 1.5, step: 0.01,
+        joints: ['legFLhip', 'legMLhip', 'legFRhip', 'legMRhip', 'legFLknee', 'legMLknee', 'legFRknee', 'legMRknee'],
+        help: 'radians of phase each rank runs behind the one in front of it, ON TOP of the '
+          + 'tripod. 0 is a rigid tripod (three legs land as one); turn it up and the step runs '
+          + 'back down the body as a wave, which is what a real many-legged thing does' },
+      { key: 'midAmp', label: 'mid pair amplitude', min: 0, max: 1.5, step: 0.01,
+        joints: ['legMLhip', 'legMRhip', 'legMLknee', 'legMRknee'],
+        help: 'scales everything above for the MIDDLE pair alone' },
+      { key: 'frontAmp', label: 'front pair amplitude', min: 0, max: 1.5, step: 0.01,
+        joints: ['legFLhip', 'legFRhip', 'legFLknee', 'legFRknee'],
+        help: 'scales everything above for the FRONT pair alone — the pair that sits closest to '
+          + 'a crab\'s pincer bases, where a big step can drag the claw skin with it' },
     ],
   },
   {
@@ -514,6 +579,73 @@ export const GAITS = {
       phase: 0,
     },
     body: { bob: 0.11, pitch: 0.06, yaw: 0.16, roll: 0.08, lean: 0.12, twist: 0.05, head: -0.10 },
+  },
+
+  // CRANKY — SIX LEGS, ONE PHASE.
+  //
+  // His custom rig carries all six crab legs as real bones, and the BACK pair is
+  // the game's own leg joints (thighL/kneeL/ankleL/footL IS the back-left leg).
+  // So two of the six ride the ordinary stride above — including the foot rules,
+  // which is what keeps his soles honest — and the `hex` block below drives the
+  // other four off the SAME phase, in the tripod an insect walks on.
+  //
+  // The numbers are the no-skate solve, not taste. At full throttle he covers
+  // 15.6 u/s; `cadence` fixes how much ground one step is asked to cover
+  // (pi * legLen * cadence * swing), and the two stride amplitudes are set so
+  // the feet actually travel that far:
+  //   back pair   the thigh pitch swings the foot 3.55 u per radian on this body
+  //               (the foot hangs that far below the hip), so swing 0.55 at full
+  //               speed = 3.7 u of travel per step
+  //   other four  their feet hang ~2.4 u below their hips, so they need a WIDER
+  //               arc for the same ground: sweep 0.90 = 3.7 u
+  // and cadence 0.65 asks for 3.7 u. All three agree, which is the whole point —
+  // that is a foot that stays where it was put. Judge it in
+  // /workbench/?edit=gait&mech=cranky with FOOTPRINTS on: "landed" and the
+  // derived "u per step" beside it are the two halves of the same claim.
+  hexapod: {
+    base: 'standard',
+    name: 'Hexapod',
+    note: 'Six-legged crab scuttle: a tripod of legs steps while the other three carry, shell level and low, pincers held up and ready.',
+    // SHORT STEPS, MANY OF THEM. cadence 0.92 -> 0.70 is the crab admitting his
+    // legs are not a biped's: at 0.92 the floor moved 7.9 u per step under a
+    // foot that travelled 0.3, which is the "wiggling his legs and floating
+    // along" the owner reported.
+    legs: {
+      swing: 0.35, swingRun: 0.20, reach: 0, extend: 0,
+      adduct: 0, adductRun: 0, adductTrail: 0,
+      stanceBend: 0.10, stanceBendRun: 0,
+      kneeLift: 0.30, kneeLiftRun: 0.15, kneePhase: 1.57, phase: 0,
+      cadence: 0.70, cadenceCap: 20,
+    },
+    // a crab's leg tip is a POINT, not a sole: little roll, a modest push, and
+    // `level` doing the work of keeping the tip down through the stance
+    ankle: { roll: 0.15, tilt: 0, push: 0.40, pushRun: 0.20, level: 0.3, hang: 0 },
+    // THE PINCERS ARE NOT LEGS — they are carried. This is the old hard-coded
+    // CRANKY_CARRY (glbanim.js) expressed as gait dials, which is what makes the
+    // arm rows in the workbench mean something on him instead of sitting there
+    // dead: `carry` raises both claws off the floor, `tuck` rolls them out to the
+    // sides, and the swing/pump is the small sway of something heavy being
+    // carried at speed. The no-droop floor in the profile still guarantees they
+    // can never be driven back down through the pavement.
+    arms: {
+      swing: 0.25, swingRun: 0.10, lift: 0, elbow: 0, elbowRun: 0,
+      elbowPump: 0.15, tuck: 0.23, cross: 0, phase: 0,
+      carry: -0.86, foldClear: 0, handGround: 0, handClear: 0,
+    },
+    // a shell has no chest to pitch and no waist to twist: level, with the
+    // side-to-side waggle that reads as a scuttle
+    body: { bob: 0.05, pitch: 0, yaw: 0.10, roll: 0.06, lean: 0.04, twist: 0.02, head: 0 },
+    hex: {
+      sweep: 0.58, sweepRun: 0.32,
+      lift: 0.22, liftRun: 0.10,
+      fold: 0.45, foldRun: 0.20,
+      liftPhase: 1.57, splay: 0, crouch: 0,
+      // a touch of wave down the body rather than three legs landing as one
+      lag: 0.35,
+      // the front pair sits against the pincer bases, so it steps a little
+      // smaller — big steps there drag the claw skin with them
+      midAmp: 1.0, frontAmp: 0.85,
+    },
   },
 
   // FENRIR — A SPRINTER WHO OPENS INTO A WOLF.
@@ -1245,6 +1377,166 @@ export function applyTailGait(tgt, gait, env = {}) {
     const w = ph - (T.lag || 0) * k;
     a[1] += Math.sin(w) * sway * (0.35 + k);
     a[2] += Math.sin(w * 2 + 0.7) * (T.lift || 0) * (0.35 + k);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// THE OTHER FOUR LEGS.
+//
+// Same shape as the tail above, and for the same reason: a hexapod's extra legs
+// are not the 15 game joints, nothing retargets onto them, and only one body has
+// them. So the rig is MEASURED once (hexLegsOf) and a pure pass (applyHexGait)
+// writes their angles into the pose target, which the animator then puts on the
+// rig's own bones after the retarget has had its say.
+//
+// TWO THINGS ARE DERIVED RATHER THAN AUTHORED, because getting either wrong is
+// invisible in the numbers and obvious on screen:
+//
+//  1. WHICH AXIS IS FORWARD. A leg swings fore-aft about the body's LATERAL axis
+//     — not about its up axis, however far out to the side the leg is carried.
+//     The lever arm is how far the foot hangs BELOW the hip, which is why a
+//     crab's stubby side legs still take a real step. Both axes are read off the
+//     rig itself (up from hips->torso, lateral from the two back hips), so this
+//     works on a body facing any way, with the legs anywhere.
+//  2. WHICH TRIPOD EACH LEG IS IN. An insect walks on alternating triangles —
+//     front-left, mid-right, back-left, then the other three — which is just
+//     "flip the phase for each rank down the body, and again for the other
+//     side". Rank comes from where the hip actually sits along the body, so a
+//     rig edit that moves a leg re-derives its place instead of quietly walking
+//     the wrong triangle.
+//
+// The BACK pair is included in the measurement and NOT driven: it carries the
+// game leg joints, so the stride above already owns it, and all it contributes
+// here is its rank (the tripod parity the other four alternate against).
+// ---------------------------------------------------------------------------
+
+const v3sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const v3dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const v3cross = (a, b) => [
+  a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0],
+];
+function v3norm(a) {
+  const l = Math.hypot(a[0], a[1], a[2]) || 1;
+  return [a[0] / l, a[1] / l, a[2] / l];
+}
+// a bone's position in the rig's own common frame. Exact because every bone on a
+// hand-placed rig rests unrotated — the same property tailChainOf leans on.
+function boneRigPos(b) {
+  const p = [0, 0, 0];
+  for (let o = b; o && o.isBone; o = o.parent) { p[0] += o.position.x; p[1] += o.position.y; p[2] += o.position.z; }
+  return p;
+}
+const restRot = (b) => (b ? [b.rotation.x, b.rotation.y, b.rotation.z] : [0, 0, 0]);
+
+/**
+ * Measure a hexapod's legs, once. Extra legs are named `leg<TAG>hip` /
+ * `leg<TAG>knee` / `leg<TAG>foot`; the two game legs (thigh/knee/ankle) join
+ * them so the ranks and the tripod come out right.
+ * @param {Object} byName  bones by name (mech.rigBones)
+ * @returns {null|{n:number, legs:Object[]}}
+ */
+export function hexLegsOf(byName) {
+  if (!byName?.hips) return null;
+  const found = [];
+  for (const name of Object.keys(byName)) {
+    const m = /^leg(.+)hip$/.exec(name);
+    if (!m) continue;
+    const knee = byName[`leg${m[1]}knee`];
+    if (!knee) continue;
+    found.push({ hip: byName[name], knee, foot: byName[`leg${m[1]}foot`] || null, driven: true });
+  }
+  if (!found.length) return null;
+  for (const s of ['L', 'R']) {
+    const hip = byName[`thigh${s}`];
+    if (!hip) continue;
+    found.push({
+      hip,
+      knee: byName[`knee${s}`] || null,
+      foot: byName[`foot${s}`] || byName[`ankle${s}`] || null,
+      driven: false,
+    });
+  }
+  const hipsP = boneRigPos(byName.hips);
+  const up = byName.torso ? v3norm(v3sub(boneRigPos(byName.torso), hipsP)) : [0, 1, 0];
+  // the body's own LEFT, from the two back hips — a rig may face any way
+  const tL = byName.thighL, tR = byName.thighR;
+  let left = tL && tR ? v3sub(boneRigPos(tL), boneRigPos(tR)) : [0, 0, 1];
+  left = v3norm(v3sub(left, up.map((c) => c * v3dot(left, up))));   // …square to up
+  const fwd = v3cross(up, left);
+
+  const legs = found.map((l) => {
+    const hp = boneRigPos(l.hip);
+    const tip = boneRigPos(l.foot || l.knee);
+    const span = v3sub(tip, hp);
+    // the horizontal part of the leg, for the lift axis; a leg hanging dead
+    // straight down has none, and its own side stands in
+    const flat = v3sub(span, up.map((c) => c * v3dot(span, up)));
+    const side = v3dot(v3sub(hp, hipsP), left) >= 0 ? 1 : -1;
+    const out = Math.hypot(flat[0], flat[1], flat[2]) > 1e-4
+      ? v3norm(flat) : left.map((c) => c * side);
+    return {
+      hip: l.hip.name, knee: l.knee?.name || null, foot: l.foot?.name || null,
+      driven: l.driven && !!l.knee,
+      side, fore: v3dot(v3sub(hp, hipsP), fwd),
+      // + swings every foot FORWARD, whichever side it is on: the foot hangs
+      // below the hip, so a turn about `left` carries it along `fwd`
+      sweepAxis: left,
+      // …and about this one it rises (see the note above: `out x up`)
+      liftAxis: v3norm(v3cross(out, up)),
+      restHip: restRot(l.hip), restKnee: restRot(l.knee),
+      // how far the foot hangs below its hip — the stride's lever arm, reported
+      // so a probe can say what arc this leg needs rather than guessing
+      drop: Math.abs(v3dot(span, up)),
+    };
+  });
+  // RANK: front to back, down each side independently, so the two sides mirror
+  // even on a rig whose legs are not paired exactly.
+  for (const s of [1, -1]) {
+    const mine = legs.filter((l) => l.side === s).sort((a, b) => b.fore - a.fore);
+    mine.forEach((l, i) => { l.rank = i; });
+  }
+  // …and the tripod falls straight out of it: alternate down the body, and
+  // again across it.
+  for (const l of legs) l.group = ((l.rank || 0) + (l.side > 0 ? 0 : 1)) % 2;
+  return { n: legs.length, legs };
+}
+
+/**
+ * One frame of the extra legs. Pure, like every other pass here: it writes
+ * `tgt['<hip bone>']` / `tgt['<knee bone>']` and the caller decides what those
+ * mean (the animator puts them on the rig's bones; the workbench measures them
+ * to find out which dials do anything).
+ * env: { ph, ratio, hex } — `hex` from hexLegsOf, and without it this does
+ * nothing at all.
+ */
+export function applyHexGait(tgt, gait, env = {}) {
+  const H = gait.hex;
+  const rig = env.hex;
+  if (!H || !rig) return;
+  const ratio = env.ratio ?? 1;
+  const ph = env.ph ?? 0;
+  const sweep = (H.sweep || 0) + (H.sweepRun || 0) * ratio;
+  const lift = (H.lift || 0) + (H.liftRun || 0) * ratio;
+  const fold = (H.fold || 0) + (H.foldRun || 0) * ratio;
+  for (const l of rig.legs) {
+    if (!l.driven) continue;
+    const h = tgt[l.hip], k = tgt[l.knee];
+    if (!h && !k) continue;
+    // the tripod, plus the wave running back down the body
+    const p = ph + (l.group ? Math.PI : 0) - (H.lag || 0) * (l.rank || 0);
+    const amp = l.rank === 0 ? (H.frontAmp ?? 1) : l.rank === 1 ? (H.midAmp ?? 1) : 1;
+    // FORWARD when sin is positive — the same beat the back leg on this side is
+    // on, since the stride above drives thighL by -swing*sin(ph) and a negative
+    // thigh pitch is forward.
+    const fore = sweep * amp * Math.sin(p);
+    // …and OFF THE GROUND through the forward half of that swing
+    const air = Math.max(0, Math.sin(p + (H.liftPhase ?? 1.57)));
+    const up = (H.splay || 0) + lift * amp * air;
+    if (h) for (let i = 0; i < 3; i++) h[i] += l.sweepAxis[i] * fore + l.liftAxis[i] * up;
+    if (k) {
+      const bend = (H.crouch || 0) + fold * amp * air;
+      for (let i = 0; i < 3; i++) k[i] += l.liftAxis[i] * bend;
+    }
   }
 }
 

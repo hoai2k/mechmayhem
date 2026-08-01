@@ -179,7 +179,7 @@ audio). Progress history: `TASKS.md`.
   turns the body to face travel, so the offset is ~0 and it never engages.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
   `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
-  nova) and `quad` (fenrir).
+  nova), `arthropod` (jerry), `hexapod` (cranky) and `quad` (fenrir).
   A roster def names one with `gait: '<id>'` and mechs SHARE them, so tuning a
   gait moves every mech that runs it.
   A GAIT MAY BE A VARIANT OF ANOTHER: `base: '<id>'` makes it that gait plus the
@@ -260,6 +260,32 @@ audio). Progress history: `TASKS.md`.
   Judge it with `node tools/gaitprobe.mjs` (`ankleAir°` ~0 = the airborne foot is
   at its resting line; `toeFwd` is the bound on how far forward its toes still
   point).
+  MORE THAN TWO LEGS: `hex` is an OPTIONAL group, built exactly like `tail` —
+  bones that are not the 15 game joints, so the rig is MEASURED once
+  (`hexLegsOf`) and a pure pass (`applyHexGait`) writes their angles into the
+  pose target, which `Animator.applyHexPose` puts on the rig's own bones AFTER
+  the retarget. CRANKY is the body: his six crab legs are all real bones and the
+  BACK pair carries the game leg joints (`thighL/kneeL/ankleL/footL` IS his
+  back-left leg), so two of the six ride the ordinary stride — foot rules
+  included — and the other four ride `hex` off the SAME phase. Two things are
+  derived rather than authored, because either one wrong is invisible in the
+  numbers and obvious on screen: WHICH AXIS IS FORWARD (a leg swings fore-aft
+  about the body's LATERAL axis, however far out to the side it is carried — the
+  lever arm is how far the foot hangs BELOW the hip, which is why a crab's stubby
+  side legs still take a real step) and WHICH TRIPOD each leg is in (rank down
+  the body from where the hip actually sits, then alternate by rank and again by
+  side: front-left + mid-right + back-left, then the other three). Judge it with
+  `node tools/hexprobe.mjs <mech> [throttle]`, which reports every leg's `keep` —
+  the foot's measured fore-aft travel over the ground the cadence says one step
+  covers. THE ROSTER'S OWN BASELINE IS 0.73 (what titanus measures at every
+  speed), not 1.00; cranky's old bolted-on crab walk measured 0.04, which is what
+  "wiggling his legs and floating along" is worth as a number. It also reports
+  SHELL HEAVE twice — running, and stepped phase by phase — because the
+  pelvis-follows-the-feet loop is deliberately slow, so a probe that parks the
+  cycle at each phase and lets it settle reports a heave nothing on screen ever
+  does (cranky: 2.6% running, 18.5% stepped), and asserts the two properties any
+  gait-driven leg must have: pause freezes it (the gait phase is its only clock)
+  and standing returns it to the rig's rest angles.
   THE TRAILING FLICK (`adductTrail`) is the one dial that is NOT a plain phase
   function: it rolls the KNEE (so the shin and paw tuck in under a hip that stays
   put) toward the midline only while that foot is BEHIND AND OFF THE GROUND — the flick after toe-off — and fades as the leg swings forward,

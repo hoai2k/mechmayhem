@@ -417,6 +417,12 @@ export const ROSTER = [
     // rather than walking his splayed legs off in another direction (see
     // Animator.legFrame). Jerry and fenrir are excluded by their own gaits.
     strafeLegs: false,
+    // SIX LEGS ON ONE PHASE. His custom rig carries all of them as real bones
+    // and the BACK pair is the game's own leg joints, so the hexapod gait drives
+    // two of them through the ordinary stride and the other four through its
+    // `hex` block — one clock, one cadence, matched to how fast he is actually
+    // travelling (see GAITS.hexapod).
+    gait: 'hexapod',
     blurb: 'A deep-sea salvage rig that got tired of being salvaged. Waddled ashore trailing kelp and grudges, shell first, questions never. The claws are non-negotiable.',
     quotes: { win: '"*bubbling chuckle* Shell: 1. Everything else: 0."', intro: '"You look... crackable."' },
     // canonical image: rust-orange patchy shell over dark steel, blue-steel
