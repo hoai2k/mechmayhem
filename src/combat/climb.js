@@ -70,7 +70,7 @@
 // air.
 import * as THREE from 'three';
 import { TUNING } from '../core/tuning.js';
-import { clamp, clamp01, DEG } from '../core/utils.js';
+import { clamp, clamp01, DEG, angleDiff } from '../core/utils.js';
 
 const C = TUNING.climb;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -367,6 +367,7 @@ export function climbStep(f, dt, mv) {
     // ease the frame back to standing, and keep the heading live underneath so
     // the next surface picks the body up exactly where it already is
     const k = 1 - Math.exp(-C.tiltRate * dt);
+    f._climbN?.lerp(UP, k).normalize();
     up.lerp(UP, k).normalize();
     _want.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
     fwd.lerp(_want, k);
@@ -378,8 +379,14 @@ export function climbStep(f, dt, mv) {
   f.climb = true;
   if (f.intent.jump) { wallJump(f); return false; }
 
-  // ---- 1. ORIENTATION IS THE FIELD ----
-  up.lerp(fld.n, 1 - Math.exp(-C.tiltRate * dt)).normalize();
+  // ---- 1. ORIENTATION IS THE FIELD, TWICE DAMPED. The raw field normal can
+  // hop between answers at a block seam (a chunk enters reach, the average
+  // jumps); a pre-filter (`normRate`) takes the hop out of the SIGNAL and the
+  // body then follows the filtered normal at `tiltRate`. Two stages of
+  // smoothing is what turns a seam crossing from a flicker into a lean.
+  const nS = f._climbN || (f._climbN = new THREE.Vector3(0, 1, 0));
+  nS.lerp(fld.n, 1 - Math.exp(-C.normRate * dt)).normalize();
+  up.lerp(nS, 1 - Math.exp(-C.tiltRate * dt)).normalize();
   upRotation(up, _qUp);
   const tilt = clamp01((1 - up.y) / C.tiltFull);
 
@@ -387,8 +394,16 @@ export function climbStep(f, dt, mv) {
   _dir.set(mv.x, 0, mv.z);
   const drive = Math.min(_dir.length(), 1);
   _dir.applyQuaternion(_qUp);
-  // full pace on the flat, the climbing pace once he is genuinely on a wall
-  const speed = f.moveSpeed() * f.speedMult() * (1 - (1 - D.speed) * tilt) *
+  // STABILITY OVER SPEED, in two rules. A surfaced body never moves faster
+  // than the climbing pace — a fast WALK, whatever the terrain (`D.speed` of
+  // his walk; running belongs to open ground). And while the body frame is
+  // still TURNING — the pending angle between his up and the filtered field
+  // normal — translation is throttled toward a floor, so complex territory is
+  // taken slowly and settled before speed comes back. That is what replaces
+  // "flickering between orientations": the body stops racing its own frame.
+  const pending = up.angleTo(nS);
+  const steady = clamp(1 - pending / C.turnSlow, C.turnFloor, 1);
+  const speed = f.moveSpeed() * f.speedMult() * D.speed * steady *
     (f.blocking ? TUNING.movement.blockMoveMult : 1);
   if (_dir.lengthSq() > 1e-8) _dir.setLength(drive * speed);
   f._climbSpeed = drive * speed;
@@ -540,53 +555,173 @@ export function applyClimbPose(f) {
 }
 
 // ===========================================================================
-// HANDS AND FEET ON WHATEVER IS NEAREST THEM.
+// THE SPIDER: FOUR LIMBS THAT STEP INDEPENDENTLY, IN ANY DIRECTION.
 //
-// The frame puts the BODY where it belongs; this puts the four contact points
-// where they belong, and it asks PER LIMB — so a mech crossing a corner plants
-// one claw on the wall and one on the roof, which no single surface could
-// express. Two-bone IK onto the nearest point, weighted by how near the limb
-// already is (so the planted foot of a stride is pinned and the swinging one
-// still swings), then the sole/palm turned to face what it found.
+// The old conform pass pulled a limb to the surface only when the animation
+// happened to leave it near one, so feet FLOATED whenever the neutral pose
+// assumed flat ground and the ground wasn't flat. This replaces it with an
+// actual stepping system — the standard spider-IK loop:
+//
+//   HOME    each limb has a home point: the nearest surface to the spot under
+//           its own root (led a little along the travel), at standing height.
+//           "Plant on whatever surface is nearest to their normal spot."
+//   STANCE  a planted limb's tip is PINNED to its plant point, however the
+//           body moves — that is what makes contact read as contact.
+//   SWING   when a plant falls a stride behind its home (or the limb nears
+//           full stretch), the limb swings: a lifted arc to the new home,
+//           `step.time` seconds. Diagonal pairs (ankleL+handR / ankleR+handL)
+//           swing together and the two pairs alternate, which is a trot — and
+//           because homes are computed from geometry and travel, the same
+//           rule IS the sideways gait and the backward gait: moving right,
+//           the right-side limbs lead because their homes do; backing up, the
+//           roles reverse because the travel did. No direction is special.
+//   AIR     a limb whose home is beyond FULL EXTENSION (l1+l2, measured live
+//           off the bones) plants nowhere: it swings free toward its hang
+//           point, gently — reaching, which is the honest read for a limb
+//           with nothing in range. Weird poses are allowed; impossible ones
+//           are not.
+//
+// WHO OWNS THE LIMBS: the stepper, whenever he is surfaced (`f.climb` — walls,
+// roofs, crates, rubble: every structure, which is where feet used to float);
+// and on OPEN GROUND when he is target-locked and strafing or back-pedalling
+// (|drift| past `scuttleDrift`) — the crab side-scuttle, right limbs leading
+// rightward, everything reversed backing up. Plain running on open ground
+// stays the animator's, untouched. The hand-over is an eased activation, not
+// a switch.
 //
 // Runs LAST, after the GLB retarget has synced (fighter.js calls postAnimate
 // first), so it writes the bones a rigged model actually renders.
 // ===========================================================================
 const LIMBS = [
-  { root: 'thighL', mid: 'kneeL', end: 'ankleL', foot: true },
-  { root: 'thighR', mid: 'kneeR', end: 'ankleR', foot: true },
-  { root: 'shoulderL', mid: 'elbowL', end: 'handL', foot: false },
-  { root: 'shoulderR', mid: 'elbowR', end: 'handR', foot: false },
+  { root: 'thighL', mid: 'kneeL', end: 'ankleL', foot: true, group: 0 },
+  { root: 'thighR', mid: 'kneeR', end: 'ankleR', foot: true, group: 1 },
+  { root: 'shoulderL', mid: 'elbowL', end: 'handL', foot: false, group: 1 },
+  { root: 'shoulderR', mid: 'elbowR', end: 'handR', foot: false, group: 0 },
 ];
+const _tipT = new THREE.Vector3();
+const _homeT = new THREE.Vector3();
 
-export function conformClimbLimbs(f) {
-  if (!(f._climbTilt > 0.05)) return;
+export function conformClimbLimbs(f, dt) {
+  const S = C.step;
+  // who owns the limbs this frame?
+  const spd = Math.hypot(f.vel.x, f.vel.z);
+  const scuttle = !f.climb && f.grounded && f.alive && f.state === 'normal' &&
+    !f.isAI && f.lockTarget?.alive && spd > 2 &&
+    Math.abs(angleDiff(f.yaw, Math.atan2(f.vel.x, f.vel.z))) > C.scuttleDrift;
+  const want = (f.climb || scuttle) ? 1 : 0;
+  f._stepAct = f._stepAct === undefined ? 0
+    : f._stepAct + (want - f._stepAct) * (1 - Math.exp(-S.rate * dt));
+  if (f._stepAct < 0.02) { f._steps = null; return; }
+  const act = f._stepAct;
+
+  const st = f._steps || (f._steps = LIMBS.map(() => ({
+    plant: new THREE.Vector3(), has: false, n: new THREE.Vector3(0, 1, 0),
+    sw: -1, from: new THREE.Vector3(), to: new THREE.Vector3(), tn: new THREE.Vector3(0, 1, 0),
+    air: true,
+  })));
+
   const mech = f.mech;
   const bones = mech.boneMap || null;
   const node = (n) => (bones && bones[n]) || mech.joints?.[n] || null;
   f.group.updateWorldMatrix(true, true);
-  const range = C.conformRange * f.height;
-  const pull = C.conform * f._climbTilt;
+  const up = f.climbUp || UP;
   const sole = f.animator?.footDepth || 0.32 * f.scale;
-  for (const L of LIMBS) {
+
+  // which diagonal pairs are mid-swing (computed first: the alternation gate)
+  const swinging = [false, false];
+  for (let i = 0; i < 4; i++) if (st[i].sw >= 0) swinging[LIMBS[i].group] = true;
+
+  for (let i = 0; i < 4; i++) {
+    const L = LIMBS[i], s0 = st[i];
     const root = node(L.root), mid = node(L.mid), end = node(L.end);
     if (!root || !mid || !end) continue;
+    root.getWorldPosition(_root);
+    mid.getWorldPosition(_mid);
     end.getWorldPosition(_end);
-    const stand = L.foot ? sole * 0.35 : 0.06;
-    const d = nearestSurface(f, _end.x, _end.y, _end.z, range);
-    if (d === Infinity) continue;
-    // FEET by proximity, so the planted one of a stride is pinned and the
-    // swinging one is left alone; HANDS with a floor under that, because a
-    // climber's claws are on the wall whether or not the swing brought them
-    // near it — and where the arm cannot reach, the solve leaves it REACHING,
-    // which is the read you want anyway.
-    const near = clamp01(1 - Math.abs(d - stand) / range);
-    const w = pull * (L.foot ? near : Math.max(C.handPlant, near));
-    if (w < 0.02) continue;
-    _tgt.copy(_limbCp).addScaledVector(_limbN, stand);
-    _tgt.lerpVectors(_end, _tgt, w);
-    reachTo(root, mid, end, _tgt);
-    levelTip(end, _limbN, w);
+    // FULL EXTENSION, measured live off this rig's own bones
+    const reach = (_root.distanceTo(_mid) + _mid.distanceTo(_end)) * 0.96;
+    const stand = L.foot ? sole * 0.35 : 0.08;
+
+    // the limb's NORMAL SPOT: under its own root along the body's down, led by
+    // the travel so footfalls land ahead of the motion. The lead is CLAMPED to
+    // a fraction of the limb's own reach — at ground pace an unclamped lead
+    // (28 u/s x 0.13 s = 3.6 u) pushed every home past full extension and the
+    // whole stepper read airborne on flat ground.
+    _homeT.copy(_root).addScaledVector(up, -reach * S.hang);
+    _want.copy(f.vel).multiplyScalar(S.lead);
+    const ldLen = _want.length();
+    if (ldLen > reach * 0.35) _want.multiplyScalar((reach * 0.35) / ldLen);
+    _homeT.add(_want);
+    const d = nearestSurface(f, _homeT.x, _homeT.y, _homeT.z, reach * 1.25);
+    let homeOk = false;
+    if (d !== Infinity) {
+      _tgt.copy(_limbCp).addScaledVector(_limbN, stand);
+      homeOk = _tgt.distanceTo(_root) <= reach;
+      if (homeOk) s0.tn.copy(_limbN);
+    }
+
+    let target = null, w = 0;
+    if (!homeOk) {
+      // nothing in range of full extension: the limb hangs/reaches, gently —
+      // the animation keeps most of it
+      s0.has = false;
+      s0.sw = -1;
+      s0.air = true;
+      target = _homeT;
+      w = act * S.airHold;
+    } else {
+      s0.air = false;
+      if (!s0.has && s0.sw < 0) {
+        // first contact: swing to the home rather than teleporting onto it
+        s0.sw = 0;
+        s0.from.copy(_end);
+        s0.to.copy(_tgt);
+        swinging[L.group] = true;
+      } else if (s0.has && s0.sw < 0) {
+        const err = s0.plant.distanceTo(_tgt);
+        const stretched = s0.plant.distanceTo(_root) > reach;
+        // step when a stride behind the home and the OTHER pair is planted —
+        // or immediately when near full stretch, gate or no gate (a limb must
+        // never be left pinned beyond what it can reach)
+        if ((err > reach * S.len && !swinging[1 - L.group]) ||
+            stretched || err > reach * 0.85) {
+          s0.sw = 0;
+          s0.from.copy(_end);
+          s0.to.copy(_tgt);
+          swinging[L.group] = true;
+        }
+      }
+      if (s0.sw >= 0) {
+        s0.to.copy(_tgt);                 // chase the live home while swinging
+        // a fast body needs a fast cadence: swings shorten with speed, so the
+        // stride keeps up instead of every step firing the stretch emergency
+        const swT = S.time * clamp(10 / Math.max(f.vel.length(), 10), 0.45, 1);
+        s0.sw += dt / swT;
+        if (s0.sw >= 1) {
+          s0.sw = -1;
+          s0.has = true;
+          s0.plant.copy(s0.to);
+          s0.n.copy(s0.tn);
+          target = s0.plant;
+          w = act;
+        } else {
+          const k = s0.sw * s0.sw * (3 - 2 * s0.sw);
+          _want.lerpVectors(s0.from, s0.to, k)
+            .addScaledVector(up, Math.sin(Math.PI * k) * reach * S.lift);
+          target = _want;
+          w = act;
+        }
+      } else if (s0.has) {
+        target = s0.plant;                // STANCE: pinned
+        w = act;
+      }
+    }
+
+    if (target && w > 0.02) {
+      _tipT.lerpVectors(_end, target, w);
+      reachTo(root, mid, end, _tipT);
+      levelTip(end, s0.air ? up : (s0.sw >= 0 ? s0.tn : s0.n), w * (s0.air ? 0.3 : 1));
+    }
   }
 }
 

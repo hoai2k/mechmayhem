@@ -17,6 +17,10 @@
 //             explains — i.e. a teleport. The arena step-over used to show up
 //             here as a ~2.8-unit hop onto the first block.
 //   tips      each foot's and hand's distance to the nearest solid (0 = planted).
+//   limbs     the spider stepper's own state per limb, [ankleL ankleR handL
+//             handR]: P planted (pinned to its plant point) · S swinging (arc
+//             to a new home) · A airborne (no surface within full extension —
+//             reaching, not planted) · - stepper inactive (animator owns it).
 import { chromium } from 'playwright-core';
 
 const url = process.argv[2] ||
@@ -50,6 +54,10 @@ const setup = await page.evaluate(() => {
     f.resetForRound(f.pos.clone().set(x, 0, z), 0);
     f.pos.set(x, 0, z);
     f.vel.set(0, 0, 0);
+    // the lock target stands BETWEEN him and the building, so walking -Z with
+    // lock on is a genuine backpedal (facing +Z, moving -Z) and +X a strafe
+    const v = window.__fighters[1];
+    if (v) { v.controlsLocked = true; v.pos.set(x + 5, 0, z + Math.min(dist * 0.8, 24)); }
   };
   window.__park();
   // distance from a point to the nearest solid, so the trace can say where the
@@ -93,7 +101,7 @@ async function run(script, frames, dist) {
       Object.assign(f.intent, {
         moveX: 0, moveZ: 0, jump: false, jumpHeld: false, light: false, lightHeld: false,
         heavy: false, ranged: false, special: false, ult: false, block: false, dash: false,
-        chargeDash: false, duck: false, taunt: false,
+        chargeDash: false, duck: false, taunt: false, lockOn: false,
       }, fn(t, f));
       w.update(1 / 60);
       const up = f.climbUp || new V(0, 1, 0);
@@ -117,11 +125,20 @@ async function run(script, frames, dist) {
           const p = j.getWorldPosition(new V());
           return +(window.__nearest(p.x, p.y, p.z)).toFixed(2);
         };
+        // stepper state, in probe order ankleL/ankleR/handL/handR — the
+        // stepper's own LIMBS order is ankleL/ankleR/handL/handR too from
+        // index 0,1,2,3
+        const limb = (j) => {
+          const st = f._steps?.[j];
+          if (!st) return '-';
+          return st.air ? 'A' : st.sw >= 0 ? 'S' : 'P';
+        };
         trace.push({
           t: +t.toFixed(2),
           y: +f.pos.y.toFixed(1), z: +f.pos.z.toFixed(1),
           upY: +up.y.toFixed(2), tilt: +(f._climbTilt || 0).toFixed(2),
           on: f.climb ? 'surf' : (f.grounded ? 'grnd' : 'air '),
+          limbs: limb(0) + limb(1) + limb(2) + limb(3),
           tips: [tip('ankleL'), tip('ankleR'), tip('handL'), tip('handR')],
         });
       }
@@ -142,6 +159,10 @@ const SCENARIOS = [
     't < 1.2 ? { moveZ: 1 } : { moveZ: -1 }', 240, 6],
   ['jump with no direction while on the wall: lets go and drops',
     't < 1.0 ? { moveZ: 1 } : { jump: t > 0.999 && t < 1.001 }', 200, 6],
+  ['open ground, target-locked STRAFE: the crab scuttle (right limbs lead)',
+    '{ moveX: 1, lockOn: true }', 200, 30],
+  ['open ground, target-locked BACKPEDAL: the scuttle with roles reversed',
+    '{ moveZ: -1, lockOn: true }', 200, 30],
 ];
 for (const [label, script, frames, dist] of SCENARIOS) {
   const r = await run(script, frames, dist);
@@ -151,7 +172,7 @@ for (const [label, script, frames, dist] of SCENARIOS) {
   for (const s of r.trace) {
     console.log(` t=${String(s.t).padStart(5)} ${s.on} upY=${String(s.upY).padStart(5)} ` +
       `tilt=${String(s.tilt).padStart(4)} y=${String(s.y).padStart(6)} z=${String(s.z).padStart(7)} ` +
-      `tips=[${s.tips.join(', ')}]`);
+      `limbs=${s.limbs} tips=[${s.tips.join(', ')}]`);
   }
 }
 

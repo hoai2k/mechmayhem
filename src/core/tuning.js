@@ -124,15 +124,28 @@ export const TUNING = {
     leapMult: 1.15,
     leapRise: 0.8,
     leapOut: 5,
-    // How hard the hands/feet are pulled onto the surface they are crossing,
-    // and how near an extremity has to be (x body height) before that pull
-    // reaches it at all. 1 = planted exactly on the face.
-    conform: 1,
-    conformRange: 0.42,
-    // …and the floor under that pull for the HANDS specifically (see
-    // conformClimbLimbs): a climber's claws are on the wall whether or not the
-    // swing happened to bring them near it.
-    handPlant: 0.7,
+    // BODY STABILITY. `normRate` pre-filters the field normal before the body
+    // follows it at `tiltRate` — two stages of smoothing turn a block seam
+    // from a flicker into a lean. And while the frame is still turning
+    // (pending angle between his up and the filtered normal, rad), translation
+    // is throttled: zero throttle at `turnSlow` rad of pending turn, never
+    // below `turnFloor`. Stability over speed on complex territory.
+    normRate: 11,
+    turnSlow: 1.0,
+    turnFloor: 0.3,
+    // THE SPIDER STEP (conformClimbLimbs): the limb stepping system that owns
+    // his hands and feet on structures — and the crab scuttle on open ground
+    // under target lock past `scuttleDrift` rad of strafe/backpedal.
+    scuttleDrift: 1.0,
+    step: {
+      rate: 6,        // activation ease in/out (1/s)
+      hang: 0.55,     // the home probe: this far below the limb root, x reach
+      lead: 0.13,     // ...led along the travel by this many seconds
+      len: 0.30,      // step when the plant is this far behind home, x reach
+      time: 0.16,     // seconds per swing
+      lift: 0.22,     // swing arc height, x reach
+      airHold: 0.5,   // pull toward the hang point for a limb with no surface
+    },
   },
 
   // ---- GUARD ---------------------------------------------------------------

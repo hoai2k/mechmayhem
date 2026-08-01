@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { clamp, lerp, damp, angleDamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
-import { upRotation } from '../combat/climb.js';
+import { TUNING } from '../core/tuning.js';
 
 // WHICH WAY IS UP. Every pitch input — right stick, touch look-drag, combined
 // view or split — goes through this, so the two view modes can't drift apart
@@ -24,11 +24,89 @@ const _lift = new THREE.Vector3();   // per-frame scratch (was allocated per fig
 // fighter's raw `pos` orbits at the spin rate — every framing read below goes
 // through focusPos so the camera tracks the smooth falling base instead.
 const _fpA = new THREE.Vector3();
-// SURFACE WALKING (combat/climb.js): the chase orbit is rotated into the
-// walker's own frame, and pulled out toward the surface normal as he tips onto
-// it, so the eye ends up outside the wall looking back at him.
-const _climbQ = new THREE.Quaternion();
-const CLIMB_EL = 0.6;
+// ---------------------------------------------------------------------------
+// THE CLIMB CAMERA (surface walking, combat/climb.js).
+//
+// The one rule learned from every gravity game since Mario Galaxy: a camera
+// must never take its orientation FROM a surface — surfaces are discontinuous
+// and cameras must be continuous, so the camera INTEGRATES. It keeps its own
+// persistent orbit direction (mech -> eye, unit) and each frame turns it a
+// bounded number of degrees along a great circle toward a GOAL direction
+// blended from three things:
+//     his own up  (smoothed AGAIN here, slower than the body follows it)
+//   + world up    (the horizon bias: you watch him from above-and-outside,
+//                  and the screen never rolls)
+//   - his travel  (the camera trails him, so going over a roof reads as one
+//                  crane move up the near face, over the top, down the far)
+// A deadband keeps block seams from twitching it, and the rate cap makes a
+// FLIP impossible by construction: there is no path from "behind the near
+// face" to "behind the far face" except the smooth arc over the building.
+// The result is blended in and out by an engage factor, so taking a wall and
+// stepping off it are camera moves, not camera cuts — and while it is engaged
+// the ordinary azimuth is kept synced underneath, so the hand-back lands on
+// the view the player is already looking at.
+const CLIMB_CAM = {
+  rate: 1.5,       // max orbit sweep, rad/s — the crane speed
+  dead: 0.09,      // rad of goal error the orbit simply ignores (seam jitter)
+  upBias: 1.05,    // world-up weight in the goal
+  normBias: 1.0,   // his-own-up weight (the "outside the wall" pull)
+  trail: 0.5,      // opposite-of-travel weight (stay behind him)
+  upRate: 2.2,     // how fast the camera's copy of his up follows the body's
+  engage: 2.8,     // blend in/out rate
+};
+const _ccGoal = new THREE.Vector3();
+const _ccAxis = new THREE.Vector3();
+const _ccQ = new THREE.Quaternion();
+const _ccPos = new THREE.Vector3();
+const _ccTgt = new THREE.Vector3();
+const _ccUp = new THREE.Vector3(0, 1, 0);
+
+// One climb-orbit state per view (`st` lives on the chase entry / the combined
+// camera). Returns the engage factor 0..1; when > 0, _ccPos/_ccTgt hold the
+// climb camera's own want, to be lerped over the ordinary one BEFORE the
+// ordinary position damps run — so both hand-offs inherit that smoothing.
+function climbCam(st, f, dt, dist, seedPos) {
+  if (!st.dir) {
+    st.dir = new THREE.Vector3(0, 0.5, -1).normalize();
+    st.up = new THREE.Vector3(0, 1, 0);
+    st.trail = new THREE.Vector3();
+    st.k = 0;
+    st.seeded = false;
+  }
+  const want = f.climb ? 1 : 0;
+  st.k = damp(st.k, want, CLIMB_CAM.engage, dt);
+  if (st.k < 0.01) { st.seeded = false; return 0; }
+  const fp = f.focusPos(_fpB);
+  if (!st.seeded) {
+    // seed from where the camera ALREADY is, so engaging is not a cut
+    st.seeded = true;
+    _ccAxis.copy(seedPos).sub(fp);
+    if (_ccAxis.lengthSq() > 1) st.dir.copy(_ccAxis.normalize());
+  }
+  st.up.lerp(f.climbUp || _ccUp, 1 - Math.exp(-CLIMB_CAM.upRate * dt)).normalize();
+  const spd = f.vel.length();
+  if (spd > 3) {
+    _ccGoal.copy(f.vel).multiplyScalar(-1 / spd);
+    st.trail.lerp(_ccGoal, 1 - Math.exp(-2.2 * dt));
+  } else st.trail.multiplyScalar(1 - Math.min(1, 1.5 * dt));
+  _ccGoal.set(0, CLIMB_CAM.upBias, 0)
+    .addScaledVector(st.up, CLIMB_CAM.normBias)
+    .addScaledVector(st.trail, CLIMB_CAM.trail)
+    .normalize();
+  const ang = st.dir.angleTo(_ccGoal);
+  if (ang > CLIMB_CAM.dead) {
+    _ccAxis.crossVectors(st.dir, _ccGoal);
+    if (_ccAxis.lengthSq() > 1e-8) {
+      _ccAxis.normalize();
+      const step = Math.min(ang - CLIMB_CAM.dead * 0.5, CLIMB_CAM.rate * dt);
+      _ccQ.setFromAxisAngle(_ccAxis, step);
+      st.dir.applyQuaternion(_ccQ).normalize();
+    }
+  }
+  _ccTgt.copy(fp).addScaledVector(st.up, f.height * 0.55);
+  _ccPos.copy(_ccTgt).addScaledVector(st.dir, dist);
+  return st.k;
+}
 const _fpB = new THREE.Vector3();
 const _fpSeg = new THREE.Vector3();
 
@@ -351,7 +429,10 @@ export class CameraSystem {
       const pp = player.focusPos(_fpA);
       _center.set(pp.x, pp.y + player.height * 0.75, pp.z);
       const lockT = player.lockTarget && player.lockTarget.alive ? player.lockTarget : null;
-      if (lockT) {
+      // NEVER let the lock steer the orbit while he is surface-walking: it
+      // chases a bearing built from his yaw, and a wall-walker's yaw is
+      // whatever the stick last said — the whirling camera was exactly that.
+      if (lockT && !player.climb) {
         // TARGET LOCK (LB held): the camera swings behind the player and
         // aims straight down the line at the locked enemy — it owns the
         // view for as long as the lock is held
@@ -399,6 +480,23 @@ export class CameraSystem {
       Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)
     ).multiplyScalar(this.dist);
     const wantPos = _v.add(_center);
+
+    // THE CLIMB CAMERA (see CLIMB_CAM above): while the solo player is on a
+    // surface, a persistent rate-limited orbit takes over — out along his up,
+    // above, trailing his travel — and the ordinary azimuth is synced under
+    // it so the hand-back lands where the player is already looking.
+    if (solo && humans[0].def?.climb) {
+      const cst = this._climbCam || (this._climbCam = {});
+      const ck = climbCam(cst, humans[0], dt, this.dist, this.cPos);
+      if (ck > 0) {
+        wantPos.lerp(_ccPos, ck);
+        _center.lerp(_ccTgt, ck);
+        if (ck > 0.5) {
+          this.azimuth = Math.atan2(cst.dir.x, cst.dir.z);
+          this.lookAzOffset *= 1 - Math.min(1, 3 * dt);
+        }
+      }
+    }
 
     if (!this.init) {
       this.init = true;
@@ -496,7 +594,7 @@ export class CameraSystem {
       const stickActive = Math.abs(ch.lookX) > 0.08 || Math.abs(ch.lookY) > 0.08 || !!ch.adjust;
       ch.lookCd = stickActive ? 0.6 : Math.max(0, (ch.lookCd || 0) - dt);
       const lockT = f.lockTarget && f.lockTarget.alive ? f.lockTarget : null;
-      if (lockT && !stickActive) {
+      if (lockT && !stickActive && !f.climb) {
         // TARGET LOCK (LB held): this viewport swings behind its player and
         // keeps the locked enemy dead ahead (stick input still overrides).
         // Unlocked, nothing turns this orbit but the player's own stick —
@@ -514,31 +612,25 @@ export class CameraSystem {
       // tight. Near-instant when not a giant, so normal framing is unchanged.
       if (ch.dist === undefined) ch.dist = baseDist;
       ch.dist = this.giantZoomDamp(ch.dist, baseDist * this.zoomMul, gf, 12, dt);
-      // A SURFACE WALKER (combat/climb.js) ORBITS IN HIS OWN FRAME. A mech on a
-      // facade has the building between him and a world-space chase cam, and
-      // the answer is NOT to ghost the building he is standing on — you cannot
-      // read a climb against a wall you can see through. So the whole orbit is
-      // rotated by his own up: the offset that sits behind-and-above a mech on
-      // the ground sits outside-and-behind one on a wall, which keeps him in
-      // clear view with the surface solid underneath. The camera is only MOVED,
-      // never rolled — screen up stays world up, so a vertical climb still
-      // reads as moving up the screen, which is also what the stick does (the
-      // same rotation maps both).
-      // Elevation eases toward `CLIMB_EL` with the tilt, pulling the eye out
-      // perpendicular to the surface rather than skimming along it.
-      const tilt = f._climbTilt || 0;
-      const el = ch.el + (CLIMB_EL - ch.el) * tilt;
+      const el = ch.el;
       _v.set(
         Math.sin(ch.az) * Math.cos(el), Math.sin(el), Math.cos(ch.az) * Math.cos(el)
       ).multiplyScalar(ch.dist);
       const fp = f.focusPos(_fpA);
-      _lift.set(0, 2 * gf, 0);
-      if (tilt > 0.01 && f.climbUp) {
-        upRotation(f.climbUp, _climbQ);
-        _v.applyQuaternion(_climbQ);
-        _lift.applyQuaternion(_climbQ);
+      const wantPos = _v.add(fp).add(_lift.set(0, 2 * gf, 0));
+      // THE CLIMB CAMERA (see CLIMB_CAM above): while this player is on a
+      // surface, a persistent rate-limited orbit takes over — out along his
+      // up, above, trailing his travel — and ch.az stays synced under it so
+      // stepping off the wall hands back to the view he is already in.
+      let ck = 0;
+      if (f.def?.climb) {
+        const cst = ch.cc || (ch.cc = {});
+        ck = climbCam(cst, f, dt, ch.dist, ch.pos);
+        if (ck > 0) {
+          wantPos.lerp(_ccPos, ck);
+          if (ck > 0.5) ch.az = Math.atan2(cst.dir.x, cst.dir.z);
+        }
       }
-      const wantPos = _v.add(fp).add(_lift);
       // the chase cam tracks ONLY its own mech — opponents never pull the
       // frame; use the right stick to look around
       const lookAhead = _center.copy(fp);
@@ -546,6 +638,7 @@ export class CameraSystem {
       // target with a flying mech, and f.height carries the COLOSSAL-FORM
       // giant's inflated size automatically
       lookAhead.y += f.height * 0.75;
+      if (ck > 0) lookAhead.lerp(_ccTgt, ck);
 
       if (!ch.init) { ch.pos.copy(wantPos); ch.target.copy(lookAhead); ch.init = true; }
       ch.pos.x = damp(ch.pos.x, wantPos.x, 5, dt);

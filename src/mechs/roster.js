@@ -567,13 +567,18 @@ export const ROSTER = [
     stats: { hp: 980, speed: 9.8, jump: 30, jumpWindup: 0.18, weight: 0.45, armor: 0.08, duck: 0.9, blockMult: 0.15, noHover: true },
     // SURFACE WALKING (combat/climb.js; shared feel in TUNING.climb). The
     // splayed arthropod legs that make him look wrong as a biped make him right
-    // as a gecko, so he does not walk on the FLOOR, he walks on the WORLD: up a
-    // facade, over its lip, across the roof, down the far side, over the crates
-    // on the way, with his body riding the average orientation of whatever is
-    // under his feet and each claw planted on whatever is nearest it. There is
-    // no mode and no moment of attaching — walking at a wall simply becomes
-    // walking up it. The way off is the jump: with a direction, a leap that
-    // way; with nothing held, he lets go and drops.
+    // as a SPIDER, so he does not walk on the FLOOR, he walks on the WORLD: up
+    // a facade, over its lip, across the roof, down the far side, over the
+    // crates on the way, with his body riding the average orientation of
+    // whatever is under his feet. His four limbs are a STEPPER, not a gait:
+    // each plants on the nearest surface its full extension can reach, pinned
+    // while the body moves, swinging to a new home when it falls a stride
+    // behind — diagonal pairs alternating, in ANY direction, which is also his
+    // crab scuttle on open ground under target lock (strafe: right limbs lead;
+    // backpedal: roles reversed). There is no mode and no moment of attaching —
+    // walking at a wall simply becomes walking up it. The way off is the jump:
+    // with a direction, a leap that way; with nothing held, he lets go and
+    // drops.
     //   speed   — climbing pace, x his own walk speed (only at full tilt: over
     //             a low bump he keeps his ordinary pace)
     //   reach   — how far from his feet a surface is FELT, x body height. This

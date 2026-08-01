@@ -3217,7 +3217,7 @@ export class Fighter {
     // ---- …and the hands and feet onto the surface they are crossing, AFTER
     // it: that one is a CONTACT, solved on the bones a rigged model renders,
     // and re-syncing over it would throw it away ----
-    if (this.def.climb) conformClimbLimbs(this);
+    if (this.def.climb) conformClimbLimbs(this, dt);
     // ---- weapon trails: glowing streaks ride the blade/spear tips while a
     // one-shot attack clip swings, so cuts and thrusts read as EDGES ----
     if (this.def.bladeTrail) this.updateBladeTrail(dt);
@@ -3866,6 +3866,9 @@ export class Fighter {
     this._climbSpeed = 0;
     this.climbUp?.set(0, 1, 0);
     this.climbFwd?.set(Math.sin(yaw), 0, Math.cos(yaw));
+    this._climbN?.set(0, 1, 0);
+    this._steps = null;    // every limb re-plants where the new round puts him
+    this._stepAct = 0;
     this.hovering = false;
     this.hoverFuel = this.hoverFuelMax;
     this.sprintEnergy = this.sprintEnergyMax;
