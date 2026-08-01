@@ -563,8 +563,11 @@ export class CameraSystem {
       // with THIS view's camera so the fade renders only in this viewport.
       // NOT while he is surface-walking: the building he is on stays solid,
       // and the orbit above has already moved the eye somewhere it can see him.
-      // (A hole in `segsUsed` is fine — setOccluders indexes by view and skips
-      // an empty one.)
+      // The hole is a NULL rather than a missing entry, because both consumers
+      // index by VIEW: setOccluders reads `segments[v]` and applyViewFade finds
+      // its own camera's slot. Both skip a null (a camera with no segment of
+      // its own leaves every building solid, which is the ask) — and getting
+      // that wrong is what crashed the fade pass in split screen.
       const seg = this._segs[i];
       if (f.climb) { segsUsed.push(null); continue; }
       seg.from.copy(ch.pos);
