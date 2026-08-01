@@ -350,6 +350,14 @@ export const ROSTER = [
     stats: { hp: 1050, speed: 8.8, jump: 12.5, weight: 0.75, armor: 0.14, blockMult: 0.11 },
     ui: { power: 8, speed: 4, defense: 6 },
     levelHands: true, // wrist counter-pitch keeps the hand hardware on the aim line (signatures.js)
+    // BOTH TORCHES TAKE A TURN. He carries a flame barrel on each forearm, and
+    // until now every jet left the right one while the left arm held the same
+    // pose for nothing. Same mechanism as vulcan's twin gatlings — a mirrored
+    // channel clip plus a swap CLOCK, because a flame ticks every 0.09s and
+    // trading hands per tick would just average into one half-raised stance.
+    channelClip: 'shootLoop',
+    channelClipL: 'shootLoopL',
+    channelSwap: 1.3,
     // HIS CHIMNEYS BURN. The GLB used to carry two sculpted tongues of flame on
     // the shoulder stacks; `dropBones` takes that geometry off and caps the
     // mouths, and Fighter.updateStackFlames burns here instead — flickering
@@ -367,7 +375,9 @@ export const ROSTER = [
     moves: {
       light: { dmg: [36, 38, 54], knock: [5, 5, 12], range: 3.3 },
       heavy: { dmg: 86, knock: 20, range: 3.7, launch: 8 },
-      ranged: { name: 'Dragon\'s Breath', type: 'flame', dmg: 6.5, cooldown: 0.09, range: 12, ammo: 130 },
+      // reach 12 -> 16 and the cone tightened (see the flame handler in
+      // world.js): a longer, narrower jet rather than a short wide wash
+      ranged: { name: 'Dragon\'s Breath', type: 'flame', dmg: 6.5, cooldown: 0.09, range: 16, ammo: 130 },
       special: { id: 'napalm', name: 'Napalm Carpet', cooldown: 7.5, dmg: 14, patches: 5, duration: 5 },
       ult: { id: 'fireTornado', name: 'FIRE TORNADO', dmg: 130, radius: 4.5, duration: 7 },
     },
@@ -403,6 +413,10 @@ export const ROSTER = [
   },
   {
     id: 'cranky', name: 'CRANKY', title: 'The Abyssal Bulwark', icon: '🦀', seed: 137,
+    // a crab does not counter-rotate its waist: he keeps turning as one body
+    // rather than walking his splayed legs off in another direction (see
+    // Animator.legFrame). Jerry and fenrir are excluded by their own gaits.
+    strafeLegs: false,
     blurb: 'A deep-sea salvage rig that got tired of being salvaged. Waddled ashore trailing kelp and grudges, shell first, questions never. The claws are non-negotiable.',
     quotes: { win: '"*bubbling chuckle* Shell: 1. Everything else: 0."', intro: '"You look... crackable."' },
     // canonical image: rust-orange patchy shell over dark steel, blue-steel

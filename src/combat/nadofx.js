@@ -8,7 +8,7 @@
 // top. NORMAL blending — the daylight-arena lesson from FlameFX.
 import * as THREE from 'three';
 import { streamNoiseTexture } from '../core/textures.js';
-import { FlameFX } from './flamefx.js';
+import { FlameFX, FIRE_RAMP, fireGlow, fireDeep } from './flamefx.js';
 import { rand, clamp01 } from '../core/utils.js';
 import { GLSL_VNOISE } from './fxglsl.js';
 
@@ -44,7 +44,7 @@ const NADO_FRAG = /* glsl */`
   uniform float uTime;
   uniform float uAlpha;
   uniform float uSpin;     // helical pan rate (inner shell runs faster)
-  uniform float uCool;     // 0 fire-orange -> 1 gas-flame blue
+  uniform vec3 uG0, uG1, uG2, uG3;   // the flame's gradient, dark -> white heart
   varying vec2 vUv;
   varying float vDisp;
   void main() {
@@ -59,11 +59,9 @@ const NADO_FRAG = /* glsl */`
     float fire = (0.92 - h * 0.36) - (1.0 - n) * (0.74 + h * 0.72) + vDisp * 0.25;
     fire = clamp(fire * 1.45, 0.0, 1.0);
     // FlameFX gradient map: red skirt -> orange -> yellow -> rare white
-    // (uCool flips the whole ramp to gas-flame blue, matching FlameFX)
-    vec3 gA = mix(vec3(0.42, 0.03, 0.0),  vec3(0.01, 0.09, 0.46), uCool);
-    vec3 gB = mix(vec3(0.95, 0.34, 0.03), vec3(0.08, 0.46, 0.98), uCool);
-    vec3 gC = mix(vec3(1.0, 0.72, 0.2),   vec3(0.42, 0.83, 1.0),  uCool);
-    vec3 gD = mix(vec3(1.0, 0.95, 0.72),  vec3(0.85, 0.96, 1.0),  uCool);
+    // the ramp is a uniform, same as FlameFX: an alternate paint job burns in
+    // its own colour (colorscheme.js schemeFire)
+    vec3 gA = uG0, gB = uG1, gC = uG2, gD = uG3;
     vec3 col = mix(gA, gB, smoothstep(0.04, 0.38, fire));
     col = mix(col, gC, smoothstep(0.38, 0.72, fire));
     col = mix(col, gD, smoothstep(0.88, 0.99, fire));
@@ -73,7 +71,8 @@ const NADO_FRAG = /* glsl */`
   }
 `;
 
-function shell(radius, height, { alpha, spin, sway, sides = 26, segs = 30, cool = 0 }) {
+function shell(radius, height, { alpha, spin, sway, sides = 26, segs = 30, tint = null }) {
+  const g = tint ? tint.stops : FIRE_RAMP;
   const geo = new THREE.CylinderGeometry(1, 1, 1, sides, segs, true);
   geo.translate(0, 0.5, 0);
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
@@ -86,7 +85,10 @@ function shell(radius, height, { alpha, spin, sway, sides = 26, segs = 30, cool 
       uSway: { value: sway },
       uAlpha: { value: alpha },
       uSpin: { value: spin },
-      uCool: { value: cool },
+      uG0: { value: new THREE.Color(g[0]) },
+      uG1: { value: new THREE.Color(g[1]) },
+      uG2: { value: new THREE.Color(g[2]) },
+      uG3: { value: new THREE.Color(g[3]) },
     },
     vertexShader: NADO_VERT,
     fragmentShader: NADO_FRAG,
@@ -105,9 +107,9 @@ export class FireTornadoFX {
   // opts: height, radius (waist), sway (axis wander), wander (whole-funnel
   // drift speed — the tornado ROAMS), life (secs; Infinity = until extinguish)
   constructor(scene, effects, pos, {
-    height = 18, radius = 1.6, sway = 1.6, wander = 0, life = Infinity, cool = 0,
+    height = 18, radius = 1.6, sway = 1.6, wander = 0, life = Infinity, tint = null,
   } = {}) {
-    this.cool = cool;
+    this.tint = tint;
     this.scene = scene;
     this.fx = effects;
     this.pos = pos.clone().setY(0);
@@ -121,8 +123,8 @@ export class FireTornadoFX {
     this._acc = { ember: 0, crown: 0 };
     this._wa = rand(Math.PI * 2);
     this.shells = [
-      shell(radius, height, { alpha: 0.7, spin: 2.2, sway, cool }),
-      shell(radius * 0.62, height * 0.96, { alpha: 0.85, spin: 3.6, sway: sway * 0.8, sides: 20, segs: 24, cool }),
+      shell(radius, height, { alpha: 0.7, spin: 2.2, sway, tint }),
+      shell(radius * 0.62, height * 0.96, { alpha: 0.85, spin: 3.6, sway: sway * 0.8, sides: 20, segs: 24, tint }),
     ];
     this.shells[0].rf = 1;
     this.shells[1].rf = 0.62;
@@ -132,7 +134,7 @@ export class FireTornadoFX {
     }
     // the funnel stands in a burning patch — its fuel bed
     this.base = new FlameFX(scene, effects, this.pos, {
-      radius: radius * 2.2, scale: 1.1, cards: 6, light: false, cool,
+      radius: radius * 2.2, scale: 1.1, cards: 6, light: false, tint,
     });
   }
 
@@ -188,7 +190,7 @@ export class FireTornadoFX {
       fx.sparks.emit(p.x + Math.cos(a) * r, h, p.z + Math.sin(a) * r,
         -Math.sin(a) * tang, rand(3, 7), Math.cos(a) * tang,
         { life: rand(0.4, 0.8), size: rand(0.3, 0.6),
-          color: this.cool ? 0x9fdcff : 0xffc060, color2: this.cool ? 0x1f78ff : 0xff3808,
+          color: fireGlow(this.tint), color2: fireDeep(this.tint),
           gravity: -2, drag: 1.1, fadeIn: 0.02 });
     });
     // smoke crown shearing off the flared top, flung outward by the spin

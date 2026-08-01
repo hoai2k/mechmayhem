@@ -9,7 +9,14 @@ import {
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
-import { ease, lerp, clamp, clamp01, damp, TAU } from '../core/utils.js';
+import { ease, lerp, clamp, clamp01, damp, angleDamp, TAU } from '../core/utils.js';
+
+// HOW FAR THE HIPS MAY TURN off the body's facing, and how fast they get there.
+// A quarter turn is the limit on purpose: past it the reversed cycle takes over
+// (see legFrame), so nothing ever has to spin the legs the long way round.
+const LEG_TURN_MAX = Math.PI / 2;
+const LEG_TURN_RATE = 9;
+const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 const _wp = new THREE.Vector3();
 const _sp = new THREE.Vector3();
@@ -139,6 +146,52 @@ export class Animator {
     this.impulses = [];
     this.spinVel = 0;                   // gatling spin
     this.fired = false;                 // convenience flag combat can poll
+  }
+
+  // ---------------------------------------------------------------------------
+  // WHICH WAY THE LEGS ARE POINTING — which is not always the way the body is.
+  //
+  // A mech in target-lock walks sideways and backwards while its chest stays on
+  // the enemy. Until now the whole body turned as one, so a strafe played a
+  // forward stride translated sideways (feet skating across the ground) and a
+  // BACK-PEDAL played a forward stride translated backwards, which is the
+  // "walking backwards looks wrong" report: the legs were pushing the way he
+  // was going instead of against it.
+  //
+  // These are robots, so the answer is the one a person cannot do: TURN THE
+  // HIPS. `drift` is the angle from the body's facing to its actual travel, and
+  // the legs take it while the torso counter-rotates by the same amount, so the
+  // lower body walks where it is going and the upper body still aims.
+  //
+  // …UP TO A POINT. Past a quarter turn, spinning the legs round to follow is
+  // worse than the disease — he pirouettes. Past that the OTHER answer applies:
+  // measure the drift against the REVERSED facing (a 180° back-pedal becomes 0°
+  // of leg turn) and run the walk cycle BACKWARDS, so he back-pedals with the
+  // feet pushing the right way. Between them they cover the whole circle: strafe
+  // turns the hips, backpedal reverses the cycle, and back-strafing does both.
+  //
+  // Humanoids only. A crab does not counter-rotate its waist, and neither does a
+  // wolf on four legs — gated on the gait (`standard`/`sprint`) plus a roster
+  // opt-out (`strafeLegs: false`) for the bodies that walk upright but are not
+  // built like people.
+  legFrame(ctx, speed, dt) {
+    const st = this._legFrame || (this._legFrame = { turn: 0, rev: 0 });
+    const on = this.canStrafeTurn() && ctx.grounded !== false && speed > 0.4;
+    const drift = on ? (ctx.drift || 0) : 0;
+    // which way round is he actually walking?
+    const back = Math.abs(drift) > Math.PI / 2;
+    const want = back ? wrapPi(drift - Math.PI) : drift;
+    st.turn = angleDamp(st.turn, clamp(want, -LEG_TURN_MAX, LEG_TURN_MAX), LEG_TURN_RATE, dt);
+    // the cycle's direction is a 0..1 blend rather than a switch, so crossing
+    // the quarter-turn does not jump the stride to the other foot
+    st.rev = damp(st.rev, back ? 1 : 0, LEG_TURN_RATE, dt);
+    return st;
+  }
+
+  /** Does this body counter-rotate its waist to walk sideways? */
+  canStrafeTurn() {
+    if (this.mech.def?.strafeLegs === false) return false;
+    return this.gaitId === 'standard' || this.gaitId === 'sprint';
   }
 
   // ---------------------------------------------------------------------------
@@ -408,7 +461,14 @@ export class Animator {
         this.gallopState(ratio, dt));
       this._gait = gait;
       const legLen = this.D.thighLen + this.D.shinLen;
-      this.phase += gaitPhaseRate(gait, { speed, ratio, legLen, sizeMul: this.sizeMul }) * dt;
+      // BACKWARDS IS THE CYCLE BACKWARDS. A walk run in reverse pushes off with
+      // the foot that is in front and reaches with the one behind, which is
+      // exactly what walking backwards is; playing it forwards is what made a
+      // back-pedal read as a moonwalk. `rev` eases 0..1 (see legFrame) so the
+      // change of direction blends rather than snapping to the other foot.
+      const lf = this.legFrame(ctx, speed, dt);
+      this.phase += gaitPhaseRate(gait, { speed, ratio, legLen, sizeMul: this.sizeMul })
+        * (1 - 2 * lf.rev) * dt;
       // ONE env for the whole locomotion pipeline: the passes hand each other
       // conclusions through it (which foot is in the air — see applyGait), so
       // they must not each get a fresh literal.
@@ -487,6 +547,16 @@ export class Animator {
     // THE FOOT RULE, last: stance / push-off / air, whichever layer put the leg
     // where it is (see applyToeHang).
     if (grounded && speed > 0.4) applyToeHang(tgt, this._gait, this._gaitEnv);
+
+    // ===== hips vs chest: the strafe (see legFrame) =====
+    // The hips are the root of the virtual rig, so yawing them carries the whole
+    // body — legs, spine, arms and all. Taking the same angle back out of the
+    // torso leaves ONLY the lower half turned, which is the trick: he walks
+    // where he is going and keeps aiming where he was.
+    if (this._legFrame && Math.abs(this._legFrame.turn) > 1e-4) {
+      tgt.hipsRot[1] += this._legFrame.turn;
+      if (tgt.torso) tgt.torso[1] -= this._legFrame.turn;
+    }
 
     // ===== the tail =====
     // NOT gated on moving, unlike everything above it: the gait's stride only

@@ -1616,6 +1616,11 @@ export const GLB_CLIP_VARIANTS = {
   saurionKick1Glb: compile('saurionKick1', SAURION_KICK1_GLB),
   saurionKick2Glb: compile('saurionKick2', SAURION_KICK2_GLB),
   infernoFlameGlb: compile('shootLoop', INFERNO_FLAME_GLB),
+  // …and its mirror, for the LEFT torch's turn (roster `channelClipL`). Without
+  // it the left-hand loop falls through to the shared `shootLoopL`, whose folded
+  // elbow aims a forearm-mounted barrel over his own shoulder — the exact thing
+  // INFERNO_FLAME_GLB exists to stop.
+  infernoFlameLGlb: compile('shootLoopL', mirrorRaw(INFERNO_FLAME_GLB)),
   froggerShootGlb: compile('shoot', FROGGER_SHOOT_GLB),
   froggerShootLGlb: compile('shootL', mirrorRaw(FROGGER_SHOOT_GLB)),
   // jerry's is NOT mirrored for the L side: the body motion is symmetric on

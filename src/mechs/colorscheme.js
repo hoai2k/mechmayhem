@@ -84,6 +84,52 @@ const SCHEMES = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// FIRE IN THE TEAM COLOUR.
+//
+// A repainted mech's FLAMES should answer to the paint too — inferno in
+// AMETHYST breathing purple, in VERDANT breathing green. But only where it
+// reads as a deliberate colour: white, silver, black and brown are what an
+// ordinary fire looks like against soot, and tinting those gives a muddy flame
+// that just looks broken. So the rule comes off the scheme's own numbers rather
+// than a hand-kept list — a scheme tints the fire when it has a chromatic FLOOR
+// (`minS`, i.e. it is pushing paint toward a hue) and is not deliberately
+// desaturating on top of it (`satMul`, which is what makes UMBER brown).
+// MIDNIGHT, IVORY and SILVER have no `minS` at all (they cap saturation
+// instead) and fall out on the first test.
+//
+// THE RAMP IS THE FIRE'S OWN, hue-swapped. A flame is four stops from a dark
+// base through the body to a near-white core, and the shader already carried a
+// second set for the blue gas-flame TIDE used. Those two are the same profile
+// at different hues — saturation ~1, lightness 0.235 / 0.53 / 0.71 / 0.925 —
+// so any hue can be generated from it, and TIDE comes back out of the formula
+// as the blue it always was.
+const FIRE_STOPS = [[0.98, 0.235], [0.96, 0.53], [1.0, 0.71], [1.0, 0.925]];
+// where an ordinary flame already sits on the wheel — the atlas' own orange
+const FIRE_HUE = 0.055;
+
+/**
+ * The four flame ramp stops for a colour scheme, or null for "ordinary fire".
+ * @param {number} v  scheme index (def.variant)
+ */
+export function schemeFire(v) {
+  const S = SCHEMES[v];
+  if (!S || S.minS == null || (S.satMul ?? 1) < 0.8) return null;
+  return {
+    h: S.h,
+    glow: S.glow ?? 0xffffff,
+    stops: FIRE_STOPS.map(([sat, lum]) => hslToHex(S.h, sat, lum)),
+    // …and the same move as a HUE ROTATION, in radians, for the sprite-based
+    // flames. Their atlas bakes the orange ramp into its own pixels, so they
+    // cannot be tinted by multiplying — the whole sampled colour is turned
+    // around the wheel instead (see the particle shader's hueRot).
+    rot: ((S.h - FIRE_HUE + 1.5) % 1 - 0.5) * Math.PI * 2,
+  };
+}
+
+/** The same, straight off a roster def (`def.variant` is the scheme index). */
+export const fireTintOf = (def) => schemeFire(def?.variant || 0);
+
 // How far a mech's paint is dragged toward the scheme's target lightness. Not
 // all the way: at 0.8 WRAITH in EMBER is unmistakably red but still the darkest
 // red on the field, and FENRIR in UMBER is the palest brown — each mech keeps a

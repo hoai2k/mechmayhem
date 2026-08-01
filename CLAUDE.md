@@ -131,6 +131,25 @@ audio). Progress history: `TASKS.md`.
   are the fit metrics; `node tools/hurtboxfit.mjs` prints them for the whole
   roster on both routes, and `node tools/hitprobe.mjs "<battle url>"` reports
   the new melee test against the old one on a real fight.
+- WHICH WAY THE LEGS POINT is not always which way the body faces
+  (`Animator.legFrame`). In target lock a mech strafes and back-pedals with its
+  chest on the enemy; the whole body used to turn as one, so a strafe played a
+  forward stride translated sideways and a BACK-PEDAL played a forward stride
+  translated backwards — the planted foot travelling WITH him instead of pushing
+  against the ground. Measured on titanus, stance-foot drift along the direction
+  of travel: forward -5.5 u/s (pushing back, correct), backwards +5.2 (the
+  moonwalk), strafe -0.01 (a pure skate). These are robots, so the fix is the
+  one a person cannot do: `ctx.drift` is the angle from facing to travel, the
+  HIPS take it (they are the rig root, so the legs follow) and the TORSO gives
+  the same angle back, leaving the lower body walking where it is going and the
+  upper body still aiming. Past a quarter turn that would be a pirouette, so
+  beyond it the drift is measured against the REVERSED facing and the walk cycle
+  runs BACKWARDS instead — a 180° back-pedal is 0° of leg turn and a reversed
+  stride, and back-strafing is both. After: backwards -4.3, strafe -2.7, both
+  pushing the right way. HUMANOIDS ONLY, gated on the gait (`standard`/`sprint`)
+  plus a roster opt-out `strafeLegs: false` — a crab does not counter-rotate its
+  waist (cranky), and jerry (`arthropod`) and fenrir (`quad`) are excluded by
+  their gaits.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
   `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
   nova) and `quad` (fenrir).
@@ -746,6 +765,26 @@ audio). Progress history: `TASKS.md`.
   family; a near-grey mech's armor is the NEUTRAL pixels and its few saturated
   ones are accents to protect. Judge a change with
   `node tools/schemesheet.mjs <mech> out.png <schemeIdxCsv>`.
+- FIRE IN THE TEAM COLOUR (`colorscheme.js` schemeFire / `fireTintOf`): a
+  repainted mech's FLAMES answer to the paint — inferno in AMETHYST breathing
+  purple, in VERDANT green — but only where it reads as a deliberate colour.
+  White, silver, black and brown are what ordinary fire looks like against soot,
+  and tinting those just looks broken, so the rule comes off the scheme's own
+  numbers rather than a hand-kept list: a scheme tints when it has a chromatic
+  FLOOR (`minS`) and is not desaturating on top of it (`satMul >= 0.8`, which is
+  what excludes UMBER). MIDNIGHT/IVORY/SILVER cap saturation instead of flooring
+  it and fall out on the first test. TIDE's blue gas flame used to be a
+  hard-coded `fireCool(def)` boolean; it comes out of the same formula now.
+  TWO MECHANISMS, because there are two kinds of flame. The SHADER fires
+  (FlameFX cards, the fire tornado's shells, the jet tube) take the four ramp
+  stops as uniforms — dark base, body, bright, white heart — generated at the
+  scheme's hue from one profile, so every colour is the same fire. The SPRITE
+  fires (the particle pools) cannot: `flameAtlasTexture` bakes the orange ramp
+  into its own pixels with red pinned at 255, so multiplying a tint over it
+  gives mud. Those rotate the sampled texture's HUE instead (`hue` on
+  ParticlePool.emit, `aMisc.z`), which moves the whole baked ramp together and
+  keeps the hot core hot. 0 = untouched, so every untinted particle in the game
+  is bit-identical.
 - Work-in-progress mechs: a roster def flagged `hidden: true` (currently
   AEGIS + NOVA) is kept out of the GAME's roster — mech select, RANDOM
   picks, CPU picks, title line-up — until SETTINGS → SHOW ALL ROBOTS is

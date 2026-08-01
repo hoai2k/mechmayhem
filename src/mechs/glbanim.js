@@ -398,7 +398,10 @@ export const GLB_ANIM = {
   // INFERNO — flamer biped, direct map (levelHands is shape-shared). The only
   // reinterpretation is the flame channel: his torches are forearm barrels, so
   // the shared shootLoop's folded elbows pointed them at the sky.
-  inferno: { clipOverrides: { shootLoop: GLB_CLIP_VARIANTS.infernoFlameGlb } },
+  inferno: { clipOverrides: {
+    shootLoop: GLB_CLIP_VARIANTS.infernoFlameGlb,
+    shootLoopL: GLB_CLIP_VARIANTS.infernoFlameLGlb,
+  } },
   // GLACIER — heavy biped, direct map except for the two attacks that come out
   // of the ICE LANCE in his LEFT hand: the Icicle Barrage (`shootL`) and the
   // Cryo Beam channel (`shootLoopL`), both pointed at roster `primaryMuzzle`.

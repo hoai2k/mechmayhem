@@ -34,6 +34,7 @@
 //     flameGap: 0.055, smokeGap: 0.14, smokeRun: 2.4 }   // seconds, at rest
 import * as THREE from 'three';
 import { clamp01, rand } from '../core/utils.js';
+import { fireTintOf } from './colorscheme.js';
 
 const _v = new THREE.Vector3();
 
@@ -67,6 +68,11 @@ function stackAt(mech, sf, i, s, out) {
  */
 export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = true }) {
   const s = scale;
+  // …and in his own paint. A repainted mech's chimneys burn the same colour the
+  // rest of his fire does (colorscheme.js schemeFire); null is ordinary fire, so
+  // the stock/neutral schemes are untouched. Smoke stays smoke.
+  const tint = fireTintOf(mech.def);
+  const G = tint?.stops, hue = tint?.rot || 0;
   const wantSmoke = smoke && !!fx.smoke;
   for (let i = 0; i < sf.anchors.length; i++) {
     if (!stackAt(mech, sf, i, s, _v)) continue;
@@ -93,17 +99,17 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
       const up = (2.6 + 4.5 * burn) * s;
       fx.flames.emit(p.x + rand(-0.12, 0.12) * s, p.y + 0.05 * s, p.z + rand(-0.12, 0.12) * s,
         rand(-0.5, 0.5) * s, up, rand(-0.5, 0.5) * s,
-        { life: rand(0.2, 0.36), size: (0.95 + 1.05 * burn) * s, color: 0xffe9a8, color2: 0xff5c12,
-          alpha: 0.92, cell: -1, spin: 1.4, drag: 2.6, grow: 1.6 * s, gravity: -3.2 * s, fadeIn: 0.12 });
+        { life: rand(0.2, 0.36), size: (0.95 + 1.05 * burn) * s, color: G ? G[3] : 0xffe9a8, color2: G ? G[1] : 0xff5c12,
+          alpha: 0.92, cell: -1, spin: 1.4, drag: 2.6, grow: 1.6 * s, gravity: -3.2 * s, fadeIn: 0.12, hue });
       // the light the flame throws, so the chimney lip catches it
       fx.glows.emit(p.x, p.y + 0.1 * s, p.z, 0, 1.2 * s, 0,
-        { life: 0.16, size: (1.1 + 1.1 * burn) * s, color: 0xff8a2a, alpha: 0.5 * burn, grow: -1.2 * s });
+        { life: 0.16, size: (1.1 + 1.1 * burn) * s, color: G ? G[2] : 0xff8a2a, alpha: 0.5 * burn, grow: -1.2 * s });
     });
 
     tick('ember', rand(0.12, 0.4) / (0.5 + run), () => {
       fx.sparks.emit(p.x, p.y + 0.15 * s, p.z,
         rand(-1.2, 1.2) * s, rand(4, 9) * s, rand(-1.2, 1.2) * s,
-        { life: rand(0.4, 0.9), size: rand(0.24, 0.44) * s, color: 0xffcf80, color2: 0xff3c08,
+        { life: rand(0.4, 0.9), size: rand(0.24, 0.44) * s, color: G ? G[2] : 0xffcf80, color2: G ? G[1] : 0xff3c08,
           gravity: 7 * s, drag: 1.1, fadeIn: 0.02 });
     });
 
@@ -127,6 +133,8 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
 /** The gout a dash punches out of both stacks. One per dash, not per frame. */
 export function stackBlast(mech, sf, { fx, scale = 1, smoke = true }) {
   const s = scale;
+  const tint = fireTintOf(mech.def);
+  const G = tint?.stops, hue = tint?.rot || 0;
   const wantSmoke = smoke && !!fx.smoke;
   for (let i = 0; i < sf.anchors.length; i++) {
     if (!stackAt(mech, sf, i, s, _v)) continue;
@@ -140,7 +148,7 @@ export function stackBlast(mech, sf, { fx, scale = 1, smoke = true }) {
       }
     }
     fx.flames.emit(p.x, p.y + 0.1 * s, p.z, 0, 9 * s, 0,
-      { life: 0.34, size: 2.2 * s, color: 0xfff2c8, color2: 0xff4a0c,
-        alpha: 0.95, cell: -1, spin: 1.6, drag: 2.4, grow: 2.6 * s, gravity: -4 * s });
+      { life: 0.34, size: 2.2 * s, color: G ? G[3] : 0xfff2c8, color2: G ? G[1] : 0xff4a0c,
+        alpha: 0.95, cell: -1, spin: 1.6, drag: 2.4, grow: 2.6 * s, gravity: -4 * s, hue });
   }
 }
