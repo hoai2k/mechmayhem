@@ -47,7 +47,26 @@ workbench/
   tools/              the eight workbenches — no game imports at all
     stretchscan.js    the skin-deformation maths ?edit=skindebug measures with
   ui/                 shared chrome: panel, subject picker, variant picker, save
+    mobile.js         the small-touch-screen layout (see below)
 ```
+
+## On a phone
+
+`ui/mobile.js` inverts the layout when — and only when — the pointer is coarse
+AND the viewport is narrow (`?mobile=1` forces it on from a desktop browser for
+testing, `?mobile=0` / `?desktop` off). A desktop window dragged narrow, or a
+touchscreen laptop, keeps the normal panel: both halves of the test must pass.
+
+When it is on, the model gets the screen: a slim bar across the top carries the
+SUBJECT picker (the tool's own `<select>`, moved — not a copy, so there is one
+piece of state) plus the one control that tool is about, and a ⚙ button raises
+the ENTIRE panel as a bottom sheet — every dial the desktop has, nothing
+removed, dismissed with Done, the scrim or Esc. Camera gestures are
+OrbitControls' own: one finger rotates, two pan and pinch-zoom.
+
+Wired into `?edit=animation` (bar control: the action to trigger, as a dropdown
+in place of the nine-button grid) and `?edit=gait` (bar control: the throttle).
+Adding it to another tool is one call plus whatever element belongs in the bar.
 
 ## The deal
 

@@ -64,6 +64,23 @@ audio). Progress history: `TASKS.md`.
   `workbench/tools/stretchscan.js`; the narrower CLI probes
   (`tools/skinstretch.mjs`, `tools/cliptear.mjs`, `tools/stretchaudit.mjs`)
   still answer their own questions.
+- WORKBENCHES ON A PHONE (`workbench/ui/mobile.js`): on a SMALL TOUCH screen —
+  coarse pointer AND a narrow viewport, both, so a touchscreen laptop and a
+  narrow desktop window are unaffected (`?mobile=1` forces it on for testing,
+  `?mobile=0`/`?desktop` off) — the animation and gait workbenches invert their
+  layout. The panel is the whole screen on a phone, and the model, which is the
+  thing you opened the tool to look at, is a sliver beside it. So: a slim BAR
+  across the top carries the mech picker (the tool's own `<select>`, MOVED into
+  it rather than copied — one control, one state) plus the ONE dial that tool is
+  about (animation: an action dropdown standing in for the nine-button grid,
+  which needs a press to hold and a dropdown has none — so `walk`/`block`/
+  `ranged` stay held while selected and everything else is a press and a release;
+  gait: the throttle), and a ⚙ button. The rest of the screen is the viewer,
+  driven by OrbitControls' standard gestures (one finger rotate, two pan +
+  pinch-zoom). ⚙ raises the WHOLE panel as a bottom sheet — every dial the
+  desktop has, unchanged, dismissed with Done/scrim/Esc — so nothing is removed
+  on mobile, only put away. Desktop is byte-identical: `setupMobileChrome`
+  returns `{active:false}` and does nothing at all unless the layout test passes.
 - Every workbench side panel (skin/models/pose/collider/rigedit + the level
   editor's two) is RESIZABLE: drag its outer edge, double-click the handle to
   reset, width remembered per tool (`src/dev/panelui.js`, which also styles
