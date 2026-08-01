@@ -687,6 +687,17 @@ audio). Progress history: `TASKS.md`.
   vs on, every landed blow reported as a fraction of the victim's height) and
   `node tools/aimshot.mjs <attacker> <victim> <out> [light|heavy] [dist]`
   (the impact frame frozen side-on, both ways).
+- A CLIP'S `hit` EVENT MUST FIRE WHERE THE WEAPON IS, NOT WHERE THE KEY IS.
+  Authoring the hit on the strike keyframe assumes the body arrives the instant
+  the key does; it does not, because the animator SMOOTHS toward each target and
+  the rendered pose lags the clip by a fixed wall-clock amount. A gentle swing
+  hides it — a fast one does not. Jerry's claw rake travels 114° in 0.12s, and
+  on the key the claw was still up over his own back, so every light whiffed
+  while the hit test stayed perfectly correct about a claw that was not there.
+  `node tools/striketime.mjs <mech> [clips]` is the check: it prints where the
+  striking hand IS at each hit event, in the mech's own frame, beside where that
+  hand's forward peak actually lands. Together = healthy; peak later = move the
+  event by the gap.
 - Paint jobs (`src/mechs/colorscheme.js` — 11 schemes, cycled in mech select):
   a scheme is a PAINT TARGET (hue + a saturation floor OR ceiling + the
   LIGHTNESS the paint wants), never a plain hue swap. The lightness is what

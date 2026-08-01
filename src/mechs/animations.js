@@ -1135,7 +1135,13 @@ const CLIPS_RAW = {
       { t: 0.4, ease: 'outQuad', pose: { shoulderR: [-42, 2, -2], handR: [12, 0, 0], torso: [6, -3, -1] } },
       { t: 0.55, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0], shoulderR: [0, 0, 10], elbowR: [-12, 0, 0], handR: [0, 0, 0], shoulderL: [0, 0, -10] } },
     ],
-    events: [{ t: 0.2, type: 'sfx', arg: 'whoosh' }, { t: 0.3, type: 'hit', arg: 0 }],
+    // HIT AFTER ARRIVAL, not on the strike key. The pose smoother lags the
+    // clip, and this swing travels 114 degrees in 0.12s — measured
+    // (tools/striketime.mjs), at t=0.30 the claw is still up over his own
+    // back (0.25 body heights forward, 1.0 up) and only reaches down-and-
+    // forward (0.57 fwd, 0.73 up) around t=0.32. Firing on the key resolved
+    // the blow at the top of the chamber and whiffed over the target.
+    events: [{ t: 0.2, type: 'sfx', arg: 'whoosh' }, { t: 0.35, type: 'hit', arg: 0 }],
   },
   jerryRake2: { // combo finisher: BOTH claws chamber over the shell and come
     // down as one — the two-arm blow at the end of the rake chain. Slightly
@@ -1149,7 +1155,7 @@ const CLIPS_RAW = {
       { t: 0.46, ease: 'outQuad', pose: { torso: [7, 0, 0], hipsPos: [0, -0.06, 0.04] } },
       { t: 0.62, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], handL: [0, 0, 0], handR: [0, 0, 0] } },
     ],
-    events: [{ t: 0.24, type: 'sfx', arg: 'whooshBig' }, { t: 0.34, type: 'hit', arg: 2 }, { t: 0.36, type: 'shake', arg: 0.3 }],
+    events: [{ t: 0.24, type: 'sfx', arg: 'whooshBig' }, { t: 0.39, type: 'hit', arg: 2 }, { t: 0.4, type: 'shake', arg: 0.3 }],
   },
   // ---------- JERRY: the barrage (his heavy) ----------
   // REAR BACK, then eight quick forward-and-downward claw strikes, arms
@@ -1178,12 +1184,14 @@ const CLIPS_RAW = {
     ],
     events: [
       { t: 0.28, type: 'sfx', arg: 'whooshBig' },
-      { t: 0.38, type: 'hit', arg: 0 }, { t: 0.47, type: 'hit', arg: 0 },
-      { t: 0.56, type: 'hit', arg: 0 }, { t: 0.6, type: 'sfx', arg: 'whoosh' },
-      { t: 0.65, type: 'hit', arg: 0 }, { t: 0.74, type: 'hit', arg: 0 },
-      { t: 0.83, type: 'hit', arg: 0 }, { t: 0.87, type: 'sfx', arg: 'whoosh' },
-      { t: 0.92, type: 'hit', arg: 0 }, { t: 1.01, type: 'hit', arg: 0 },
-      { t: 1.04, type: 'shake', arg: 0.4 },
+      // each hit sits one arrival-lag (0.03s) PAST its own strike key — see
+      // the note on jerryRakeR; measured, the claw is down-and-forward by then
+      { t: 0.41, type: 'hit', arg: 0 }, { t: 0.5, type: 'hit', arg: 0 },
+      { t: 0.59, type: 'hit', arg: 0 }, { t: 0.6, type: 'sfx', arg: 'whoosh' },
+      { t: 0.68, type: 'hit', arg: 0 }, { t: 0.77, type: 'hit', arg: 0 },
+      { t: 0.86, type: 'hit', arg: 0 }, { t: 0.87, type: 'sfx', arg: 'whoosh' },
+      { t: 0.95, type: 'hit', arg: 0 }, { t: 1.04, type: 'hit', arg: 0 },
+      { t: 1.06, type: 'shake', arg: 0.4 },
     ],
   },
   pounceLeap: { // SAURION pounce airtime — legs cocked under the body, sickle claws
