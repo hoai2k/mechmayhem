@@ -203,6 +203,22 @@ export const GAIT_SCHEMA = [
         help: 'roll the arms in toward the ribs instead of leaving them winged out' },
       { key: 'cross', label: 'arm cross @run', min: -0.8, max: 0.8, step: 0.01, joints: ['shoulderL', 'shoulderR'],
         help: 'yaw the forward-swinging arm across the chest' },
+      // ---- FORELEGS: the arms as a second pair of legs (arthropod — jerry).
+      //      All four are 0 on a humanoid gait and the block never runs.
+      { key: 'carry', label: 'foreleg carry', min: -1.2, max: 1.2, step: 0.01, joints: ['shoulderL', 'shoulderR'],
+        help: 'constant shoulder pitch that PLANTS the claws on the ground — the standing posture of a '
+          + 'limb that walks, applied at every speed (unlike lift, which rides the throttle). Sign is '
+          + 'body-dependent: measure where the claw tips actually land' },
+      { key: 'foldClear', label: 'foreleg fold to clear', min: 0, max: 1.6, step: 0.01, joints: ['elbowL', 'elbowR'],
+        help: 'elbow fold on the RECOVERY half of the stride — a front leg lifts to clear the ground '
+          + 'while it swings forward, then extends to plant. Fades back out through the planted sweep' },
+      { key: 'handGround', label: 'claw ground align', min: 0, max: 1, step: 0.01, joints: ['handL', 'handR'],
+        help: 'how hard to keep the PLANTED claw parallel to the ground, the way footFlat levels a '
+          + 'planted sole: the wrist cancels what the hips + shoulder + elbow pitched into it, fading '
+          + 'as the limb lifts. 0 on a humanoid — hands are not feet there' },
+      { key: 'handClear', label: 'claw lift in the air', min: -1.2, max: 1.2, step: 0.01, joints: ['handL', 'handR'],
+        help: 'wrist pitch on the SWINGING claw, so the tip clears the ground on recovery instead of '
+          + 'ploughing a furrow forward' },
     ],
   },
   {
@@ -447,9 +463,20 @@ export const GAITS = {
       cadence: 0.58, cadenceCap: 19,
     },
     ankle: { roll: 0.35, tilt: -0.06, push: 0.5, pushRun: 0.3, level: 0, hang: 0 },
+    // THE CLAWS ARE THE FRONT LEGS — the biggest limbs on the body, so they
+    // carry the bulk of the visible motion: a stride-sized swing (bigger than
+    // the back legs'), a constant `carry` planting the tips on the ground, the
+    // elbow folding to clear on the recovery swing, and the wrist doing ankle
+    // work — `handGround` keeps the planted claw parallel to the ground the
+    // way footFlat levels a planted sole, `handClear` tips the swinging one up.
+    // The counter-swing already puts each claw on the beat of the OPPOSITE back
+    // leg, which is the diagonal-couplet timing an insect actually walks on.
     arms: {
-      swing: 0.12, swingRun: 0.06, lift: -0.30, elbow: 0.40, elbowRun: 0.25,
-      elbowPump: 0.14, tuck: -0.16, cross: 0,
+      swing: 0.45, swingRun: 0.15, lift: 0, elbow: 0.15, elbowRun: 0,
+      elbowPump: 0, tuck: -0.16, cross: 0,
+      // carry measured on the GLB: -0.3 puts the planted tip at -0.5% of body
+      // height (touchdown) with the swinging one clearing at +37%
+      carry: -0.30, foldClear: 0.50, handGround: 0.8, handClear: 0.30,
     },
     body: { bob: 0.11, pitch: 0.06, yaw: 0.16, roll: 0.08, lean: 0.12, twist: 0.05, head: -0.10 },
   },
@@ -800,6 +827,49 @@ export function applyGait(tgt, gait, env) {
   if (R.cross) {
     const c = R.cross * ratio;              // the forward arm swings across the chest
     tgt.shoulderL[1] += c * armFwdL; tgt.shoulderR[1] += -c * armFwdR;
+  }
+
+  // ===== FORELEGS (arthropod bodies — jerry): the arms ARE front legs =====
+  // The counter-swing above already gives them the right BEAT — an arm moves
+  // with the opposite leg, which is exactly the diagonal-couplet timing an
+  // insect walks on — so nothing rephases. What changes is the JOB:
+  //   · `carry` plants the claws: a constant shoulder pitch onto the ground,
+  //     there at a walk and a sprint alike (lift rides the throttle; a limb
+  //     that bears weight cannot).
+  //   · the PLANTED half of each arm's own cycle is its backward sweep — the
+  //     body travelling over the planted claw — which for the L arm (driven by
+  //     +sinL) runs while cos(ph) > 0, and mirrored for R. The weight is a
+  //     smoothed half-cosine so plant and lift are crossfades, like footStates.
+  //   · `foldClear` folds the elbow through the recovery swing (a front leg
+  //     lifts to clear the ground coming forward, extends to plant)…
+  //   · …and the WRIST does what an ankle does: `handGround` cancels the pitch
+  //     the hips + shoulder + elbow stacked into the planted claw so it stays
+  //     parallel to the ground (footFlat, one limb pair up), while `handClear`
+  //     tips the swinging claw up so the tip doesn't plough a furrow forward.
+  if (R.carry || R.foldClear || R.handGround || R.handClear) {
+    const cosP = Math.cos(ph);
+    const plantL = clamp01(0.5 + 0.85 * cosP);
+    const plantR = clamp01(0.5 - 0.85 * cosP);
+    tgt.shoulderL[0] += R.carry || 0;
+    tgt.shoulderR[0] += R.carry || 0;
+    if (R.foldClear) {
+      tgt.elbowL[0] += -R.foldClear * (1 - plantL);
+      tgt.elbowR[0] += -R.foldClear * (1 - plantR);
+    }
+    if (rest && (R.handGround || R.handClear)) {
+      for (const [side, plant] of [['L', plantL], ['R', plantR]]) {
+        const h = tgt['hand' + side];
+        if (!h) continue;
+        // level against everything the chain above pitched into the claw,
+        // relative to rest — the same cancellation the flat-sole rule does
+        if (R.handGround) {
+          h[0] -= R.handGround * plant * (tgt.hipsRot[0]
+            + (tgt['shoulder' + side][0] - (rest['shoulder' + side]?.[0] || 0))
+            + (tgt['elbow' + side][0] - (rest['elbow' + side]?.[0] || 0)));
+        }
+        if (R.handClear) h[0] += R.handClear * (1 - plant);
+      }
+    }
   }
 
   // ===== body dynamics — bob rides the push-off beat =====

@@ -494,11 +494,14 @@ export class World {
     // chose, and the aim has to range off the muzzle that is actually firing.
     // Mid-clip the other arm is retracted somewhere behind him, and ranging off
     // that one left his left-hand throw 7° flatter than his right.
+    // JERRY's goo is the sharpest case: only the FIRING pod is swung onto his
+    // facing (the glbanim hook), the idle one rests splayed 35° outboard —
+    // so a left-pod spit ranged off muzzleR aimed its whole burst 35° wide.
     // A CHANNEL weapon can alternate too (vulcan's twin gatlings trade the lead
     // in bursts) — same _shotSide stamp, so the stream leaves the gun the
     // animation has punched forward.
     const muzzle = (mv.type === 'fist' && f._fistSide === 'L' && anchors.muzzleL)
-      || ((mv.type === 'shell' || mv.type === 'glitch') && f._shotSide && anchors.muzzleL)
+      || ((mv.type === 'shell' || mv.type === 'glitch' || mv.type === 'goo') && f._shotSide && anchors.muzzleL)
       || (f.def.channelClipL && f._shotSide && anchors.muzzleL)
       || anchors[f.def.primaryMuzzle] || anchors.muzzleR;
     const from = muzzle.getWorldPosition(new THREE.Vector3());
