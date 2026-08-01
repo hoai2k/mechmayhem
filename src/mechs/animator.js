@@ -584,6 +584,34 @@ export class Animator {
       this._gaitEnv.quadQ = this._quadQ;
       applyQuadGait(tgt, this._gait, this._gaitEnv);
     }
+    // ===== the extra legs (a gait with a `hex` block — CRANKY the crab) =====
+    // A hexapod's other four (see hexLegsOf). Unlike the tail these are LEGS, so
+    // they get the same deal the two the game knows about get: they hold their
+    // rest shape unless he is actually walking, and the pose smoother eases them
+    // back into it when he stops. Seeded whether he is moving or not, or a stop
+    // would simply keep the last frame of a stride and freeze mid-step.
+    //
+    // BEFORE THE FOOT RULE, because this pass also rewrites the BACK pair's
+    // thigh — `hex.yaw` trades a share of its pendulum for a swing round the hip
+    // — and a foot rule that had already read the old pose would be levelling an
+    // ankle against a leg that is no longer there.
+    const hex = this.gait?.hex ? this.hexLegs() : null;
+    if (hex) {
+      for (const l of hex.legs) {
+        if (!l.driven) continue;
+        tgt[l.hip] = [...l.restHip];
+        if (l.knee) tgt[l.knee] = [...l.restKnee];
+      }
+      // …and the stride itself only while there is one. `_gaitEnv` is built in
+      // the walk block above and carries THIS frame's phase, so the extra legs
+      // run on the same clock as the two the stride drives — which is what makes
+      // the cadence match the ground speed, and what makes the gait workbench's
+      // pause freeze them (it freezes the phase, and there is no other clock).
+      if (grounded && speed > 0.4 && this._gaitEnv) {
+        this._gaitEnv.hex = hex;
+        applyHexGait(tgt, this._gait, this._gaitEnv);
+      }
+    }
     // hand-keyed corrections over the cycle, BEFORE the foot rule — a gait's
     // rules about feet outrank a hand edit (see applyGaitKeys)
     if (grounded && speed > 0.4 && this.gait.keys?.length) {
@@ -625,31 +653,6 @@ export class Animator {
       // standing wolf is not a statue
       e.tailPh = this.phase + this.t * (this._gait.tail.idle || 0);
       applyTailGait(tgt, this._gait, e);
-    }
-
-    // ===== the extra legs =====
-    // A hexapod's other four (see hexLegsOf). Unlike the tail these are LEGS, so
-    // they get the same deal the two the game knows about get: they hold their
-    // rest shape unless he is actually walking, and the pose smoother eases them
-    // back into it when he stops. Seeded here so that settling happens at all —
-    // without the rest target they would simply keep the last frame of a stride
-    // and freeze mid-step.
-    const hex = this.gait?.hex ? this.hexLegs() : null;
-    if (hex) {
-      for (const l of hex.legs) {
-        if (!l.driven) continue;
-        tgt[l.hip] = [...l.restHip];
-        if (l.knee) tgt[l.knee] = [...l.restKnee];
-      }
-      // …and the stride itself only while there is one. `_gaitEnv` is built in
-      // the walk block above and carries THIS frame's phase, so the extra legs
-      // run on the same clock as the two the stride drives — which is what makes
-      // the cadence match the ground speed, and what makes the gait workbench's
-      // pause freeze them (it freezes the phase, and there is no other clock).
-      if (grounded && speed > 0.4 && this._gaitEnv) {
-        this._gaitEnv.hex = hex;
-        applyHexGait(tgt, this._gait, this._gaitEnv);
-      }
     }
 
     // ===== dash: coil, gather, LUNGE =====

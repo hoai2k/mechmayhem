@@ -269,12 +269,25 @@ audio). Progress history: `TASKS.md`.
   back-left leg), so two of the six ride the ordinary stride — foot rules
   included — and the other four ride `hex` off the SAME phase. Two things are
   derived rather than authored, because either one wrong is invisible in the
-  numbers and obvious on screen: WHICH AXIS IS FORWARD (a leg swings fore-aft
-  about the body's LATERAL axis, however far out to the side it is carried — the
-  lever arm is how far the foot hangs BELOW the hip, which is why a crab's stubby
-  side legs still take a real step) and WHICH TRIPOD each leg is in (rank down
-  the body from where the hip actually sits, then alternate by rank and again by
-  side: front-left + mid-right + back-left, then the other three). Judge it with
+  numbers and obvious on screen: WHICH AXIS IS FORWARD and WHICH TRIPOD each leg
+  is in (rank down the body from where the hip actually sits, then alternate by
+  rank and again by side: front-left + mid-right + back-left, then the other
+  three).
+  AN ARTHROPOD ROTATES ITS LEGS, IT DOES NOT PUSH OFF THEM, and that is `hex.yaw`
+  — the one dial the rest of cranky's table is arranged around. A leg has TWO
+  ways to carry its foot forward and `hexLegsOf` measures both lever arms: turn
+  it about the body's LATERAL axis and it swings under the hip like a pendulum (a
+  push-off; the lever is how far the foot hangs BELOW the hip), turn it about the
+  body's UP axis and it swings ROUND the hip, flat, like a hand on a clock face
+  (the lever is how far the foot sits OUT from it). `yaw` mixes the two on all
+  six — the four directly, the back pair by taking that share of its thigh pitch
+  back out and putting the same swing in as thigh yaw, in JOINT space before the
+  foot rule runs so no ankle is levelled against a leg that has moved. It COSTS
+  GROUND: on cranky's legs the yaw lever is a third to a half of the pitch one,
+  so 60% yaw takes about a third off the step and `cadence` pays for it
+  (0.70 -> 0.48). It also costs LIFT — a pendulum raises its own foot at both
+  ends of the arc for free and a flat swing does not — so `hex.lift`/`fold` went
+  up by half again with it. Judge it with
   `node tools/hexprobe.mjs <mech> [throttle]`, which reports every leg's `keep` —
   the foot's measured fore-aft travel over the ground the cadence says one step
   covers. THE ROSTER'S OWN BASELINE IS 0.73 (what titanus measures at every
