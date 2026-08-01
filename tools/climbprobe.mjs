@@ -133,12 +133,23 @@ async function run(script, frames, dist) {
           if (!st) return '-';
           return st.air ? 'A' : st.sw >= 0 ? 'S' : 'P';
         };
+        // SPREAD: mean distance of the PLANTED tips from the body — the
+        // number the outward splay exists to raise (clustered-under-center
+        // plants read ~2-3; extended spider plants read ~4-6)
+        let spr = 0, nspr = 0;
+        for (const [ji, jn] of [[0, 'ankleL'], [1, 'ankleR'], [2, 'handL'], [3, 'handR']]) {
+          if (f._steps?.[ji] && !f._steps[ji].air && f._steps[ji].sw < 0 && f._steps[ji].has) {
+            const j = (f.mech.boneMap && f.mech.boneMap[jn]) || f.mech.joints[jn];
+            if (j) { spr += j.getWorldPosition(new V()).distanceTo(f.pos); nspr++; }
+          }
+        }
         trace.push({
           t: +t.toFixed(2),
           y: +f.pos.y.toFixed(1), z: +f.pos.z.toFixed(1),
           upY: +up.y.toFixed(2), tilt: +(f._climbTilt || 0).toFixed(2),
           on: f.climb ? 'surf' : (f.grounded ? 'grnd' : 'air '),
           limbs: limb(0) + limb(1) + limb(2) + limb(3),
+          spr: nspr ? +(spr / nspr).toFixed(1) : 0,
           tips: [tip('ankleL'), tip('ankleR'), tip('handL'), tip('handR')],
         });
       }
@@ -172,7 +183,7 @@ for (const [label, script, frames, dist] of SCENARIOS) {
   for (const s of r.trace) {
     console.log(` t=${String(s.t).padStart(5)} ${s.on} upY=${String(s.upY).padStart(5)} ` +
       `tilt=${String(s.tilt).padStart(4)} y=${String(s.y).padStart(6)} z=${String(s.z).padStart(7)} ` +
-      `limbs=${s.limbs} tips=[${s.tips.join(', ')}]`);
+      `limbs=${s.limbs} spr=${String(s.spr).padStart(4)} tips=[${s.tips.join(', ')}]`);
   }
 }
 

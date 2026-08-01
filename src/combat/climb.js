@@ -592,12 +592,23 @@ export function applyClimbPose(f) {
 // Runs LAST, after the GLB retarget has synced (fighter.js calls postAnimate
 // first), so it writes the bones a rigged model actually renders.
 // ===========================================================================
+// Each limb carries a SPLAY — its outboard direction in the body frame (x =
+// right, z = forward), feet biased back and hands forward, spider-fashion.
+// Homes are searched OUT along it first (see the ladder below).
 const LIMBS = [
-  { root: 'thighL', mid: 'kneeL', end: 'ankleL', foot: true, group: 0 },
-  { root: 'thighR', mid: 'kneeR', end: 'ankleR', foot: true, group: 1 },
-  { root: 'shoulderL', mid: 'elbowL', end: 'handL', foot: false, group: 1 },
-  { root: 'shoulderR', mid: 'elbowR', end: 'handR', foot: false, group: 0 },
+  { root: 'thighL', mid: 'kneeL', end: 'ankleL', foot: true, group: 0, splay: new THREE.Vector3(-1, 0, -0.4).normalize() },
+  { root: 'thighR', mid: 'kneeR', end: 'ankleR', foot: true, group: 1, splay: new THREE.Vector3(1, 0, -0.4).normalize() },
+  { root: 'shoulderL', mid: 'elbowL', end: 'handL', foot: false, group: 1, splay: new THREE.Vector3(-1, 0, 0.55).normalize() },
+  { root: 'shoulderR', mid: 'elbowR', end: 'handR', foot: false, group: 0, splay: new THREE.Vector3(1, 0, 0.55).normalize() },
 ];
+// the ladder: how far OUT along the splay each successive home search sits,
+// x reach x step.spread. A wide surface (a building face) answers the first
+// rung and the limb plants EXTENDED — stability through spread, and because
+// the splay is symmetric the extensions even themselves out around the body.
+// A narrow one (a pole) fails the outer rungs and the limb grips close, which
+// is exactly the "inward is a last resort" order.
+const SPLAY_LADDER = [1, 0.6, 0.28, 0];
+const _splay = new THREE.Vector3();
 const _tipT = new THREE.Vector3();
 const _homeT = new THREE.Vector3();
 
@@ -642,22 +653,32 @@ export function conformClimbLimbs(f, dt) {
     const reach = (_root.distanceTo(_mid) + _mid.distanceTo(_end)) * 0.96;
     const stand = L.foot ? sole * 0.35 : 0.08;
 
-    // the limb's NORMAL SPOT: under its own root along the body's down, led by
-    // the travel so footfalls land ahead of the motion. The lead is CLAMPED to
-    // a fraction of the limb's own reach — at ground pace an unclamped lead
-    // (28 u/s x 0.13 s = 3.6 u) pushed every home past full extension and the
-    // whole stepper read airborne on flat ground.
-    _homeT.copy(_root).addScaledVector(up, -reach * S.hang);
+    // the limb's NORMAL SPOT: OUT along its splay, down along the body's
+    // down, led by the travel. The search is a LADDER, outermost rung first —
+    // a limb PREFERS to extend and plant wide (stability through spread; the
+    // symmetric splay is also what evens the extensions out around the body),
+    // and only walks the ladder inward when the outer rungs have no
+    // reachable surface, which is the pole-hug case. The travel lead is
+    // CLAMPED to a fraction of reach — unclamped, ground pace pushed every
+    // home past full extension and the whole stepper read airborne.
+    _splay.copy(L.splay).applyQuaternion(f.group.quaternion);
     _want.copy(f.vel).multiplyScalar(S.lead);
     const ldLen = _want.length();
     if (ldLen > reach * 0.35) _want.multiplyScalar((reach * 0.35) / ldLen);
-    _homeT.add(_want);
-    const d = nearestSurface(f, _homeT.x, _homeT.y, _homeT.z, reach * 1.25);
     let homeOk = false;
-    if (d !== Infinity) {
+    for (const rung of SPLAY_LADDER) {
+      _homeT.copy(_root)
+        .addScaledVector(_splay, reach * S.spread * rung)
+        .addScaledVector(up, -reach * S.hang)
+        .add(_want);
+      const d = nearestSurface(f, _homeT.x, _homeT.y, _homeT.z, reach * 1.25);
+      if (d === Infinity) continue;
       _tgt.copy(_limbCp).addScaledVector(_limbN, stand);
-      homeOk = _tgt.distanceTo(_root) <= reach;
-      if (homeOk) s0.tn.copy(_limbN);
+      if (_tgt.distanceTo(_root) <= reach) {
+        homeOk = true;
+        s0.tn.copy(_limbN);
+        break;
+      }
     }
 
     let target = null, w = 0;
