@@ -142,14 +142,35 @@ audio). Progress history: `TASKS.md`.
   one a person cannot do: `ctx.drift` is the angle from facing to travel, the
   HIPS take it (they are the rig root, so the legs follow) and the TORSO gives
   the same angle back, leaving the lower body walking where it is going and the
-  upper body still aiming. Past a quarter turn that would be a pirouette, so
-  beyond it the drift is measured against the REVERSED facing and the walk cycle
-  runs BACKWARDS instead — a 180° back-pedal is 0° of leg turn and a reversed
-  stride, and back-strafing is both. After: backwards -4.3, strafe -2.7, both
-  pushing the right way. HUMANOIDS ONLY, gated on the gait (`standard`/`sprint`)
-  plus a roster opt-out `strafeLegs: false` — a crab does not counter-rotate its
-  waist (cranky), and jerry (`arthropod`) and fenrir (`quad`) are excluded by
-  their gaits.
+  upper body still aiming. Aimed nearly straight back there is nothing left to
+  turn toward, so beyond `LEG_BACK_ON` the drift is measured against the
+  REVERSED facing and the walk cycle runs BACKWARDS instead — a 180° back-pedal
+  is 0° of leg turn and a reversed stride. After: backwards -4.3, strafe -2.7,
+  both pushing the right way. HUMANOIDS ONLY, gated on the gait
+  (`standard`/`sprint`) plus a roster opt-out `strafeLegs: false` — a crab does
+  not counter-rotate its waist (cranky), and jerry (`arthropod`) and fenrir
+  (`quad`) are excluded by their gaits.
+  A STRAFE NEVER REVERSES. That line was at a quarter turn, which made "sideways
+  with a little bit of backwards" a backwards walk; it is 150° now
+  (`LEG_BACK_ON`, leaving at 130° — 20° of hysteresis so it cannot flutter), and
+  the hips are allowed the full 150° of turn to reach it. Everything up to there
+  faces the way it is travelling with the cycle running FORWARD; only a genuine
+  retreat flips. Measured on titanus (legTurn / cycle direction): 45° +45 / + ·
+  90° +90 / + · 120° +120 / + · 150° +150 / + · 165° -15 / - · 180° 0 / -.
+  Crossing it is a real half-turn of the pelvis — the two answers put the legs on
+  opposite sides of the body, so nothing makes it free — and it is DAMPED like
+  any other leg turn (~25°/frame at the peak, ~0.4s), reading as the mech
+  pivoting his lower body to back off. Coming to a stop UNWINDS rather than
+  crossing, or every halt mid-retreat would spin the legs a half turn.
+- A RETREAT IS NOT A RUN (`Fighter.backpedalT`, `TUNING.movement.backMult`).
+  Full speed is only for legs that can push against the ground going forward, so
+  as the intended direction swings behind the body the speed cap ramps down to
+  `backMult` (0.7 x the WALK cap) and the sprint multiplier fades out with it —
+  a dead-straight back-pedal is a fast walk at 0.44 of the run, whether or not B
+  is held. The ramp starts at `LEG_BACK_OFF`, so strafing costs nothing;
+  measured on titanus (walk 20.7, run 33.2): 0-120° 33.2 · 135° 31.0 · 150° 24.8
+  · 165° 19.3 · 180° 14.5. Only target lock can produce it at all — free camera
+  turns the body to face travel, so the offset is ~0 and it never engages.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
   `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
   nova) and `quad` (fenrir).

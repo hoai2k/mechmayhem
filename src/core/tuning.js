@@ -46,6 +46,13 @@ export const TUNING = {
     speedBase: 2.4,
     sprintMult: 1.6,       // sprint speed, x the walk cap
     blockMoveMult: 0.5,    // walking speed while the guard is up, x the walk cap
+    // A RETREAT IS NOT A RUN. Nothing sprints backwards: full speed is only
+    // available to legs that can push against the ground going forwards, so as
+    // the travel direction swings behind the body the cap falls to this (x the
+    // WALK cap) and the sprint multiplier fades out with it — a fast walk or a
+    // slow jog at a straight back-pedal. Strafing is unaffected; the ramp only
+    // starts once the direction is genuinely behind him (animator LEG_BACK_OFF).
+    backMult: 0.7,
     jumpMult: 1.18,        // global jump boost over roster stats
   },
 
