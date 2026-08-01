@@ -655,13 +655,30 @@ audio). Progress history: `TASKS.md`.
   destructible.js/arena.js were the "clips the building and hops up one block"
   artifact, and the walker subsumes them — a knee-high crate is just a surface
   with a gentle normal.)
-  HANDS AND FEET ARE PLACED PER LIMB (`conformClimbLimbs`, run after the GLB
-  retarget has synced so it writes the bones a rigged model renders): two-bone
-  IK onto the nearest solid to THAT limb, which is how a body crossing a corner
-  gets one claw on the wall and one on the roof — something no single surface
-  could express. Feet are weighted by proximity so the planted one of a stride
-  is pinned and the swinging one still swings; hands keep a floor under that
-  (`handPlant`), and where the arm cannot reach, the solve leaves it REACHING.
+  THE LIMBS ARE A SPIDER STEPPER (`conformClimbLimbs`, run after the GLB
+  retarget has synced so it writes the bones a rigged model renders). Each limb
+  has a HOME — the nearest surface to the spot under its own root, led along
+  the travel — and lives in one of three states: PLANTED (tip pinned to its
+  plant point, however the body moves), SWINGING (a lifted arc to a new home
+  when the plant falls `step.len` x reach behind, or the limb nears full
+  stretch), or AIRBORNE (home beyond full extension l1+l2, measured live off
+  the bones: the limb reaches, gently, and plants nothing — weird poses are
+  allowed, impossible ones are not). Diagonal pairs (ankleL+handR /
+  ankleR+handL) swing together and alternate — a trot — and because homes come
+  from geometry and travel, THE SAME RULE IS THE SIDEWAYS AND BACKWARD GAITS:
+  strafing right, the right limbs lead because their homes do; backing up, the
+  roles reverse because the travel did. No direction is special. The stepper
+  owns the limbs whenever he is surfaced (every structure — which is where feet
+  used to float over uneven tops), and on OPEN GROUND under target lock past
+  `scuttleDrift` rad of strafe/backpedal: the crab scuttle. Plain running on
+  open ground stays the animator's. Debug it with the `limbs=` column in
+  `tools/climbprobe.mjs` (P/S/A per limb, every sample).
+  BODY STABILITY is two dampings and a throttle: `normRate` pre-filters the
+  field normal before the body follows it at `tiltRate` (a block seam becomes a
+  lean, not a flicker), and while the frame is still TURNING toward the
+  filtered normal, translation is throttled (`turnSlow`/`turnFloor`) — a
+  surfaced body also never exceeds the fast-walk pace (`D.speed` x walk;
+  running belongs to open ground). Stability over speed on complex territory.
   The other half of the look is the CROUCH in `def.climb.pose`: a mech STANDING
   on a wall is not climbing it, since a standing body's hands are 5.4 units off
   the floor.
@@ -672,15 +689,23 @@ audio). Progress history: `TASKS.md`.
   stopping the face he is sliding past from catching him again (it expires on
   landing or in open air, never on the jump button, which fires in the same
   frame that sets it).
-  THE CAMERA NEVER GHOSTS HIS BUILDING (camera.js). You cannot read a climb
-  against a wall you can see through, so the occlusion fade is skipped for a
-  view whose own player is surface-walking, and instead THE ORBIT IS ROTATED
-  INTO HIS FRAME by the same `upRotation`: the offset that sits behind-and-above
-  a mech on the ground sits outside-and-behind one on a facade, and elevation
-  eases toward `CLIMB_EL` with the tilt to pull the eye out perpendicular to
-  the surface. The camera is only MOVED, never rolled — screen up stays world
-  up, so a vertical climb reads as moving up the screen, which is also what the
-  stick does.
+  THE CLIMB CAMERA (camera.js, `CLIMB_CAM`) INTEGRATES — it never takes its
+  orientation from a surface, because surfaces are discontinuous and cameras
+  must not be. It keeps a persistent orbit direction (mech -> eye) and each
+  frame turns it a bounded number of degrees along a great circle toward a goal
+  blended from his own up (smoothed again, slower than the body), world up
+  (the horizon bias — you watch from above-and-outside, and the screen never
+  rolls), and the reverse of his travel (it trails him). A deadband ignores
+  seam jitter, and the rate cap makes a FLIP impossible by construction: the
+  only path from behind one face to behind the other is the smooth crane over
+  the building. Engaged/released by an eased blend seeded from where the
+  camera already is, with the ordinary azimuth synced underneath so the
+  hand-back lands on the view the player is looking at. It runs in BOTH camera
+  paths (the solo combined view and the split chase cams), TARGET LOCK never
+  steers the orbit while he is surfaced (the lock chases a bearing built from
+  yaw, and a wall-walker's yaw is whatever the stick last said — the whirling
+  camera was exactly that), and the occlusion fade stays OFF for a climbing
+  player's view: you cannot read a climb against a wall you can see through.
   THE CPU DOES NOT SURFACE-WALK (`climbStep` returns early for `isAI`): nothing
   in ai.js can want height, so a latched CPU would climb whatever it walked
   into and then sit up a tower pressing forward.

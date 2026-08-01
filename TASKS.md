@@ -12,7 +12,40 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** CLIMBING REBUILT AS A SURFACE WALKER, from scratch. The owner's
+- **Latest:** THE CLIMB CAMERA INTEGRATES, THE LIMBS BECAME A SPIDER. Owner
+  reports: the camera "kind of flips around so you get confused" going up and
+  over a building; feet float in the air as a neutral pose on uneven ground; the
+  body flickers between orientations on complex territory.
+  THE CAMERA (`CLIMB_CAM`, camera.js): the flip had two sources — under target
+  lock, `azimuthBehind` chases a bearing built from yaw, and a wall-walker's yaw
+  is whatever the stick last said (the orbit whirled); unlocked, the camera never
+  came around the building at all, so he vanished behind it (the fade is off for
+  climbers by design) and every manual correction read as a flip. The fix is the
+  gravity-game rule: a camera never takes orientation FROM a surface — it
+  INTEGRATES. A persistent orbit direction turns a bounded number of degrees per
+  frame along a great circle toward a goal blended from his smoothed up + world
+  up + the reverse of his travel, with a deadband for seam jitter. A flip is
+  impossible by construction; going over a roof is one crane move. Runs in BOTH
+  camera paths (solo combined + split chase), lock never steers while surfaced,
+  azimuth synced underneath so the hand-back is seamless.
+  THE LIMBS (`conformClimbLimbs` rewritten as a stepper): each limb has a HOME
+  (nearest surface under its own root, led by travel) and is PLANTED (pinned),
+  SWINGING (lifted arc, `step.time`), or AIRBORNE (home beyond full extension
+  l1+l2 measured live — the limb reaches, plants nothing). Diagonal pairs
+  alternate — a trot — and because homes come from geometry and travel, the same
+  rule IS the sideways and backward gaits: no direction is special. Measured on
+  the wall: SPPS<->PSSP alternation, tips 0-0.3 from the surface, PPPP when
+  stopped — feet planted at rest instead of floating. Also the crab scuttle on
+  open ground under target lock past `scuttleDrift` of strafe/backpedal (probe
+  scenarios 6-7); plain ground running stays the animator's.
+  THE BODY: `normRate` pre-filters the field normal (a seam is a lean, not a
+  flicker; worst per-frame body turn measured 6.9 -> 3.0-4.6 deg), translation
+  throttled while the frame is still turning (`turnSlow`/`turnFloor`), and a
+  surfaced body is capped at fast-walk pace — stability over speed.
+  Debug surface: the `limbs=` P/S/A column in tools/climbprobe.mjs (a dedicated
+  workbench panel was considered and deferred — the stepper is procedural, not
+  gait-table data, so the gait workbench cannot host it without a new adapter).
+- **Previous:** CLIMBING REBUILT AS A SURFACE WALKER, from scratch. The owner's
   report: walking Jerry into a building clipped it, hopped him up one block, made
   the building turn transparent, and flipped his facing between forward and
   upward. Every one of those is the same root cause — the old code ATTACHED TO
