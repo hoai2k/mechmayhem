@@ -255,10 +255,20 @@ export class MechSelectScreen {
       });
       c.addEventListener('click', () => {
         const pk = this.mousePicker;
-        if (!pk || pk.locked) return;
+        if (!pk) return;
+        // the grid is the pointer's own business: clicking a robot brings a
+        // mouse user home from whatever slot card they were visiting
+        this.clearMouseSel(pk);
+        // A CLICK IS A TOGGLE. Clicking the robot you are standing on locks
+        // it in, and clicking that same robot again lets it go — the mouse's
+        // answer to B, since a locked mouse user otherwise has nothing to
+        // click that undoes the lock.
+        if (pk.locked) { if (pk.cursor === i) this.unlock(pk); return; }
         if (this.touch) {
           if (pk.cursor !== i) { pk.cursor = i; this.audio?.play('uiMove'); this.refresh(); }
-        } else if (pk.cursor === i) this.lockIn(pk);
+          return;
+        }
+        if (pk.cursor === i) this.lockIn(pk);
       });
       this.grid.appendChild(c);
       return c;
@@ -296,6 +306,18 @@ export class MechSelectScreen {
 
     this.el.appendChild(el('div', 'hint-bar', t('select.hint.html')));
     root.appendChild(this.el);
+
+    // CLICKING NOTHING DESELECTS. A pointer-placed slot focus is sticky —
+    // it re-aims ↑↓ at somebody else's card — so there has to be somewhere
+    // to put it down: the 3D stage, the heading, the bare backdrop. Anything
+    // that IS a control handles its own click and is exempt.
+    this.onStrayClick = (e) => {
+      if (this.finished) return;
+      if (e.target?.closest?.('.roster-cell, .player-card, .hot-btn, .touch-navbar, .ready-banner')) return;
+      this.clearMouseSel();
+    };
+    // capture: the canvas swallows pointer events on its own way through
+    window.addEventListener('click', this.onStrayClick, true);
 
     if (this.touch) {
       const bar = el('div', 'touch-navbar');
@@ -371,13 +393,39 @@ export class MechSelectScreen {
     // mouse does that the slot ring doesn't
     const arrow = e.target.closest?.('.pc-diff');
     if (arrow && s.kind === 'ai') { this.cycleAiDiff(i, +arrow.dataset.dir); return; }
-    // your own card = leave (mouse users; pickers otherwise use B)
-    if (i === this.mousePicker?.slotIdx) { this.removeSlot(i); return; }
+    const pk = this.mousePicker;
+    // your own card is HOME on the slot ring: while you are visiting another
+    // slot it brings you back, and only a click with nothing visited leaves
+    // the match (mouse users; pickers otherwise use B)
+    if (pk && i === pk.slotIdx) {
+      if (pk.sel != null) this.clearMouseSel(pk); else this.removeSlot(i);
+      return;
+    }
     // somebody else's pad/touch seat is theirs alone — same slots the
     // controller selector refuses to sit on
     if (s.kind === 'human' && s.device !== 'kb1' && s.device !== 'kb2') return;
-    // every other card walks the same ring a controller walks with ↑↓
+    // A CLICK VISITS A SLOT, exactly as LB/RB do: the first click puts your
+    // focus on the card (framed in your colour, and ↑↓ now drive it), and
+    // clicking the card you are already on walks its options — so the mouse
+    // and the bumpers reach the same state rather than each having their own.
+    if (pk && pk.sel !== i) {
+      pk.sel = i;
+      this.audio?.play('uiMove');
+      this.refresh();
+      return;
+    }
+    // no mouse picker to hold the focus (everyone is on a pad): a click is
+    // still the plain step through the ring it always was
     this.cycleMouse(i, 1);
+  }
+
+  // drop a pointer-placed slot focus — a click on the card you are visiting,
+  // a click on the grid, or a click on the bare screen behind the UI
+  clearMouseSel(pk = this.mousePicker) {
+    if (!pk || pk.sel == null) return;
+    pk.sel = null;
+    this.audio?.play('uiBack');
+    this.refresh();
   }
 
   // the ring a CLICK walks: the controller's stops minus the CPU difficulty
@@ -658,6 +706,17 @@ export class MechSelectScreen {
     if (this.pickers.every((p) => p.locked) && this.activeCount() >= 2) this.armReady();
   }
 
+  // let a locked pick go and carry on choosing (B on a pad, a second click
+  // on your own robot with the mouse)
+  unlock(pk) {
+    if (!pk.locked) return;
+    pk.locked = false;
+    this.picks[pk.slotIdx] = null;
+    this.disarmReady();
+    this.audio?.play('uiBack');
+    this.refresh();
+  }
+
   armReady() {
     if (this.ready) return;
     this.ready = true;
@@ -792,13 +851,7 @@ export class MechSelectScreen {
           this.finish();
           return;
         }
-        if (back) { // unlock and keep picking
-          pk.locked = false;
-          this.picks[pk.slotIdx] = null;
-          this.disarmReady();
-          this.audio?.play('uiBack');
-          this.refresh();
-        }
+        if (back) this.unlock(pk); // unlock and keep picking
       }
     }
 
@@ -807,6 +860,7 @@ export class MechSelectScreen {
   }
   destroy() {
     this.hotButtons.forEach((b) => frameHotButton(b, null));
+    window.removeEventListener('click', this.onStrayClick, true);
     this.el.remove();
   }
 }

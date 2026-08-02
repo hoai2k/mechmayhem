@@ -487,7 +487,11 @@ export const ROSTER = [
       primary: { base: 0x484a54, base2: 0x383a42, metal: 0x8a8f98, wear: 0.5, grime: 0.4, panelDepth: 4, roughPaint: 0.34, metalPaint: 0.62, normalStrength: 1.25 },
       accent: { base: 0x24262c, base2: 0x1a1c22, metal: 0x6a6e76, wear: 0.5, grime: 0.4, panelDepth: 3, roughPaint: 0.36, metalPaint: 0.58, normalStrength: 1.15 },
     },
-    body: { scale: 1.12, torsoW: 0.95, torsoH: 0.9, headSize: 1.0, armLen: 1.0, legLen: 1.15, hipW: 0.95, bulk: 0.95 },
+    // 20% shorter than he was built (owner call). The GLB is pinned by
+    // `modelScale`, so the manifest carries the matching `heightScale: 0.8`
+    // — this number only sizes the PROCEDURAL body and the dims everything
+    // derived from it (anchors, muzzle units, canonical height) reads.
+    body: { scale: 0.896, torsoW: 0.95, torsoH: 0.9, headSize: 1.0, armLen: 1.0, legLen: 1.15, hipW: 0.95, bulk: 0.95 },
     // velociraptor stance (the Jurassic Park read): spine pitched forward
     // over deeply-bent digitigrade legs SET APART and staggered — one leg
     // leading, coiled to spring — shoulders DROPPED with the forearms
@@ -702,7 +706,7 @@ export const ROSTER = [
     // hits with; the ordnance is bolted on TOP of an animal that was already
     // dangerous. So: enormous melee numbers, a slow committed heavy, and a
     // ranged option that exists mainly to make you walk into the fists.
-    id: 'konga', name: 'KONGA', title: 'The Silverback Siege', icon: '🦍', seed: 211, hidden: true,
+    id: 'konga', name: 'KONGA', title: 'The Silverback Siege', icon: '🦍', seed: 211,
     blurb: 'placeholder — see src/core/text.js',
     quotes: { win: '', intro: '' },
     colors: { primary: 0x33302e, accent: 0xa8532c, glow: 0xffa432, stripes: false },
@@ -795,7 +799,7 @@ export const ROSTER = [
     // cannot jump, so everything is built around the one thing he does better
     // than anyone: pick a line and arrive at the end of it. The cannons are
     // what he does while he waits to be pointed at something.
-    id: 'tritone', name: 'TRITONE', title: 'The Walking Siege', icon: '🦕', seed: 223, hidden: true,
+    id: 'tritone', name: 'TRITONE', title: 'The Walking Siege', icon: '🦕', seed: 223,
     blurb: 'placeholder — see src/core/text.js',
     quotes: { win: '', intro: '' },
     colors: { primary: 0x62684a, accent: 0xa8532c, glow: 0xff8a24, stripes: false },

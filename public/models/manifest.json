@@ -2108,6 +2108,7 @@
   "saurion": {
     "url": "models/mech_saurion.glb",
     "modelScale": 7.21311,
+    "heightScale": 0.8,
     "bindPose": "native",
     "yawOffset": 300,
     "boneOverrides": {
