@@ -10,6 +10,11 @@
 //   · every id in BADGES has a file in public/badges/  (a listed-but-missing
 //     badge still renders, via the fallback — so nothing else would ever tell
 //     you the art did not land)
+//   · and the REVERSE: no file sits in public/badges/ undeclared. That state
+//     is precisely the complaint "why is that mech still showing its
+//     snapshot" — the badge is on disk, the list does not mention it, and the
+//     thumbnail keeps winning with nothing anywhere reporting a problem. A
+//     backup must never quietly outrank the real thing.
 //   · every mech in the roster has a thumbnail, since that is the BACKUP tier
 //     and a mech without one has nothing between it and the emoji
 //   · the fallback ladder itself still works, exercised on synthetic ids: a
@@ -21,8 +26,13 @@
 // of it was a human noticing the menus. Icons are art, and art needs a check
 // that looks at the pixels' existence rather than the code's intentions.
 import { chromium } from 'playwright-core';
+import { readdirSync, existsSync } from 'node:fs';
 
 const BASE = process.argv[2] || 'http://localhost:5173';
+// what art is actually sitting in the folder, whatever the code believes
+const ON_DISK = existsSync('public/badges')
+  ? readdirSync('public/badges').filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4))
+  : [];
 const browser = await chromium.launch({
   executablePath: '/opt/pw-browsers/chromium',
   args: ['--no-sandbox'],
@@ -88,17 +98,24 @@ const out = await page.evaluate(async () => {
 await browser.close();
 
 const bad = out.rows.filter((r) => !r.ok);
+// a badge file nobody declared: the art is there and the thumbnail is winning
+const orphans = ON_DISK.filter((id) => !out.badges.includes(id));
 for (const r of out.rows.filter((x) => x.kind === 'badge')) {
   console.log(`badge  ${r.id.padEnd(10)} ${r.ok ? 'ok' : 'MISSING public/badges/' + r.id + '.png'}`);
 }
 if (!out.badges.length) console.log('badge  (none declared — every mech is on its thumbnail)');
+for (const id of orphans) {
+  console.log(`badge  ${id.padEnd(10)} ON DISK BUT UNDECLARED — its thumbnail is winning. ` +
+    `Add '${id}' to BADGES in src/ui/icons.js`);
+}
 console.log(`thumb  ${out.rows.filter((r) => r.kind === 'thumb' && r.ok).length}/${out.roster} present`);
 for (const r of out.rows.filter((x) => x.kind === 'thumb' && !x.ok)) {
   console.log(`thumb  ${r.id.padEnd(10)} MISSING — run: node tools/thumbs.mjs ${r.id}`);
 }
 for (const l of out.ladder) console.log(`ladder ${l.case} -> ${l.got}`);
 const ladderBad = out.ladder.filter((l) => l.case.includes('no thumb') && l.got !== 'emoji');
-console.log(bad.length || ladderBad.length
-  ? `FAIL: ${bad.length} missing file(s), ${ladderBad.length} broken fallback(s)`
-  : 'every mech has an icon, and every fallback lands');
-process.exit(bad.length || ladderBad.length ? 1 : 0);
+const fail = bad.length + ladderBad.length + orphans.length;
+console.log(fail
+  ? `FAIL: ${bad.length} missing file(s), ${orphans.length} undeclared badge(s), ${ladderBad.length} broken fallback(s)`
+  : 'every mech has an icon, every declared badge is on disk, and every fallback lands');
+process.exit(fail ? 1 : 0);

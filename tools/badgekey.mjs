@@ -29,7 +29,7 @@
 // separate, deliberate step — add the id to BADGES in src/ui/icons.js — so no
 // tool can put art on screen by itself.
 import sharp from 'sharp';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => {
@@ -220,4 +220,26 @@ await sharp(squared)
   .png({ compressionLevel: 9 })
   .toFile(dest);
 console.log(`wrote   ${dest}`);
-console.log(`next    add '${id}' to BADGES in src/ui/icons.js, then: node tools/iconcheck.mjs`);
+
+// ---- 4. DECLARE IT, in the same breath as writing it -----------------------
+// The file and the BADGES list in src/ui/icons.js have to agree, and a human
+// remembering to edit a second file is exactly the gap that shows up later as
+// "why is that mech still on its snapshot" — the badge is sitting on disk,
+// undeclared, and the thumbnail keeps winning. So the tool that lands the art
+// declares it. Idempotent: running twice does not add the id twice.
+const ICONS = 'src/ui/icons.js';
+const src2 = readFileSync(ICONS, 'utf8');
+if (new RegExp(`(['"])${id}\\1`).test(src2.slice(src2.indexOf('BADGES = new Set(['), src2.indexOf(']);')))) {
+  console.log(`decl    '${id}' already declared in ${ICONS}`);
+} else {
+  const anchor = 'export const BADGES = new Set([\n';
+  const at = src2.indexOf(anchor);
+  if (at < 0) {
+    console.log(`decl    COULD NOT FIND the BADGES set in ${ICONS} — add '${id}' by hand`);
+  } else {
+    const cut = at + anchor.length;
+    writeFileSync(ICONS, `${src2.slice(0, cut)}  '${id}',\n${src2.slice(cut)}`);
+    console.log(`decl    added '${id}' to BADGES in ${ICONS}`);
+  }
+}
+console.log('next    node tools/iconcheck.mjs');
