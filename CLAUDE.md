@@ -679,6 +679,50 @@ audio). Progress history: `TASKS.md`.
   carrying `comp` ids are only valid against the rig they were authored on: check
   them with `node tools/skindebug.mjs <mech>` before and after (the severity
   total moves the wrong way when they have shifted).
+- FEATHERED SEAMS — THE ORGANIC BIND (`src/mechs/feather.js`, the FEATHER SEAMS
+  panel in `/workbench/?edit=skin`, hotkey **F**). Everything else in the skin
+  pipeline answers WHICH BONE owns a piece of geometry; this answers HOW HARD
+  THE LINE BETWEEN TWO BONES IS. reskin.js hands each vertex to exactly one bone
+  and a paint stroke rebinds a vertex list rigidly, so the finest border either
+  can draw is still ONE VERTEX WIDE — a step, not a gradient. Right for a plate
+  on a hinge, wrong for a body made of muscle: KONGA is a cyborg gorilla whose
+  shoulder should swell into his chest.
+  So the border is DERIVED rather than painted. The pass reads the partition the
+  ops leave behind and grows each bone's influence OUT of its own region across
+  the mesh's own surface, dying away over `radius`: `w_b(v) = falloff(geodesic
+  distance from v to bone b's region)`, the vertex's own bone at 1. Two vertices
+  either side of a border swap (1, ~1) for (~1, 1), so the weights CROSS OVER
+  continuously and an arm raise takes a little chest with it, letting go
+  gradually. Authored as the LAST entry of a manifest's `skinOps`:
+  `{"feather":{"radius":{"*":0.045,"pod*":0.012},"maxLinks":2}}`.
+  FOUR THINGS IT KEEPS. **Dominance never flips** — a foreign bone's weight is
+  capped just under the vertex's own (`cap`), so `analyzeSkin`'s partition, every
+  `{comp:N}`, the skin audit and the hurtbox buckets see exactly what they saw
+  before; feathering softens a border, it never moves one (which is also why it
+  must be LAST — an op after it would slam a rigid weight back over the
+  gradient). **Distance is geodesic**, over the mesh's edges with UV/normal
+  duplicates welded — a knuckle resting against a shin is a straight-line
+  neighbour and a surface path all the way up the arm and down the leg, and only
+  the second one is right. **`maxLinks`** refuses to blend bones further apart
+  than that in the skeleton (2 by default: a shoulder may reach past the torso,
+  a brow may not reach a shoulder it merely touches). **The robot parts stay
+  robot** — `radius` may be a per-bone table (`"pod*": 0.012`) and `rigid` is the
+  hard case (band 0, neither a source nor a destination, and the flood does not
+  travel THROUGH that geometry), so konga's missile pods keep the crisp seam a
+  bolted-on launcher should have while the ape around them is soft.
+  BAND WIDTH IS MEASURED, NOT GUESSED. Too narrow leaves the tear, too wide
+  PINCHES (the LBS candy wrapper), so it has an optimum: konga's skin-audit
+  severity total ran 1851 rigid → 483 at 0.03 → 288 at 0.04 → **280 at 0.045**
+  → 329 at 0.05 → 355 at 0.06 → 498 at 0.08. Judge a value with `node
+  tools/skindebug.mjs <mech>` (the severity total), `node
+  tools/featherprobe.mjs <mech> [--off] [--radius r] [--band 'pod*=0.012']`
+  (share of the mesh sharing bones, and the MEAN DOMINANT-WEIGHT JUMP across
+  every border edge — 1.00 is a step, konga ships at 0.12) and `node
+  tools/feathershot.mjs <mech> out.png <clip> <t>` (the same frame, same camera,
+  rigid vs feathered as two files). In the workbench, **blend colours** mixes
+  each vertex's bone colours BY WEIGHT instead of showing its dominant bone
+  flat — the only view a gradient shows up in at all — and comes on with the
+  panel.
 - SKIN WORKBENCH **Debug output ▶** downloads ONE self-contained HTML file for
   handing a deformation problem to someone else: two screenshots of the current
   frame (shaded + bone colours), the full tool state (mech, build, selected
@@ -698,6 +742,17 @@ audio). Progress history: `TASKS.md`.
   every write had to be blocked — and neither answered the question as well as
   Skin Debug, which plays every clip. The warning note stays; the toggle does
   not.)
+  THE DROPS *ARE* APPLIED THERE, though, and that is the other half of the same
+  rule: `dropGeo`/`dropBones` delete geometry the game does not build, so a raw
+  view that skips them floats a stray lump beside the mech — konga's 121-triangle
+  blob sat in front of his chest in this tool and nowhere else, which reads as
+  something wrong with the model. The skin workbench applies them AFTER its ops
+  and its island partition (`config.skin.applyDrops`), which is the game's own
+  order and the only one that is safe: a dropped lump is its own island, so no
+  `{comp:N}` moves — dropping FIRST would renumber tempest's 122 of them onto
+  other geometry. The rig editor, which touches no ops at all, just asks for
+  them up front (`config.variants.raw(id, {drops: true})`). Seam cuts stay out
+  of both: they APPEND duplicate vertices, which a vertex list cannot name.
 - Skin workbench selections: click = the bone-island under the cursor ·
   SHIFT-click = the BLEND PATCH (the run of geometry sharing that vertex's own
   bone plus a minority weight on another — the bit of torso that wiggles with

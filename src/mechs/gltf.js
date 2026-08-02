@@ -253,7 +253,29 @@ export async function loadRawGlbScene(id, opts = {}) {
     scene.traverse((o) => { if (o.isSkinnedMesh && !sk) sk = o; });
     if (sk) applyCustomRig(sk, customRig);
   }
+  // `{drops: true}` — also take off the surplus lumps the manifest names
+  // (dropGeo/dropBones), so a tool that only LOOKS at the model shows what the
+  // game builds instead of a stray blob floating beside it. Opt-in, and NOT
+  // for a tool that applies skinOps itself: the game drops them AFTER the ops,
+  // and a `{comp:N}` ordinal is drawn on the undropped mesh (see
+  // applyEntryDrops).
+  if (opts.drops) {
+    let sk = null;
+    scene.traverse((o) => { if (o.isSkinnedMesh && !sk) sk = o; });
+    if (sk) applyEntryDrops(sk, entry);
+  }
   return { scene, entry };
+}
+
+// The manifest's geometry drops, in the game's own order, on a mesh a tool
+// already owns. The skin workbench calls it AFTER its ops+analysis pass, which
+// is the same order buildGlbMech uses and the only order that leaves island
+// ordinals meaning what their author meant. Returns what came off.
+export function applyEntryDrops(mesh, entry) {
+  return {
+    geo: applyGeoDrop(mesh, entry?.dropGeo),
+    bones: applyBoneDrop(mesh, entry?.dropBones),
+  };
 }
 
 // ---- shared geometry-edit helpers (load path AND bake path) ---------------
