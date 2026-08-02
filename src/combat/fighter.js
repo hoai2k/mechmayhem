@@ -13,6 +13,7 @@ import {
   climbStep, climbPhysics, climbReleaseTick, applyClimbOrientation, applyClimbPose,
   conformClimbLimbs,
 } from './climb.js';
+import { aimCannons, cannonRecoil, hasCannons, ON_TARGET } from './cannonaim.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -381,10 +382,24 @@ export class Fighter {
   // palms: subtract the victim's feet->torso offset through their CURRENT
   // rotation, so the center rides the hands exactly at any roll angle.
   // A COLOSSAL-FORM giant palms the whole victim in ONE hand instead.
+  // WHERE THE CARGO SITS. `_oneArmLift` may name a SIDE ('L'/'R') — KONGA
+  // grabs with whichever fist is nearer — and plain `true` still means the
+  // right hand (colossus at giant size).
   carryPoint(prey, out) {
     const J = this.mech.joints;
-    if (this._oneArmLift && J.handR) J.handR.getWorldPosition(out);
+    const arm = this._oneArmLift === 'L' ? J.handL
+      : this._oneArmLift ? (J.handR || J.handL) : null;
+    if (arm) arm.getWorldPosition(out);
     else this.palmsMid(out);
+    // A HEAD GRIP IS NOT A CRADLE: the fist closes on the skull and the body
+    // HANGS off it, inverted, so the carry point is the victim's head rather
+    // than a palm under their back. Their crown ends up in the hand and
+    // everything else dangles below it — which is the pose the slam needs,
+    // because whatever is at the bottom of that arc hits the floor first.
+    if (this._carryHead) {
+      out.y += prey.height * 0.92;   // pos is at the feet, and the feet are now UP
+      return out;
+    }
     _carryOff.set(0, prey.height * 0.5, 0).applyEuler(prey.group.rotation);
     out.sub(_carryOff);
     out.y += 0.24 * this.scale; // palm(s) cradle UNDER the torso
@@ -918,6 +933,21 @@ export class Fighter {
     // LB lock-aim: shots fired during a target lock fly at the crosshair
     if (this._lockAim) this._aimPoint = this._lockAim.clone();
 
+    // A TRAVERSING-TURRET SHOT is not fired on a keyframe: the trigger opens an
+    // AIM WINDOW and the guns decide when they are ready (combat/cannonaim.js).
+    // The clip is a brace to be held while they swing, not a firing animation —
+    // so the volley is scheduled by updateCannons, not by a clip event.
+    if (mv.aimWindup && hasCannons(this)) {
+      this.rangedCd = mv.cooldown;
+      if (this.ammoMax !== undefined) this.ammo--;
+      this._volley = { mv, t: 0 };
+      this.firing = true;
+      this.animator.play(this.def.rangedClip || 'brace');
+      // held through the aim, plus the recovery the recoil needs afterwards
+      this.setState('attack', mv.aimWindup + 0.4);
+      return;
+    }
+
     if (isChannel) {
       this.setState('channel', 0.1);
       this.firing = true;
@@ -988,6 +1018,32 @@ export class Fighter {
       // and is MEANT to plant him for the shot.)
       if (!RUN_AND_GUN_CLIPS.has(clip)) this.setState('attack', dur * 0.6);
     }
+  }
+
+  // THE FLANK CANNONS, one frame at a time (TRITONE; a no-op and nearly free
+  // for every other mech, which has no cannon bones to find).
+  //
+  // Between volleys the guns drift home. Inside a volley they chase a LEAD
+  // POINT, and the shot leaves the instant both are on the line — or when the
+  // window (`ranged.aimWindup`, one second) runs out, aimed as well as they
+  // managed. Firing on a timer alone would waste a good solution reached in a
+  // quarter of a second; firing only on a good solution would mean a target
+  // parked inboard of one gun never gets shot at at all.
+  updateCannons(dt) {
+    const v = this._volley;
+    if (v && (!this.alive || this.state === 'hitstun' || this.state === 'knockdown'
+      || this.state === 'special' || this.state === 'ult')) {
+      this._volley = null;                 // interrupted mid-aim: no shot
+      this.firing = false;
+    }
+    if (!this._volley) { aimCannons(this, dt, false); return; }
+    v.t += dt;
+    const err = aimCannons(this, dt, true, v.mv);
+    if (err > ON_TARGET && v.t < (v.mv.aimWindup || 1)) return;
+    this.world.fireRanged(this, v.mv);
+    cannonRecoil(this);
+    this._volley = null;
+    this.firing = false;
   }
 
   // ONE TICK of a held channel weapon (gatling / flame / hose). Called for the
@@ -1329,6 +1385,41 @@ export class Fighter {
         { life: 0.35, size: 3.4, color: 0xff2030, alpha: 0.95 });
       w.effects.impactSparks(target, 0xff2030, 16, 10);
       w.audio?.play('zap');
+    } else if (atk.fx === 'apeQuake') {
+      // KONGA: both fists land together — the floor answers. A tight crater
+      // ring at the fists plus a wider ground shock that only staggers, so the
+      // slam's real damage stays on the melee sweep and this is the punctuation.
+      const p = new THREE.Vector3(cx, 0, cz);
+      w.effects.rings.spawn(p, { from: 0.8, to: 8.5, dur: 0.42, color: 0xd8b070, y: 0.3 });
+      w.effects.explosion(new THREE.Vector3(cx, 0.9, cz), 3.0, { color: 0xc8a060, smoke: true, sparks: false });
+      w.effects.dustPuff(p, 16, 0x9a8878);
+      w.groundShockwave(this, p, 7.5, atk.dmg * 0.3, 12, 0xd8b070);
+      // slabs of dirt thrown up around the impact
+      for (let i = 0; i < 14; i++) {
+        const a = rand(TAU), rr = rand(0.8, 3.4);
+        w.effects.smoke.emit(cx + Math.cos(a) * rr, 0.3, cz + Math.sin(a) * rr,
+          Math.cos(a) * 5, rand(3, 8), Math.sin(a) * 5,
+          { life: rand(0.5, 0.95), size: rand(1.0, 2.2), color: 0x9a8878, alpha: 0.6 });
+      }
+      w.audio?.play('hitHeavy');
+    } else if (atk.fx === 'hornQuake') {
+      // TRITONE: the horns rip UP through the target, so the punctuation is a
+      // vertical burst at the horn tips rather than a floor ring.
+      const target = new THREE.Vector3(cx, Math.max(1.2, cy), cz);
+      w.effects.explosion(target, 2.6, { color: 0xffa040, smoke: true, sparks: false });
+      w.effects.impactSparks(target, 0xffc070, 20, 14);
+      w.effects.rings.spawn(new THREE.Vector3(cx, 0, cz), { from: 1.0, to: 6.0, dur: 0.38, color: 0xffa040, y: 0.25 });
+      // dirt sprayed forward off the horn tips
+      for (const key of ['hornL', 'hornR', 'hornNose']) {
+        const a = this.mech.anchors[key];
+        if (!a) continue;
+        const hp = a.getWorldPosition(new THREE.Vector3());
+        for (let i = 0; i < 5; i++) {
+          w.effects.smoke.emit(hp.x, hp.y, hp.z, rand(-3, 3), rand(4, 9), rand(-3, 3),
+            { life: rand(0.4, 0.8), size: rand(0.7, 1.5), color: 0x8c8266, alpha: 0.55 });
+        }
+      }
+      w.audio?.play('hitHeavy');
     }
   }
 
@@ -2712,7 +2803,11 @@ export class Fighter {
         this.yaw = this.targetYaw = carrier.yaw;
         this.group.rotation.y = carrier.yaw;
         this.group.rotation.x += (0 - this.group.rotation.x) * Math.min(1, dt * 10);
-        this.group.rotation.z += (1.45 * k - this.group.rotation.z) * Math.min(1, dt * 10);
+        // ...or, for a HEAD GRIP (konga), rolled all the way over: held by the
+        // skull, feet at the sky. `roll` is the carry's own, so the flat
+        // body-slam (1.45) and the inversion (pi) are the same mechanism.
+        const roll = c.roll ?? 1.45;
+        this.group.rotation.z += (roll * k - this.group.rotation.z) * Math.min(1, dt * 10);
         this.animator.update(dt, { speed: 0, grounded: false, vy: 0 });
         return;
       }
@@ -3089,6 +3184,11 @@ export class Fighter {
       grounded: this.grounded || this.climb,
       vy: this.vel.y,
       dashT: this.dashT,
+      // the combat state verbatim ('attack' | 'hitstun' | 'special' | ...).
+      // The face layer (mechs/face.js) reads it to flinch on a hit and to
+      // bellow through a special — expression is a reaction to what the body
+      // is DOING, and only the fighter knows that.
+      state: this.state,
       firing: this.firing,
       hovering: this.hovering,
       duck: dk,
@@ -3106,6 +3206,9 @@ export class Fighter {
     // bodies); a no-op for upright states and procedural mechs.
     this.mech.groundClamp?.(
       this.grounded && (this.state === 'knockdown' || this.state === 'getup'));
+    // hull-mounted turrets traverse AFTER the pose is applied — they are the
+    // one part of the body the animation does not own (see cannonaim.js)
+    this.updateCannons(dt);
     // palm press / strike tracking must land after the pose is applied
     // (direct joint writes before applyPose get clobbered)
     if (this._palmPrey) {
@@ -3134,7 +3237,9 @@ export class Fighter {
       this.unwindPitch();
       this.applyPalmRoll();
     }
-    if (this.state !== 'channel') this.firing = false;
+    // ...a held CHANNEL keeps it up, and so does a turret volley still
+    // traversing onto its solution (the brace/frill tell reads this).
+    if (this.state !== 'channel' && !this._volley) this.firing = false;
 
     // ---- face target yaw: servo-damped, two-tier ----
     // Legs (the whole group) chase the stick with a lag that grows with
@@ -3877,6 +3982,7 @@ export class Fighter {
     this.ult = 0;
     this.specialCd = 0;
     this.rangedCd = 0;
+    this._volley = null;   // …nor mid-traverse with a shell still owed
     this.iframes = 0;
     this.comboIdx = 0;
     this._onBack = false;  // never start a round stranded on the shell

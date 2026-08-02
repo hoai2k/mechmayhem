@@ -7,8 +7,10 @@ import { FENRIR_RIG } from './fenrir.rig.js';
 import { GLACIER_RIG } from './glacier.rig.js';
 import { INFERNO_RIG } from './inferno.rig.js';
 import { JERRY_RIG } from './jerry.rig.js';
+import { KONGA_RIG } from './konga.rig.js';
 import { RHINO_RIG } from './rhino.rig.js';
 import { TITANUS_RIG } from './titanus.rig.js';
+import { TRITONE_RIG } from './tritone.rig.js';
 import { VIPER_RIG } from './viper.rig.js';
 import { VULCAN_RIG } from './vulcan.rig.js';
 import { WRAITH_RIG } from './wraith.rig.js';
@@ -20,8 +22,10 @@ export const RIGS = {
   glacier: GLACIER_RIG,
   inferno: INFERNO_RIG,
   jerry: JERRY_RIG,
+  konga: KONGA_RIG,
   rhino: RHINO_RIG,
   titanus: TITANUS_RIG,
+  tritone: TRITONE_RIG,
   viper: VIPER_RIG,
   vulcan: VULCAN_RIG,
   wraith: WRAITH_RIG,

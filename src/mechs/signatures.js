@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { lerp, clamp, clamp01 } from '../core/utils.js';
 import { PRONE_CLIPS } from './animations.js';
+import { driveFace, FACE_PRESETS } from './face.js';
 
 const _qa = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
@@ -368,5 +369,91 @@ export const SIGNATURES = {
       J.bladeL.rotation.x = lerp(J.bladeL.rotation.x, flare, dt * 6);
       J.bladeR.rotation.x = lerp(J.bladeR.rotation.x, flare, dt * 6);
     }
+  },
+
+  // KONGA — a body that walks on its arms and fights with them.
+  //   • THE FACE. He is one of two mechs with real features, so the expression
+  //     layer runs every frame (see face.js): brow furrows with effort, jaw
+  //     opens on a swing, full bellow on the drums and the barrage.
+  //   • THE PODS. The launchers ride his shoulders and TRACK: they pitch up to
+  //     lob while firing, and settle back down flat when he's brawling — so
+  //     you can read at a glance whether he's about to shoot or swing.
+  //   • THE SHOULDER ROLL. A silverback's mass rides forward over whichever
+  //     arm is loaded; the gait supplies the roll, this adds the heavy
+  //     breathing swell on top so he's never completely still.
+  konga(anim, dt, ctx, tgt) {
+    const t = anim.t;
+    driveFace(anim, dt, ctx, tgt, FACE_PRESETS.konga);
+
+    // shoulder pods: pitch UP to lob while firing / barraging, flat otherwise
+    const act = anim.action;
+    const clipName = act && !act.fadingOut ? act.clip.name : '';
+    const lobbing = ctx.firing || clipName === 'kongaLob' || ctx.state === 'ult';
+    anim._podK = lerp(anim._podK || 0, lobbing ? 1 : 0, 1 - Math.exp(-9 * dt));
+    const k = anim._podK;
+    for (const side of ['L', 'R']) {
+      // anim.part: virtual joint on the procedural body, custom-rig BONE on the
+      // GLB (rigs/konga.rig.js) — one driver, both routes
+      const pod = anim.part('pod' + side);
+      if (!pod) continue;
+      // -0.9 rad tips the tube mouths skyward for an arcing salvo
+      pod.rotation.x = lerp(pod.rotation.x, -0.9 * k, dt * 12);
+      // pods splay slightly outward as they come up, so both racks read
+      pod.rotation.z = lerp(pod.rotation.z, (side === 'L' ? 0.14 : -0.14) * k, dt * 10);
+      // recoil jolt while actually firing
+      if (ctx.firing) pod.rotation.x += Math.sin(t * 34) * 0.05;
+    }
+
+    // heavy breathing: a slow swell through the chest and shoulders, bigger
+    // the harder he's working. Nothing this size holds perfectly still.
+    const effort = clamp01((ctx.speed || 0) / Math.max(1, ctx.maxSpeed || 10));
+    const breath = Math.sin(t * 1.5) * (0.020 + 0.018 * effort);
+    tgt.torso[0] -= breath;
+    tgt.shoulderL[2] -= breath * 0.6;
+    tgt.shoulderR[2] += breath * 0.6;
+  },
+
+  // TRITONE — a gun platform with an animal underneath.
+  //   • THE FACE, as above but ceratopsian: the beak does the talking, the
+  //     bony brows barely move.
+  //   • THE FRILL. It FLARES — pitches up and back — when he braces to fire or
+  //     commits to a charge, the way a real frill is a display organ. That is
+  //     the tell that says "this one is about to happen".
+  //   • THE CANNONS. They traverse to follow what he's shooting at and buck on
+  //     every shell; at rest they settle level with the body line.
+  //   • THE TAIL is driven by the gait's own tail layer (gaits.trike.tail),
+  //     not here — it is locomotion, not personality.
+  tritone(anim, dt, ctx, tgt) {
+    const t = anim.t;
+    driveFace(anim, dt, ctx, tgt, FACE_PRESETS.tritone);
+
+    const act = anim.action;
+    const clipName = act && !act.fadingOut ? act.clip.name : '';
+    const bracing = ctx.firing || clipName === 'tritoneBrace' || ctx.state === 'ult';
+    const charging = !!ctx.charging || clipName === 'chargeLean';
+
+    // FRILL FLARE — up and back on a brace, jammed FORWARD as a shield on a
+    // charge (a charging ceratopsian presents the frill, it doesn't show it off)
+    const want = bracing ? -0.42 : charging ? 0.30 : 0;
+    anim._frillK = lerp(anim._frillK ?? 0, want, 1 - Math.exp(-8 * dt));
+    const frill = anim.part('frill');
+    if (frill) {
+      frill.rotation.x = anim._frillK;
+      // a low shiver through the crown while the rockets are cooking
+      if (bracing) frill.rotation.x += Math.sin(t * 26) * 0.012;
+    }
+
+    // THE CANNONS ARE NOT DRIVEN HERE. They are two turrets that aim
+    // themselves at a lead point and answer to nothing else — combat/
+    // cannonaim.js owns their bones, and it runs AFTER the pose is applied
+    // (Fighter.updateCannons), so anything written to them here would be a
+    // frame of fighting between a servo and a sine wave.
+
+    // the head is enormous and hangs off the front — let it lag and settle
+    // rather than tracking the body rigidly (weight, on a body that can't
+    // pivot). A slow nod at rest, damped hard while braced.
+    const idleNod = bracing ? 0 : Math.sin(t * 0.9) * 0.025;
+    tgt.head[0] += idleNod;
+    tgt.torso[0] -= idleNod * 0.3;
   },
 };

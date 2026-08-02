@@ -219,5 +219,33 @@
     "glb": "public/models/mech_aegis_alt.glb",
     "bytes": 2997272,
     "done": true
+  },
+  "konga": {
+    "modelTask": "8e8da88d-28d3-47d5-aa8f-2c5cc43a2ea0",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "checkTask": "d43c3591-b947-4b56-93ac-29eff2dc6075",
+    "riggable": true,
+    "rigType": "biped",
+    "rigTask": "33c69af8-1bfc-4929-87a8-593df2c45f62",
+    "rigFailed": false,
+    "rigCredits": 25,
+    "glb": "public/models/mech_konga.glb",
+    "bytes": 7239528,
+    "done": true
+  },
+  "tritone": {
+    "modelTask": "0eb21dd3-faa2-42c8-bac9-7d7a0bed4fc7",
+    "modelFailed": false,
+    "modelCredits": 30,
+    "checkTask": "18dec786-194a-49da-889f-c8301316d785",
+    "riggable": true,
+    "rigType": "others",
+    "rigTask": "28fa13d2-5b18-4a35-b551-ec6fe2290c4b",
+    "rigFailed": false,
+    "rigCredits": 25,
+    "glb": "public/models/mech_tritone.glb",
+    "bytes": 6952272,
+    "done": true
   }
 }

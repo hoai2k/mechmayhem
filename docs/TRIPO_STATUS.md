@@ -327,3 +327,86 @@ What the swap buys, measured:
   identical at rest (Δpos 0, Δaim 0°) between the two builds.
 - `?rigedit=colossus` now opens the PRIMARY directly instead of being forced
   onto the alt with the checkbox disabled.
+
+## Session 7 (2026-08-02): KONGA + TRITONE — two new characters
+
+Two roster additions built end-to-end from `docs/canonical/mech_{konga,tritone}.png`.
+Tripo H3 + rig, 55 credits each = 110 total for these two (per the API's own
+consumed_credit, recorded in tools/tripo-state.json). NOTE: the account balance
+read 465 afterwards, which is ~780 lower than this ledger accounts for — spend
+from outside this session (the state files are explicitly NOT parallel-safe).
+Check the Tripo dashboard before planning a big batch. Both riggable; tritone's
+prerigcheck reported `others` but the forced biped rig came out usable (4 clean
+leg chains, head, 3-segment tail, separate cannon bones).
+
+KONGA — knuckle-walking cyborg gorilla, twin shoulder missile pods, one
+cybernetic arm. New `knuckle` gait: NOT a quadruped gallop — a gorilla carries
+its trunk on planted forelimbs at every speed, so it is the standard cycle on
+short back legs plus the foreleg dials (carry/foldClear/handGround/handClear)
+on the arm joints, diagonal couplet (`arms.phase: π`).
+TRITONE — ceratopsian gun platform. New `trike` gait, `base: 'standard'` and
+deliberately NOT fenrir's `quad` block: that folds the hinds under the belly
+for a wolf bound and drove tritone's FRONT feet 2.15 units through the floor.
+A ceratopsian keeps three feet down and swings the fourth.
+
+STANCE IS MEASURED, NOT EYEBALLED. Both bodies were leveled by probing the
+lowest rendered vertex of each contact limb over full gait cycles at several
+speeds. That is what caught (a) konga's arms being physically too short to
+reach the ground (3.77 long under a 5.05 shoulder — the knuckles could never
+have touched) and (b) the trike quad-block problem above.
+
+FACIAL PERFORMANCE — `src/mechs/face.js`, new. These are the first two mechs
+with organic faces. Two levels so it survives both routes: HEAD GESTURE through
+`tgt.head`/`tgt.torso` (every build has a head, GLB included) and FACE PARTS on
+the `jaw`/`browL`/`browR` joints (procedural; skipped silently when absent).
+Expression priority: dead > flinch(hitstun) > roar(heavy/special/ult) >
+snarl(any attack) > firing > idle, damped, and attack expressions ride the
+CLIP'S OWN PHASE so the mouth peaks at the blow (the cranky-gape idiom).
+`faceRoar(f, dur)` lets a special force a bellow on a scheduled beat.
+Fighter ctx gained `state` so the layer can see hitstun.
+
+GLB intake notes: facing solved numerically (head-vs-hips offset per candidate
+yaw) — both 270. TRITONE needs `heightScale: 0.55`: the auto-sizer matches
+head-top HEIGHT, which balloons a long low quadruped (25.8 long vs the
+procedural 13.6), so he is scaled to footprint instead. Worth remembering for
+any future quadruped intake.
+
+Verified: contact probes, showcase + battle screenshots on BOTH routes, a
+konga-vs-tritone GLB soak to a clean KO, and direct invocation of all four new
+specials/ults (chestBeat, goreCharge, apexBarrage, siegeProtocol) with no errors.
+
+### Custom rigs for KONGA + TRITONE (same session)
+
+Both now run hand-placed skeletons (`src/mechs/rigs/{konga,tritone}.rig.js`,
+`"rig"` in the manifest) instead of the Tripo auto-rig. The auto-rigs walked
+fine but had a bone for nothing that makes these two characters: konga's skull,
+jaw, brow ridge and BOTH missile pods were one 14k-vertex lump on a single
+bone, and tritone had no jaw, no brow, no frill and no tail chain.
+
+Positions were MEASURED off each model in bind space (bone rest positions via
+`skeleton.boneInverses`, feature locations by slicing the geometry), not
+eyeballed in the editor.
+
+TWO THINGS THAT COST A PASS EACH, worth knowing before authoring another rig:
+
+1. `bias` scores `d = dist^2 * bias`, so **below 1 WIDENS** a bone's win radius
+   and above 1 narrows it. Backwards from the intuition the name suggests. The
+   measured symptom was brows OWNING MORE geometry after I "reduced" their bias.
+2. With `skinSpan: 'child'` a LEAF bone only gets a POINT to compete with, while
+   its parent's span runs right through the part to reach it — so konga's pods
+   and tritone's frill owned literally ZERO vertices until each got a TIP child
+   (podTipL/R, frillTip) giving it a span along its own box/plate. The cannons
+   worked from the start only because they already had barrel tips.
+
+THE DRIVER GAP. Bones existing is not enough: `SIGNATURES` and `face.js` read
+`mech.joints` (virtual joints), while a custom rig puts the same names in
+`mech.rigBones`. So the new bones were inert on the GLB — the movement visible
+in a roar was just the head gesture carrying them. Fixed with one lookup,
+`Animator.part(name)`, which resolves a name to whichever home this body has;
+face.js and both signatures reach through it, so ONE driver runs both routes
+rather than being duplicated into a glbanim post hook.
+
+Verified by reading the GLB rig bones' own rotations per state — they now match
+the procedural values exactly (konga jaw: idle 0.006 -> roar 0.589 -> flinch
+0.111 -> dead 0.30; podL 0 -> -0.95 while firing; tritone frill 0 -> -0.43 on a
+brace), plus vertex-level motion checks, contract clean, ace soak clean.

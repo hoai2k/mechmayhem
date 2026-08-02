@@ -1,4 +1,4 @@
-// Barrel: the 17 mech designs, one file each in ./designs/.
+// Barrel: the 19 mech designs, one file each in ./designs/.
 import { titanus } from './designs/titanus.js';
 import { vulcan } from './designs/vulcan.js';
 import { aegis } from './designs/aegis.js';
@@ -16,11 +16,14 @@ import { saurion } from './designs/saurion.js';
 import { frogger } from './designs/frogger.js';
 import { jerry } from './designs/jerry.js';
 import { nullbot, nullbotGlbDress } from './designs/nullbot.js';
+import { konga } from './designs/konga.js';
+import { tritone } from './designs/tritone.js';
 
 export const DESIGNS = {
   titanus, vulcan, aegis, viper, nova, rhino,
   tempest, fenrir, colossus, wraith, inferno, glacier,
   cranky, saurion, frogger, jerry, nullbot,
+  konga, tritone,
 };
 
 // Per-mech dressing applied on top of manifest GLB models (glow shards,

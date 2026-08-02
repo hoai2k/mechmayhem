@@ -721,6 +721,36 @@ const WEAPONS = {
     w.effects.muzzleFlash(from);
   },
 
+  salvo(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // KONGA: a RIPPLE of small
+    // missiles out of BOTH shoulder pods — the ordnance bolted on top of the
+    // animal. They leave in alternating pairs a few hundredths apart rather
+    // than as one clump, which is what makes it read as a pod emptying itself
+    // instead of a shotgun: the launch positions are re-read every tick, so
+    // the stream pours out of the pods wherever his shoulders have carried
+    // them, and each round takes its own small spread off the aim.
+    const n = mv.count || 10;
+    const pods = [anchors.podR || anchors.muzzleR, anchors.podL || anchors.muzzleL]
+      .filter(Boolean);
+    if (!pods.length) return;
+    for (let i = 0; i < n; i++) {
+      w.schedule(i * 0.05, () => {
+        if (!f.alive) return;
+        const pod = pods[i % pods.length];
+        const p = pod.getWorldPosition(new THREE.Vector3());
+        const d = dir.clone();
+        d.x += rand(-0.07, 0.07);
+        d.y += rand(-0.02, 0.06);
+        d.z += rand(-0.07, 0.07);
+        w.projectiles.spawn('rocket', f, p, d.normalize(), {
+          dmg: mv.dmg * f.dmgMult(), speed: mv.speed * rand(0.9, 1.12),
+          splash: mv.splash, color: 0xffb43c, knock: 6, launch: 2, size: 0.7,
+        });
+        w.effects.muzzleFlash(p);
+        if (i % 2 === 0) w.audio?.play('missile');
+      });
+    }
+  },
+
   fist(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // TITANUS: the fist itself is the round — it flies out
     // flat, swings around at range and comes home to the wrist,
     // clobbering on both legs of the trip (boomerang + pierce).
@@ -864,6 +894,37 @@ const WEAPONS = {
     });
     w.audio?.play('mortar');
     w.effects.muzzleFlash(from);
+  },
+
+  siege(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // TRITONE: BOTH flank
+    // cannons let go at once — one trigger, two energy blasts, each down its
+    // OWN barrel. The aim is not computed here and must not be: combat/
+    // cannonaim.js has spent the last second traversing those two turrets onto
+    // a lead point, and each of them arrived at a different (legal) angle,
+    // because a gun cannot shoot through its own mech. So the shot simply
+    // leaves along the anchor's live +Z — whatever the mount reached. Reading
+    // the barrels instead of the facing is the whole feature: aim it with the
+    // guns, not with the body.
+    const col = f.def.colors.glow || 0xff8a24;
+    let first = true;
+    for (const key of ['R', 'L']) {
+      const a = anchors['muzzle' + key];
+      if (!a) continue;
+      const p = a.getWorldPosition(new THREE.Vector3());
+      const d = new THREE.Vector3(0, 0, 1).applyQuaternion(a.getWorldQuaternion(new THREE.Quaternion()));
+      if (d.lengthSq() < 1e-8) d.copy(dir);
+      d.normalize();
+      w.projectiles.spawn('plasma', f, p, d, {
+        dmg: mv.dmg * f.dmgMult(), speed: mv.speed, splash: mv.splash,
+        color: col, knock: mv.knock ?? 11, size: 1.25,
+      });
+      w.effects.muzzleFlash(p, col);
+      w.effects.glows.emit(p.x, p.y, p.z, 0, 0, 0,
+        { life: 0.22, size: 3.2, color: col, alpha: 0.9 });
+      if (first) { w.audio?.play('plasma'); first = false; }
+    }
+    w.audio?.play('mortar');
+    w.effects.addShake(0.28);
   },
 
   mortar(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {

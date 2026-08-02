@@ -696,6 +696,134 @@ export const ROSTER = [
       ult: { id: 'systemCrash', name: 'SYSTEM CRASH', dmg: 50, duration: 7 },
     },
   },
+  {
+    // KONGA — the arms are the whole design. They are longer than his legs,
+    // they carry him when he walks (gait 'knuckle'), and they are what he
+    // hits with; the ordnance is bolted on TOP of an animal that was already
+    // dangerous. So: enormous melee numbers, a slow committed heavy, and a
+    // ranged option that exists mainly to make you walk into the fists.
+    id: 'konga', name: 'KONGA', title: 'The Silverback Siege', icon: '🦍', seed: 211, hidden: true,
+    blurb: 'placeholder — see src/core/text.js',
+    quotes: { win: '', intro: '' },
+    colors: { primary: 0x33302e, accent: 0xa8532c, glow: 0xffa432, stripes: false },
+    skin: {
+      primary: { base: 0x33302e, base2: 0x272423, metal: 0x7e838a, wear: 0.6, grime: 0.58, panelDepth: 3, roughPaint: 0.74, metalPaint: 0.22, normalStrength: 1.3 },
+      accent: { base: 0xa8532c, base2: 0x8a4224, metal: 0x8a8f96, wear: 0.78, grime: 0.62, panelDepth: 4, roughPaint: 0.6, metalPaint: 0.44, normalStrength: 1.25 },
+    },
+    // LONG arms, SHORT legs — the proportion that makes a knuckle-walk read.
+    body: { scale: 1.24, torsoW: 1.24, torsoH: 1.0, headSize: 0.95, armLen: 1.64, legLen: 0.86, hipW: 1.12, bulk: 1.16 },
+    // rest is the four-point stance: arms reaching forward-down onto the
+    // knuckles, back legs folded under the hips
+    restPose: { shoulderL: [-8, 0, -7], shoulderR: [-8, 0, 7], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0], thighL: [-12, 0, -8], thighR: [-12, 0, 8], kneeL: [30, 0, 0], kneeR: [30, 0, 0], ankleL: [-16, 0, 0], ankleR: [-16, 0, 0] },
+    stats: { hp: 1200, speed: 9.2, jump: 13, weight: 0.88, armor: 0.15, blockMult: 0.08 },
+    ui: { power: 10, speed: 5, defense: 7 },
+    // guard is a hunched shoulder-wall with the head tucked behind the arms
+    combatPose: { hipsPos: [0, -0.10, 0], hipsRot: [8, 0, 0], torso: [14, 0, 0], head: [-14, 0, 0], shoulderL: [-10, 5, -10], shoulderR: [-10, -5, 10], elbowL: [-18, 0, 0], elbowR: [-18, 0, 0], thighL: [-10, 0, -8], thighR: [-3, 0, 8], kneeL: [22, 0, 0], kneeR: [15, 0, 0] },
+    gait: 'knuckle',
+    // A JUMP IS THE FIRST HALF OF A GRAB (animator.js `airReach`): both arms
+    // go up and open the moment he leaves the ground, ready to catch a ledge
+    // on the way past. The ape is the only body this is right for.
+    airReach: true,
+    // SURFACE WALKING, APE-STYLE (combat/climb.js; `style: 'ape'` picks the
+    // brachiator rules out of the shared stepper). The body carriage is
+    // jerry's — the same field of nearby geometry, the same continuous
+    // orientation, the same "flat ground is not climbing" hand-back — but the
+    // LIMBS work the way an animal with arms longer than its legs works:
+    //   • he hangs from ONE arm, not a diagonal pair, so the alternation gate
+    //     is arm-against-arm and the legs are free;
+    //   • the arms reach AHEAD along the travel and UP, grab, and the body
+    //     swings past the grip before the other arm goes out — reach, grab,
+    //     pull through, reach again;
+    //   • a foot only plants on something GROUND-ORIENTED (a ledge, a roof, a
+    //     crate top). On a sheer face there is nothing to stand on, so the
+    //     legs hang under him and the arms carry him.
+    // `reach` is bigger than jerry's because his arms ARE bigger: the field
+    // radius has to cover the span he can actually grab across.
+    climb: {
+      speed: 0.66, reach: 0.42, style: 'ape',
+      // hanging, not pinned: the belly drops less than a spider's (he is
+      // holding on above his head, not lying on the wall), the chest opens
+      // toward the surface and the arms go high
+      pose: {
+        hipsPos: [0, -3.6, 0],
+        torso: [-16, 0, 0], head: [26, 0, 0],
+        shoulderL: [-62, 0, -14], shoulderR: [-62, 0, 14],
+        elbowL: [-26, 0, 0], elbowR: [-26, 0, 0],
+        thighL: [10, 0, -6], thighR: [10, 0, 6],
+        kneeL: [26, 0, 0], kneeR: [26, 0, 0],
+      },
+    },
+    lightClips: ['bigPunch1', 'bigPunch2', 'light3'],
+    heavyClip: 'kongaSlam',
+    heavyFx: 'apeQuake',
+    rangedClip: 'kongaLob',
+    // the slam is a straight overhead drive — never let the strike servo slew
+    // the whole body onto a target, or the two-fisted read becomes a swipe
+    noTwistClips: ['kongaSlam'],
+    primaryMuzzle: 'podR',
+    moves: {
+      light: { dmg: [40, 44, 62], knock: [6, 7, 15], range: 3.5 },
+      heavy: { dmg: 98, knock: 26, range: 4.0, launch: 10 },
+      // BOTH PODS EMPTY THEMSELVES: a ripple of small missiles alternating
+      // shoulder to shoulder (world.js `salvo`), not one big rocket.
+      ranged: { name: 'Shoulder Salvo', type: 'salvo', dmg: 13, count: 10, speed: 34, cooldown: 2.1, splash: 1.8, ammo: 12 },
+      // THE PILEDRIVER (specials.js headSlam): grabbed by the head with the
+      // nearer fist, hoisted upside down and driven skull-first into the
+      // floor — or, for a victim as big as he is, taken across both palms
+      // like colossus and slammed down instead of thrown. Either way they
+      // finish on their back.
+      special: { id: 'headSlam', name: 'Skull Driver', cooldown: 8, dmg: 96, range: 4.2, knock: 16, radius: 6 },
+      ult: { id: 'apexBarrage', name: 'APEX BARRAGE', dmg: 26, count: 34, radius: 20, duration: 5.5 },
+    },
+  },
+  {
+    // TRITONE — six tonnes on four columns. He cannot turn quickly and he
+    // cannot jump, so everything is built around the one thing he does better
+    // than anyone: pick a line and arrive at the end of it. The cannons are
+    // what he does while he waits to be pointed at something.
+    id: 'tritone', name: 'TRITONE', title: 'The Walking Siege', icon: '🦕', seed: 223, hidden: true,
+    blurb: 'placeholder — see src/core/text.js',
+    quotes: { win: '', intro: '' },
+    colors: { primary: 0x62684a, accent: 0xa8532c, glow: 0xff8a24, stripes: false },
+    skin: {
+      primary: { base: 0x62684a, base2: 0x51563d, metal: 0x8a8f96, wear: 0.66, grime: 0.6, panelDepth: 4, roughPaint: 0.66, metalPaint: 0.34, normalStrength: 1.28 },
+      accent: { base: 0xa8532c, base2: 0x8a4224, metal: 0x8a8f96, wear: 0.72, grime: 0.6, panelDepth: 4, roughPaint: 0.62, metalPaint: 0.4, normalStrength: 1.25 },
+    },
+    // long, wide and low — a gun platform, not a torso on legs
+    body: { scale: 1.3, torsoW: 1.35, torsoH: 0.92, headSize: 1.18, armLen: 0.98, legLen: 0.94, hipW: 1.32, bulk: 1.24 },
+    // columnar stance: all four legs nearly straight under the body
+    restPose: { shoulderL: [2, 0, -3], shoulderR: [2, 0, 3], elbowL: [0, 0, 0], elbowR: [0, 0, 0], thighL: [-2, 0, -5], thighR: [-2, 0, 5], kneeL: [4, 0, 0], kneeR: [4, 0, 0], ankleL: [-2, 0, 0], ankleR: [-2, 0, 0] },
+    stats: { hp: 1320, speed: 8.4, jump: 9, weight: 1.0, armor: 0.22, blockMult: 0.06 },
+    ui: { power: 9, speed: 4, defense: 9 },
+    // guard is a braced head-down wall of frill and horn
+    combatPose: { hipsPos: [0, -0.06, 0], hipsRot: [-3, 0, 0], torso: [-4, 0, 0], head: [-12, 0, 0], shoulderL: [-2, 0, -5], shoulderR: [-2, 0, 5], elbowL: [-4, 0, 0], elbowR: [-4, 0, 0], thighL: [-5, 0, -6], thighR: [-1, 0, 6], kneeL: [12, 0, 0], kneeR: [7, 0, 0] },
+    gait: 'trike',
+    lightClips: ['tritoneGore', 'tritoneGoreL', 'tritoneGore'],
+    heavyClip: 'tritoneToss',
+    heavyFx: 'hornQuake',
+    rangedClip: 'tritoneBrace',
+    // the head IS the weapon: let the neck aim it, never the whole chassis
+    noTwistClips: ['tritoneToss'],
+    // a body this long does not counter-rotate its waist to sidestep
+    strafeLegs: false,
+    moves: {
+      light: { dmg: [34, 36, 54], knock: [7, 7, 16], range: 4.2 },
+      heavy: { dmg: 90, knock: 30, range: 4.4, launch: 13 },
+      // BOTH cannons at once, each aimed by its own traversing mount. The
+      // trigger opens a one-second aiming window rather than firing on a
+      // keyframe: the turrets lead the target and let go when they are on it
+      // (combat/cannonaim.js). `aimWindup` is what puts a mech on that path.
+      ranged: {
+        name: 'Flank Cannons', type: 'siege', dmg: 42, speed: 62, cooldown: 1.6,
+        splash: 2.6, knock: 11, ammo: 14, aimWindup: 1.0,
+      },
+      // HELD, not tapped: the trigger runs the charge for as long as it is
+      // down and the tank lasts, and everything it hits is paid for out of
+      // the speed he arrived at. See specials.js goreCharge.
+      special: { id: 'goreCharge', name: 'Gore Charge', cooldown: 7, dmg: 88, knock: 30, launch: 12, hold: true },
+      ult: { id: 'siegeProtocol', name: 'SIEGE PROTOCOL', dmg: 30, count: 26, duration: 6.5, radius: 5 },
+    },
+  },
 ];
 
 // Names, titles, bios, round quotes and move names are NOT authored here —

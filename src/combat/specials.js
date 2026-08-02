@@ -12,10 +12,20 @@ import { Fighter } from './fighter.js';
 import { AIController } from '../game/ai.js';
 import { cloneMech } from '../mechs/factory.js';
 import { stillCasting, cast, eachEnemy, volley, timedUpdater, overlapsY } from './movekit.js';
+import { faceRoar } from '../mechs/face.js';
 
 const _v = new THREE.Vector3();
 // scratch for bull-rush footfalls (consumed immediately, never retained)
 const _rushFoot = new THREE.Vector3();
+
+// ---- TRITONE's held gore charge (see goreCharge) ----
+const GORE_DRAIN = 0.285;      // stamina/sec — a full bar buys ~3.5s of charging
+const GORE_MAX = 8;            // hard ceiling, so an infinite tank still ends
+const GORE_TURN = 1.5;         // rad/s of steering — a third of the walking servo
+const GORE_DASH_COST = 0.12;   // stamina a mid-charge dash costs (a plain dash is 0.09)
+const GORE_SURGE = 0.42;       // speed added per dash, as a fraction of the base run
+const GORE_SURGE_MAX = 0.85;   // ...and the most that can be stacked at once
+const GORE_SURGE_FADE = 1.1;   // seconds for one dash's worth of surge to bleed off
 
 // Position helpers allocate a fresh Vector3 by default (safe to retain).
 // Hot per-frame callers (inside addUpdater/schedule ticks) can pass `out`
@@ -497,6 +507,139 @@ export const SPECIALS = {
     });
   },
 
+  // KONGA: HEAD SLAM. Not a throw — a PIKEDRIVER. He takes whoever is in
+  // front of him by the skull with the nearer fist, lifts them clean off the
+  // floor upside down, and drives them head-first into the ground.
+  //
+  // The size of the victim picks the grip, which is the only branch in it:
+  //   ONE HAND, BY THE HEAD — anything he can palm. The fist closes on the
+  //     crown and the body hangs from it inverted (Fighter._carryHead), so
+  //     the head is the lowest point of the arc and the head is what lands.
+  //   BOTH HANDS, BODY SLAM — a victim as big as he is cannot be held by the
+  //     skull, so he takes them across both palms exactly as colossus does
+  //     (the flat roll, the same carry) and then, instead of hurling them
+  //     downrange, drives the whole body straight down.
+  // Either way they finish ON THEIR BACK: the landing is a real launch into
+  // the floor with `_onBack` set, so the ordinary rollover takes over — the
+  // long knockdown, not the quick one.
+  headSlam(f, sp) {
+    const w = f.world;
+    const LIFT = 0.55, DRIVE = 0.16;
+    cast(f, 'grabReach', { stateT: 2.0 });
+    w.audio?.play('servo');
+    w.schedule(0.2, () => {
+      if (!f.alive || f.state !== 'special') return;
+      let prey = null, best = Infinity;
+      for (const v of w.fighters) {
+        if (v === f || !v.alive || v.iframes > 0 || f.isAllyOf(v)) continue;
+        const dx = w.wrapDelta(v.pos.x - f.pos.x), dz = w.wrapDelta(v.pos.z - f.pos.z);
+        const d = Math.hypot(dx, dz);
+        if (d > (sp.range || 4.2) * f.scale + v.hitRadius) continue;
+        if (Math.abs(angleDiff(f.yaw, Math.atan2(dx, dz))) > 0.85) continue;
+        if (Math.abs(v.pos.y - f.pos.y) > 4) continue;
+        if (d < best) { prey = v; best = d; }
+      }
+      if (!prey) {
+        f.animator.stop();
+        f.setState('attack', 0.35);
+        f.specialCd = Math.min(f.specialCd, 0.75);  // a whiff is not a spent slam
+        return;
+      }
+      // BIG ENOUGH TO NEED BOTH ARMS? Measured against his own frame rather
+      // than a list of names, so a mech resized at runtime (colossus' ult)
+      // is answered by what it IS at that moment.
+      // "as big as he is", literally: anything shorter than him is palmed by
+      // the skull. (0.85 of his height made a 6.0-unit viper 'large' against
+      // a 6.6-unit ape, which is most of the roster — the two-hand slam is
+      // meant to be the exception, not the default.)
+      const twoHanded = prey.height > f.height || prey.hitRadius > f.hitRadius * 1.25;
+      f._carryHead = !twoHanded;
+      if (!twoHanded) {
+        // WHICH FIST: the one already nearer the victim, in his own frame —
+        // a cross-body grab with the far arm reads as a reach through himself
+        const dx = w.wrapDelta(prey.pos.x - f.pos.x), dz = w.wrapDelta(prey.pos.z - f.pos.z);
+        const side = dx * Math.cos(f.yaw) - dz * Math.sin(f.yaw);  // + = his right
+        f._oneArmLift = side >= 0 ? 'R' : 'L';
+      }
+      f.animator.play('liftHold');
+      w.engine.addHitStop(0.06);
+      prey.takeHit(sp.dmg * 0.25 * f.dmgMult(), f, { knock: 0, srcPos: f.pos, heavy: true, silent: true });
+      prey.setState('launched', 3.2);
+      prey.animator.play('launched');
+      prey.iframes = LIFT + 0.3;
+      prey.grounded = false;
+      prey._carry = {
+        by: f, t: LIFT + 0.5, roll: twoHanded ? 1.45 : Math.PI,
+        x0: prey.pos.x, y0: prey.pos.y, z0: prey.pos.z, riseT: 0,
+      };
+      w.audio?.play('hitHeavy');
+
+      // THE DRIVE — straight down, at the floor in front of him
+      w.schedule(LIFT + 0.02, () => {
+        const clear = () => { f._carryHead = false; f._oneArmLift = false; };
+        if (!f.alive || f.state !== 'special' || !prey.alive) {
+          prey._carry = null;
+          prey.group.rotation.x = 0;
+          prey.group.rotation.z = 0;
+          clear();
+          return;
+        }
+        f.animator.play('kongaSlam');
+        f.setState('special', DRIVE + 0.55);
+        prey._carry = null;
+        prey.iframes = 0;                       // the slam itself always lands
+        const impact = fwd(f, 2.2 * f.scale);
+        impact.y = 0;
+        const from = prey.pos.clone();
+        // ridden down over DRIVE seconds rather than teleported, so the arm
+        // and the body arrive together and the eye can follow the arc
+        let t = 0;
+        const drive = () => {
+          if (!prey.alive || !f.alive) { clear(); return; }
+          t = Math.min(1, t + 0.05 / DRIVE);
+          const k = t * t;                       // accelerating into the floor
+          prey.pos.set(
+            from.x + (impact.x - from.x) * k,
+            from.y + (0 - from.y) * k,
+            from.z + (impact.z - from.z) * k
+          );
+          prey.vel.set(0, 0, 0);
+          prey.grounded = false;
+          // held inverted all the way in — the head leads
+          prey.group.rotation.z = twoHanded ? 1.45 : Math.PI;
+          if (t < 1) { w.schedule(0.05, drive); return; }
+
+          // IMPACT
+          prey.group.rotation.x = 0;
+          prey.group.rotation.z = 0;
+          prey.takeHit(sp.dmg * 0.75 * f.dmgMult(), f, {
+            knock: 0, srcPos: f.pos, heavy: true,
+          });
+          // …and they are left ON THEIR BACK: a short bounce with `_onBack`
+          // set hands them to the rollover, which is the long stay on the
+          // floor rather than the quick knockdown.
+          prey._onBack = true;
+          prey.vel.set(0, 2.5, 0);
+          prey.grounded = false;
+          prey.setState('launched', 1.2);
+          prey.animator.play('launched');
+          w.groundShockwave(f, impact, (sp.radius || 6) * f.scale,
+            sp.dmg * 0.3 * f.dmgMult(), sp.knock || 14, f.def.colors.glow || 0xffa432);
+          w.effects.explosion(impact, 2.4, { color: 0x9a8878, smoke: true, sparks: false });
+          w.effects.dustPuff(impact, 22, 0x8c8266);
+          w.effects.addShake(0.9);
+          w.engine.addHitStop(0.12);
+          w.audio?.play('slam');
+          w.audio?.play('explosionBig');
+          faceRoar(f, 0.6);
+          clear();
+          w.schedule(0.5, () => { if (f.state === 'special') f.setState('normal'); });
+        };
+        w.schedule(0.05, drive);
+      });
+    });
+  },
+
   // COLOSSUS (legacy): artillery barrage on target area
   barrage(f, sp) {
     const fallback = fwd(f, 24);
@@ -949,6 +1092,187 @@ export const SPECIALS = {
       }
     }, { guard: (f) => stillCasting(f) });
     f.world.schedule(sp.duration + 0.05, () => { if (f.state === 'special') { f.animator.stop(); f.setState('normal'); } });
+  },
+
+  // KONGA: THUNDER DRUMS. He rears to full height and hammers his own chest —
+  // three cracks that each punch a ring of pressure out across the ground, and
+  // a final roar that knocks anything close off its feet. He comes out of it
+  // ANGRY: a damage-and-speed buff for the rest of the fight window.
+  //
+  // The reason it's a chest beat and not another swing: his whole kit is
+  // "close the distance and be enormous", so his special should REWARD already
+  // being close and PUNISH crowding him, rather than adding a fourth way to
+  // hit one target.
+  chestBeat(f, sp) {
+    const w = f.world;
+    const dur = cast(f, 'chestBeat', { stateT: (d) => d * 0.9 });
+    w.audio?.play('charge');
+    // the three drum-beats, on the clip's own hit frames
+    const BEATS = [0.42, 0.58, 0.74];
+    BEATS.forEach((bt, i) => {
+      w.schedule(bt, () => {
+        if (!stillCasting(f)) return;
+        const at = f.center();
+        w.effects.rings.spawn(f.pos, { from: 1.2, to: 5 + i * 1.6, dur: 0.34, color: f.def.colors.glow, y: 0.4 });
+        w.effects.dustPuff(f.pos, 8, 0x9a8878);
+        w.effects.addShake(0.28);
+        w.audio?.play('hitHeavy');
+        // each crack shoves anyone in arm's reach; only the last one launches
+        eachEnemy(w, f, at, (sp.radius || 9) * 0.55 * f.scale, (e, d) => {
+          if (!overlapsY(e, f.pos.y, f.height)) return;
+          e.takeHit(sp.dmg * 0.28 * f.dmgMult(), f, {
+            knock: (sp.knock || 20) * 0.4, srcPos: f.pos, soft: true,
+          });
+        });
+      });
+    });
+    // the ROAR — the payoff beat
+    w.schedule(0.92, () => {
+      if (!stillCasting(f)) return;
+      faceRoar(f, 0.85);
+      w.audio?.play('howl');
+      w.effects.addShake(0.65);
+      w.engine.addHitStop(0.06);
+      const R = (sp.radius || 9) * f.scale;
+      w.effects.rings.spawn(f.pos, { from: 1.5, to: R, dur: 0.42, color: f.def.colors.glow, y: 0.5 });
+      w.effects.explosion(f.center(), 2.4, { color: f.def.colors.glow, smoke: true, sparks: false });
+      w.groundShockwave(f, f.pos, R, sp.dmg * f.dmgMult(), sp.knock || 20, f.def.colors.glow, true);
+      // ...and he stays wound up: harder and faster while the drums ring
+      f.status.buff = { spd: 1.16, dmg: 1.32, t: sp.duration || 6 };
+      // dust kicked off every surface he can reach
+      for (let i = 0; i < 18; i++) {
+        const a = rand(TAU), rr = rand(1, R * 0.8);
+        w.effects.smoke.emit(f.pos.x + Math.cos(a) * rr, f.pos.y + 0.2, f.pos.z + Math.sin(a) * rr,
+          Math.cos(a) * 3, rand(1, 3), Math.sin(a) * 3,
+          { life: rand(0.5, 0.9), size: rand(1.2, 2.4), color: 0x9a8878, alpha: 0.5 });
+      }
+    });
+    w.schedule(dur, () => { if (f.state === 'special') { f.animator.stop(); f.setState('normal'); } });
+  },
+
+  // TRITONE: GORE CHARGE. The move the whole body was built for — he drops his
+  // head, plants the frill as a shield and RUNS, for as long as the trigger is
+  // held and the tank lasts. Unlike rhino's bull rush this one does not merely
+  // knock you down: the horns catch you, carry you the rest of the run, and
+  // then throw.
+  //
+  // IT IS A HELD MOVE, AND YOU STILL DRIVE. Three things separate it from a
+  // scripted rush:
+  //
+  //  • THE TANK PAYS FOR IT. Every second of charging drains the same stamina
+  //    bar that funds sprinting and blocking (GORE_DRAIN — a full bar buys
+  //    ~3.5s). Run it dry and the charge ends itself, so there is a real cost
+  //    to holding the trigger down across the arena.
+  //  • HE STEERS, BADLY. The stick still turns him, but at GORE_TURN rad/s —
+  //    a fraction of the walking servo. Six tonnes at a gallop can be aimed;
+  //    it cannot be threaded. Cornering is the skill.
+  //  • A DASH INSIDE THE CHARGE IS THE PAYOFF. Tap B mid-run and instead of
+  //    the ordinary dash (which would drop him out of the state) the CHARGE
+  //    itself surges. Speed is not cosmetic here: the horns hit for what he
+  //    ARRIVED at — `dmg x speed/base` — so a dash-fed impact lands around
+  //    1.8x a standing one. Momentum is the damage.
+  goreCharge(f, sp) {
+    const w = f.world;
+    cast(f, 'chargeLean', { stateT: 12 });
+    w.audio?.play('charge');
+    faceRoar(f, 0.7);
+    f._chargeT = 0;
+    f._goreStep = undefined;
+    f._goreSurge = 0;
+    f._gorePrevDash = true;   // the press that STARTED the move never surges
+    const base = f.def.stats.speed * 3.0;
+    const endRush = (recovery) => {
+      f._charging = false;
+      f._goreSurge = 0;
+      f.animator.stop();
+      f.setState('attack', recovery);
+    };
+    const tick = () => {
+      if (!f.alive || f.state !== 'special') { f._charging = false; f._goreSurge = 0; return; }
+      const dt = 0.05;
+      f._chargeT += dt;
+      // the tank: a hold he cannot afford ends on its own
+      f.sprintEnergy = Math.max(0, f.sprintEnergy - GORE_DRAIN * dt);
+      const holding = (f.intent.specialHeld || f._chargeT < 0.9)
+        && f._chargeT < GORE_MAX && (f.sprintEnergy > 0 || f._chargeT < 0.9);
+      // DASH-FED SURGE: B mid-charge buys a burst of speed out of the same
+      // tank a normal dash spends, and the burst decays back to the base run.
+      const dashEdge = !!f.intent.chargeDash && !f._gorePrevDash;
+      f._gorePrevDash = !!f.intent.chargeDash;
+      if (dashEdge && f.sprintEnergy > GORE_DASH_COST) {
+        f.sprintEnergy -= GORE_DASH_COST;
+        f._goreSurge = Math.min(GORE_SURGE_MAX, (f._goreSurge || 0) + GORE_SURGE);
+        f.iframes = Math.max(f.iframes, 0.18);
+        w.audio?.play('dash');
+        w.effects.dashTrail(f.pos, f.def.colors.glow || 0xff8a24, f.scale * 1.5);
+        w.effects.rings.spawn(f.pos, { from: 0.6, to: 5, dur: 0.3, color: f.def.colors.glow, y: 0.4 });
+      }
+      f._goreSurge = Math.max(0, (f._goreSurge || 0) - dt / GORE_SURGE_FADE * GORE_SURGE);
+      const spd = base * (1 + f._goreSurge);
+      f._goreSpeedK = spd / base;      // read by the impact below (and the HUD tell)
+      f.vel.x = Math.sin(f.yaw) * spd;
+      f.vel.z = Math.cos(f.yaw) * spd;
+      // STEERING — loose. A player pushes the stick and he leans into it at
+      // GORE_TURN; the CPU aims itself at whatever it was chasing, through the
+      // same limit, so neither can corner harder than the body allows.
+      let want = null;
+      if (f.isAI) {
+        const e0 = f.nearestEnemy();
+        if (e0 && f.pos.distanceTo(e0.pos) < 40) want = f.yawTo(e0);
+      } else if (Math.hypot(f.intent.moveX, f.intent.moveZ) > 0.25) {
+        want = Math.atan2(f.intent.moveX, f.intent.moveZ);
+      }
+      if (want !== null) {
+        f.targetYaw = want;
+        f.yaw += clamp(angleDiff(f.yaw, want), -GORE_TURN * dt, GORE_TURN * dt);
+        f.torsoYaw = f.yaw;
+        f.group.rotation.y = f.yaw;
+      }
+      // four columnar feet throwing dirt, hung off the gait phase so the
+      // stomps land with the legs instead of on a timer of their own
+      f.world.effects.dustPuff(f.pos, 3, 0x8c8266);
+      const ph = f.animator.phase || 0;
+      const step = Math.floor(ph / Math.PI);
+      if (f._goreStep !== undefined && step !== f._goreStep) {
+        const foot = f.mech.joints[step % 2 ? 'ankleL' : 'ankleR'];
+        const at = foot ? foot.getWorldPosition(_rushFoot) : f.pos;
+        w.effects.dustPuff(at, 9, 0x8c8266);
+        w.effects.addShake(0.16);
+        w.audio?.play('land');
+      }
+      f._goreStep = step;
+      for (const e of w.fighters) {
+        if (e === f || !e.alive || f.isAllyOf(e)) continue;
+        const dx = w.wrapDelta(e.pos.x - f.pos.x), dz = w.wrapDelta(e.pos.z - f.pos.z);
+        // the horns ride at HIS height — jump it and the charge passes under
+        if (Math.hypot(dx, dz) < 4.0 * f.scale && overlapsY(e, f.pos.y, f.height)) {
+          // CAUGHT ON THE HORNS: hoisted and thrown, not merely bumped — and
+          // MOMENTUM IS THE DAMAGE. Everything the impact spends (damage,
+          // knock, the throw, the shake) scales with how fast he was actually
+          // travelling, so a dash-fed charge is a categorically bigger hit
+          // than one that merely arrived.
+          const k = f._goreSpeedK || 1;
+          e.takeHit(sp.dmg * k * f.dmgMult(), f, {
+            knock: sp.knock * k, launch: (sp.launch || 12) * k, srcPos: f.pos, heavy: true,
+          });
+          e.vel.x = Math.sin(f.yaw) * 26 * k;
+          e.vel.z = Math.cos(f.yaw) * 26 * k;
+          e.vel.y = Math.max(e.vel.y, 15 * k);
+          w.engine.addHitStop(0.10 * k);
+          w.effects.addShake(0.7 * k);
+          w.effects.impactSparks(e.center(), f.def.colors.glow, 20, 13);
+          w.effects.explosion(e.center(), 2.2, { color: 0xc8b08a, smoke: true, sparks: false });
+          w.audio?.play('hitHeavy');
+          faceRoar(f, 0.5);
+          endRush(0.5);
+          return;
+        }
+      }
+      if (holding) w.schedule(dt, tick);
+      else endRush(0.35);
+    };
+    f._charging = true;
+    w.schedule(0.05, tick);
   },
 };
 
@@ -2804,5 +3128,110 @@ export const ULTS = {
       },
     });
     f.iframes = dur;
+  },
+
+  // KONGA: APEX BARRAGE. He rears to full height and empties BOTH pods —
+  // not aimed fire but saturation: tube after tube going up, then the whole
+  // sky coming down across a wide footprint. His special rewards being close;
+  // his ult punishes running away from it.
+  apexBarrage(f, u) {
+    const w = f.world;
+    const DUR = u.duration || 5.5;
+    cast(f, 'castRaise', { state: 'ult', stateT: DUR * 0.5, speed: 1.1 });
+    w.audio?.play('ultReady');
+    faceRoar(f, 1.2);
+    // rear up and beat once — the same tell as the special, at ult scale
+    w.schedule(0.35, () => {
+      if (!f.alive) return;
+      w.effects.addShake(0.6);
+      w.effects.rings.spawn(f.pos, { from: 1.5, to: 9, dur: 0.4, color: f.def.colors.glow, y: 0.4 });
+      w.audio?.play('howl');
+    });
+    const N = u.count || 34;
+    const R = (u.radius || 20);
+    // ripple-fire every tube: alternate pods, each missile lobbed high and
+    // arcing down onto a scattered ground point in front of him
+    volley(w, f, N, 0.09, (i) => {
+      const pod = f.mech.anchors[i % 2 ? 'podR' : 'podL'] || f.mech.anchors.muzzleR;
+      const origin = pod ? pod.getWorldPosition(new THREE.Vector3()) : muzzle(f);
+      // land points spread over a disc centred well ahead of him
+      const a = rand(TAU), rr = Math.sqrt(rand(0, 1)) * R;
+      const c = fwd(f, R * 0.55);
+      const land = new THREE.Vector3(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr);
+      const d = land.clone().sub(origin).normalize();
+      w.projectiles.spawn('missile', f, origin, d, {
+        dmg: u.dmg * f.dmgMult(), speed: 34, splash: 3.4, color: 0xff8a30,
+        arcTo: land, arcTime: 1.05, life: 4,
+      });
+      w.audio?.play('missile', { vol: 0.5 });
+      // launch flash off the firing pod
+      w.effects.muzzleFlash?.(origin, 0xff9a40);
+      w.effects.smoke.emit(origin.x, origin.y, origin.z, rand(-1, 1), rand(1, 3), rand(-1, 1),
+        { life: 0.7, size: 1.4, color: 0x8a8a8a, alpha: 0.5 });
+    }, { guard: (f) => f.alive && f.state === 'ult' });
+    w.schedule(DUR, () => { if (f.state === 'ult') { f.animator.stop(); f.setState('normal'); } });
+  },
+
+  // TRITONE: SIEGE PROTOCOL. He stops being a charger and becomes what the
+  // engineers actually built: he plants all four legs, the frill crown opens,
+  // and everything on the chassis fires at once — flank cannons flat and level,
+  // frill rockets arcing over the top — for as long as the protocol runs.
+  //
+  // Deliberately the opposite of his special: rooted instead of mobile, area
+  // instead of single-target, so his two big buttons never want the same range.
+  siegeProtocol(f, u) {
+    const w = f.world;
+    const DUR = u.duration || 6.5;
+    cast(f, 'tritoneBrace', { state: 'ult', stateT: DUR });
+    w.audio?.play('ultReady');
+    faceRoar(f, 0.9);
+    // planted: he does not move while the protocol runs
+    const anchorX = f.pos.x, anchorZ = f.pos.z;
+    w.effects.rings.spawn(f.pos, { from: 6, to: 1.4, dur: 0.5, color: f.def.colors.glow, y: 0.3 });
+    let shellT = 0, rocketT = 0;
+    w.addUpdater((dt, t) => {
+      if (!f.alive || f.state !== 'ult') return false;
+      // rooted — recoil rocks him but he does not travel
+      f.vel.x = 0; f.vel.z = 0;
+      f.pos.x = anchorX; f.pos.z = anchorZ;
+      // ---- FLANK CANNONS: flat, fast, alternating left/right ----
+      shellT -= dt;
+      if (shellT <= 0) {
+        shellT = 0.30;
+        const side = (Math.floor(t / 0.30) % 2) ? 'muzzleL' : 'muzzleR';
+        const an = f.mech.anchors[side] || f.mech.anchors.muzzleR;
+        const from = an ? an.getWorldPosition(new THREE.Vector3()) : muzzle(f);
+        const e = f.nearestEnemy();
+        const aim = e ? leadPos(f, e, 0.35) : fwd(f, 30, 1.2);
+        const dir = aim.clone().sub(from).normalize();
+        w.projectiles.spawn('shell', f, from, dir, {
+          dmg: u.dmg * f.dmgMult(), speed: 46, splash: u.radius || 5,
+          knock: 12, color: 0xffb060, life: 3,
+        });
+        w.audio?.play('cannon');
+        w.effects.muzzleFlash?.(from, 0xffb060);
+        f.animator.addImpulse?.('torso', [-0.10, 0, 0], 30, 10);
+        w.effects.addShake(0.18);
+      }
+      // ---- FRILL ROCKETS: arcing over the top onto scattered ground ----
+      rocketT -= dt;
+      if (rocketT <= 0) {
+        rocketT = 0.42;
+        const fp = f.mech.anchors.frillPods || f.mech.anchors.core;
+        const from = fp ? fp.getWorldPosition(new THREE.Vector3()) : f.center();
+        const a = rand(TAU), rr = Math.sqrt(rand(0, 1)) * 16;
+        const c = fwd(f, 12);
+        const land = new THREE.Vector3(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr);
+        const dir = land.clone().sub(from).normalize();
+        w.projectiles.spawn('missile', f, from, dir, {
+          dmg: u.dmg * 0.7 * f.dmgMult(), speed: 30, splash: 3.2, color: 0xff8a24,
+          arcTo: land, arcTime: 0.95, life: 4,
+        });
+        w.audio?.play('missile', { vol: 0.45 });
+      }
+      return t <= DUR;
+    }, () => {
+      if (f.state === 'ult') { f.animator.stop(); f.setState('normal'); }
+    });
   },
 };

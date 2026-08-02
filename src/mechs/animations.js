@@ -1244,6 +1244,102 @@ const CLIPS_RAW = {
       { t: 0.25, ease: 'outQuad', pose: { shoulderL: [-160, 0, -12], elbowL: [-16, 0, 0], shoulderR: [-42, 0, 24], elbowR: [-68, 0, 0], torso: [10, 0, -6], head: [-16, 0, 0], thighL: [-26, 0, -6], thighR: [-40, 0, 8], kneeL: [42, 0, 0], kneeR: [60, 0, 0], ankleL: [-14, 0, 0], ankleR: [-22, 0, 0], hipsRot: [6, 0, 0] } },
     ],
   },
+
+  // ---------- KONGA: a knuckle-walker fights by REARING UP off his arms ----
+  // Every one of his blows starts from four-point stance, so the wind-up is
+  // always the same beat: the trunk comes UP off the knuckles (hipsPos rises,
+  // torso pitches back) before the arm is free to throw anything. That rear-up
+  // IS his tell, and it is why his blows are slow and enormous.
+  kongaSlam: { // heavy: rears to full height, both fists overhead, DRIVES down
+    dur: 1.02,
+    keys: [
+      { t: 0, pose: {} },
+      // rear up onto the back legs, fists gathering high and back
+      { t: 0.30, ease: 'outCubic', pose: { hipsPos: [0, 0.62, -0.2], hipsRot: [-16, 0, 0], torso: [-30, 0, 0], head: [-24, 0, 0], shoulderL: [-158, 10, -26], shoulderR: [-158, -10, 26], elbowL: [-52, 0, 0], elbowR: [-52, 0, 0], thighL: [16, 0, -6], thighR: [16, 0, 6], kneeL: [-14, 0, 0], kneeR: [-14, 0, 0] } },
+      // hang at the apex for a beat — the moment the shadow lands on you
+      { t: 0.44, ease: 'inOutQuad', pose: { hipsPos: [0, 0.68, -0.22], torso: [-34, 0, 0], head: [-28, 0, 0], shoulderL: [-168, 12, -30], shoulderR: [-168, -12, 30] } },
+      // DOWN — the whole mass behind two fists
+      { t: 0.60, ease: 'outQuad', pose: { hipsPos: [0, -0.34, 0.26], hipsRot: [22, 0, 0], torso: [46, 0, 0], head: [22, 0, 0], shoulderL: [-16, 0, -14], shoulderR: [-16, 0, 14], elbowL: [-8, 0, 0], elbowR: [-8, 0, 0], thighL: [-24, 0, -8], thighR: [-24, 0, 8], kneeL: [40, 0, 0], kneeR: [40, 0, 0] } },
+      // settle back onto the knuckles
+      { t: 1.02, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0] } },
+    ],
+    events: [
+      { t: 0.12, type: 'sfx', arg: 'whooshBig' }, { t: 0.44, type: 'sfx', arg: 'charge' },
+      { t: 0.60, type: 'hit', arg: 0 }, { t: 0.60, type: 'sfx', arg: 'hitHeavy' }, { t: 0.61, type: 'shake', arg: 0.75 },
+    ],
+  },
+  chestBeat: { // special: rears up and DRUMS the chest — alternating fists
+    dur: 1.30, strikeArm: 'R',
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.26, ease: 'outCubic', pose: { hipsPos: [0, 0.66, -0.22], hipsRot: [-18, 0, 0], torso: [-26, 0, 0], head: [-30, 0, 0], shoulderL: [-96, 20, -34], shoulderR: [-96, -20, 34], elbowL: [-118, 0, 0], elbowR: [-118, 0, 0], thighL: [18, 0, -6], thighR: [18, 0, 6], kneeL: [-16, 0, 0], kneeR: [-16, 0, 0] } },
+      // drum: right in, left in, right in — torso jolts on each strike
+      { t: 0.42, ease: 'outQuad', pose: { torso: [-18, 10, 0], shoulderR: [-72, -6, 12], elbowR: [-142, 0, 0], shoulderL: [-104, 24, -40], elbowL: [-108, 0, 0] } },
+      { t: 0.58, ease: 'outQuad', pose: { torso: [-18, -10, 0], shoulderL: [-72, 6, -12], elbowL: [-142, 0, 0], shoulderR: [-104, -24, 40], elbowR: [-108, 0, 0] } },
+      { t: 0.74, ease: 'outQuad', pose: { torso: [-22, 8, 0], shoulderR: [-72, -6, 12], elbowR: [-142, 0, 0], shoulderL: [-104, 24, -40], elbowL: [-108, 0, 0] } },
+      // arms FLUNG wide on the last beat — the shout
+      { t: 0.92, ease: 'outBack', pose: { torso: [-34, 0, 0], head: [-34, 0, 0], shoulderL: [-58, 30, -76], shoulderR: [-58, -30, 76], elbowL: [-40, 0, 0], elbowR: [-40, 0, 0] } },
+      { t: 1.30, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0], thighL: [0, 0, 0], thighR: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0] } },
+    ],
+    events: [
+      { t: 0.42, type: 'sfx', arg: 'hitHeavy' }, { t: 0.42, type: 'shake', arg: 0.3 },
+      { t: 0.58, type: 'sfx', arg: 'hitHeavy' }, { t: 0.58, type: 'shake', arg: 0.3 },
+      { t: 0.74, type: 'sfx', arg: 'hitHeavy' }, { t: 0.74, type: 'shake', arg: 0.35 },
+      { t: 0.92, type: 'fire' },
+    ],
+  },
+  kongaLob: { // ranged: rears up so the shoulder pods clear the back, and holds
+    dur: 0.86, upper: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [-20, 0, 0], head: [-16, 0, 0], shoulderL: [-40, 14, -30], shoulderR: [-40, -14, 30], elbowL: [-70, 0, 0], elbowR: [-70, 0, 0] } },
+      { t: 0.46, ease: 'inOutQuad', pose: { torso: [-24, 0, 0], head: [-12, 0, 0] } },
+      { t: 0.86, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0] } },
+    ],
+    events: [{ t: 0.24, type: 'fire' }, { t: 0.24, type: 'sfx', arg: 'missile' }],
+  },
+
+  // ---------- TRITONE: everything is thrown with the NECK ------------------
+  // Six tonnes on four columns cannot pivot, so his blows are head sweeps and
+  // horn tosses: the body sets the line, the neck delivers. hipsRot does the
+  // aiming, head/torso do the swing.
+  tritoneGore: { // light: a short brutal horn jab, head down and drive
+    dur: 0.62, strikeArm: 'R',
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.16, ease: 'outCubic', pose: { hipsRot: [-6, -12, 0], torso: [-12, -14, 0], head: [-20, -16, 0], shoulderR: [10, 0, 14], shoulderL: [-6, 0, -8] } },
+      { t: 0.28, ease: 'outBack', pose: { hipsPos: [0, -0.12, 0.2], hipsRot: [10, 10, 0], torso: [22, 16, 0], head: [26, 18, 0], shoulderR: [-14, 0, 8], shoulderL: [6, 0, -12] } },
+      { t: 0.40, ease: 'inOutQuad', pose: { torso: [12, 8, 0], head: [14, 8, 0] } },
+      { t: 0.62, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10] } },
+    ],
+    events: [{ t: 0.22, type: 'sfx', arg: 'whoosh' }, { t: 0.28, type: 'hit', arg: 0 }],
+  },
+  tritoneToss: { // heavy: horns dig LOW then rip up and over — the launcher
+    dur: 0.98,
+    keys: [
+      { t: 0, pose: {} },
+      // set the feet and drop the head — the shovel going in
+      { t: 0.30, ease: 'outCubic', pose: { hipsPos: [0, -0.24, -0.14], hipsRot: [-16, 0, 0], torso: [-26, 0, 0], head: [-46, 0, 0], thighL: [-18, 0, -6], thighR: [-18, 0, 6], kneeL: [30, 0, 0], kneeR: [30, 0, 0], shoulderL: [14, 0, -10], shoulderR: [14, 0, 10] } },
+      { t: 0.42, ease: 'inOutQuad', pose: { head: [-52, 0, 0], torso: [-30, 0, 0] } },
+      // RIP UP — the whole front end comes off the ground
+      { t: 0.58, ease: 'outBack', pose: { hipsPos: [0, 0.30, 0.24], hipsRot: [26, 0, 0], torso: [40, 0, 0], head: [52, 0, 0], thighL: [8, 0, -6], thighR: [8, 0, 6], kneeL: [-10, 0, 0], kneeR: [-10, 0, 0], shoulderL: [-40, 0, -16], shoulderR: [-40, 0, 16] } },
+      { t: 0.74, ease: 'inOutQuad', pose: { hipsPos: [0, 0.08, 0.1], hipsRot: [12, 0, 0], torso: [20, 0, 0], head: [26, 0, 0] } },
+      { t: 0.98, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], thighL: [0, 0, 0], thighR: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0] } },
+    ],
+    events: [
+      { t: 0.34, type: 'sfx', arg: 'charge' }, { t: 0.58, type: 'hit', arg: 0 },
+      { t: 0.58, type: 'sfx', arg: 'hitHeavy' }, { t: 0.59, type: 'shake', arg: 0.7 },
+    ],
+  },
+  tritoneBrace: { // ranged/ult: plants all four legs and squats into the recoil
+    dur: 0.9, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.28, ease: 'outCubic', pose: { hipsPos: [0, -0.26, -0.1], hipsRot: [-6, 0, 0], torso: [-8, 0, 0], head: [-10, 0, 0], thighL: [-14, 0, -10], thighR: [-14, 0, 10], kneeL: [26, 0, 0], kneeR: [26, 0, 0], ankleL: [-12, 0, 0], ankleR: [-12, 0, 0], shoulderL: [10, 0, -14], shoulderR: [10, 0, 14], elbowL: [-14, 0, 0], elbowR: [-14, 0, 0] } },
+      { t: 0.9, ease: 'inOutQuad', pose: { hipsPos: [0, -0.24, -0.1], head: [-6, 0, 0] } },
+    ],
+    events: [{ t: 0.3, type: 'sfx', arg: 'charge' }],
+  },
 };
 
 // mirror a raw clip left<->right: swap L/R joint names, negate the y/z
@@ -1283,6 +1379,8 @@ CLIPS_RAW.rollUpL = mirrorRaw(CLIPS_RAW.rollUpR); // righting roll the other way
 CLIPS_RAW.light1R = mirrorRaw(CLIPS_RAW.light1); // right jab
 CLIPS_RAW.light2L = mirrorRaw(CLIPS_RAW.light2); // left cross
 CLIPS_RAW.light3L = mirrorRaw(CLIPS_RAW.light3); // left uppercut
+// TRITONE gores off alternate horns, so his combo swings the neck both ways.
+CLIPS_RAW.tritoneGoreL = mirrorRaw(CLIPS_RAW.tritoneGore);
 
 // ---------- smash mirrors ----------
 // The shared overhead smash winds the body onto ONE side (hips/torso yaw)
