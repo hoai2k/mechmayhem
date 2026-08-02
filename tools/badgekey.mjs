@@ -1,7 +1,9 @@
 // BADGE PREP — turn a generated emblem on a chroma backdrop into the
 // transparent, square, correctly-sized PNG the game wants.
 //
-//   node tools/badgekey.mjs <in.png> <mechId> [--tol 0.28] [--size 512] [--keep-bg]
+//   node tools/badgekey.mjs <in.png> <mechId> [--tol 0.28] [--size 512]
+//   node tools/badgekey.mjs in.png konga --circle     (mask to the disc, see below)
+//   node tools/badgekey.mjs in.png konga --asis       (already finished: only resize)
 //   node tools/badgekey.mjs in.png konga --dry        (report, write nothing)
 //
 // Image generators do not give you alpha; they give you the badge sitting on a
@@ -44,6 +46,23 @@ if (!src || !id) {
 }
 if (!existsSync(src)) { console.error(`no such file: ${src}`); process.exit(2); }
 
+// MASK BY SHAPE INSTEAD OF BY COLOUR. A colour key needs the backdrop to be a
+// colour the ART DOES NOT USE — that is the whole reason to ask for magenta.
+// Art that arrives already flattened onto near-black breaks that assumption:
+// keying rgb(0,4,13) also takes the badge's own black outline and every dark
+// fill inside it (measured on konga: 82% of the image cut, i.e. the gorilla
+// as well as the background). A round badge has a second, better boundary —
+// it is a DISC. --circle finds that disc and keeps everything inside it,
+// whatever colour it is, which is exactly right for a crest and wrong for
+// nothing.
+const CIRCLE = has('circle');
+// ...AND SOMETIMES THE ART IS ALREADY THE ICON. Art can arrive as a finished
+// TILE — square, its own dark backing, its own frame — which is a complete
+// badge and needs nothing done to it but sizing. Keying that is actively
+// wrong: the backing is part of the design, and cutting it away leaves the
+// mark floating with its frame chopped off. --asis resizes and declares, and
+// touches no pixels otherwise.
+const ASIS = has('asis');
 const SIZE = flag('size', 512);
 const TOL = flag('tol', 0.28);        // distance at which a pixel is FULLY keyed
 const SOFT = TOL * 1.9;               // ...and where it becomes fully opaque
@@ -52,6 +71,23 @@ const MARGIN = 0.03;                  // padding round the trimmed art, x size
 const img = sharp(src).ensureAlpha();
 const { width: W, height: H } = await img.metadata();
 const { data } = await img.raw().toBuffer({ resolveWithObject: true });
+
+if (ASIS) {
+  mkdirSync('public/badges', { recursive: true });
+  const dest0 = `public/badges/${id}.png`;
+  console.log(`in      ${src}  ${W}x${H}`);
+  if (Math.abs(W - H) > 2) {
+    console.log(`WARNING: not square (${W}x${H}) — it will be squashed to ${SIZE}x${SIZE}.`);
+  }
+  if (!has('dry')) {
+    await sharp(src).resize(SIZE, SIZE, { fit: 'fill', kernel: 'lanczos3' })
+      .png({ compressionLevel: 9 }).toFile(dest0);
+    console.log(`wrote   ${dest0}  (as-is: no keying, no trim)`);
+    declare(id);
+  } else console.log('(dry run — nothing written)');
+  console.log('next    node tools/iconcheck.mjs');
+  process.exit(0);
+}
 
 // ---- 1. what IS the backdrop? the median of the outer frame ----------------
 const frame = Math.max(2, Math.round(Math.min(W, H) * 0.01));
@@ -104,6 +140,56 @@ for (let p = 0; p < W * H; p++) {
   out[i + 3] = Math.round(a * a0);
 }
 
+// ---- 2a. ...OR JUST TAKE THE DISC -----------------------------------------
+// The colour pass above has already told us which pixels are clearly NOT the
+// backdrop; that is enough to locate the badge without trusting it to decide
+// the inside. Take the centroid of that content and the radius that contains
+// essentially all of it (a high percentile, so a stray speck in a corner
+// cannot inflate it), then keep the whole disc — outline, dark fills and all.
+if (CIRCLE) {
+  let sx = 0, sy = 0, n = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (out[(y * W + x) * 4 + 3] < 128) continue;
+      sx += x; sy += y; n++;
+    }
+  }
+  if (!n) { console.error('no content found — is --tol too high?'); process.exit(1); }
+  const cx = sx / n, cy = sy / n;
+  // THE RADIUS, MEASURED PER DIRECTION AND THEN AGREED ON. A percentile over
+  // every content pixel is not robust: the far tail is whatever specks the
+  // generator left in the corners, and a corner of a square frame is 1.41x
+  // the radius of the disc inside it — measured, that put konga's circle at
+  // 906px on a 1254px image, half again too big. Instead ask each of 360
+  // DIRECTIONS how far its furthest content pixel is and take the median of
+  // those answers: a disc gives the same number in every direction, so noise
+  // in a handful of bins cannot move it.
+  const BINS = 360;
+  const far = new Float64Array(BINS);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (out[(y * W + x) * 4 + 3] < 128) continue;
+      const dx = x - cx, dy = y - cy;
+      const bin = Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * BINS) % BINS;
+      const d = Math.hypot(dx, dy);
+      if (d > far[bin]) far[bin] = d;
+    }
+  }
+  const sorted = [...far].filter((v) => v > 0).sort((a, b) => a - b);
+  const R = sorted[sorted.length >> 1];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      // a 1.5px feather on the rim, so the circle is not stair-stepped
+      const a = Math.max(0, Math.min(1, (R - Math.hypot(x - cx, y - cy)) / 1.5 + 0.5));
+      out[i] = data[i]; out[i + 1] = data[i + 1]; out[i + 2] = data[i + 2];
+      out[i + 3] = Math.round(a * data[i + 3]);
+    }
+  }
+  console.log(`circle  centre ${cx.toFixed(0)},${cy.toFixed(0)} radius ${R.toFixed(0)} ` +
+    `(${(100 * Math.PI * R * R / (W * H)).toFixed(0)}% of the frame kept)`);
+}
+
 // ---- 2b. BLEED THE ART OUTWARD under the transparent rim -------------------
 // Unpremultiplying recovers the art's colour well while there is enough of it
 // left to divide by, and turns to noise as alpha approaches zero: measured on
@@ -117,7 +203,7 @@ for (let p = 0; p < W * H; p++) {
 // neighbours; alpha itself is never touched, so the shape does not grow — only
 // the colour hiding under it changes, from "whatever was left of the backdrop"
 // to "the same colour as the pixel next door".
-for (let pass = 0; pass < 4; pass++) {
+for (let pass = 0; pass < (CIRCLE ? 0 : 4); pass++) {
   const prev = Buffer.from(out);
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
@@ -157,7 +243,7 @@ for (let pass = 0; pass < 4; pass++) {
 // guess at all — it is |P - K| / |F - K|, projected onto the line between
 // them. Take the colour from F and the alpha from that ratio, and the edge is
 // the art's own colour at its true opacity, with no backdrop left in it.
-for (let p = 0; p < W * H; p++) {
+for (let p = 0; CIRCLE ? false : p < W * H; p++) {
   const i = p * 4;
   const a0 = out[i + 3];
   if (a0 === 0 || a0 >= 250) continue;
@@ -221,25 +307,30 @@ await sharp(squared)
   .toFile(dest);
 console.log(`wrote   ${dest}`);
 
+declare(id);
+console.log('next    node tools/iconcheck.mjs');
+
 // ---- 4. DECLARE IT, in the same breath as writing it -----------------------
 // The file and the BADGES list in src/ui/icons.js have to agree, and a human
 // remembering to edit a second file is exactly the gap that shows up later as
 // "why is that mech still on its snapshot" — the badge is sitting on disk,
 // undeclared, and the thumbnail keeps winning. So the tool that lands the art
 // declares it. Idempotent: running twice does not add the id twice.
-const ICONS = 'src/ui/icons.js';
-const src2 = readFileSync(ICONS, 'utf8');
-if (new RegExp(`(['"])${id}\\1`).test(src2.slice(src2.indexOf('BADGES = new Set(['), src2.indexOf(']);')))) {
-  console.log(`decl    '${id}' already declared in ${ICONS}`);
-} else {
-  const anchor = 'export const BADGES = new Set([\n';
-  const at = src2.indexOf(anchor);
-  if (at < 0) {
-    console.log(`decl    COULD NOT FIND the BADGES set in ${ICONS} — add '${id}' by hand`);
-  } else {
-    const cut = at + anchor.length;
-    writeFileSync(ICONS, `${src2.slice(0, cut)}  '${id}',\n${src2.slice(cut)}`);
-    console.log(`decl    added '${id}' to BADGES in ${ICONS}`);
+function declare(mech) {
+  const ICONS = 'src/ui/icons.js';
+  const txt = readFileSync(ICONS, 'utf8');
+  const set = txt.slice(txt.indexOf('BADGES = new Set(['), txt.indexOf(']);'));
+  if (new RegExp(`(['"])${mech}\\1`).test(set)) {
+    console.log(`decl    '${mech}' already declared in ${ICONS}`);
+    return;
   }
+  const anchor = 'export const BADGES = new Set([\n';
+  const at = txt.indexOf(anchor);
+  if (at < 0) {
+    console.log(`decl    COULD NOT FIND the BADGES set in ${ICONS} — add '${mech}' by hand`);
+    return;
+  }
+  const cut = at + anchor.length;
+  writeFileSync(ICONS, `${txt.slice(0, cut)}  '${mech}',\n${txt.slice(cut)}`);
+  console.log(`decl    added '${mech}' to BADGES in ${ICONS}`);
 }
-console.log('next    node tools/iconcheck.mjs');

@@ -31,9 +31,29 @@
 // no file costs one 404 and falls back to the thumbnail; a file with no id
 // here is simply never used.
 export const BADGES = new Set([
-  // tools/badgekey.mjs adds an id here when it lands the art, so the file and
-  // this list cannot drift apart; tools/iconcheck.mjs fails if they ever do,
-  // in EITHER direction. Empty means every mech is on its thumbnail.
+  // Every id here has a file in public/badges/ and vice versa —
+  // tools/badgekey.mjs writes both, tools/iconcheck.mjs fails on either
+  // half being missing. This IS the roster's icon set; the thumbnails
+  // are only the backup behind it.
+  'aegis',
+  'colossus',
+  'cranky',
+  'fenrir',
+  'frogger',
+  'glacier',
+  'inferno',
+  'jerry',
+  'konga',
+  'nova',
+  'nullbot',
+  'rhino',
+  'saurion',
+  'tempest',
+  'titanus',
+  'tritone',
+  'viper',
+  'vulcan',
+  'wraith',
 ]);
 
 export function badgeUrl(id) { return `badges/${id}.png`; }
