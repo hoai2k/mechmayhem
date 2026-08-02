@@ -145,11 +145,38 @@ export const TUNING = {
       rate: 6,        // activation ease in/out (1/s)
       // how far OUT along its splay a limb looks for a home first, x reach —
       // limbs prefer extending wide over pulling in (see SPLAY_LADDER)
-      spread: 0.55,
+      spread: 0.72,
       hang: 0.55,     // the home probe: this far below the limb root, x reach
-      lead: 0.13,     // ...led along the travel by this many seconds
-      len: 0.30,      // step when the plant is this far behind home, x reach
-      time: 0.16,     // seconds per swing
+      // ANTICIPATION. A limb aims at where the body WILL be, not where it is,
+      // by this many seconds of travel — and FRONT and BACK are different
+      // jobs. A limb ahead of the body along its travel is REACHING, so it
+      // takes the full lead and stretches wider with speed; one behind is
+      // FOLLOWING, so it barely anticipates at all and simply plants where
+      // the body has carried it. Which is which is measured against the
+      // travel direction every frame, so it is the same rule forwards,
+      // sideways and backwards (front/back swap when he reverses).
+      lead: 0.26,
+      leadBack: 0.04,
+      stretch: 0.35,  // extra splay a FRONT limb takes at speed, x spread
+      stretchAt: 14,  // ...speed at which that is full
+      // WHEN TO PICK A FOOT UP, x reach. Bigger = longer strides and fewer of
+      // them; the old 0.30 with a 0.16s swing was a mech with flickering
+      // legs, because every small home wobble bought another step.
+      // A TRAILING LIMB DRAGS FURTHER before it comes up, and that is what
+      // makes "the back legs just follow" survive contact with a fast body:
+      // it plants where it has been carried, so it starts its stance already
+      // behind and would re-step within a frame or two on the front limb's
+      // threshold. Given room to trail, it drags and then makes one big
+      // catch-up swing — which is both what an animal does and the only way
+      // the cadence stays countable.
+      len: 0.62,
+      lenBack: 0.90,
+      settle: 0.40,   // ...and standing still, where a step is a comfort shift
+      dwell: 0.18,    // seconds a fresh plant is held before it may step again
+      homeRate: 10,   // how fast a limb's home follows the field (1/s) — the
+                      // pre-filter that stops a seam in the geometry reading
+                      // as a step
+      time: 0.17,     // seconds per swing
       lift: 0.22,     // swing arc height, x reach
       airHold: 0.5,   // pull toward the hang point for a limb with no surface
     },
