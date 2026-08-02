@@ -607,6 +607,17 @@ audio). Progress history: `TASKS.md`.
   dropdown: `mechSelect()` for tools that rebuild in place, `gotoMech()` for
   `?rigedit`, which builds its world around one id and so switches by
   navigating.
+- THE POSE WORKBENCH'S KEY CLIPBOARD: right-click a diamond for **Copy pose /
+  Paste pose / Delete**, right-click bare track for **New keyframe / Paste as
+  new key**, and Ctrl/⌘+C · Ctrl/⌘+V do the same to the SELECTED key. COPY takes
+  the key's pose and its ease and deliberately NOT its time — pasting means
+  "make this key look like that one", and a key's time is its place in the
+  rhythm. PASTE REPLACES rather than merges, because a key is SPARSE: a merge
+  would leave whatever the target already had for joints the copied key is
+  silent about, and the paste would quietly not do what it says. One undo step
+  either way. It is how a REPEATING motion is authored — pose one beat, paste it
+  onto the beats that repeat it, instead of re-dragging the same limb to the
+  same place (colossus' four-clap taunt is the worked example).
 - THE RIG EDITOR'S **T POSE** box (`/workbench/?edit=rig`) drives the whole
   skeleton into a canonical T — arms straight out along the shoulder line, legs
   straight down — which is the one-frame answer to "how accurately can this rig
@@ -1330,8 +1341,13 @@ audio). Progress history: `TASKS.md`.
   before the rotation is built, so what is left is a pure yaw: the splay still
   steers the shot, the pitch is the aim's. Live-fight measured -14 to -20.8
   degrees of shot pitch before, -0.1 to -3.9 after (against a -0.8 to -7.4
-  requirement). NOTE jerry (`strutMidR/L`) and cranky (`head`) measure the same
-  way and are NOT flagged — same fix available if they are ever reported.
+  requirement). JERRY (pods on `strutMidR/L`) and CRANKY (hose cannons on
+  `head`) carry it too — same geometry, same bug: a 20-degree lean tipped
+  jerry's right pod to -16.4. After: jerry's goo leaves at -1.4 to -4.1 under
+  leans of 10-16 degrees, cranky's hose tracks the height it needs to within
+  a degree. The yaw each of them is authored with (54-74 degrees of deliberate
+  splay) is untouched — flattening the barrel vector cannot change the yaw of
+  the rotation it builds.
   …AND THE CLIP MUST NOT AIM EITHER, which is the same rule jerry's pods
   already documented: frogger's shoot clip yawed the torso -10 and the head +7
   (mirrored on the off side), which alternated the whole hull left-right-left as

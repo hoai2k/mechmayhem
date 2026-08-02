@@ -38,6 +38,12 @@
 // one diamond per key (amber = selected, green = differs from the shipped clip):
 //   · DRAG a diamond to move that key along the timeline. It is clamped between
 //     its neighbours, so the list can never re-sort under the edit you're making.
+//   · RIGHT-CLICK a diamond for Copy / Paste / Delete, and bare track for
+//     "New keyframe" or "Paste as new key". COPY takes the key's POSE and ease
+//     and NOT its time — pasting is "make this key look like that one", and a
+//     key's time is its place in the rhythm. Ctrl/Cmd+C and Ctrl/Cmd+V do the
+//     same to the SELECTED key. It is how a repeating motion is authored: pose
+//     one beat, paste it onto the beats that repeat it.
 //   · RIGHT-CLICK bare track for "New keyframe" at that time. A new key is EMPTY
 //     (`pose: {}`) and so changes nothing about how the clip plays until you drag
 //     a joint on it — a key that snapshotted the whole interpolated pose would
@@ -791,6 +797,49 @@ export async function runPoseWorkbench(config, params) {
     note.textContent = `Deleted the key at t=${t.toFixed(2)}`;
   }
 
+  // ---- KEY CLIPBOARD ----------------------------------------------------
+  //
+  // COPY takes a key's POSE and its ease, and deliberately NOT its time: what
+  // you want when you paste is "make this key look like that one", and a key's
+  // time is where it sits in the rhythm, which you are not copying. It is how a
+  // repeating motion is authored — pose the first beat, then paste it onto
+  // every beat that repeats it, which is otherwise a lot of re-dragging the
+  // same limb to the same place.
+  //
+  // PASTE REPLACES the target key's pose rather than merging into it. A key is
+  // SPARSE — it names only the joints it authors — so a merge would leave
+  // whatever the target already had for joints the copied key is silent about,
+  // and "make it look like that one" would quietly not. It is one undo step
+  // either way.
+  let keyClip = null;      // {pose, ease, from} — the copied key
+  function copyKey(i) {
+    if (!editClip || i < 0 || i >= editClip.keys.length) return;
+    const k = editClip.keys[i];
+    keyClip = { pose: JSON.parse(JSON.stringify(k.pose || {})), ease: k.ease, from: k.t };
+    const n = Object.keys(keyClip.pose).length;
+    note.textContent = `Copied key ${i + 1}/${editClip.keys.length} (t=${k.t.toFixed(2)}) — `
+      + `${n} joint${n === 1 ? '' : 's'}`;
+  }
+  function pasteKey(i) {
+    if (!editClip || !keyClip || i < 0 || i >= editClip.keys.length) return;
+    const k = editClip.keys[i];
+    k.pose = JSON.parse(JSON.stringify(keyClip.pose));
+    k.ease = keyClip.ease;
+    compileLive();
+    showKeyRow();
+    gotoKey(i);
+    pushHistory();
+    note.textContent = `Pasted the pose from t=${keyClip.from.toFixed(2)} onto key `
+      + `${i + 1}/${editClip.keys.length} (t=${k.t.toFixed(2)})`;
+  }
+  // …and onto BARE track: a new key at that time carrying the copied pose, so a
+  // beat can be added to a rhythm in one action instead of add-then-paste.
+  function pasteNewKey(t) {
+    if (!editClip || !keyClip) return;
+    const i = addKeyAt(t);
+    if (i >= 0) pasteKey(i);
+  }
+
   function revertEdits() {
     if (!editClip || !origKeys) return;
     editClip.keys = JSON.parse(JSON.stringify(origKeys));
@@ -1185,6 +1234,11 @@ export async function runPoseWorkbench(config, params) {
     if (e.ctrlKey || e.metaKey) {
       if (k === 'z') { e.preventDefault(); (e.shiftKey ? redo : undo)(); }
       else if (k === 'y') { e.preventDefault(); redo(); }
+      // the KEY clipboard, on the keys everyone already reaches for. Guarded on
+      // a key being selected, so between keys the browser's own copy/paste is
+      // left alone rather than silently swallowed.
+      else if (k === 'c' && editClip && curKeyIdx >= 0) { e.preventDefault(); copyKey(curKeyIdx); }
+      else if (k === 'v' && editClip && curKeyIdx >= 0) { e.preventDefault(); pasteKey(curKeyIdx); }
       return;
     }
     if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
@@ -1385,7 +1439,9 @@ export async function runPoseWorkbench(config, params) {
   const KEY_PAD = 8;
   const keyBar = el('div', `position:relative;height:20px;margin:3px ${KEY_PAD}px 0;
     border-top:1px solid #2a3546;cursor:crosshair`);
-  keyBar.title = 'drag a key to move it · right-click for new/delete · DEL removes the selected key';
+  keyBar.dataset.rw = 'keybar';   // named so a headless test can find the strip
+  keyBar.title = 'drag a key to move it · right-click to copy/paste/delete · '
+    + 'Ctrl/⌘+C and Ctrl/⌘+V on the selected key · DEL removes it';
   panel.appendChild(keyBar);
   const keyDots = [];
   function keyX(t) { return editClip && editClip.dur ? (t / editClip.dur) * keyBar.clientWidth : 0; }
@@ -1455,10 +1511,20 @@ export async function runPoseWorkbench(config, params) {
     if (!editClip) return;
     const i = hitKey(ev.clientX);
     const t = keyTAt(ev.clientX);
+    const tt = Math.max(0, Math.min(editClip.dur, t));
     showKeyMenu(ev.clientX, ev.clientY, i >= 0
-      ? [[`Delete keyframe (t=${editClip.keys[i].t.toFixed(2)})`, () => deleteKey(i),
-        editClip.keys.length <= 1]]
-      : [[`New keyframe at t=${Math.max(0, Math.min(editClip.dur, t)).toFixed(2)}`, () => addKeyAt(t)]]);
+      ? [
+        [`Copy pose (t=${editClip.keys[i].t.toFixed(2)})`, () => copyKey(i)],
+        [keyClip ? `Paste pose from t=${keyClip.from.toFixed(2)}` : 'Paste pose',
+          () => pasteKey(i), !keyClip],
+        [`Delete keyframe (t=${editClip.keys[i].t.toFixed(2)})`, () => deleteKey(i),
+          editClip.keys.length <= 1],
+      ]
+      : [
+        [`New keyframe at t=${tt.toFixed(2)}`, () => addKeyAt(t)],
+        [keyClip ? `Paste as new key at t=${tt.toFixed(2)}` : 'Paste as new key',
+          () => pasteNewKey(t), !keyClip],
+      ]);
   });
   let keyMenu = null;
   // dismissal has to IGNORE the menu itself: a capture-phase window listener
@@ -1475,6 +1541,7 @@ export async function runPoseWorkbench(config, params) {
     keyMenu = el('div', `position:fixed;left:${x}px;top:${y}px;z-index:80;min-width:150px;
       background:#141b26;border:1px solid #33475e;border-radius:6px;padding:3px;
       box-shadow:0 8px 24px rgba(0,0,0,0.55);font:12px system-ui,sans-serif`);
+    keyMenu.dataset.rw = 'keymenu';
     for (const [text, fn, disabled] of items) {
       const it = el('div', `padding:6px 9px;border-radius:4px;white-space:nowrap;
         color:${disabled ? '#5c6b7d' : '#dfe8f5'};cursor:${disabled ? 'not-allowed' : 'pointer'}`);

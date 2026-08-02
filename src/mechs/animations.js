@@ -2253,18 +2253,36 @@ const GLACIER_TAUNT = {
 // (COLOSSUS_CLAP, his heavy) already solved where they may meet without going
 // through his own chest — these are its span and contact angles, softened.
 const COLOSSUS_TAUNT = {
+  // COLOSSUS — the SLOW CLAP. Four claps, unhurried and getting no faster, with
+  // the hands opening between each one so the pause is as visible as the strike.
+  //
+  // THE TWO POSES ARE THE OWNER'S, hand-set in the pose workbench, and the rest
+  // of the clip is those two repeated. What they fix is the READ: the first
+  // version reused the span and contact angles of his HEAVY's clap, which is a
+  // weapon — arms thrown wide and driven together on the horizontal — and a
+  // sarcastic clap is not a strike. These are asymmetric (one hand carried high
+  // and one low, meeting between them, and elbows folded across rather than
+  // out), so the hands come together UP AND DOWN in front of his chest. Small
+  // and unhurried; that is the whole joke.
+  //
+  // OPEN  = shoulderL [-15.12, 13.73, -14.67] · shoulderR [-79.75, -6.3, 11.95]
+  // CLAP  = elbowL [6.26, -36.86, 37.78] · elbowR [-57.83, -85.37, -15.7]
   dur: 3.0, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
     { t: 0.34, ease: 'outQuad', pose: { torso: [-6, 0, 0], head: [-8, 0, 0],
-      shoulderL: [-52, 0, -46], shoulderR: [-52, 0, 46], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
-    { t: 0.62, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30], elbowL: [-14, 44, -20], elbowR: [-14, -44, 20] } },
-    { t: 1.02, ease: 'outQuad', pose: { shoulderL: [-52, 0, -46], shoulderR: [-52, 0, 46], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
-    { t: 1.30, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30], elbowL: [-14, 44, -20], elbowR: [-14, -44, 20] } },
-    { t: 1.70, ease: 'outQuad', pose: { shoulderL: [-52, 0, -46], shoulderR: [-52, 0, 46], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
-    { t: 1.98, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30], elbowL: [-14, 44, -20], elbowR: [-14, -44, 20] } },
-    { t: 2.38, ease: 'outQuad', pose: { shoulderL: [-52, 0, -46], shoulderR: [-52, 0, 46], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
-    { t: 2.62, ease: 'inQuad', pose: { torso: [-3, 0, 0], head: [-4, 0, 0], shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30], elbowL: [-14, 44, -20], elbowR: [-14, -44, 20] } },
+      shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
+    { t: 0.62, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
+      elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] } },
+    { t: 1.02, ease: 'outQuad', pose: { shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
+    { t: 1.30, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
+      elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] } },
+    { t: 1.70, ease: 'outQuad', pose: { shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
+    { t: 1.98, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
+      elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] } },
+    { t: 2.38, ease: 'outQuad', pose: { shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
+    { t: 2.62, ease: 'inQuad', pose: { torso: [-3, 0, 0], head: [-4, 0, 0], shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
+      elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] } },
     { t: 3.0, ease: 'inOutQuad', pose: REST_FULL },
   ],
   events: [{ t: 0.62, type: 'sfx', arg: 'block' }, { t: 1.30, type: 'sfx', arg: 'block' },
