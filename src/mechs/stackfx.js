@@ -112,7 +112,7 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
       if (k[key] <= 0) k[key] = gap;
     };
 
-    if (spark) { sparkStack(sf, p, k, s, burn, run, fx, tick); continue; }
+    if (spark) { sparkStack(sf, p, k, s, burn, run, fx, sparkPalette(sf, mech.def), tick); continue; }
 
     tick('flame', (sf.flameGap ?? 0.055) / (0.75 + 1.5 * burn), () => {
       const up = (2.6 + 4.5 * burn) * s;
@@ -161,10 +161,31 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
 // like — white centre, coloured halo.
 const SPARK_TEX_HUE = 27 / 360;         // the baked ramp's own orange
 const _c = new THREE.Color();
-function sparkHue(sf) {
-  if (sf.hue != null) return sf.hue;     // an authored rotation wins outright
-  const h = _c.set(sf.color2 ?? 0x3fd8ff).getHSL({ h: 0, s: 0, l: 0 }).h;
-  return ((h - SPARK_TEX_HUE + 1.5) % 1 - 0.5) * Math.PI * 2;
+// how far round the wheel the sampled texture has to turn to land on hue `h`
+const hueRot = (h) => ((h - SPARK_TEX_HUE + 1.5) % 1 - 0.5) * Math.PI * 2;
+
+// THE CRACKLE ANSWERS TO THE PAINT, exactly as inferno's flames do. A spark is
+// the same problem as a flame — the mech is repainted, so what comes out of him
+// should be too — and it takes the same answer: `schemeFire` (colorscheme.js),
+// which is a colour for a scheme that HAS one and null for the ones that don't
+// (white, silver, black, brown — an ordinary fire's colours, and for tempest an
+// ordinary electric blue). So a stock or neutral-schemed tempest sparks in his
+// authored blue and an AMETHYST one sparks purple, off one rule shared with
+// inferno rather than a second hand-kept list.
+// Both halves have to move together: `color`/`color2` are multiplied over the
+// sprite and `hue` turns the sprite's own baked orange ramp underneath them
+// (see the note above) — tint one and not the other and you get mud.
+function sparkPalette(sf, def) {
+  const tint = fireTintOf(def);
+  if (!tint) {
+    return { c1: sf.color ?? 0xd8f6ff, c2: sf.color2 ?? 0x3fd8ff, arc: sf.arc ?? sf.color2 ?? 0x3fd8ff,
+      hue: sf.hue != null ? sf.hue : hueRot(_c.set(sf.color2 ?? 0x3fd8ff).getHSL({ h: 0, s: 0, l: 0 }).h) };
+  }
+  // stops are [dark base, body, bright, near-white] — a spark is a white-hot
+  // core cooling to the colour, so it takes the top stop and the bright one
+  // …and the rotation is measured against the SPARK atlas' own orange, which is
+  // a shade off the flame atlas' — `tint.rot` is the flame's number, not this one
+  return { c1: tint.stops[3], c2: tint.stops[2], arc: tint.stops[2], hue: hueRot(tint.h) };
 }
 
 // ---------------------------------------------------------------------------
@@ -183,29 +204,34 @@ function sparkHue(sf) {
 //   ARC    a stub of real lightning off the lip, rare and very short. Needs the
 //          full Effects (`fx.lightning`); the menus' BurnerFx has no such pool
 //          and simply does without, exactly as it does without smoke.
-function sparkStack(sf, p, k, s, burn, run, fx, tick) {
-  const c1 = sf.color ?? 0xd8f6ff;      // the hot core
-  const c2 = sf.color2 ?? 0x3fd8ff;     // what it cools to
-  const hue = sparkHue(sf);
+//
+// SIZED TO READ AS TRIM, NOT AS A FIRE. Both layers run at HALF the scale the
+// first build used: the sparks are little bright specks around the lip rather
+// than a shower, and the arcs are half as long, which is the difference between
+// a chimney that crackles and one that looks like it is venting. The dynamics
+// (throw, gravity, gap) are untouched — this is the size of the thing, not how
+// it moves.
+function sparkStack(sf, p, k, s, burn, run, fx, pal, tick) {
+  const { c1, c2, hue } = pal;          // hot core, what it cools to, atlas turn
   tick('flame', (sf.sparkGap ?? 0.09) / (0.6 + 1.2 * burn), () => {
     const n = 2 + ((Math.random() * (2 + 3 * burn)) | 0);
     for (let j = 0; j < n; j++) {
       fx.sparks.emit(p.x + rand(-0.08, 0.08) * s, p.y + 0.04 * s, p.z + rand(-0.08, 0.08) * s,
         rand(-2.6, 2.6) * s, rand(3, 9) * (0.7 + 0.5 * burn) * s, rand(-2.6, 2.6) * s,
-        { life: rand(0.14, 0.34), size: rand(0.16, 0.36) * s, color: c1, color2: c2,
+        { life: rand(0.14, 0.34), size: rand(0.08, 0.18) * s, color: c1, color2: c2,
           gravity: 20 * s, drag: 1.6, fadeIn: 0.01, hue });
     }
     fx.glows.emit(p.x, p.y + 0.06 * s, p.z, 0, 0.6 * s, 0,
-      { life: 0.13, size: (0.7 + 0.9 * burn) * s, color: c2, alpha: 0.55 * burn, grow: -0.9 * s });
+      { life: 0.13, size: (0.35 + 0.45 * burn) * s, color: c2, alpha: 0.45 * burn, grow: -0.45 * s });
   });
   // the arc. `jag` and the throw are both in body units, so a scaled mech
   // (colossus' ult, a menu plinth) crackles at its own size.
   if (!fx.lightning) return;
   tick('ember', rand(0.3, 0.95) / (0.6 + 0.9 * run), () => {
-    const a = Math.random() * Math.PI * 2, r = rand(0.5, 1.5) * s;
-    _arc.set(p.x + Math.cos(a) * r, p.y + rand(0.4, 1.6) * s, p.z + Math.sin(a) * r);
-    fx.lightning.spawn(p, _arc, { color: sf.arc ?? c2, dur: rand(0.05, 0.11),
-      jag: 0.34 * s, thick: 0.055 * s, branch: false });
+    const a = Math.random() * Math.PI * 2, r = rand(0.25, 0.75) * s;
+    _arc.set(p.x + Math.cos(a) * r, p.y + rand(0.2, 0.8) * s, p.z + Math.sin(a) * r);
+    fx.lightning.spawn(p, _arc, { color: pal.arc, dur: rand(0.05, 0.11),
+      jag: 0.17 * s, thick: 0.045 * s, branch: false });
   });
 }
 
@@ -223,19 +249,19 @@ export function stackBlast(mech, sf, { fx, scale = 1, smoke = true }) {
     // one real arc thrown up off the lip, which is what a capacitor dumping
     // into a dash should look like. No smoke — nothing burned.
     if (spark) {
-      const c1 = sf.color ?? 0xd8f6ff, c2 = sf.color2 ?? 0x3fd8ff, sh = sparkHue(sf);
+      const { c1, c2, arc, hue: sh } = sparkPalette(sf, mech.def);
       for (let n = 0; n < 14; n++) {
         fx.sparks.emit(p.x, p.y + 0.05 * s, p.z,
           rand(-7, 7) * s, rand(6, 20) * s, rand(-7, 7) * s,
-          { life: rand(0.22, 0.55), size: rand(0.22, 0.5) * s, color: c1, color2: c2,
+          { life: rand(0.22, 0.55), size: rand(0.11, 0.25) * s, color: c1, color2: c2,
             gravity: 16 * s, drag: 1.2, fadeIn: 0.01, hue: sh });
       }
       fx.glows.emit(p.x, p.y + 0.1 * s, p.z, 0, 1.4 * s, 0,
-        { life: 0.2, size: 2 * s, color: c2, alpha: 0.8, grow: -2 * s });
+        { life: 0.2, size: 1 * s, color: c2, alpha: 0.7, grow: -1 * s });
       if (fx.lightning) {
         const a = Math.random() * Math.PI * 2;
-        _arc.set(p.x + Math.cos(a) * 2.2 * s, p.y + rand(1.6, 3) * s, p.z + Math.sin(a) * 2.2 * s);
-        fx.lightning.spawn(p, _arc, { color: sf.arc ?? c2, dur: 0.14, jag: 0.5 * s, thick: 0.09 * s });
+        _arc.set(p.x + Math.cos(a) * 1.1 * s, p.y + rand(0.8, 1.5) * s, p.z + Math.sin(a) * 1.1 * s);
+        fx.lightning.spawn(p, _arc, { color: arc, dur: 0.14, jag: 0.25 * s, thick: 0.07 * s });
       }
       continue;
     }
