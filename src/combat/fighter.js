@@ -1329,6 +1329,41 @@ export class Fighter {
         { life: 0.35, size: 3.4, color: 0xff2030, alpha: 0.95 });
       w.effects.impactSparks(target, 0xff2030, 16, 10);
       w.audio?.play('zap');
+    } else if (atk.fx === 'apeQuake') {
+      // KONGA: both fists land together — the floor answers. A tight crater
+      // ring at the fists plus a wider ground shock that only staggers, so the
+      // slam's real damage stays on the melee sweep and this is the punctuation.
+      const p = new THREE.Vector3(cx, 0, cz);
+      w.effects.rings.spawn(p, { from: 0.8, to: 8.5, dur: 0.42, color: 0xd8b070, y: 0.3 });
+      w.effects.explosion(new THREE.Vector3(cx, 0.9, cz), 3.0, { color: 0xc8a060, smoke: true, sparks: false });
+      w.effects.dustPuff(p, 16, 0x9a8878);
+      w.groundShockwave(this, p, 7.5, atk.dmg * 0.3, 12, 0xd8b070);
+      // slabs of dirt thrown up around the impact
+      for (let i = 0; i < 14; i++) {
+        const a = rand(TAU), rr = rand(0.8, 3.4);
+        w.effects.smoke.emit(cx + Math.cos(a) * rr, 0.3, cz + Math.sin(a) * rr,
+          Math.cos(a) * 5, rand(3, 8), Math.sin(a) * 5,
+          { life: rand(0.5, 0.95), size: rand(1.0, 2.2), color: 0x9a8878, alpha: 0.6 });
+      }
+      w.audio?.play('hitHeavy');
+    } else if (atk.fx === 'hornQuake') {
+      // TRITONE: the horns rip UP through the target, so the punctuation is a
+      // vertical burst at the horn tips rather than a floor ring.
+      const target = new THREE.Vector3(cx, Math.max(1.2, cy), cz);
+      w.effects.explosion(target, 2.6, { color: 0xffa040, smoke: true, sparks: false });
+      w.effects.impactSparks(target, 0xffc070, 20, 14);
+      w.effects.rings.spawn(new THREE.Vector3(cx, 0, cz), { from: 1.0, to: 6.0, dur: 0.38, color: 0xffa040, y: 0.25 });
+      // dirt sprayed forward off the horn tips
+      for (const key of ['hornL', 'hornR', 'hornNose']) {
+        const a = this.mech.anchors[key];
+        if (!a) continue;
+        const hp = a.getWorldPosition(new THREE.Vector3());
+        for (let i = 0; i < 5; i++) {
+          w.effects.smoke.emit(hp.x, hp.y, hp.z, rand(-3, 3), rand(4, 9), rand(-3, 3),
+            { life: rand(0.4, 0.8), size: rand(0.7, 1.5), color: 0x8c8266, alpha: 0.55 });
+        }
+      }
+      w.audio?.play('hitHeavy');
     }
   }
 
@@ -3089,6 +3124,11 @@ export class Fighter {
       grounded: this.grounded || this.climb,
       vy: this.vel.y,
       dashT: this.dashT,
+      // the combat state verbatim ('attack' | 'hitstun' | 'special' | ...).
+      // The face layer (mechs/face.js) reads it to flinch on a hit and to
+      // bellow through a special — expression is a reaction to what the body
+      // is DOING, and only the fighter knows that.
+      state: this.state,
       firing: this.firing,
       hovering: this.hovering,
       duck: dk,

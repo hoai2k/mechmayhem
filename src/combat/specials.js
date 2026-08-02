@@ -12,6 +12,7 @@ import { Fighter } from './fighter.js';
 import { AIController } from '../game/ai.js';
 import { cloneMech } from '../mechs/factory.js';
 import { stillCasting, cast, eachEnemy, volley, timedUpdater, overlapsY } from './movekit.js';
+import { faceRoar } from '../mechs/face.js';
 
 const _v = new THREE.Vector3();
 // scratch for bull-rush footfalls (consumed immediately, never retained)
@@ -949,6 +950,135 @@ export const SPECIALS = {
       }
     }, { guard: (f) => stillCasting(f) });
     f.world.schedule(sp.duration + 0.05, () => { if (f.state === 'special') { f.animator.stop(); f.setState('normal'); } });
+  },
+
+  // KONGA: THUNDER DRUMS. He rears to full height and hammers his own chest —
+  // three cracks that each punch a ring of pressure out across the ground, and
+  // a final roar that knocks anything close off its feet. He comes out of it
+  // ANGRY: a damage-and-speed buff for the rest of the fight window.
+  //
+  // The reason it's a chest beat and not another swing: his whole kit is
+  // "close the distance and be enormous", so his special should REWARD already
+  // being close and PUNISH crowding him, rather than adding a fourth way to
+  // hit one target.
+  chestBeat(f, sp) {
+    const w = f.world;
+    const dur = cast(f, 'chestBeat', { stateT: (d) => d * 0.9 });
+    w.audio?.play('charge');
+    // the three drum-beats, on the clip's own hit frames
+    const BEATS = [0.42, 0.58, 0.74];
+    BEATS.forEach((bt, i) => {
+      w.schedule(bt, () => {
+        if (!stillCasting(f)) return;
+        const at = f.center();
+        w.effects.rings.spawn(f.pos, { from: 1.2, to: 5 + i * 1.6, dur: 0.34, color: f.def.colors.glow, y: 0.4 });
+        w.effects.dustPuff(f.pos, 8, 0x9a8878);
+        w.effects.addShake(0.28);
+        w.audio?.play('hitHeavy');
+        // each crack shoves anyone in arm's reach; only the last one launches
+        eachEnemy(w, f, at, (sp.radius || 9) * 0.55 * f.scale, (e, d) => {
+          if (!overlapsY(e, f.pos.y, f.height)) return;
+          e.takeHit(sp.dmg * 0.28 * f.dmgMult(), f, {
+            knock: (sp.knock || 20) * 0.4, srcPos: f.pos, soft: true,
+          });
+        });
+      });
+    });
+    // the ROAR — the payoff beat
+    w.schedule(0.92, () => {
+      if (!stillCasting(f)) return;
+      faceRoar(f, 0.85);
+      w.audio?.play('howl');
+      w.effects.addShake(0.65);
+      w.engine.addHitStop(0.06);
+      const R = (sp.radius || 9) * f.scale;
+      w.effects.rings.spawn(f.pos, { from: 1.5, to: R, dur: 0.42, color: f.def.colors.glow, y: 0.5 });
+      w.effects.explosion(f.center(), 2.4, { color: f.def.colors.glow, smoke: true, sparks: false });
+      w.groundShockwave(f, f.pos, R, sp.dmg * f.dmgMult(), sp.knock || 20, f.def.colors.glow, true);
+      // ...and he stays wound up: harder and faster while the drums ring
+      f.status.buff = { spd: 1.16, dmg: 1.32, t: sp.duration || 6 };
+      // dust kicked off every surface he can reach
+      for (let i = 0; i < 18; i++) {
+        const a = rand(TAU), rr = rand(1, R * 0.8);
+        w.effects.smoke.emit(f.pos.x + Math.cos(a) * rr, f.pos.y + 0.2, f.pos.z + Math.sin(a) * rr,
+          Math.cos(a) * 3, rand(1, 3), Math.sin(a) * 3,
+          { life: rand(0.5, 0.9), size: rand(1.2, 2.4), color: 0x9a8878, alpha: 0.5 });
+      }
+    });
+    w.schedule(dur, () => { if (f.state === 'special') { f.animator.stop(); f.setState('normal'); } });
+  },
+
+  // TRITONE: GORE CHARGE. The move the whole body was built for — he drops his
+  // head, plants the frill as a shield and RUNS, for as long as B is held.
+  // Unlike rhino's bull rush this one does not merely knock you down: the
+  // horns catch you, carry you the rest of the run, and then throw.
+  goreCharge(f, sp) {
+    const w = f.world;
+    cast(f, 'chargeLean', { stateT: 5.2 });
+    w.audio?.play('charge');
+    faceRoar(f, 0.7);
+    f._chargeT = 0;
+    f._goreStep = undefined;
+    const endRush = (recovery) => {
+      f._charging = false;
+      f.animator.stop();
+      f.setState('attack', recovery);
+    };
+    const tick = () => {
+      if (!f.alive || f.state !== 'special') { f._charging = false; return; }
+      const dt = 0.05;
+      f._chargeT += dt;
+      const holding = (f.intent.specialHeld || f._chargeT < 0.9) && f._chargeT < 5;
+      const spd = f.def.stats.speed * 3.0;
+      f.vel.x = Math.sin(f.yaw) * spd;
+      f.vel.z = Math.cos(f.yaw) * spd;
+      if (f.isAI) {
+        const e0 = f.nearestEnemy();
+        if (e0 && f.pos.distanceTo(e0.pos) < 40) {
+          f.targetYaw = f.yawTo(e0);
+          f.yaw += clamp(angleDiff(f.yaw, f.targetYaw), -0.045, 0.045);
+        }
+      }
+      // four columnar feet throwing dirt, hung off the gait phase so the
+      // stomps land with the legs instead of on a timer of their own
+      f.world.effects.dustPuff(f.pos, 3, 0x8c8266);
+      const ph = f.animator.phase || 0;
+      const step = Math.floor(ph / Math.PI);
+      if (f._goreStep !== undefined && step !== f._goreStep) {
+        const foot = f.mech.joints[step % 2 ? 'ankleL' : 'ankleR'];
+        const at = foot ? foot.getWorldPosition(_rushFoot) : f.pos;
+        w.effects.dustPuff(at, 9, 0x8c8266);
+        w.effects.addShake(0.16);
+        w.audio?.play('land');
+      }
+      f._goreStep = step;
+      for (const e of w.fighters) {
+        if (e === f || !e.alive || f.isAllyOf(e)) continue;
+        const dx = w.wrapDelta(e.pos.x - f.pos.x), dz = w.wrapDelta(e.pos.z - f.pos.z);
+        // the horns ride at HIS height — jump it and the charge passes under
+        if (Math.hypot(dx, dz) < 4.0 * f.scale && overlapsY(e, f.pos.y, f.height)) {
+          // CAUGHT ON THE HORNS: hoisted and thrown, not merely bumped
+          e.takeHit(sp.dmg * f.dmgMult(), f, {
+            knock: sp.knock, launch: sp.launch || 12, srcPos: f.pos, heavy: true,
+          });
+          e.vel.x = Math.sin(f.yaw) * 26;
+          e.vel.z = Math.cos(f.yaw) * 26;
+          e.vel.y = Math.max(e.vel.y, 15);
+          w.engine.addHitStop(0.10);
+          w.effects.addShake(0.7);
+          w.effects.impactSparks(e.center(), f.def.colors.glow, 20, 13);
+          w.effects.explosion(e.center(), 2.2, { color: 0xc8b08a, smoke: true, sparks: false });
+          w.audio?.play('hitHeavy');
+          faceRoar(f, 0.5);
+          endRush(0.5);
+          return;
+        }
+      }
+      if (holding) w.schedule(dt, tick);
+      else endRush(0.35);
+    };
+    f._charging = true;
+    w.schedule(0.05, tick);
   },
 };
 
@@ -2804,5 +2934,110 @@ export const ULTS = {
       },
     });
     f.iframes = dur;
+  },
+
+  // KONGA: APEX BARRAGE. He rears to full height and empties BOTH pods —
+  // not aimed fire but saturation: tube after tube going up, then the whole
+  // sky coming down across a wide footprint. His special rewards being close;
+  // his ult punishes running away from it.
+  apexBarrage(f, u) {
+    const w = f.world;
+    const DUR = u.duration || 5.5;
+    cast(f, 'castRaise', { state: 'ult', stateT: DUR * 0.5, speed: 1.1 });
+    w.audio?.play('ultReady');
+    faceRoar(f, 1.2);
+    // rear up and beat once — the same tell as the special, at ult scale
+    w.schedule(0.35, () => {
+      if (!f.alive) return;
+      w.effects.addShake(0.6);
+      w.effects.rings.spawn(f.pos, { from: 1.5, to: 9, dur: 0.4, color: f.def.colors.glow, y: 0.4 });
+      w.audio?.play('howl');
+    });
+    const N = u.count || 34;
+    const R = (u.radius || 20);
+    // ripple-fire every tube: alternate pods, each missile lobbed high and
+    // arcing down onto a scattered ground point in front of him
+    volley(w, f, N, 0.09, (i) => {
+      const pod = f.mech.anchors[i % 2 ? 'podR' : 'podL'] || f.mech.anchors.muzzleR;
+      const origin = pod ? pod.getWorldPosition(new THREE.Vector3()) : muzzle(f);
+      // land points spread over a disc centred well ahead of him
+      const a = rand(TAU), rr = Math.sqrt(rand(0, 1)) * R;
+      const c = fwd(f, R * 0.55);
+      const land = new THREE.Vector3(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr);
+      const d = land.clone().sub(origin).normalize();
+      w.projectiles.spawn('missile', f, origin, d, {
+        dmg: u.dmg * f.dmgMult(), speed: 34, splash: 3.4, color: 0xff8a30,
+        arcTo: land, arcTime: 1.05, life: 4,
+      });
+      w.audio?.play('missile', { vol: 0.5 });
+      // launch flash off the firing pod
+      w.effects.muzzleFlash?.(origin, 0xff9a40);
+      w.effects.smoke.emit(origin.x, origin.y, origin.z, rand(-1, 1), rand(1, 3), rand(-1, 1),
+        { life: 0.7, size: 1.4, color: 0x8a8a8a, alpha: 0.5 });
+    }, { guard: (f) => f.alive && f.state === 'ult' });
+    w.schedule(DUR, () => { if (f.state === 'ult') { f.animator.stop(); f.setState('normal'); } });
+  },
+
+  // TRITONE: SIEGE PROTOCOL. He stops being a charger and becomes what the
+  // engineers actually built: he plants all four legs, the frill crown opens,
+  // and everything on the chassis fires at once — flank cannons flat and level,
+  // frill rockets arcing over the top — for as long as the protocol runs.
+  //
+  // Deliberately the opposite of his special: rooted instead of mobile, area
+  // instead of single-target, so his two big buttons never want the same range.
+  siegeProtocol(f, u) {
+    const w = f.world;
+    const DUR = u.duration || 6.5;
+    cast(f, 'tritoneBrace', { state: 'ult', stateT: DUR });
+    w.audio?.play('ultReady');
+    faceRoar(f, 0.9);
+    // planted: he does not move while the protocol runs
+    const anchorX = f.pos.x, anchorZ = f.pos.z;
+    w.effects.rings.spawn(f.pos, { from: 6, to: 1.4, dur: 0.5, color: f.def.colors.glow, y: 0.3 });
+    let shellT = 0, rocketT = 0;
+    w.addUpdater((dt, t) => {
+      if (!f.alive || f.state !== 'ult') return false;
+      // rooted — recoil rocks him but he does not travel
+      f.vel.x = 0; f.vel.z = 0;
+      f.pos.x = anchorX; f.pos.z = anchorZ;
+      // ---- FLANK CANNONS: flat, fast, alternating left/right ----
+      shellT -= dt;
+      if (shellT <= 0) {
+        shellT = 0.30;
+        const side = (Math.floor(t / 0.30) % 2) ? 'muzzleL' : 'muzzleR';
+        const an = f.mech.anchors[side] || f.mech.anchors.muzzleR;
+        const from = an ? an.getWorldPosition(new THREE.Vector3()) : muzzle(f);
+        const e = f.nearestEnemy();
+        const aim = e ? leadPos(f, e, 0.35) : fwd(f, 30, 1.2);
+        const dir = aim.clone().sub(from).normalize();
+        w.projectiles.spawn('shell', f, from, dir, {
+          dmg: u.dmg * f.dmgMult(), speed: 46, splash: u.radius || 5,
+          knock: 12, color: 0xffb060, life: 3,
+        });
+        w.audio?.play('cannon');
+        w.effects.muzzleFlash?.(from, 0xffb060);
+        f.animator.addImpulse?.('torso', [-0.10, 0, 0], 30, 10);
+        w.effects.addShake(0.18);
+      }
+      // ---- FRILL ROCKETS: arcing over the top onto scattered ground ----
+      rocketT -= dt;
+      if (rocketT <= 0) {
+        rocketT = 0.42;
+        const fp = f.mech.anchors.frillPods || f.mech.anchors.core;
+        const from = fp ? fp.getWorldPosition(new THREE.Vector3()) : f.center();
+        const a = rand(TAU), rr = Math.sqrt(rand(0, 1)) * 16;
+        const c = fwd(f, 12);
+        const land = new THREE.Vector3(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr);
+        const dir = land.clone().sub(from).normalize();
+        w.projectiles.spawn('missile', f, from, dir, {
+          dmg: u.dmg * 0.7 * f.dmgMult(), speed: 30, splash: 3.2, color: 0xff8a24,
+          arcTo: land, arcTime: 0.95, life: 4,
+        });
+        w.audio?.play('missile', { vol: 0.45 });
+      }
+      return t <= DUR;
+    }, () => {
+      if (f.state === 'ult') { f.animator.stop(); f.setState('normal'); }
+    });
   },
 };
