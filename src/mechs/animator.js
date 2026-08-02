@@ -4,17 +4,32 @@ import * as THREE from 'three';
 import { CLIPS, UPPER_JOINTS, defClipVariants } from './animations.js';
 import {
   gaitFor, gaitIdFor, applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
-  effectiveGait, applyTailGait, tailChainOf,
+  effectiveGait, applyTailGait, tailChainOf, applyHexGait, hexLegsOf,
 } from './gaits.js';
 import { ARM_JOINTS, mirrorJointName, mirrorValue } from './glbanim.js';
 import { bodySkinnedMesh, boneSoleSamples } from './glbshell.js';
 import { SIGNATURES, levelHands } from './signatures.js';
 import { ease, lerp, clamp, clamp01, damp, angleDamp, TAU } from '../core/utils.js';
 
+// WHEN THE LEGS GIVE UP AND WALK BACKWARDS. A strafe is not a back-pedal: only
+// travel that is very nearly straight AT the camera reverses the cycle, and
+// everything short of that — sideways, sideways-and-a-bit-behind — turns the
+// hips to face the way he is going and keeps striding forwards.
+//
+// READ THESE OFF A CLOCK FACE, because that is how the complaint arrives: noon
+// is his facing, 3 is a pure right strafe, 6 is straight back. 5 o'clock is
+// 150°, and this line USED to sit exactly there — so the one direction most
+// likely to be held (sideways-and-back, retreating while circling) landed on
+// the boundary and flipped in and out of a backwards walk. It is 170° now:
+// everything up to and including 5 o'clock strides FORWARD with the hips turned
+// under a still-aiming chest, and only very nearly 6 reverses. 20° of
+// hysteresis on top, so the boundary itself cannot flutter.
+export const LEG_BACK_ON = 170 * Math.PI / 180;   // enter the reversed cycle
+export const LEG_BACK_OFF = 150 * Math.PI / 180;  // and leave it
 // HOW FAR THE HIPS MAY TURN off the body's facing, and how fast they get there.
-// A quarter turn is the limit on purpose: past it the reversed cycle takes over
-// (see legFrame), so nothing ever has to spin the legs the long way round.
-const LEG_TURN_MAX = Math.PI / 2;
+// Exactly the reversal threshold: past it the reversed cycle takes over (see
+// legFrame), so nothing ever has to spin the legs the long way round.
+const LEG_TURN_MAX = LEG_BACK_ON;
 const LEG_TURN_RATE = 9;
 const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -163,27 +178,50 @@ export class Animator {
   // the legs take it while the torso counter-rotates by the same amount, so the
   // lower body walks where it is going and the upper body still aims.
   //
-  // …UP TO A POINT. Past a quarter turn, spinning the legs round to follow is
-  // worse than the disease — he pirouettes. Past that the OTHER answer applies:
-  // measure the drift against the REVERSED facing (a 180° back-pedal becomes 0°
-  // of leg turn) and run the walk cycle BACKWARDS, so he back-pedals with the
-  // feet pushing the right way. Between them they cover the whole circle: strafe
-  // turns the hips, backpedal reverses the cycle, and back-strafing does both.
+  // …UP TO A POINT. Aimed almost straight back at the camera there is nothing
+  // left to turn toward, so the OTHER answer applies: measure the drift against
+  // the REVERSED facing (a 180° back-pedal becomes 0° of leg turn) and run the
+  // walk cycle BACKWARDS, so he back-pedals with the feet pushing the right way.
+  //
+  // WHERE THAT LINE SITS IS THE WHOLE FEEL. It used to be a quarter turn, which
+  // made "sideways with a little bit of backwards" a REVERSED cycle — a strafe
+  // that walked backwards, which is not what a strafe looks like. It is 170°
+  // now (LEG_BACK_ON): a STRAFE NEVER REVERSES, only a genuine retreat does, and
+  // the hips are allowed the full 170° to get there.
+  //
+  // Crossing that line is a real half-turn of the pelvis — the two answers put
+  // the legs on opposite sides of the body, so there is no sleight of hand that
+  // makes it free — and it is DAMPED like every other leg turn, which reads as
+  // the mech pivoting his lower body to back away. What keeps it from happening
+  // twice a second is the 20° of hysteresis: he commits to the retreat at 150°
+  // and does not come out of it until 130°.
   //
   // Humanoids only. A crab does not counter-rotate its waist, and neither does a
   // wolf on four legs — gated on the gait (`standard`/`sprint`) plus a roster
   // opt-out (`strafeLegs: false`) for the bodies that walk upright but are not
   // built like people.
   legFrame(ctx, speed, dt) {
-    const st = this._legFrame || (this._legFrame = { turn: 0, rev: 0 });
+    const st = this._legFrame || (this._legFrame = { turn: 0, rev: 0, back: false });
     const on = this.canStrafeTurn() && ctx.grounded !== false && speed > 0.4;
-    const drift = on ? (ctx.drift || 0) : 0;
-    // which way round is he actually walking?
-    const back = Math.abs(drift) > Math.PI / 2;
+    // OFF is an unwind, not a crossing: a mech that stops, jumps or leaves the
+    // strafe eases both back to neutral. Rebasing here instead would spin the
+    // legs a full half turn every time he came to a halt mid-retreat.
+    if (!on) {
+      st.back = false;
+      st.turn = angleDamp(st.turn, 0, LEG_TURN_RATE, dt);
+      st.rev = damp(st.rev, 0, LEG_TURN_RATE, dt);
+      return st;
+    }
+    const drift = ctx.drift || 0;
+    // which way round is he actually walking? (hysteresis: enter late, leave
+    // early, so the boundary cannot chatter)
+    const mag = Math.abs(drift);
+    const back = st.back ? mag > LEG_BACK_OFF : mag > LEG_BACK_ON;
+    st.back = back;
     const want = back ? wrapPi(drift - Math.PI) : drift;
     st.turn = angleDamp(st.turn, clamp(want, -LEG_TURN_MAX, LEG_TURN_MAX), LEG_TURN_RATE, dt);
-    // the cycle's direction is a 0..1 blend rather than a switch, so crossing
-    // the quarter-turn does not jump the stride to the other foot
+    // the cycle's direction is a 0..1 blend rather than a switch, so the stride
+    // eases through the reversal instead of jumping to the other foot
     st.rev = damp(st.rev, back ? 1 : 0, LEG_TURN_RATE, dt);
     return st;
   }
@@ -231,6 +269,13 @@ export class Animator {
   tailChain() {
     if (this._tail === undefined) this._tail = tailChainOf(this.mech.rigBones) || null;
     return this._tail;
+  }
+
+  // …and the extra legs a hexapod carries (see hexLegsOf). Null for every body
+  // that walks on the two the game knows about.
+  hexLegs() {
+    if (this._hex === undefined) this._hex = hexLegsOf(this.mech.rigBones) || null;
+    return this._hex;
   }
 
   makeRestTarget() {
@@ -539,6 +584,34 @@ export class Animator {
       this._gaitEnv.quadQ = this._quadQ;
       applyQuadGait(tgt, this._gait, this._gaitEnv);
     }
+    // ===== the extra legs (a gait with a `hex` block — CRANKY the crab) =====
+    // A hexapod's other four (see hexLegsOf). Unlike the tail these are LEGS, so
+    // they get the same deal the two the game knows about get: they hold their
+    // rest shape unless he is actually walking, and the pose smoother eases them
+    // back into it when he stops. Seeded whether he is moving or not, or a stop
+    // would simply keep the last frame of a stride and freeze mid-step.
+    //
+    // BEFORE THE FOOT RULE, because this pass also rewrites the BACK pair's
+    // thigh — `hex.yaw` trades a share of its pendulum for a swing round the hip
+    // — and a foot rule that had already read the old pose would be levelling an
+    // ankle against a leg that is no longer there.
+    const hex = this.gait?.hex ? this.hexLegs() : null;
+    if (hex) {
+      for (const l of hex.legs) {
+        if (!l.driven) continue;
+        tgt[l.hip] = [...l.restHip];
+        if (l.knee) tgt[l.knee] = [...l.restKnee];
+      }
+      // …and the stride itself only while there is one. `_gaitEnv` is built in
+      // the walk block above and carries THIS frame's phase, so the extra legs
+      // run on the same clock as the two the stride drives — which is what makes
+      // the cadence match the ground speed, and what makes the gait workbench's
+      // pause freeze them (it freezes the phase, and there is no other clock).
+      if (grounded && speed > 0.4 && this._gaitEnv) {
+        this._gaitEnv.hex = hex;
+        applyHexGait(tgt, this._gait, this._gaitEnv);
+      }
+    }
     // hand-keyed corrections over the cycle, BEFORE the foot rule — a gait's
     // rules about feet outrank a hand edit (see applyGaitKeys)
     if (grounded && speed > 0.4 && this.gait.keys?.length) {
@@ -846,6 +919,7 @@ export class Animator {
     // it survives to the draw untouched. Smoothed for free: the keys went into
     // `tgt`, so the same filter the rest of the pose gets applies to them.
     this.applyTailPose();
+    this.applyHexPose();
     // where the sole ended up this frame — the input to the pelvis follow above
     if (this.soles) {
       this._soleClrSide = this.soleClearanceBySide();
@@ -880,6 +954,24 @@ export class Animator {
       const v = this.cur['tail' + i];
       const b = bones['tail' + i];
       if (v && b) b.rotation.set(v[0], v[1], v[2]);
+    }
+  }
+
+  // The extra legs' smoothed angles onto the rig's own bones. Same placement as
+  // the tail — after the retarget, because these bones are not game joints and
+  // adapter.sync never writes them.
+  applyHexPose() {
+    const hex = this._hex;
+    if (!hex) return;
+    const bones = this.mech.rigBones;
+    if (!bones) return;
+    for (const l of hex.legs) {
+      if (!l.driven) continue;
+      for (const key of [l.hip, l.knee]) {
+        const v = key && this.cur[key];
+        const b = key && bones[key];
+        if (v && b) b.rotation.set(v[0], v[1], v[2]);
+      }
     }
   }
 

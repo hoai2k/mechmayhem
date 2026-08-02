@@ -30,26 +30,45 @@
 // the whole point: the emitter tracks the chimney through every clip instead
 // of sitting at a fixed offset from a shoulder.
 //
+// ...AND WHEN THE LUMP HAS NO BONE OF ITS OWN. Not every surplus lump is as
+// tidy as inferno's. TEMPEST's chimneys end in two sculpted "spark" squiggles
+// weighted to the same two bones as the entire shoulder pauldron, so naming a
+// bone would take the shoulders with them. What they DO have is their own
+// connected component — lumps resting on the chimney mouth, sharing no vertex
+// with it — so a second manifest key selects geometry directly:
+//
+//   "dropGeo": [ { "verts": [12043, 12044, …] } ]
+//
+// A vertex index is a property of the GEOMETRY, which no re-rig can renumber
+// (the same reason skinOps are pinned to vertex lists on export). Find the
+// islands and write the lists with `node tools/geodrop.mjs <mech> --pick`.
+// Everything past the selection — the triangle cull, the rim, the cap — is one
+// shared implementation, so the two keys differ only in what they point at.
+//
 // Runs immediately after skinOps in buildGlbMech (so it reads the final
-// weights) and before seamCuts.
+// weights). `dropGeo` goes FIRST, before seamCuts: a cut appends duplicate
+// vertices and re-points triangle corners at them, and a vertex list authored
+// against the raw file has no way to name a duplicate that did not exist when
+// it was written. `dropBones` names bones, so it is immune and stays last.
 import * as THREE from 'three';
 
-// Once per geometry: the stock GLB path shares one cached scene between every
-// clone, so a second build must not cut the same shell twice. (The custom-rig
-// path clones the geometry per build, where this never fires.)
-const DROPPED_GEOMETRIES = new WeakSet();
+// Once per geometry, per key: the stock GLB path shares one cached scene
+// between every clone, so a second build must not cut the same shell twice.
+// (The custom-rig path clones the geometry per build, where this never fires.)
+const BONE_DROPPED = new WeakSet();
+const GEO_DROPPED = new WeakSet();
 
 /**
  * Delete every triangle touching the named bones' geometry and cap the rims.
  * @param {THREE.SkinnedMesh} mesh
  * @param {string[]} boneNames  manifest `dropBones`
- * @returns {null|{bones:string[], verts:number, tris:number, caps:number}}
+ * @returns {null|{what:string[], verts:number, tris:number, caps:number}}
  */
 export function applyBoneDrop(mesh, boneNames) {
   const geo = mesh.geometry;
   if (!boneNames?.length || !geo?.index) return null;
-  if (DROPPED_GEOMETRIES.has(geo)) return null;
-  DROPPED_GEOMETRIES.add(geo);
+  if (BONE_DROPPED.has(geo)) return null;
+  BONE_DROPPED.add(geo);
 
   const bones = mesh.skeleton.bones;
   const drop = new Set();
@@ -74,6 +93,50 @@ export function applyBoneDrop(mesh, boneNames) {
     if (drop.has(bi)) { isDropped[v] = 1; dropVerts++; }
   }
   if (!dropVerts) return null;
+  return dropAndCap(mesh, isDropped, dropVerts, named, 'boneDrop');
+}
+
+/**
+ * Same cut, selected by explicit vertex list instead of by bone.
+ * @param {THREE.SkinnedMesh} mesh
+ * @param {Array<{verts:number[]}>} sels  manifest `dropGeo`
+ * @returns {null|{what:string[], verts:number, tris:number, caps:number}}
+ */
+export function applyGeoDrop(mesh, sels) {
+  const geo = mesh.geometry;
+  if (!sels?.length || !geo?.index) return null;
+  if (GEO_DROPPED.has(geo)) return null;
+  GEO_DROPPED.add(geo);
+
+  const n0 = geo.attributes.position.count;
+  const isDropped = new Uint8Array(n0);
+  const named = [];
+  let dropVerts = 0, stale = 0;
+  for (const sel of sels) {
+    let k = 0;
+    for (const v of sel.verts || []) {
+      if (v < 0 || v >= n0) { stale++; continue; }
+      if (isDropped[v]) continue;
+      isDropped[v] = 1; dropVerts++; k++;
+    }
+    named.push(`${k} verts`);
+  }
+  // A list authored against a DIFFERENT export of the model is the one way this
+  // goes quietly wrong — it would delete a random handful of triangles from
+  // somewhere else on the body. Out-of-range indices are the only symptom that
+  // can be detected from here, so say so.
+  if (stale) console.warn(`dropGeo: ${stale} vertex index(es) past the end of the mesh — list authored against another export?`);
+  if (!dropVerts) return null;
+  return dropAndCap(mesh, isDropped, dropVerts, named, 'geoDrop');
+}
+
+// ---------------------------------------------------------------------------
+// The cut itself, shared by both selectors: cull every triangle with a corner
+// on a dropped vertex, then close whatever rim that opens.
+function dropAndCap(mesh, isDropped, dropVerts, named, tag) {
+  const geo = mesh.geometry;
+  const si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight;
+  const n0 = geo.attributes.position.count;
 
   // A rim is only a closed ring in WELDED space. An auto-meshed model splits
   // vertices along every uv seam, so the boundary of the removed patch arrives
@@ -201,6 +264,7 @@ export function applyBoneDrop(mesh, boneNames) {
   geo.setIndex(new THREE.BufferAttribute(new IndexArray(kept), 1));
   geo.computeBoundingSphere();
   geo.computeBoundingBox();
-  geo.userData = { ...geo.userData, boneDrop: { bones: named, verts: dropVerts, tris: removedTris, caps } };
-  return { bones: named, verts: dropVerts, tris: removedTris, caps };
+  const report = { what: named, verts: dropVerts, tris: removedTris, caps };
+  geo.userData = { ...geo.userData, [tag]: report };
+  return report;
 }

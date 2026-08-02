@@ -142,17 +142,44 @@ audio). Progress history: `TASKS.md`.
   one a person cannot do: `ctx.drift` is the angle from facing to travel, the
   HIPS take it (they are the rig root, so the legs follow) and the TORSO gives
   the same angle back, leaving the lower body walking where it is going and the
-  upper body still aiming. Past a quarter turn that would be a pirouette, so
-  beyond it the drift is measured against the REVERSED facing and the walk cycle
-  runs BACKWARDS instead — a 180° back-pedal is 0° of leg turn and a reversed
-  stride, and back-strafing is both. After: backwards -4.3, strafe -2.7, both
-  pushing the right way. HUMANOIDS ONLY, gated on the gait (`standard`/`sprint`)
-  plus a roster opt-out `strafeLegs: false` — a crab does not counter-rotate its
-  waist (cranky), and jerry (`arthropod`) and fenrir (`quad`) are excluded by
-  their gaits.
+  upper body still aiming. Aimed nearly straight back there is nothing left to
+  turn toward, so beyond `LEG_BACK_ON` the drift is measured against the
+  REVERSED facing and the walk cycle runs BACKWARDS instead — a 180° back-pedal
+  is 0° of leg turn and a reversed stride. After: backwards -4.3, strafe -2.7,
+  both pushing the right way. HUMANOIDS ONLY, gated on the gait
+  (`standard`/`sprint`) plus a roster opt-out `strafeLegs: false` — a crab does
+  not counter-rotate its waist (cranky), and jerry (`arthropod`) and fenrir
+  (`quad`) are excluded by their gaits.
+  A STRAFE NEVER REVERSES, and READ THE LINE OFF A CLOCK FACE, because that is
+  how the complaint arrives: noon is his facing, 3 is a pure right strafe, 6 is
+  straight back. It was at a quarter turn (3 o'clock!), which made "sideways with
+  a little bit of backwards" a backwards walk; moving it to 150° put it exactly
+  on 5 O'CLOCK, one of the most-held directions there is (retreat while
+  circling), so it sat on the boundary and flipped in and out. It is 170° now
+  (`LEG_BACK_ON`, leaving at 150° — 20° of hysteresis so it cannot flutter), and
+  the hips are allowed the full 170° of turn to reach it. Everything up to and
+  including 5 o'clock faces the way it is travelling with the cycle running
+  FORWARD; only very nearly 6 flips. Measured on titanus, stance-foot drift along
+  travel (negative = pushing against the ground) with legTurn / cycle direction:
+  0° -3.95, 0 / + · 60° -3.93, +60 / + · 120° -4.61, +120 / + · 150° -5.55,
+  +150 / + · 165° -5.79, +165 / + · 180° -4.67, 0 / -. No moonwalk anywhere.
+  Crossing it is a real half-turn of the pelvis — the two answers put the legs on
+  opposite sides of the body, so nothing makes it free — and it is DAMPED like
+  any other leg turn (~25°/frame at the peak, ~0.4s), reading as the mech
+  pivoting his lower body to back off. Coming to a stop UNWINDS rather than
+  crossing, or every halt mid-retreat would spin the legs a half turn.
+- A RETREAT IS NOT A RUN (`Fighter.backpedalT`, `TUNING.movement.backMult`).
+  Full speed is only for legs that can push against the ground going forward, so
+  as the intended direction swings behind the body the speed cap ramps down to
+  `backMult` (0.7 x the WALK cap) and the sprint multiplier fades out with it —
+  a dead-straight back-pedal is a fast walk at 0.44 of the run, whether or not B
+  is held. The ramp starts at `LEG_BACK_OFF`, so everything the legs can still
+  face costs nothing; measured on titanus (walk 20.7, run 33.2): 0-150° 33.2 ·
+  160° 26.1 · 165° 22.9 · 170° 19.9 · 180° 14.5. Only target lock can produce it — free camera
+  turns the body to face travel, so the offset is ~0 and it never engages.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
   `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
-  nova) and `quad` (fenrir).
+  nova), `arthropod` (jerry), `hexapod` (cranky) and `quad` (fenrir).
   A roster def names one with `gait: '<id>'` and mechs SHARE them, so tuning a
   gait moves every mech that runs it.
   A GAIT MAY BE A VARIANT OF ANOTHER: `base: '<id>'` makes it that gait plus the
@@ -233,6 +260,45 @@ audio). Progress history: `TASKS.md`.
   Judge it with `node tools/gaitprobe.mjs` (`ankleAir°` ~0 = the airborne foot is
   at its resting line; `toeFwd` is the bound on how far forward its toes still
   point).
+  MORE THAN TWO LEGS: `hex` is an OPTIONAL group, built exactly like `tail` —
+  bones that are not the 15 game joints, so the rig is MEASURED once
+  (`hexLegsOf`) and a pure pass (`applyHexGait`) writes their angles into the
+  pose target, which `Animator.applyHexPose` puts on the rig's own bones AFTER
+  the retarget. CRANKY is the body: his six crab legs are all real bones and the
+  BACK pair carries the game leg joints (`thighL/kneeL/ankleL/footL` IS his
+  back-left leg), so two of the six ride the ordinary stride — foot rules
+  included — and the other four ride `hex` off the SAME phase. Two things are
+  derived rather than authored, because either one wrong is invisible in the
+  numbers and obvious on screen: WHICH AXIS IS FORWARD and WHICH TRIPOD each leg
+  is in (rank down the body from where the hip actually sits, then alternate by
+  rank and again by side: front-left + mid-right + back-left, then the other
+  three).
+  AN ARTHROPOD ROTATES ITS LEGS, IT DOES NOT PUSH OFF THEM, and that is `hex.yaw`
+  — the one dial the rest of cranky's table is arranged around. A leg has TWO
+  ways to carry its foot forward and `hexLegsOf` measures both lever arms: turn
+  it about the body's LATERAL axis and it swings under the hip like a pendulum (a
+  push-off; the lever is how far the foot hangs BELOW the hip), turn it about the
+  body's UP axis and it swings ROUND the hip, flat, like a hand on a clock face
+  (the lever is how far the foot sits OUT from it). `yaw` mixes the two on all
+  six — the four directly, the back pair by taking that share of its thigh pitch
+  back out and putting the same swing in as thigh yaw, in JOINT space before the
+  foot rule runs so no ankle is levelled against a leg that has moved. It COSTS
+  GROUND: on cranky's legs the yaw lever is a third to a half of the pitch one,
+  so 60% yaw takes about a third off the step and `cadence` pays for it
+  (0.70 -> 0.48). It also costs LIFT — a pendulum raises its own foot at both
+  ends of the arc for free and a flat swing does not — so `hex.lift`/`fold` went
+  up by half again with it. Judge it with
+  `node tools/hexprobe.mjs <mech> [throttle]`, which reports every leg's `keep` —
+  the foot's measured fore-aft travel over the ground the cadence says one step
+  covers. THE ROSTER'S OWN BASELINE IS 0.73 (what titanus measures at every
+  speed), not 1.00; cranky's old bolted-on crab walk measured 0.04, which is what
+  "wiggling his legs and floating along" is worth as a number. It also reports
+  SHELL HEAVE twice — running, and stepped phase by phase — because the
+  pelvis-follows-the-feet loop is deliberately slow, so a probe that parks the
+  cycle at each phase and lets it settle reports a heave nothing on screen ever
+  does (cranky: 2.6% running, 18.5% stepped), and asserts the two properties any
+  gait-driven leg must have: pause freezes it (the gait phase is its only clock)
+  and standing returns it to the rig's rest angles.
   THE TRAILING FLICK (`adductTrail`) is the one dial that is NOT a plain phase
   function: it rolls the KNEE (so the shin and paw tuck in under a hip that stays
   put) toward the midline only while that foot is BEHIND AND OFF THE GROUND — the flick after toe-off — and fades as the leg swings forward,
@@ -434,6 +500,17 @@ audio). Progress history: `TASKS.md`.
   fans to its own centre vertex, bound to the bone most of the rim already
   answers to. The BONES STAY — they carry no skin but still ride the animation,
   which is what the effect that replaces the geometry hangs off.
+  …AND WHEN THE LUMP HAS NO BONE OF ITS OWN: `"dropGeo": [{"verts":[…]}]` is the
+  same cut selected by VERTEX, for geometry that shares its bone with armour you
+  keep (tempest's spark squiggles are weighted to the same two bones as the whole
+  shoulder pauldron). Everything past the selection is one shared implementation.
+  A vertex index is a property of the geometry, which no re-rig can renumber —
+  the same reason skinOps are pinned to vertex lists on export — but it IS tied
+  to the export, so `dropGeo` runs BEFORE seamCuts (a cut appends duplicate
+  vertices a list authored against the raw file cannot name) while `dropBones`,
+  immune because it names bones, stays last. Find the lump and write the list
+  with `node tools/geodrop.mjs <mech> [--above y] [--bone b] [--pick i,j]`, which
+  ranks the mesh's connected islands (welded) with bbox and owning bones.
   INFERNO is the worked example: his chimneys used to end in two sculpted
   tongues of flame, frozen at whatever angle the sculptor left them. The drop
   takes them off and seals the mouths; the manifest hangs `stackL`/`stackR`
@@ -450,6 +527,20 @@ audio). Progress history: `TASKS.md`.
   and the warm-up sandbox by `world.sandbox` (a robot on a plinth inside its own
   leash radius just ends up in a fog bank). A POSTER still shows cold pipes —
   it is a PNG — so mech select burns only once the real body is in.
+  TEMPEST IS THE SECOND KIND (`stackFx.kind: 'spark'`): his chimneys carried two
+  sculpted zigzag "spark" squiggles, which is the one thing electricity is never
+  still enough to be. `dropGeo` takes them off and the same block emits a live
+  crackle instead — BURSTS of little sparks (a spark is discrete, so it pops off
+  in twos and threes with a real ballistic arc, never as a stream), a lip glow
+  pulsed by the same flicker oscillator the flames use, and the odd short arc off
+  the rim (`fx.lightning`, so the menus simply do without it, exactly as they do
+  without smoke). THE SPARK SPRITE IS ORANGE and `color` cannot fix it — like the
+  flame atlas, `sparkTexture()` bakes its ramp into its own pixels, so cyan x
+  orange is mud. Same answer as the fire tint: rotate the SAMPLED texture round
+  the hue wheel (`hue` on emit), which moves the corona to the target colour and
+  leaves the white-hot core white, a rotation about the grey axis being the
+  identity on grey. `sparkHue` derives the rotation from `color2`, so authoring
+  stays "give me this colour".
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit

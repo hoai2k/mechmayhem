@@ -22,7 +22,7 @@ import { Animator } from '../../../src/mechs/animator.js';
 import {
   GAITS, GAIT_SCHEMA, gaitIds, gaitIdFor, cloneGait, gaitDiff, formatGait,
   applyGait, applyQuadGait, applyGaitKeys, applyToeHang, gaitPhaseRate,
-  gaitBaseOf, gaitHeirsOf, effectiveGait, applyTailGait,
+  gaitBaseOf, gaitHeirsOf, effectiveGait, applyTailGait, applyHexGait,
 } from '../../../src/mechs/gaits.js';
 import { TUNING } from '../../../src/core/tuning.js';
 import { CONFIG as GAME_CONFIG } from '../../../src/core/config.js';
@@ -333,6 +333,17 @@ const CONFIG = defineWorkbenchConfig({
         // the dial moves something measurable.
         shared.tailPh = (shared.ph ?? 0) + (shared.tailT ?? 0) * (g.tail.idle || 0);
         applyTailGait(tgt, g, shared);
+      }
+      // …and the extra legs, if this body has them (Animator.hexLegs). Same
+      // deal as the tail: the bones are the rig's, not the game's, so the tool
+      // cannot know their names — they arrive measured, through env.hex.
+      if (g.hex && shared.hex) {
+        for (const l of shared.hex.legs) {
+          if (!l.driven) continue;
+          tgt[l.hip] = [0, 0, 0];
+          if (l.knee) tgt[l.knee] = [0, 0, 0];
+        }
+        applyHexGait(tgt, g, shared);
       }
       return tgt;
     },

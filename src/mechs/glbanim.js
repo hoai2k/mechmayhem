@@ -55,14 +55,10 @@ import { GLB_CLIP_VARIANTS, PRONE_CLIPS } from './animations.js';
 
 export const ARM_JOINTS = ['shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'handL', 'handR'];
 
-// CRANKY (GLB) claw carriage while scuttling: pincers held HIGH and out to the
-// sides, cocked forward — never hanging muzzle-down at the floor. Radians in the
-// virtual-joint space the retarget reads; negative shoulder pitch lifts the arm.
-const CRANKY_CARRY = {
-  shoulderL: [-0.72, -0.26, -0.22], shoulderR: [-0.72, 0.26, 0.22],
-  elbowL: [-0.34, 0, 0], elbowR: [-0.34, 0, 0],
-  handL: [0, 0.14, 0], handR: [0, -0.14, 0],
-};
+// (CRANKY's claw carriage while scuttling — pincers held HIGH and out to the
+// sides rather than hanging muzzle-down at the floor — used to be a constant
+// table here. It is `GAITS.hexapod.arms` now: carry / tuck / swing, tunable in
+// /workbench/?edit=gait like every other body's carriage.)
 // Extra shoulder yaw cocked back/out on the wind-up of every Cranky attack.
 const CRANKY_WINDBACK = 0.5;
 
@@ -513,48 +509,28 @@ export const GLB_ANIM = {
             : Math.max(0, 1 - (ph - 0.50) / 0.50);
       }
       m._clawClench = (m._clawClench ?? 0) + (clench - (m._clawClench ?? 0)) * Math.min(1, dt * 16);
-      const ratio = Math.min(1, (ctx.speed || 0) / (ctx.maxSpeed || 10));
-      const grounded = ctx.grounded !== false;
-      const wantK = grounded ? ratio : 0;
-      m._walkK = (m._walkK ?? 0) + (wantK - (m._walkK ?? 0)) * Math.min(1, dt * 8);
-      m._gaitPhase = (m._gaitPhase || 0) + (2 + 6 * ratio) * dt;
-      // ---- CRUSTACEAN WALK (GLB only — this body is far less bipedal than the
-      // procedural one, which keeps the shared humanoid stride) ----
-      // The shared walk swings the arms as pendulums and strides the legs like a
-      // biped: on this crab that dumps both giant pincers muzzle-down at the
-      // floor and lifts the shell off its feet. Instead: CARRY the claws high,
-      // out and cocked forward, hold the shell level, and let the hexapod tripod
-      // gait in postDress be the ONLY thing that moves — he walks on legs alone.
-      if (!attacking && !prone && ratio > 0.03) {
-        const k = Math.min(1, ratio * 2.4);          // fully carried by mid speed
-        for (const [j, v] of Object.entries(CRANKY_CARRY)) {
-          if (!tgt[j]) continue;
-          for (let i = 0; i < 3; i++) tgt[j][i] += (v[i] - tgt[j][i]) * k;
-        }
-        // legs: unwind the biped stride back to rest so the tripod gait owns them
-        const r = anim.rest;
-        for (const j of ['thighL', 'thighR', 'kneeL', 'kneeR', 'ankleL', 'ankleR']) {
-          if (!tgt[j] || !r[j]) continue;
-          for (let i = 0; i < 3; i++) tgt[j][i] += (r[j][i] - tgt[j][i]) * k;
-        }
-        tgt.hipsPos[1] += (0 - tgt.hipsPos[1]) * k;   // no stride bob: stay level
-        tgt.hipsRot[0] += (0 - tgt.hipsRot[0]) * k;   // no run-lean pitch
-      }
+      // ---- CRUSTACEAN WALK: IT IS THE GAIT, NOT THIS HOOK ----
+      // This used to be a private crab walk bolted on beside the gait system:
+      // the leg stride was unwound back to rest, the claw carriage assigned from
+      // a constant table, and a SECOND phase clock (`_gaitPhase += (2+6*ratio)*dt`)
+      // drove four of the six legs from postDress. Three things fell out of that
+      // and all three were reported: his legs kept moving after the gait
+      // workbench was paused (that clock is not the gait phase, so freezing the
+      // phase did nothing to it), his step cadence had no relationship to how
+      // fast he was actually travelling, and most of the panel's dials could not
+      // move him because this hook undid them a moment later.
+      //
+      // It is all in `GAITS.hexapod` now (gaits.js): the back pair is the game's
+      // own leg joints and rides the ordinary stride, the other four are the
+      // `hex` block on the same phase, and the claw carriage is `arms.carry` /
+      // `tuck` / `swing`. What is left here is the crab's own reinterpretation of
+      // the shared ATTACK clips, which is what this hook is for.
     },
     build(mech) {
       const byName = {};
       mech.group.traverse((o) => { if (o.isBone) byName[o.name] = o; });
-      // (hip bone, tripod group 0|1, side +1 left / -1 right). The FRONT pair
-      // sits right against the pincer bases, so animating it tears claw verts —
-      // hold it steady and drive the 4 mid/back legs in diagonal pairs (reads as
-      // a crab scuttle; the front legs just plant).
-      // (hip, tripod group, side, amp) — mid legs sit closer to the pincers so
-      // they swing at half amplitude to stay clear of the claw skin.
-      const legs = [
-        ['thighL', 0, 1, 1.0], ['legMRhip', 0, -1, 0.5],
-        ['legMLhip', 1, 1, 0.5], ['thighR', 1, -1, 1.0],
-      ].map(([n, g, sx, amp]) => ({ b: byName[n], g, sx, amp })).filter((l) => l.b);
-      for (const l of legs) { l.bx = l.b.rotation.x; l.by = l.b.rotation.y; l.bz = l.b.rotation.z; }
+      // (the six legs are the GAIT's now — `GAITS.hexapod`, applied to these same
+      // bones by Animator.applyHexPose after the retarget. Nothing to hold here.)
       // Movable pincer jaws (custom-rig claw bones, children of the hands).
       // Each claw's MOVABLE jaw is isolated onto claw*/ the fixed jaw + palm onto
       // hand* by the jaw-split skinOps in the manifest — without that split the
@@ -579,17 +555,6 @@ export const GLB_ANIM = {
       }
       const _mm = new THREE.Matrix4(), _pinv = new THREE.Matrix4();
       mech.postDress = () => {
-        const k = mech._walkK || 0;
-        const ph = mech._gaitPhase || 0;
-        if (k < 0.002) { for (const l of legs) l.b.rotation.set(l.bx, l.by, l.bz); }
-        else {
-          for (const l of legs) {
-            const p = ph + (l.g ? Math.PI : 0);
-            const sweep = 0.28 * k * l.amp * Math.cos(p);             // fore-aft swing (about local z)
-            const lift = 0.2 * k * l.amp * Math.max(0, Math.sin(p));  // foot lifts on the swing half
-            l.b.rotation.set(l.bx + lift * l.sx, l.by, l.bz + sweep);
-          }
-        }
         // pincer open/close: clench +1 clamps shut, negative gapes open. The two
         // jaws are ONE connected shell, so the split boundary shears as the jaw
         // swings — keep the angle modest: enough to read as a snap, small enough

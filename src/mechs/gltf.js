@@ -18,10 +18,14 @@
 //     "seamCuts": [                   // separate parts the mesher wrongly WELDED
 //       {"a":["handL"],"b":["torso"],"cap":true}   // — see seamcut.js
 //     ],
-//     "dropBones": ["stackL"]         // DELETE the geometry these bones own and
+//     "dropBones": ["stackL"],        // DELETE the geometry these bones own and
 //                                     // cap the hole — for a lump the engine
 //                                     // does better (inferno's sculpted flame
 //                                     // tongues, now particles) — see dropgeo.js
+//     "dropGeo": [{"verts":[1,2,3]}]  // the same cut, selected by VERTEX, for a
+//                                     // lump that shares its bone with armour
+//                                     // you keep (tempest's spark squiggles);
+//                                     // author with tools/geodrop.mjs
 //   }, ...
 // }
 // Any mech missing from the manifest (or failing to load) falls back to the
@@ -38,7 +42,7 @@ import { GLB_DRESS } from './designs.js';
 import { profileFor as glbProfileFor } from './glbanim.js';
 import { applySkinOpsToGltf, applySkinOps } from './skinops.js';
 import { applySeamCuts } from './seamcut.js';
-import { applyBoneDrop } from './dropgeo.js';
+import { applyBoneDrop, applyGeoDrop } from './dropgeo.js';
 import { rigFor } from './rigs/index.js';
 import { applyCustomRig, buildRigPosts } from './reskin.js';
 import { buildFistSplit } from './fistsplit.js';
@@ -54,13 +58,13 @@ let manifestPromise = null;
 const KNOWN_ENTRY_KEYS = new Set([
   'url', 'bindPose', 'boneOverrides', 'heightScale', 'yawOffset',
   'emissiveBoost', 'stretch', 'bonePos', 'boneCorrections', 'noHeadMatch',
-  'skinOps', 'seamCuts', 'dropBones', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
+  'skinOps', 'seamCuts', 'dropBones', 'dropGeo', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
 ]);
 const _entryWarned = new Set(); // "<id>|<msg>" — each complaint fires once per entry
 // Fields of a manifest entry that decide where the bones end up, and
 // therefore what anything measured off this build is true of. See mech.glbKey.
 const SKELETON_KEYS = ['url', 'rig', 'boneOverrides', 'stretch', 'bonePos',
-  'boneCorrections', 'reparent', 'skinOps', 'seamCuts', 'dropBones', 'modelScale', 'heightScale', 'noHeadMatch'];
+  'boneCorrections', 'reparent', 'skinOps', 'seamCuts', 'dropBones', 'dropGeo', 'modelScale', 'heightScale', 'noHeadMatch'];
 function glbBuildKey(entry) {
   return SKELETON_KEYS.map((k) => (entry?.[k] === undefined ? '' : JSON.stringify(entry[k]))).join('|');
 }
@@ -75,11 +79,12 @@ function reportSeamCuts(id, report) {
   console.info(`seamCuts[${id}]: ${what}`);
 }
 
-// Same, for `dropBones` (dropgeo.js): a rule that matched nothing — a renamed
-// bone, geometry already rebound away — must not pass for a silent success.
-function reportBoneDrop(id, report) {
+// Same, for `dropBones`/`dropGeo` (dropgeo.js): a rule that matched nothing — a
+// renamed bone, geometry already rebound away, a vertex list authored against
+// another export — must not pass for a silent success.
+function reportDrop(id, key, report) {
   if (!report) return;
-  console.info(`dropBones[${id}]: ${report.bones.join('+')} — ${report.tris} tri, `
+  console.info(`${key}[${id}]: ${report.what.join('+')} — ${report.tris} tri, `
     + `${report.verts} vert removed, ${report.caps} lid`);
 }
 
@@ -425,6 +430,10 @@ function buildGlbMech(def, entry, gltf) {
       // a rebind it exports lands here. applyCustomRig clones the geometry per
       // build, so this is a per-clone application — no shared-scene guard needed.
       if (entry.skinOps?.length) applySkinOps(sk, entry.skinOps);
+      // ...then take off the lumps named by VERTEX (dropgeo.js — tempest's
+      // sculpted spark squiggles). Before the seam cuts, which append duplicate
+      // vertices: a list authored against the raw file cannot name those.
+      reportDrop(def.id, 'dropGeo', applyGeoDrop(sk, entry.dropGeo));
       // ...and THEN cut the parts the mesher wrongly welded into one surface
       // (seamcut.js). After skinOps on purpose: it reads the final weights, so
       // "hand" and "torso" mean whatever the hand-authored rebinds made them.
@@ -432,7 +441,7 @@ function buildGlbMech(def, entry, gltf) {
       // ...and LAST, take off the geometry a bone was only standing in for
       // (dropgeo.js — inferno's sculpted flame tongues, now particles). After
       // the cuts so a rim it opens is capped by its own fan, not by theirs.
-      reportBoneDrop(def.id, applyBoneDrop(sk, entry.dropBones));
+      reportDrop(def.id, 'dropBones', applyBoneDrop(sk, entry.dropBones));
     }
   } else {
     // Map GLB bones onto the virtual rig's joints EARLY (mapBones is pure
@@ -467,11 +476,12 @@ function buildGlbMech(def, entry, gltf) {
     applySkinOpsToGltf(gltf.scene, entry.skinOps);
     // and the seam cuts on top of them, same order and same reason as the
     // custom-rig branch above
-    if (entry.seamCuts?.length || entry.dropBones?.length) {
+    if (entry.seamCuts?.length || entry.dropBones?.length || entry.dropGeo?.length) {
       const sk = meshes.find((m) => m.isSkinnedMesh);
       if (sk) {
+        reportDrop(def.id, 'dropGeo', applyGeoDrop(sk, entry.dropGeo));
         reportSeamCuts(def.id, applySeamCuts(sk, entry.seamCuts));
-        reportBoneDrop(def.id, applyBoneDrop(sk, entry.dropBones));
+        reportDrop(def.id, 'dropBones', applyBoneDrop(sk, entry.dropBones));
       }
     }
   }

@@ -6107,3 +6107,157 @@ way, and it was already the roster's worst.
 NOT DONE, deliberately: cranky's `shinL` still has no capsule (no geometry on
 that span) and his hand/claw regions sit at ~48% — the claws are the skinning
 the owner asked to keep.
+
+## Cranky walks on all six legs, on the gait's clock
+
+The report: "his animation speed should match his translation motion, but
+instead it looks like he's slightly wiggling them and then floating along… he
+should be moving his legs more (all 6 of them)… a lot of parameters that don't
+seem to do anything… I stopped playing the animation, but his legs continued
+moving… `Uncaught ReferenceError: refreshGizmo is not defined`."
+
+Four symptoms, three of them the same cause. Cranky's crab walk was never the
+gait system: the glbanim profile UNWOUND the biped stride back to rest as soon
+as he moved, assigned the claw carriage from a constant table, and drove four of
+the six legs from `postDress` off a private wall clock
+(`_gaitPhase += (2 + 6*ratio) * dt`). So —
+
+  · the legs kept running when the workbench paused, because pausing freezes the
+    GAIT PHASE and that clock had never heard of it;
+  · the cadence had no relationship to ground speed, because nothing connected
+    them. MEASURED: the floor moved 7.9 u under a foot that travelled 0.33 u —
+    `keep` 0.04, where the roster's own baseline (titanus, standard gait, every
+    speed) is 0.73;
+  · most of the panel's dials could not move him, because the hook undid them a
+    frame later — and the dial-relevance scan could not say so, since it measures
+    the pure `evaluate` pipeline and a glbanim `post` hook is not in it;
+  · only 4 of 6 legs moved at all, the front pair deliberately frozen, the mid
+    pair at half amplitude, the whole sweep 0.28 rad about an axis that mostly
+    waggled the shin.
+
+`refreshGizmo()` was unrelated and one line: the gait workbench's gizmo mode was
+removed by another change and the call left behind in the canvas `pointerup`
+handler, where it threw and killed the rest of the click.
+
+### `hex` — a gait group for the other four legs
+
+Built exactly like `tail`, and for the same reason: these bones are not the 15
+game joints, nothing retargets onto them, one body has them. So the rig is
+measured once (`hexLegsOf`), a pure pass (`applyHexGait`) writes their angles
+into the pose target, and `Animator.applyHexPose` puts them on the rig's own
+bones after the retarget. Twelve dials, in the panel automatically because the
+schema is what builds it.
+
+TWO THINGS ARE DERIVED, not authored, because either one wrong is invisible in
+the numbers and obvious on screen:
+
+  WHICH AXIS IS FORWARD. A leg swings fore-aft about the body's LATERAL axis, not
+  its up axis, however far out to the side the leg is carried — the lever arm is
+  how far the foot hangs BELOW the hip. That is why a crab's stubby side legs
+  still take a real step (2.4 u per radian) and why sweeping them about the
+  vertical, which was the obvious first guess, could not have worked: their feet
+  sit ~1 u out horizontally and ~2.4 u down. Both axes are read off the rig (up
+  from hips->torso, lateral from the two back hips), so it holds on a body facing
+  any way with its legs anywhere.
+
+  WHICH TRIPOD EACH LEG IS IN. Rank front-to-back from where each hip actually
+  sits, then alternate by rank and again by side — front-left, mid-right,
+  back-left, then the other three. A rig edit that moves a leg re-derives its
+  place instead of quietly walking the wrong triangle.
+
+The BACK pair is measured and NOT driven here: it carries the game leg joints, so
+the ordinary stride already owns it (with the foot rules), and all it contributes
+is the tripod parity the other four alternate against.
+
+### The no-skate solve
+
+`GAITS.hexapod` (cranky's, `base: 'standard'`) is that arithmetic rather than
+taste. Ground per step is `pi * legLen * cadence * swing`; the two stride
+amplitudes are set so the feet actually cover it:
+
+  back pair   thigh pitch swings the foot 3.55 u/rad on this body -> swing 0.55
+              at full speed = 3.7 u
+  other four  their feet hang ~2.4 u below their hips, so they need a WIDER arc
+              for the same ground -> sweep 0.90 = 3.7-4.3 u
+  cadence     0.92 -> 0.70, which asks for 4.0 u
+
+All three agree, which is the whole point — neither half of `keep` is authored.
+MEASURED (`node tools/hexprobe.mjs cranky`), every leg, throttle 1:
+
+  legMLhip 0.88   legFLhip 0.97   legMRhip 0.92
+  legFRhip 1.07   thighL   0.96   thighR   1.13     (was 0.04 for all of them)
+
+and 0.74-1.07 at a walking 0.35 throttle, against titanus' 0.74. Shell heave
+2.6% of body height while running. The claw carriage that was `CRANKY_CARRY` is
+`arms.carry/tuck/swing` now, so the arm rows mean something on him too: the
+workbench reports 52 of 53 dials live where the old hook left most of them dead.
+
+`tools/hexprobe.mjs` is new and reports both halves of the claim, plus the two
+properties any gait-driven leg must have — pause freezes it (0.00000 rad drift),
+standing returns it to the rig's rest angles (0.0000 rad). It also prints heave
+BOTH ways, running and stepped phase by phase, because the pelvis-follows-the-feet
+loop is deliberately slow and a probe that parks the cycle at each phase and lets
+it settle reports a heave nothing on screen ever does: cranky reads 18.5% stepped
+and 2.6% running, and the second one is the true number.
+
+`legs.cadence`'s slider now reaches down to 0.1 and `cadenceCap` up to 60. Both
+ranges were the sane band for a biped; a body whose legs cannot swing far covers
+the same ground with many more, much shorter steps, and there has to be a way to
+say so.
+
+## …and he rotates his legs instead of pushing off them
+
+Two things from the owner. The claw tune came back as a paste from
+`?edit=gait` — `arms.swing` and `swingRun` to 0 outright (a pincer that big
+reads as flailing if it pendulums with the stride at all), `tuck` reversed to
+-0.15 so they carry out to the sides, `carry` up to -0.57 — and it went in
+verbatim.
+
+The other: "relative to his facing can we have his outward legs yaw more and
+pitch less… like an arthropod his legs should feel like they are lifting,
+rotating, and then lowering more than 'pushing off' the way humanoids do."
+
+A LEG HAS TWO LEVER ARMS, and until now the hexapod layer only used one of them.
+Turn a leg about the body's LATERAL axis and it swings under the hip like a
+pendulum: that is the humanoid push-off, and how far the foot travels per radian
+is how far it hangs BELOW the hip. Turn it about the body's UP axis and the leg
+swings ROUND the hip, flat, like a hand on a clock face: that is what an
+arthropod does, and the lever is how far the foot sits OUT from the hip.
+`hexLegsOf` now measures both (`drop` and `reach`), so `hex.yaw` can mix them
+and the cost of the mix is arithmetic rather than a guess.
+
+It applies to all six legs, or he reads as two animals from the waist: the four
+extra ones directly, and the BACK pair — which carries the game leg joints and
+rides the ordinary stride — by taking that share of its thigh PITCH back out and
+putting the same swing in as thigh YAW. In joint space, and the whole hex pass
+moved to BEFORE `applyToeHang`, so no foot rule ever levels an ankle against a
+leg that has since moved.
+
+TWO THINGS IT COSTS, both measured, both paid for:
+
+  GROUND. On these legs the yaw lever is a third to a half of the pitch one, so
+  60% yaw takes about a third off the step. `cadence` 0.70 -> 0.48 (2.75 u asked
+  per step, against 4.01). `node tools/hexprobe.mjs cranky` — travel over ground
+  asked, per leg: 1.11 / 1.12 / 1.11 / 1.26 / 0.97 / 0.95, tighter than the
+  0.88-1.13 the pure-pitch version managed, against the roster's 0.73 baseline.
+  `midAmp` 1.0 -> 1.25 and `frontAmp` 0.85 -> 0.80 trim the two pairs against
+  each other, because this rig's legs are not equal — the mid pair's feet sit
+  barely half a unit out from their hips, so a yaw-heavy stride shortchanges
+  them most.
+
+  LIFT. A pendulum raises its own foot at both ends of the arc for free; a leg
+  swinging flat round the hip stays at exactly the height it started, so every
+  bit of "lift, rotate, lower" has to come from `hex.lift`/`fold`. Straight after
+  the yaw went in the front pair's foot clearance had fallen to 13/16% of body
+  height. lift 0.22 -> 0.34, fold 0.45 -> 0.62 (and their @run twins) puts it at
+  19/24%, and the mid pair at 31/33%.
+
+Shell heave fell to 0.7% of body height running (from 2.6%) — a flat swing does
+not heave the body the way a pendulum does. hexprobe prints both levers and the
+mix per leg now, so the next person to move that dial can see what it will cost
+before they move it.
+
+NOT DONE: the mid pair's feet still dip ~2% of body height below the floor at
+the bottom of the stance and the front pair's still float ~3% above it. That is
+the rig placing the right-hand legs lower than the left, not the gait — one
+`splay` cannot raise one pair and lower the other.
