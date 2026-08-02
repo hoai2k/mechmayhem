@@ -967,6 +967,20 @@ audio). Progress history: `TASKS.md`.
   redo the roster) and cannot write outside `public/thumbs/`.
   `node tools/iconcheck.mjs` proves it: every declared badge has a file, every
   mech has a thumbnail, and each rung of the fallback still lands.
+  A BADGE IS A MARK, NOT A PICTURE OF THE MECH, and that is the one thing to
+  get right before commissioning art: it is drawn at 17px in the HUD and 52px
+  at its biggest, so a portrait-in-a-circle — the obvious thing to ask an image
+  generator for, and what the first attempt produced — averages into a grey
+  disc at icon size. What survives is shape, count and two or three flat
+  colours: a road sign or a club crest, 3-6 big shapes, one thick outline, no
+  gradients or fine detail. The test is to shrink it to 20px and see whether
+  you can still tell which mech it is. `public/badges/README.md` carries the
+  full spec AND a prompt template built to hold a generator away from a
+  portrait; `node tools/badgekey.mjs <in.png> <id>` turns generated art on a
+  flat magenta/green backdrop into the transparent, trimmed, square PNG the
+  game wants (the key colour is measured, the edge is un-spilled by solving
+  the real coverage against the recovered art colour, and the art is bled
+  under the transparent rim so nothing haloes when the UI scales it down).
 - MECH-SELECT POSTERS (`public/posters/`, `src/ui/posters.js`): flipping
   through the roster shows a pre-rendered PNG per mech and builds no model;
   the real body appears after 0.7s of rest or on lock-in. A poster stands in
