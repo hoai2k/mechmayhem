@@ -331,7 +331,11 @@ What the swap buys, measured:
 ## Session 7 (2026-08-02): KONGA + TRITONE — two new characters
 
 Two roster additions built end-to-end from `docs/canonical/mech_{konga,tritone}.png`.
-Tripo H3 + rig, 55 credits each (balance 1355 -> 1245). Both riggable; tritone's
+Tripo H3 + rig, 55 credits each = 110 total for these two (per the API's own
+consumed_credit, recorded in tools/tripo-state.json). NOTE: the account balance
+read 465 afterwards, which is ~780 lower than this ledger accounts for — spend
+from outside this session (the state files are explicitly NOT parallel-safe).
+Check the Tripo dashboard before planning a big batch. Both riggable; tritone's
 prerigcheck reported `others` but the forced biped rig came out usable (4 clean
 leg chains, head, 3-segment tail, separate cannon bones).
 
