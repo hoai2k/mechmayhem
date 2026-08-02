@@ -443,18 +443,11 @@ export const SIGNATURES = {
       if (bracing) frill.rotation.x += Math.sin(t * 26) * 0.012;
     }
 
-    // CANNONS: traverse toward the aim while firing, buck on each shot
-    anim._cannonK = lerp(anim._cannonK || 0, bracing ? 1 : 0, 1 - Math.exp(-10 * dt));
-    const ck = anim._cannonK;
-    for (const side of ['L', 'R']) {
-      const c = anim.part('cannon' + side);
-      if (!c) continue;
-      // level the barrels as they come online, and toe them in slightly so
-      // both guns converge ahead of the horns instead of firing parallel
-      c.rotation.x = lerp(c.rotation.x, -0.10 * ck, dt * 12);
-      c.rotation.y = lerp(c.rotation.y, (side === 'L' ? 0.06 : -0.06) * ck, dt * 10);
-      if (ctx.firing) c.rotation.x += Math.sin(t * 30 + (side === 'L' ? 0 : 1.6)) * 0.045;
-    }
+    // THE CANNONS ARE NOT DRIVEN HERE. They are two turrets that aim
+    // themselves at a lead point and answer to nothing else — combat/
+    // cannonaim.js owns their bones, and it runs AFTER the pose is applied
+    // (Fighter.updateCannons), so anything written to them here would be a
+    // frame of fighting between a servo and a sine wave.
 
     // the head is enormous and hangs off the front — let it lag and settle
     // rather than tracking the body rigidly (weight, on a body that can't

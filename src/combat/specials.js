@@ -18,6 +18,15 @@ const _v = new THREE.Vector3();
 // scratch for bull-rush footfalls (consumed immediately, never retained)
 const _rushFoot = new THREE.Vector3();
 
+// ---- TRITONE's held gore charge (see goreCharge) ----
+const GORE_DRAIN = 0.285;      // stamina/sec — a full bar buys ~3.5s of charging
+const GORE_MAX = 8;            // hard ceiling, so an infinite tank still ends
+const GORE_TURN = 1.5;         // rad/s of steering — a third of the walking servo
+const GORE_DASH_COST = 0.12;   // stamina a mid-charge dash costs (a plain dash is 0.09)
+const GORE_SURGE = 0.42;       // speed added per dash, as a fraction of the base run
+const GORE_SURGE_MAX = 0.85;   // ...and the most that can be stacked at once
+const GORE_SURGE_FADE = 1.1;   // seconds for one dash's worth of surge to bleed off
+
 // Position helpers allocate a fresh Vector3 by default (safe to retain).
 // Hot per-frame callers (inside addUpdater/schedule ticks) can pass `out`
 // to reuse a scratch vector — ONLY when the result is consumed immediately
@@ -1009,35 +1018,82 @@ export const SPECIALS = {
   },
 
   // TRITONE: GORE CHARGE. The move the whole body was built for — he drops his
-  // head, plants the frill as a shield and RUNS, for as long as B is held.
-  // Unlike rhino's bull rush this one does not merely knock you down: the
-  // horns catch you, carry you the rest of the run, and then throw.
+  // head, plants the frill as a shield and RUNS, for as long as the trigger is
+  // held and the tank lasts. Unlike rhino's bull rush this one does not merely
+  // knock you down: the horns catch you, carry you the rest of the run, and
+  // then throw.
+  //
+  // IT IS A HELD MOVE, AND YOU STILL DRIVE. Three things separate it from a
+  // scripted rush:
+  //
+  //  • THE TANK PAYS FOR IT. Every second of charging drains the same stamina
+  //    bar that funds sprinting and blocking (GORE_DRAIN — a full bar buys
+  //    ~3.5s). Run it dry and the charge ends itself, so there is a real cost
+  //    to holding the trigger down across the arena.
+  //  • HE STEERS, BADLY. The stick still turns him, but at GORE_TURN rad/s —
+  //    a fraction of the walking servo. Six tonnes at a gallop can be aimed;
+  //    it cannot be threaded. Cornering is the skill.
+  //  • A DASH INSIDE THE CHARGE IS THE PAYOFF. Tap B mid-run and instead of
+  //    the ordinary dash (which would drop him out of the state) the CHARGE
+  //    itself surges. Speed is not cosmetic here: the horns hit for what he
+  //    ARRIVED at — `dmg x speed/base` — so a dash-fed impact lands around
+  //    1.8x a standing one. Momentum is the damage.
   goreCharge(f, sp) {
     const w = f.world;
-    cast(f, 'chargeLean', { stateT: 5.2 });
+    cast(f, 'chargeLean', { stateT: 12 });
     w.audio?.play('charge');
     faceRoar(f, 0.7);
     f._chargeT = 0;
     f._goreStep = undefined;
+    f._goreSurge = 0;
+    f._gorePrevDash = true;   // the press that STARTED the move never surges
+    const base = f.def.stats.speed * 3.0;
     const endRush = (recovery) => {
       f._charging = false;
+      f._goreSurge = 0;
       f.animator.stop();
       f.setState('attack', recovery);
     };
     const tick = () => {
-      if (!f.alive || f.state !== 'special') { f._charging = false; return; }
+      if (!f.alive || f.state !== 'special') { f._charging = false; f._goreSurge = 0; return; }
       const dt = 0.05;
       f._chargeT += dt;
-      const holding = (f.intent.specialHeld || f._chargeT < 0.9) && f._chargeT < 5;
-      const spd = f.def.stats.speed * 3.0;
+      // the tank: a hold he cannot afford ends on its own
+      f.sprintEnergy = Math.max(0, f.sprintEnergy - GORE_DRAIN * dt);
+      const holding = (f.intent.specialHeld || f._chargeT < 0.9)
+        && f._chargeT < GORE_MAX && (f.sprintEnergy > 0 || f._chargeT < 0.9);
+      // DASH-FED SURGE: B mid-charge buys a burst of speed out of the same
+      // tank a normal dash spends, and the burst decays back to the base run.
+      const dashEdge = !!f.intent.chargeDash && !f._gorePrevDash;
+      f._gorePrevDash = !!f.intent.chargeDash;
+      if (dashEdge && f.sprintEnergy > GORE_DASH_COST) {
+        f.sprintEnergy -= GORE_DASH_COST;
+        f._goreSurge = Math.min(GORE_SURGE_MAX, (f._goreSurge || 0) + GORE_SURGE);
+        f.iframes = Math.max(f.iframes, 0.18);
+        w.audio?.play('dash');
+        w.effects.dashTrail(f.pos, f.def.colors.glow || 0xff8a24, f.scale * 1.5);
+        w.effects.rings.spawn(f.pos, { from: 0.6, to: 5, dur: 0.3, color: f.def.colors.glow, y: 0.4 });
+      }
+      f._goreSurge = Math.max(0, (f._goreSurge || 0) - dt / GORE_SURGE_FADE * GORE_SURGE);
+      const spd = base * (1 + f._goreSurge);
+      f._goreSpeedK = spd / base;      // read by the impact below (and the HUD tell)
       f.vel.x = Math.sin(f.yaw) * spd;
       f.vel.z = Math.cos(f.yaw) * spd;
+      // STEERING — loose. A player pushes the stick and he leans into it at
+      // GORE_TURN; the CPU aims itself at whatever it was chasing, through the
+      // same limit, so neither can corner harder than the body allows.
+      let want = null;
       if (f.isAI) {
         const e0 = f.nearestEnemy();
-        if (e0 && f.pos.distanceTo(e0.pos) < 40) {
-          f.targetYaw = f.yawTo(e0);
-          f.yaw += clamp(angleDiff(f.yaw, f.targetYaw), -0.045, 0.045);
-        }
+        if (e0 && f.pos.distanceTo(e0.pos) < 40) want = f.yawTo(e0);
+      } else if (Math.hypot(f.intent.moveX, f.intent.moveZ) > 0.25) {
+        want = Math.atan2(f.intent.moveX, f.intent.moveZ);
+      }
+      if (want !== null) {
+        f.targetYaw = want;
+        f.yaw += clamp(angleDiff(f.yaw, want), -GORE_TURN * dt, GORE_TURN * dt);
+        f.torsoYaw = f.yaw;
+        f.group.rotation.y = f.yaw;
       }
       // four columnar feet throwing dirt, hung off the gait phase so the
       // stomps land with the legs instead of on a timer of their own
@@ -1057,15 +1113,20 @@ export const SPECIALS = {
         const dx = w.wrapDelta(e.pos.x - f.pos.x), dz = w.wrapDelta(e.pos.z - f.pos.z);
         // the horns ride at HIS height — jump it and the charge passes under
         if (Math.hypot(dx, dz) < 4.0 * f.scale && overlapsY(e, f.pos.y, f.height)) {
-          // CAUGHT ON THE HORNS: hoisted and thrown, not merely bumped
-          e.takeHit(sp.dmg * f.dmgMult(), f, {
-            knock: sp.knock, launch: sp.launch || 12, srcPos: f.pos, heavy: true,
+          // CAUGHT ON THE HORNS: hoisted and thrown, not merely bumped — and
+          // MOMENTUM IS THE DAMAGE. Everything the impact spends (damage,
+          // knock, the throw, the shake) scales with how fast he was actually
+          // travelling, so a dash-fed charge is a categorically bigger hit
+          // than one that merely arrived.
+          const k = f._goreSpeedK || 1;
+          e.takeHit(sp.dmg * k * f.dmgMult(), f, {
+            knock: sp.knock * k, launch: (sp.launch || 12) * k, srcPos: f.pos, heavy: true,
           });
-          e.vel.x = Math.sin(f.yaw) * 26;
-          e.vel.z = Math.cos(f.yaw) * 26;
-          e.vel.y = Math.max(e.vel.y, 15);
-          w.engine.addHitStop(0.10);
-          w.effects.addShake(0.7);
+          e.vel.x = Math.sin(f.yaw) * 26 * k;
+          e.vel.z = Math.cos(f.yaw) * 26 * k;
+          e.vel.y = Math.max(e.vel.y, 15 * k);
+          w.engine.addHitStop(0.10 * k);
+          w.effects.addShake(0.7 * k);
           w.effects.impactSparks(e.center(), f.def.colors.glow, 20, 13);
           w.effects.explosion(e.center(), 2.2, { color: 0xc8b08a, smoke: true, sparks: false });
           w.audio?.play('hitHeavy');

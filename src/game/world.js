@@ -866,6 +866,37 @@ const WEAPONS = {
     w.effects.muzzleFlash(from);
   },
 
+  siege(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // TRITONE: BOTH flank
+    // cannons let go at once — one trigger, two energy blasts, each down its
+    // OWN barrel. The aim is not computed here and must not be: combat/
+    // cannonaim.js has spent the last second traversing those two turrets onto
+    // a lead point, and each of them arrived at a different (legal) angle,
+    // because a gun cannot shoot through its own mech. So the shot simply
+    // leaves along the anchor's live +Z — whatever the mount reached. Reading
+    // the barrels instead of the facing is the whole feature: aim it with the
+    // guns, not with the body.
+    const col = f.def.colors.glow || 0xff8a24;
+    let first = true;
+    for (const key of ['R', 'L']) {
+      const a = anchors['muzzle' + key];
+      if (!a) continue;
+      const p = a.getWorldPosition(new THREE.Vector3());
+      const d = new THREE.Vector3(0, 0, 1).applyQuaternion(a.getWorldQuaternion(new THREE.Quaternion()));
+      if (d.lengthSq() < 1e-8) d.copy(dir);
+      d.normalize();
+      w.projectiles.spawn('plasma', f, p, d, {
+        dmg: mv.dmg * f.dmgMult(), speed: mv.speed, splash: mv.splash,
+        color: col, knock: mv.knock ?? 11, size: 1.25,
+      });
+      w.effects.muzzleFlash(p, col);
+      w.effects.glows.emit(p.x, p.y, p.z, 0, 0, 0,
+        { life: 0.22, size: 3.2, color: col, alpha: 0.9 });
+      if (first) { w.audio?.play('plasma'); first = false; }
+    }
+    w.audio?.play('mortar');
+    w.effects.addShake(0.28);
+  },
+
   mortar(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {
     // lob along the facing; if an enemy is down the barrel, range the
     // arc to their distance (with velocity lead) — direction stays

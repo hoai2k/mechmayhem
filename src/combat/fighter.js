@@ -13,6 +13,7 @@ import {
   climbStep, climbPhysics, climbReleaseTick, applyClimbOrientation, applyClimbPose,
   conformClimbLimbs,
 } from './climb.js';
+import { aimCannons, cannonRecoil, hasCannons, ON_TARGET } from './cannonaim.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -918,6 +919,21 @@ export class Fighter {
     // LB lock-aim: shots fired during a target lock fly at the crosshair
     if (this._lockAim) this._aimPoint = this._lockAim.clone();
 
+    // A TRAVERSING-TURRET SHOT is not fired on a keyframe: the trigger opens an
+    // AIM WINDOW and the guns decide when they are ready (combat/cannonaim.js).
+    // The clip is a brace to be held while they swing, not a firing animation —
+    // so the volley is scheduled by updateCannons, not by a clip event.
+    if (mv.aimWindup && hasCannons(this)) {
+      this.rangedCd = mv.cooldown;
+      if (this.ammoMax !== undefined) this.ammo--;
+      this._volley = { mv, t: 0 };
+      this.firing = true;
+      this.animator.play(this.def.rangedClip || 'brace');
+      // held through the aim, plus the recovery the recoil needs afterwards
+      this.setState('attack', mv.aimWindup + 0.4);
+      return;
+    }
+
     if (isChannel) {
       this.setState('channel', 0.1);
       this.firing = true;
@@ -988,6 +1004,32 @@ export class Fighter {
       // and is MEANT to plant him for the shot.)
       if (!RUN_AND_GUN_CLIPS.has(clip)) this.setState('attack', dur * 0.6);
     }
+  }
+
+  // THE FLANK CANNONS, one frame at a time (TRITONE; a no-op and nearly free
+  // for every other mech, which has no cannon bones to find).
+  //
+  // Between volleys the guns drift home. Inside a volley they chase a LEAD
+  // POINT, and the shot leaves the instant both are on the line — or when the
+  // window (`ranged.aimWindup`, one second) runs out, aimed as well as they
+  // managed. Firing on a timer alone would waste a good solution reached in a
+  // quarter of a second; firing only on a good solution would mean a target
+  // parked inboard of one gun never gets shot at at all.
+  updateCannons(dt) {
+    const v = this._volley;
+    if (v && (!this.alive || this.state === 'hitstun' || this.state === 'knockdown'
+      || this.state === 'special' || this.state === 'ult')) {
+      this._volley = null;                 // interrupted mid-aim: no shot
+      this.firing = false;
+    }
+    if (!this._volley) { aimCannons(this, dt, false); return; }
+    v.t += dt;
+    const err = aimCannons(this, dt, true, v.mv);
+    if (err > ON_TARGET && v.t < (v.mv.aimWindup || 1)) return;
+    this.world.fireRanged(this, v.mv);
+    cannonRecoil(this);
+    this._volley = null;
+    this.firing = false;
   }
 
   // ONE TICK of a held channel weapon (gatling / flame / hose). Called for the
@@ -3146,6 +3188,9 @@ export class Fighter {
     // bodies); a no-op for upright states and procedural mechs.
     this.mech.groundClamp?.(
       this.grounded && (this.state === 'knockdown' || this.state === 'getup'));
+    // hull-mounted turrets traverse AFTER the pose is applied — they are the
+    // one part of the body the animation does not own (see cannonaim.js)
+    this.updateCannons(dt);
     // palm press / strike tracking must land after the pose is applied
     // (direct joint writes before applyPose get clobbered)
     if (this._palmPrey) {
@@ -3174,7 +3219,9 @@ export class Fighter {
       this.unwindPitch();
       this.applyPalmRoll();
     }
-    if (this.state !== 'channel') this.firing = false;
+    // ...a held CHANNEL keeps it up, and so does a turret volley still
+    // traversing onto its solution (the brace/frill tell reads this).
+    if (this.state !== 'channel' && !this._volley) this.firing = false;
 
     // ---- face target yaw: servo-damped, two-tier ----
     // Legs (the whole group) chase the stick with a lag that grows with
@@ -3917,6 +3964,7 @@ export class Fighter {
     this.ult = 0;
     this.specialCd = 0;
     this.rangedCd = 0;
+    this._volley = null;   // …nor mid-traverse with a shell still owed
     this.iframes = 0;
     this.comboIdx = 0;
     this._onBack = false;  // never start a round stranded on the shell

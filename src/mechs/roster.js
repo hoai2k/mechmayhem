@@ -769,8 +769,18 @@ export const ROSTER = [
     moves: {
       light: { dmg: [34, 36, 54], knock: [7, 7, 16], range: 4.2 },
       heavy: { dmg: 90, knock: 30, range: 4.4, launch: 13 },
-      ranged: { name: 'Flank Cannons', type: 'shell', dmg: 50, speed: 44, cooldown: 1.35, splash: 2.8, ammo: 14 },
-      special: { id: 'goreCharge', name: 'Gore Charge', cooldown: 7, dmg: 88, knock: 30, launch: 12 },
+      // BOTH cannons at once, each aimed by its own traversing mount. The
+      // trigger opens a one-second aiming window rather than firing on a
+      // keyframe: the turrets lead the target and let go when they are on it
+      // (combat/cannonaim.js). `aimWindup` is what puts a mech on that path.
+      ranged: {
+        name: 'Flank Cannons', type: 'siege', dmg: 42, speed: 62, cooldown: 1.6,
+        splash: 2.6, knock: 11, ammo: 14, aimWindup: 1.0,
+      },
+      // HELD, not tapped: the trigger runs the charge for as long as it is
+      // down and the tank lasts, and everything it hits is paid for out of
+      // the speed he arrived at. See specials.js goreCharge.
+      special: { id: 'goreCharge', name: 'Gore Charge', cooldown: 7, dmg: 88, knock: 30, launch: 12, hold: true },
       ult: { id: 'siegeProtocol', name: 'SIEGE PROTOCOL', dmg: 30, count: 26, duration: 6.5, radius: 5 },
     },
   },
