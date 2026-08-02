@@ -1390,15 +1390,22 @@ audio). Progress history: `TASKS.md`.
   arms are moving). WRAITH LOOMS (`growTaunt`, roster `tauntGrow: 1.6` — the
   same levers colossus' ult pulls, `Animator.sizeMul` included) with a gale
   blown through his cloak (`swayCloak`'s `wind`). GLACIER freezes SOLID
-  (`iceTaunt`, roster `tauntIce`). Two traps in that last one, both worth
-  remembering: `fighter.group` IS `mech.group` (aliased in the constructor), so
-  hiding the mech hides whatever is standing in for it — hide the CHILDREN
-  instead; and `Box3.setFromObject` takes in every anchor and helper parented to
-  him and does not skip invisible ones, so it measured a 7x9x9 cube round a mech
-  who is 7 tall and 4 wide. The block is sized off `baseHeight` and the measured
-  hit radius. (`MeshPhysicalMaterial.transmission` is also a trap here — it
-  renders through a pass this scene does not run, so the first block was
-  perfectly correct and completely invisible.)
+  (`iceTaunt`, roster `tauntIce`): he CROSS-FADES into the block over half a
+  second with the frost thickening as it takes him, and thaws in 0.16s with the
+  whole cloud at once — freezing is something he does, thawing is something that
+  happens to him, a fist included. THREE TRAPS IN THAT ONE, all the same shape —
+  the thing standing in for the body lives INSIDE the body's own group.
+  `fighter.group` IS `mech.group` (aliased in the constructor), so hiding the
+  mech takes the block with it; `setOpacity` walks that same group, so fading
+  the mech to 0 faded the block to 0 too and he simply vanished (it skips
+  `_ice` now); and `Box3.setFromObject` does not skip invisible children, so the
+  block is unioned from MESHES only, with the yaw dropped first (world-axis
+  bounds on a body standing at 45 degrees are half again too wide and centred
+  off to one side). Size it off the GEOMETRY, not `baseHeight` — glacier's mesh
+  is 8.9 tall against a baseHeight of 7.1, and the difference is his head.
+  (`MeshPhysicalMaterial.transmission` is a trap here too — it renders through a
+  pass this scene does not run, so the first block was perfectly correct and
+  completely invisible.)
 - A HELD CLIP IS AS STUCK AS A LOOPING ONE. `hold: true` pins an action at its
   last frame instead of fading it, so it outlives its move forever — and if it
   keys the LEGS the locomotion layer has nothing left to drive and the mech

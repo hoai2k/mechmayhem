@@ -1981,17 +1981,30 @@ const FENRIR_TAUNT = {
 // legs are additive over a restPose that already stands him in a 55° crouch,
 // so the DOWN keys add fold and the UP keys subtract it.
 const FROGGER_TAUNT = {
+  // FROGGER — arms and cannons thrown out into an X, then a deep bounce between
+  // a full crouch and full height.
+  //
+  // THE CROUCH IS A REAL ONE. The first pass folded the knees about 40 percent
+  // of the way and read as a bob rather than a squat, which on a FROG is the
+  // whole gag. These are the duck layer's own numbers (animator.js: thigh 60
+  // degrees forward of vertical, knee folded 115, ankle levelling the foot at
+  // -54) — additive over a restPose that already stands him in a 55-degree
+  // crouch, so the DOWN key is the deepest squat this body has. The hip drop is
+  // the one the duck layer DERIVES from that fold rather than a guess: 1.60
+  // world units on this rig, less the 0.21 the measurement says this pose does not
+  // need (1.24 authored — clip hipsPos is scaled by the model, animator.js).
+  // That is what keeps the soles ON the floor rather than through it:
+  // `node tools/groundprobe.mjs frogger` reads 0.000 under for this clip.
   dur: 2.0, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
     { t: 0.24, ease: 'outBack', pose: { shoulderL: [-8, 0, -84], shoulderR: [-8, 0, 84],
-      elbowL: [-6, 0, 0], elbowR: [-6, 0, 0], torso: [-6, 0, 0], head: [-6, 0, 0],
-      hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0] } },
-    { t: 0.50, ease: 'inQuad', pose: { hipsPos: [0, -0.52, 0], thighL: [-26, 0, -8], thighR: [-26, 0, 8], kneeL: [46, 0, 0], kneeR: [46, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0], torso: [8, 0, 0], shoulderL: [4, 0, -78], shoulderR: [4, 0, 78] } },
-    { t: 0.78, ease: 'outQuad', pose: { hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0], torso: [-6, 0, 0], shoulderL: [-14, 0, -88], shoulderR: [-14, 0, 88] } },
-    { t: 1.06, ease: 'inQuad', pose: { hipsPos: [0, -0.52, 0], thighL: [-26, 0, -8], thighR: [-26, 0, 8], kneeL: [46, 0, 0], kneeR: [46, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0], torso: [8, 0, 0], shoulderL: [4, 0, -78], shoulderR: [4, 0, 78] } },
-    { t: 1.34, ease: 'outQuad', pose: { hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0], torso: [-6, 0, 0], shoulderL: [-14, 0, -88], shoulderR: [-14, 0, 88] } },
-    { t: 1.62, ease: 'inQuad', pose: { hipsPos: [0, -0.34, 0], thighL: [-16, 0, -6], thighR: [-16, 0, 6], kneeL: [30, 0, 0], kneeR: [30, 0, 0], ankleL: [-12, 0, 0], ankleR: [-12, 0, 0], torso: [4, 0, 0], shoulderL: [0, 0, -70], shoulderR: [0, 0, 70] } },
+      elbowL: [-6, 0, 0], elbowR: [-6, 0, 0], hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0], torso: [-6, 0, 0], head: [-6, 0, 0] } },
+    { t: 0.50, ease: 'inQuad', pose: { hipsPos: [0, -1.24, 0], thighL: [-60, 0, -8], thighR: [-60, 0, 8], kneeL: [115, 0, 0], kneeR: [115, 0, 0], ankleL: [-54, 0, 0], ankleR: [-54, 0, 0], torso: [30, 0, 0], head: [-22, 0, 0], shoulderL: [4, 0, -78], shoulderR: [4, 0, 78] } },
+    { t: 0.78, ease: 'outQuad', pose: { hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0], torso: [-6, 0, 0], head: [-6, 0, 0], shoulderL: [-14, 0, -88], shoulderR: [-14, 0, 88] } },
+    { t: 1.06, ease: 'inQuad', pose: { hipsPos: [0, -1.24, 0], thighL: [-60, 0, -8], thighR: [-60, 0, 8], kneeL: [115, 0, 0], kneeR: [115, 0, 0], ankleL: [-54, 0, 0], ankleR: [-54, 0, 0], torso: [30, 0, 0], head: [-22, 0, 0], shoulderL: [4, 0, -78], shoulderR: [4, 0, 78] } },
+    { t: 1.34, ease: 'outQuad', pose: { hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0], torso: [-6, 0, 0], head: [-6, 0, 0], shoulderL: [-14, 0, -88], shoulderR: [-14, 0, 88] } },
+    { t: 1.62, ease: 'inQuad', pose: { hipsPos: [0, -1.24, 0], thighL: [-60, 0, -8], thighR: [-60, 0, 8], kneeL: [115, 0, 0], kneeR: [115, 0, 0], ankleL: [-54, 0, 0], ankleR: [-54, 0, 0], torso: [30, 0, 0], head: [-22, 0, 0], shoulderL: [0, 0, -70], shoulderR: [0, 0, 70] } },
     { t: 2.0, ease: 'inOutQuad', pose: REST_FULL },
   ],
   events: [{ t: 0.24, type: 'sfx', arg: 'taunt' }, { t: 0.50, type: 'sfx', arg: 'land' },
@@ -2004,23 +2017,34 @@ const FROGGER_TAUNT = {
 // the whole design — a big amplitude on this splayed crustacean rig reads as
 // broken skinning, not as a nervous system.
 const JERRY_TAUNT = {
+  // JERRY — he goes TWITCHY. The point is that nothing moves together: every key
+  // jerks a different part by a small amount on its own beat, with `linear` and
+  // `outQuad` eases so each one arrives as a snap rather than a swing.
+  //
+  // THE CLAW WORK IS THE OWNER'S, posed by hand. The first pass kept every joint
+  // small on the theory that a big amplitude on this splayed crustacean rig
+  // reads as broken skinning; the claws in particular barely moved, which made
+  // the whole thing a head twitch. They swing properly now — a shoulder reaching
+  // -159 degrees at the peak — and it reads as a nervous system rather than a
+  // loose bolt, because the rest of the body is still ticking underneath in
+  // small increments and no two parts arrive on the same beat.
   dur: 1.7, cancelOnMove: true,
   keys: [
-    { t: 0, pose: {} },
-    { t: 0.10, ease: 'linear', pose: { head: [-9, 13, 0], torso: [0, 5, -3], shoulderR: [-36, 0, 18] } },
-    { t: 0.18, ease: 'linear', pose: { head: [2, -6, 4], elbowL: [34, 0, 0] } },
-    { t: 0.26, ease: 'linear', pose: { torso: [4, -7, 3], shoulderL: [-40, 0, -22], hipsPos: [0.05, 0, 0] } },
-    { t: 0.34, ease: 'linear', pose: { head: [-11, -14, -3], shoulderR: [-24, 0, 9], elbowR: [12, 0, 0] } },
-    { t: 0.44, ease: 'outQuad', pose: { torso: [-3, 9, 2], elbowL: [14, 0, 0], hipsPos: [-0.06, 0.03, 0] } },
-    { t: 0.52, ease: 'linear', pose: { head: [5, 10, -5], shoulderL: [-22, 0, -8] } },
-    { t: 0.62, ease: 'linear', pose: { torso: [2, -4, -4], shoulderR: [-42, 0, 22], elbowR: [30, 0, 0], hipsPos: [0.04, 0, 0] } },
-    { t: 0.72, ease: 'linear', pose: { head: [-8, 16, 2], elbowL: [30, 0, 0] } },
-    { t: 0.84, ease: 'outQuad', pose: { torso: [3, 6, 4], shoulderL: [-38, 0, -20], hipsPos: [0, 0.04, 0] } },
-    { t: 0.94, ease: 'linear', pose: { head: [-2, -12, -4], shoulderR: [-26, 0, 10], elbowR: [16, 0, 0] } },
-    { t: 1.04, ease: 'linear', pose: { torso: [-2, -6, 3], elbowL: [26, 0, 0], hipsPos: [-0.05, 0, 0] } },
+    { t: 0, pose: {  } },
+    { t: 0.1, ease: 'linear', pose: { torso: [3.08, 12.51, 16.08], head: [-9.03, 12.92, 0.78], shoulderL: [-42.31, 10.14, -39.75], shoulderR: [-34.05, -11.61, 44.35] } },
+    { t: 0.18, ease: 'linear', pose: { head: [2, -6, 4], elbowL: [34, 0, 0], shoulderR: [-34.74, 2.79, 6.63] } },
+    { t: 0.26, ease: 'linear', pose: { hipsPos: [0.05, 0, 0], torso: [4, -7, 3], shoulderL: [-77.37, 17.05, -21.56] } },
+    { t: 0.34, ease: 'linear', pose: { head: [-11, -14, -3], shoulderL: [-40.24, 0.38, -17.99], shoulderR: [-24, 0, 9], elbowR: [12, 0, 0] } },
+    { t: 0.44, ease: 'outQuad', pose: { hipsPos: [-0.06, 0.03, 0], torso: [-3, 9, 2], elbowL: [14, 0, 0], shoulderR: [-112.28, 12.49, 16.94] } },
+    { t: 0.52, ease: 'linear', pose: { head: [5, 10, -5], shoulderL: [-22, 0, -8], shoulderR: [-74.95, -11.36, 18.4] } },
+    { t: 0.62, ease: 'linear', pose: { hipsPos: [0.04, 0, 0], torso: [2, -4, -4], shoulderL: [-120.85, 14.67, -15.02], shoulderR: [-42, 0, 22], elbowR: [30, 0, 0] } },
+    { t: 0.72, ease: 'linear', pose: { head: [-8, 16, 2], shoulderL: [-140.24, 10.26, -21.44], elbowL: [30, 0, 0] } },
+    { t: 0.84, ease: 'outQuad', pose: { hipsPos: [0, 0.04, 0], torso: [3, 6, 4], shoulderL: [-38, 0, -20], shoulderR: [-87.96, 33.8, 34.47] } },
+    { t: 0.94, ease: 'linear', pose: { head: [-2, -12, -4], shoulderR: [-94.36, 18.62, 57.08], elbowR: [9.69, -2.7, -5.13] } },
+    { t: 1.04, ease: 'linear', pose: { hipsPos: [-0.05, 0, 0], torso: [-2, -6, 3], elbowL: [26, 0, 0] } },
     { t: 1.16, ease: 'linear', pose: { head: [-10, 8, 5], shoulderL: [-34, 0, -16], shoulderR: [-38, 0, 20] } },
-    { t: 1.28, ease: 'outQuad', pose: { torso: [1, 3, -2], head: [-4, -5, -2], elbowR: [24, 0, 0], hipsPos: [0.03, 0.02, 0] } },
-    { t: 1.7, ease: 'inOutQuad', pose: REST_FULL },
+    { t: 1.28, ease: 'outQuad', pose: { hipsPos: [0.03, 0.02, 0], torso: [1, 3, -2], head: [-4, -5, -2], shoulderL: [-159.12, 0.44, -32.62], elbowR: [24, 0, 0] } },
+    { t: 1.7, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], elbowL: [-12, 0, 0], shoulderR: [0, 0, 10], elbowR: [-12, 0, 0], thighL: [0, 0, 0], kneeL: [0, 0, 0], ankleL: [0, 0, 0], thighR: [0, 0, 0], kneeR: [0, 0, 0], ankleR: [0, 0, 0] } },
   ],
   events: [{ t: 0.10, type: 'sfx', arg: 'servo' }, { t: 0.44, type: 'sfx', arg: 'servo' },
     { t: 0.84, type: 'sfx', arg: 'servo' }, { t: 1.16, type: 'sfx', arg: 'servo' }],
@@ -2243,23 +2267,62 @@ const WRAITH_TAUNT = {
   events: [{ t: 0.1, type: 'sfx', arg: 'cloak' }, { t: 0.5, type: 'sfx', arg: 'powerup' }],
 };
 
-// GLACIER — he freezes himself SOLID: for most of this clip he is not on screen
-// at all, replaced by a single block of ice (Fighter.tauntIce, roster
-// `tauntIce`). So the pose only has to cover the moment either side of it — a
-// brace as the ice takes him, and the body arriving back where it started.
-const GLACIER_TAUNT = {
-  dur: 2.4, cancelOnMove: true,
+// INFERNO — arms CROSSED over the chest while the machine vents. His taunt is
+// the one that is all effect (stackToot in stackfx.js: the burners go dark and
+// he blows soot out of every nozzle in a toot-toot rhythm), so the pose exists
+// to give the venting a body to happen on: planted, arms folded, chin up, doing
+// nothing about you at all. The elbows fold deep and the shoulders come IN and
+// slightly forward, which is what puts each forearm across the opposite ribs
+// rather than leaving them stacked out in front of him.
+const INFERNO_TAUNT = {
+  dur: 3.2, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
-    { t: 0.2, ease: 'outQuad', pose: { torso: [10, 0, 0], head: [6, 0, 0], hipsPos: [0, -0.16, 0],
-      shoulderL: [-18, 0, -30], shoulderR: [-18, 0, 30], elbowL: [-86, 0, 0], elbowR: [-86, 0, 0],
-      thighL: [-10, 0, -6], thighR: [-10, 0, 6], kneeL: [18, 0, 0], kneeR: [18, 0, 0] } },
-    { t: 2.05, ease: 'linear', pose: { torso: [10, 0, 0], head: [6, 0, 0], hipsPos: [0, -0.16, 0],
-      shoulderL: [-18, 0, -30], shoulderR: [-18, 0, 30], elbowL: [-86, 0, 0], elbowR: [-86, 0, 0],
-      thighL: [-10, 0, -6], thighR: [-10, 0, 6], kneeL: [18, 0, 0], kneeR: [18, 0, 0] } },
-    { t: 2.4, ease: 'outBack', pose: REST_FULL },
+    { t: 0.34, ease: 'outBack', pose: { torso: [-6, 0, 0], head: [-10, 0, 0], hipsPos: [0, 0.04, 0],
+      shoulderL: [-46, 26, 26], shoulderR: [-46, -26, -26], elbowL: [-128, 0, 0], elbowR: [-128, 0, 0],
+      handL: [0, 0, -14], handR: [0, 0, 14] } },
+    // the barest breathing through the vents, so he is not a statue for 3s
+    { t: 1.0, ease: 'inOutQuad', pose: { torso: [-8, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.07, 0],
+      shoulderL: [-49, 28, 28], shoulderR: [-49, -28, -28], elbowL: [-132, 0, 0], elbowR: [-132, 0, 0] } },
+    { t: 1.7, ease: 'inOutQuad', pose: { torso: [-5, 0, 0], head: [-9, 0, 0], hipsPos: [0, 0.02, 0],
+      shoulderL: [-44, 25, 25], shoulderR: [-44, -25, -25], elbowL: [-126, 0, 0], elbowR: [-126, 0, 0] } },
+    { t: 2.4, ease: 'inOutQuad', pose: { torso: [-8, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.07, 0],
+      shoulderL: [-49, 28, 28], shoulderR: [-49, -28, -28], elbowL: [-132, 0, 0], elbowR: [-132, 0, 0] } },
+    { t: 3.2, ease: 'inOutQuad', pose: REST_FULL },
   ],
-  events: [{ t: 0.14, type: 'sfx', arg: 'freeze' }],
+  events: [{ t: 0.34, type: 'sfx', arg: 'taunt' }],
+};
+
+const GLACIER_TAUNT = {
+  // GLACIER — he freezes himself SOLID. For most of this clip he is not on
+  // screen at all: he cross-fades into a single block of ice (Fighter.iceTaunt,
+  // roster `tauntIce`) and back out of it.
+  //
+  // SO THE POSE IS THE PART YOU CAN SEE — him pulling in. Arms clamped to the
+  // ribs, elbows folded across the chest, knees drawn together, head down: a
+  // body making itself small, which is what has to be true by the time the ice
+  // takes him, because the block is a rectangular prism and anything still
+  // reaching is sticking out of it as it fades in. He holds it while frozen
+  // (the fade is on the RENDER, the animator keeps running underneath) so he
+  // comes back out of the ice in the pose he went into it in.
+  dur: 2.6, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    // brace, then draw everything in
+    { t: 0.22, ease: 'outQuad', pose: { torso: [8, 0, 0], head: [4, 0, 0], hipsPos: [0, -0.1, 0],
+      shoulderL: [-14, 0, -18], shoulderR: [-14, 0, 18], elbowL: [-70, 0, 0], elbowR: [-70, 0, 0] } },
+    { t: 0.62, ease: 'inOutQuad', pose: { torso: [14, 0, 0], head: [10, 0, 0], hipsPos: [0, -0.22, 0],
+      shoulderL: [-26, 10, -2], shoulderR: [-26, -10, 2], elbowL: [-118, 0, 0], elbowR: [-118, 0, 0],
+      handL: [0, 0, -18], handR: [0, 0, 18],
+      thighL: [-8, 0, 7], thighR: [-8, 0, -7], kneeL: [22, 0, 0], kneeR: [22, 0, 0], ankleL: [-12, 0, 0], ankleR: [-12, 0, 0] } },
+    // …and stays there, inside the block
+    { t: 2.24, ease: 'linear', pose: { torso: [14, 0, 0], head: [10, 0, 0], hipsPos: [0, -0.22, 0],
+      shoulderL: [-26, 10, -2], shoulderR: [-26, -10, 2], elbowL: [-118, 0, 0], elbowR: [-118, 0, 0],
+      handL: [0, 0, -18], handR: [0, 0, 18],
+      thighL: [-8, 0, 7], thighR: [-8, 0, -7], kneeL: [22, 0, 0], kneeR: [22, 0, 0], ankleL: [-12, 0, 0], ankleR: [-12, 0, 0] } },
+    { t: 2.6, ease: 'outBack', pose: REST_FULL },
+  ],
+  events: [{ t: 0.22, type: 'sfx', arg: 'freeze' }],
 };
 
 // COLOSSUS — the SLOW CLAP. Four claps, unhurried and getting no faster, with
@@ -2335,6 +2398,7 @@ export const GLB_CLIP_VARIANTS = {
   titanusTaunt: compile('taunt', TITANUS_TAUNT),
   vulcanTaunt: compile('taunt', VULCAN_TAUNT),
   wraithTaunt: compile('taunt', WRAITH_TAUNT),
+  infernoTaunt: compile('taunt', INFERNO_TAUNT),
   glacierTaunt: compile('taunt', GLACIER_TAUNT),
   colossusTaunt: compile('taunt', COLOSSUS_TAUNT),
   crankyTaunt: compile('taunt', CRANKY_TAUNT),

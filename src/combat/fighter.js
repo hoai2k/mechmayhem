@@ -193,6 +193,8 @@ const GLITCH_OVERLOAD = 10;
 const GLITCH_STUN_TIME = 3;
 const _glitchTint = new THREE.Color();
 const _arcA = new THREE.Vector3(), _arcB = new THREE.Vector3();
+const _iceBox = new THREE.Box3(), _iceB2 = new THREE.Box3();
+const _iceSize = new THREE.Vector3(), _iceMid = new THREE.Vector3();
 // where a corruption spot may pin itself: joint + local Y band (in scale
 // units) roughly covering that part's visible geometry
 const GLITCH_SPOT_JOINTS = [
@@ -2518,7 +2520,11 @@ export class Fighter {
 
   setOpacity(op) {
     this.group.traverse((o) => {
-      if (o.isMesh) {
+      // …but never what is standing IN for the body. The ice block glacier
+      // freezes into is a child of this same group (iceBlock), so fading the
+      // mech out to 0 faded the thing replacing it out too and he simply
+      // vanished — the same trap as hiding `mech.group`, which IS this group.
+      if (o.isMesh && o !== this._ice) {
         o.material.transparent = op < 1;
         o.material.opacity = op;
       }
@@ -3524,53 +3530,96 @@ export class Fighter {
 
   // ---- SOLID ICE (roster `tauntIce` — GLACIER) ----------------------------
   //
-  // He freezes into a single block the size of his own body: the model is
-  // switched off and a rectangular prism switched on in its place, with frost
-  // steaming off it as it takes him and a real burst when it lets go —
-  // whichever way it ends, the clip finishing or a fist arriving.
+  // He freezes into a single block his own size, and CROSS-FADES both ways: the
+  // body dissolves out as the ice comes up, with frost thickening around him
+  // the whole time, and on the way back the swap is quick and the frost arrives
+  // all at once. A hard swap read as a substitution — one frame a mech, the
+  // next a box — and the mist is what sells it as the ice taking him.
+  //
+  // The two directions are deliberately NOT the same length. Freezing is
+  // something he does (ICE_IN, slow enough to watch, and it starts a beat in so
+  // the clip can pull his limbs against his body first); thawing is something
+  // that happens to him, including when a fist arrives — so it is a snap.
   //
   // The block is a child of his group, so it rides his position; his POSE is
-  // still running underneath it, unseen, which is why the clip leaves the body
-  // where it started rather than mid-flourish.
+  // still running underneath it, unseen, which is why the clip holds him folded
+  // rather than letting him unwind inside the ice.
   iceTaunt(dt) {
     const on = this.taunting();
-    if (!on && !this._iceOn) return;
-    if (on && !this._iceOn) {
-      this._iceOn = true;
-      const b = this.iceBlock();
-      b.visible = true;
-      this.hideModel(true);
-      for (let i = 0; i < 10; i++) this.frostPuff(0.9);
-      this.world.audio?.play('freeze');
-    } else if (!on && this._iceOn) {
-      this._iceOn = false;
-      if (this._ice) this._ice.visible = false;
-      this.hideModel(false);
-      for (let i = 0; i < 22; i++) this.frostPuff(1.6);
-      this.world.effects?.rings?.spawn(this.pos, { from: 0.5, to: 5 * this.scale, dur: 0.45, color: 0xbfe8ff, y: 0.4 });
-      this.world.audio?.play('shatter');
+    const act = this.animator?.action;
+    let k = this._iceK ?? 0;
+    if (on) {
+      const ICE_IN = 0.5, ICE_DELAY = 0.34;
+      k = clamp01(((act.t || 0) - ICE_DELAY) / ICE_IN);
+      if (k > 0 && !this._iceOn) { this._iceOn = true; this.world.audio?.play('freeze'); }
+    } else if (k > 0) {
+      k = Math.max(0, k - dt / 0.16);           // thaw: a snap, not a fade
+      if (k === 0 && this._iceOn) {
+        this._iceOn = false;
+        // …and the whole cloud at once, which is the tell that he is back
+        for (let i = 0; i < 30; i++) this.frostPuff(1.8);
+        this.world.effects?.rings?.spawn(this.pos, { from: 0.5, to: 6 * this.scale, dur: 0.4, color: 0xbfe8ff, y: 0.4 });
+        this.world.audio?.play('shatter');
+      }
     }
-    if (this._iceOn) {
-      // a slow shimmer while it stands, and the odd wisp off the top
+    if (k === (this._iceK ?? 0) && k === 0) return;
+    this._iceK = k;
+    const ice = k > 0 ? this.iceBlock() : this._ice;
+    if (ice) {
+      ice.visible = k > 0.02;
+      // the shimmer rides on top of the fade so a settled block still lives
       this._iceT = (this._iceT ?? 0) + dt;
-      if (this._ice) this._ice.material.opacity = 0.74 + 0.06 * Math.sin(this._iceT * 5.3);
-      if (Math.random() < dt * 7) this.frostPuff(0.5);
+      ice.material.opacity = k * (0.72 + 0.06 * Math.sin(this._iceT * 5.3));
     }
+    // the BODY dissolves out under it. setOpacity(1) also clears `transparent`,
+    // so the mech ends up exactly as it started rather than left in the
+    // transparent queue for the rest of the round.
+    this.setOpacity(k >= 0.995 ? 0 : 1 - k);
+    // frost THICKENS as it takes him, rather than arriving in one puff
+    if (k > 0 && k < 1) {
+      this._frostAcc = (this._frostAcc ?? 0) + dt * (4 + 26 * k);
+      while (this._frostAcc >= 1) { this._frostAcc -= 1; this.frostPuff(0.5 + k); }
+    } else this._frostAcc = 0;
+    if (k >= 1 && Math.random() < dt * 6) this.frostPuff(0.5);
   }
 
-  // The prism itself, built once and kept.
+  // The prism itself, built once, at the moment he first freezes.
   //
-  // SIZED OFF HIS MEASURED BODY, not off a Box3 of the group: that box takes in
-  // every anchor, marker and effect helper parented to him — and it does not
-  // skip invisible ones — so it measured 7 x 9 x 9 on a mech who is 7 tall and
-  // about 4 wide, a cube with the mech rattling around inside it. baseHeight is
-  // the body's own height and the hit radius is measured off its geometry, so
-  // the block is the shape he is.
+  // MEASURED OFF THE GEOMETRY, not off his stats: `baseHeight` is the body's
+  // gameplay height and it is not what you can SEE — glacier's mesh is 8.9 tall
+  // and 7.2 wide against a baseHeight of 7.1, so a block cut to the stat left
+  // his head and his shoulder lance poking out of the lid, which is exactly the
+  // part of a frozen mech a viewer checks.
+  //
+  // TWO THINGS MAKE THE MEASUREMENT HONEST. Only MESHES are unioned — Box3's own
+  // setFromObject would be near enough here, but a fighter's group also carries
+  // anchors, markers and effect helpers, and it does not skip invisible ones.
+  // And the yaw is dropped first: Box3 is world-axis-aligned, so a mech standing
+  // at 45 degrees measures half again too wide and its centre lands off to one
+  // side. Taken at FREEZE time, so it is the folded pose the clip has pulled him
+  // into rather than a stance he is not in.
   iceBlock() {
     if (this._ice) return this._ice;
-    const h = this.baseHeight;
-    const w = Math.max(this.baseHitRadius * 1.25, h * 0.22) * 2;
-    const geo = new THREE.BoxGeometry(w, h, w * 0.8);
+    const q = this.group.quaternion.clone();
+    this.group.quaternion.identity();
+    this.group.updateWorldMatrix(false, true);
+    _iceBox.makeEmpty();
+    this.group.traverse((o) => {
+      if (!(o.isMesh || o.isSkinnedMesh) || !o.visible || o === this._ice) return;
+      if (!o.geometry?.boundingBox) o.geometry?.computeBoundingBox?.();
+      if (!o.geometry?.boundingBox) return;
+      _iceB2.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+      _iceBox.union(_iceB2);
+    });
+    this.group.quaternion.copy(q);
+    this.group.updateWorldMatrix(false, true);
+    _iceBox.getSize(_iceSize);
+    _iceBox.getCenter(_iceMid);
+    const M = 1.06;                                  // a little ice around him
+    const h = Math.max(_iceSize.y, this.baseHeight) * M;
+    const w = Math.max(_iceSize.x, this.baseHitRadius * 1.6) * M;
+    const d = Math.max(_iceSize.z, this.baseHitRadius * 1.4) * M;
+    const geo = new THREE.BoxGeometry(w, h, d);
     // A PLAIN transparent standard material, deliberately: MeshPhysicalMaterial's
     // `transmission` is the physically-right way to write glass and it renders
     // through a separate pass this scene does not run — the first version was
@@ -3580,31 +3629,17 @@ export class Fighter {
       transparent: true, opacity: 0.62, emissive: 0x1b4d6b, emissiveIntensity: 0.45,
     });
     const m = new THREE.Mesh(geo, mat);
-    m.position.y = h / 2;          // the group's origin is at his feet
+    // the group's origin is at his feet; the block sits on the floor under
+    // whatever part of him the measurement centred on
+    m.position.set(_iceMid.x - this.pos.x, h / 2, _iceMid.z - this.pos.z);
     m.castShadow = true;
+    // NOTE it hangs off the fighter's group, which IS `mech.group` (aliased in
+    // the constructor) — so the body can never be hidden by switching that
+    // group off, because that would take the block with it. The cross-fade
+    // above works on OPACITY for exactly this reason.
     this.group.add(m);
     this._ice = m;
     return m;
-  }
-
-  // Hide the BODY without hiding what is standing in for it. `this.group` IS
-  // `this.mech.group` (aliased in the constructor), so switching the mech off
-  // takes the ice block with it — the first version made glacier vanish
-  // outright. Every child except the block is switched instead, and each one's
-  // previous state is remembered so anything already hidden for its own
-  // reasons stays hidden when he comes back.
-  hideModel(hide) {
-    if (hide) {
-      this._hidWas = [];
-      for (const c of this.group.children) {
-        if (c === this._ice) continue;
-        this._hidWas.push([c, c.visible]);
-        c.visible = false;
-      }
-    } else {
-      for (const [c, v] of this._hidWas || []) c.visible = v;
-      this._hidWas = null;
-    }
   }
 
   frostPuff(power) {
@@ -4090,13 +4125,17 @@ export class Fighter {
   tauntVenting(dt, sf, fx) {
     const act = this.animator?.action;
     if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._tootN = 0; return false; }
-    const TOOTS = [0.12, 0.42, 0.72, 1.02];
+    // TOOT TOOT — pairs, not a metronome. Two close together and then a gap is
+    // what a train whistle is, and it is what makes this read as a deliberate
+    // noise he is making rather than an engine idling. The second of each pair
+    // is the harder one.
+    const TOOTS = [0.22, 0.40, 1.00, 1.18, 1.78, 1.96, 2.50, 2.68];
     const want = TOOTS.filter((t) => act.t >= t).length;
     if (want > (this._tootN || 0)) {
       this._tootN = want;
       this.group.updateWorldMatrix(true, true);
       stackToot(this.mech, sf, { fx, scale: this.scale, smoke: !this.world.sandbox,
-        power: want === 1 ? 1.15 : 0.9 });
+        power: want % 2 === 0 ? 1.15 : 0.85 });
       this.world.audio?.play('whoosh');
     }
     return true;

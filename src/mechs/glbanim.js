@@ -302,8 +302,11 @@ export const GLB_ANIM = {
       const chain = anim.tailChain?.();
       if (!chain) return;
       const ph = Math.min(1, act.t / act.clip.dur);
-      // fade in and out so the whip cannot pop against the ambient wag
-      const amp = 0.5 * Math.sin(Math.PI * Math.min(1, ph / 0.85));
+      // fade in and out so the whip cannot pop against the ambient wag. 1.15 rad
+      // at the tip band (was 0.5, which read as the ordinary walking wag with
+      // the volume up rather than a wolf throwing his tail about) — measured
+      // sweep per segment 15 degrees at the root climbing to 66 at the tip.
+      const amp = 1.15 * Math.sin(Math.PI * Math.min(1, ph / 0.85));
       for (let i = 0; i < chain.n; i++) {
         const a = tgt['tail' + i];
         if (!a) continue;
@@ -444,6 +447,9 @@ export const GLB_ANIM = {
   inferno: { clipOverrides: {
     shootLoop: GLB_CLIP_VARIANTS.infernoFlameGlb,
     shootLoopL: GLB_CLIP_VARIANTS.infernoFlameLGlb,
+    // …and the TAUNT, which folds his arms so the venting has a body to happen
+    // on (Fighter.tauntVenting / stackfx.js stackToot)
+    taunt: GLB_CLIP_VARIANTS.infernoTaunt,
   } },
   // GLACIER — heavy biped, direct map except for the two attacks that come out
   // of the ICE LANCE in his LEFT hand: the Icicle Barrage (`shootL`) and the
