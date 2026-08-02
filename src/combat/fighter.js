@@ -14,6 +14,7 @@ import {
   conformClimbLimbs,
 } from './climb.js';
 import { aimCannons, cannonRecoil, hasCannons, ON_TARGET } from './cannonaim.js';
+import { floorGuard, clearFloorGuard } from './floorguard.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -2676,7 +2677,17 @@ export class Fighter {
           // shootLoopL. A one-shot clip is unaffected: it has already ended
           // and faded on its own by the time its state expires.
           // ('channel' does the same thing below, for the same reason.)
-          if (this.animator.action?.clip?.loop) this.animator.stop(0.15);
+          //
+          // A HELD CLIP IS EXACTLY AS STUCK AS A LOOPING ONE. `hold: true`
+          // pins the action at its last frame instead of fading it out, so it
+          // outlives its move by the same forever — and if it keys the LEGS,
+          // the locomotion layer has nothing left to drive and the mech slides
+          // around in a frozen pose. Measured on tritone after a cannon volley
+          // (tritoneBrace is a held brace that keys hips, thighs, knees and
+          // ankles): 44 units of walking with 0.000 rad of knee swing, which
+          // is the "he stopped animating and floats" report exactly.
+          const stuck = this.animator.action?.clip;
+          if (stuck?.loop || stuck?.hold) this.animator.stop(0.15);
           this.setState('normal');
         }
         break;
@@ -3209,6 +3220,19 @@ export class Fighter {
     // hull-mounted turrets traverse AFTER the pose is applied — they are the
     // one part of the body the animation does not own (see cannonaim.js)
     this.updateCannons(dt);
+    // ...and a front-heavy body keeps itself out of the floor here too, for
+    // the same reason: it is a correction to the finished pose, not part of it.
+    // NOT while the prone clamp owns the body, though — groundClamp and the
+    // guard write the SAME render offset, so both running is the two of them
+    // overwriting each other frame by frame (measured: knockdown went from
+    // 0.3 units under to 7.6, i.e. the clamp's work thrown away every frame).
+    const proneClamped = this.grounded &&
+      (this.state === 'knockdown' || this.state === 'getup');
+    if (this.def.floorGuard && this.grounded && !proneClamped) {
+      floorGuard(this, dt, this.pos.y);
+    } else if (this._floorLift) {
+      clearFloorGuard(this);
+    }
     // palm press / strike tracking must land after the pose is applied
     // (direct joint writes before applyPose get clobbered)
     if (this._palmPrey) {

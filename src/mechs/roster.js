@@ -806,6 +806,14 @@ export const ROSTER = [
     noTwistClips: ['tritoneToss'],
     // a body this long does not counter-rotate its waist to sidestep
     strafeLegs: false,
+    // HE KEEPS HIS CHIN UP (combat/floorguard.js). A metre of skull, three
+    // horns and a jaw hang off the front of a body that is already low, so
+    // every shared clip's forward pitch — authored for a humanoid, where the
+    // head is a small ball on top — drove his face through the road. Measured
+    // with tools/groundprobe.mjs: jaw 3.4 units under on the gore charge, brow
+    // 4.0 under on the plunge landing. The guard watches the tips that can
+    // actually reach the floor and pitches the neck back exactly far enough.
+    floorGuard: true,
     moves: {
       light: { dmg: [34, 36, 54], knock: [7, 7, 16], range: 4.2 },
       heavy: { dmg: 90, knock: 30, range: 4.4, launch: 13 },

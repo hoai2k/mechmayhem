@@ -35,6 +35,9 @@ const SPECIAL_CLIPS = {
   barrage: ['brace'], ghostWalk: ['aim'], napalm: ['shoot'], geyser: ['castRaise'],
   sickleRush: ['pounceLeap', 'biteLatch'], slimeBarrage: ['spray'],
   fleaSwarm: ['shoot'], segfault: ['lunge'],
+  chestBeat: ['chestBeat'],
+  goreCharge: ['chargeLean'],                       // TRITONE's held gore charge
+  headSlam: ['grabReach', 'liftHold', 'kongaSlam'], // KONGA's piledriver
   // freezeBeam channels through the mech's OWN hold-and-pour clip, so it is
   // resolved from def.channelClip below rather than named here
   freezeBeam: null,
@@ -48,6 +51,7 @@ const ULT_CLIPS = {
   fireTornado: ['burst'], absoluteZero: ['burst'], tsunami: ['castRaise'],
   raptorPack: ['taunt'], sonicCroak: ['burst'], systemCrash: ['burst'],
   serpentStorm: [], fleaCircus: [],
+  apexBarrage: ['castRaise'], siegeProtocol: ['tritoneBrace'],
 };
 // per-mech finisher cinematics (sound names already filtered out)
 const FINISHER_CLIPS = {

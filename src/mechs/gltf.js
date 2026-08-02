@@ -816,6 +816,31 @@ function buildGlbMech(def, entry, gltf) {
   // down-states (knockdown / getup / dead) — upright stances keep the
   // retarget's own per-foot grounding, which is already correct.
   const clampBaseY = container.position.y;
+  // THE LOWEST PIXEL OF HIM, in world space — skin-aware, sampled on a stride
+  // (a foot or a horn tip is hundreds of vertices wide, so 1500 samples find
+  // it and a full scan would cost a frame). Shared by the prone clamp below
+  // and the deep-penetration guard: both need the same number, and measuring
+  // it twice two ways is how they would come to disagree.
+  const lowestRenderedY = () => {
+    let minY = Infinity;
+    for (const m of meshes) {
+      const posAttr = m.geometry?.attributes?.position;
+      if (!posAttr) continue;
+      if (m.isSkinnedMesh) m.skeleton.update();
+      const stride = Math.max(1, Math.floor(posAttr.count / 1500));
+      for (let i = 0; i < posAttr.count; i += stride) {
+        m.getVertexPosition(i, _gcTmp2);   // skin-aware on SkinnedMesh
+        m.localToWorld(_gcTmp2);
+        if (_gcTmp2.y < minY) minY = _gcTmp2.y;
+      }
+    }
+    return minY;
+  };
+  mech.lowestRenderedY = () => {
+    root.updateWorldMatrix(true, true);
+    for (const m of meshes) if (m.isSkinnedMesh) m.updateMatrixWorld();
+    return lowestRenderedY();
+  };
   mech.groundClamp = (active) => {
     if (!active) {
       if (container.position.y !== clampBaseY) container.position.y = clampBaseY;
@@ -833,18 +858,7 @@ function buildGlbMech(def, entry, gltf) {
     // off the floor — the reported knockdown bug. This resyncs it to 1:1.
     for (const m of meshes) if (m.isSkinnedMesh) m.updateMatrixWorld();
     const rootY = root.getWorldPosition(_gcTmp).y;
-    let minY = Infinity;
-    for (const m of meshes) {
-      const posAttr = m.geometry?.attributes?.position;
-      if (!posAttr) continue;
-      if (m.isSkinnedMesh) m.skeleton.update();
-      const stride = Math.max(1, Math.floor(posAttr.count / 1500));
-      for (let i = 0; i < posAttr.count; i += stride) {
-        m.getVertexPosition(i, _gcTmp2);   // skin-aware on SkinnedMesh
-        m.localToWorld(_gcTmp2);
-        if (_gcTmp2.y < minY) minY = _gcTmp2.y;
-      }
-    }
+    const minY = lowestRenderedY();
     // container Y is root-local; root carries only translation + yaw, so a
     // local-Y delta equals a world-Y delta. Bring worldMinY up/down to rootY.
     if (minY !== Infinity) container.position.y = clampBaseY + (rootY - minY);

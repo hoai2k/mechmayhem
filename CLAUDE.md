@@ -1136,6 +1136,41 @@ audio). Progress history: `TASKS.md`.
   Editor: `src/editor/`, loader + authored-placement format:
   `src/arena/level.js`.
 
+- NOTHING SHOULD BE UNDER THE FLOOR, and `node tools/groundprobe.mjs <mech>`
+  is how you know: it plays every clip the mech can actually play, CPU-skins
+  the model at each sample and reports the LOWEST VERTEX against the ground,
+  naming the bone that owns it. A CONTACT LIMB MAY DIG IN — a hand pressed on
+  the ground or a hoof taking weight belongs slightly under it — so the limit
+  is per part: generous for hands/feet/claws/hooves/toes, tight for everything
+  else. A horn through the pavement is a bug at a fraction of the depth a palm
+  is fine at. It replicates what the game does (the prone clamp for
+  knockdown/getup, the floor guard where a mech has one), so the numbers are
+  what a player sees rather than what the harness does.
+  THE FLOOR GUARD (`combat/floorguard.js`, roster `floorGuard: true` — TRITONE)
+  is the fix for a body the shared clips do not fit. His skull, three horns and
+  jaw hang off the front of an already-low chassis, and every shared clip's hip
+  drop and forward pitch were authored for a humanoid with a metre of leg to
+  spend: measured, his jaw went 3.4 units under on the gore charge and his brow
+  4.0 on the plunge landing. The guard servos `mech.visualFloorLift` — the
+  RENDER container, a child of the physics group, so position, collision,
+  grounding and the animator's per-foot placement are all untouched — off
+  `mech.lowestRenderedY()`, the same skin-aware measurement the prone clamp
+  uses. It does nothing until he is deeper than a contact limb's worth (0.35 x
+  scale), so ordinary contact is unaffected. NOTE it must never run while the
+  prone clamp does: both write the same render offset, and the two together
+  took knockdown from 0.3 units under to 7.6.
+  (Pitching the NECK back to lift the skull was tried first and measured: 3.4
+  -> 2.0 and no better, because rotating the head can only raise the jaw to
+  where the NECK is, and on these clips the neck is under the floor too. You
+  cannot fix a buried body from the buried body's own joints.)
+- A HELD CLIP IS AS STUCK AS A LOOPING ONE. `hold: true` pins an action at its
+  last frame instead of fading it, so it outlives its move forever — and if it
+  keys the LEGS the locomotion layer has nothing left to drive and the mech
+  slides about frozen. Fighter's state-exit already stopped a LOOPING clip;
+  it stops a held one too. (Measured on tritone after a cannon volley, whose
+  `tritoneBrace` keys hips, thighs, knees and ankles: 44 units of walking with
+  0.000 rad of knee swing.)
+
 ## Mech art pipeline — READ `docs/MECH_ART_GUIDE.md` FIRST
 
 That guide is the master manual for turning concept images into in-game
