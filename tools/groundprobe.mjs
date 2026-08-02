@@ -160,6 +160,7 @@ const out = await page.evaluate(async ({ FRAMES, STRIDE, ALL }) => {
       while ((anim.action?.t ?? dur) < target && guard++ < 400) step(1 / 120);
       const lo = lowest();
       if (lo.y < worst.y) worst = { ...lo, t: target };
+      worst.lift = Math.max(worst.lift || 0, guardSubject._floorLift || 0);
     }
     rows.push({ name, ...worst });
   }
@@ -174,8 +175,14 @@ console.log(`standing, the lowest geometry sits at y=${out.rest.y.toFixed(3)} ($
 // brushing the floor is contact, not a bug, and the engine classifies it the
 // same way (gltf.js keeps it out of the core measurement so a dragging tail
 // cannot lift a prone body).
-const CONTACT = /^(hand|foot|toe|hoof|claw|ankle|paw|finger|thumb|tail)/i;
-const allow = (bone) => (CONTACT.test(bone) ? 0.35 : 0.06) * (out.scale || 1);
+const CONTACT = /^(hand|foot|toe|hoof|claw|ankle|paw|finger|thumb)/i;
+// A TAIL IS LOOSER STILL. It hangs near the deck by design and dragging is
+// what it should look like; the engine treats it the same way (gltf.js keeps
+// it out of the core measurement, and combat/floorguard.js gives it its own,
+// wider allowance) because holding a trailing tail off the floor lifts the
+// entire animal.
+const TAILISH = /^tail/i;
+const allow = (bone) => (TAILISH.test(bone) ? 0.6 : CONTACT.test(bone) ? 0.35 : 0.06) * (out.scale || 1);
 
 console.log('clip                      min y   under   part            limit');
 const bad = [];

@@ -642,6 +642,23 @@ export const GLB_ANIM = {
       }
     },
   },
+  // TRITONE — a long, low ceratopsian wearing clips authored for a humanoid.
+  // The shared crouch-and-pitch numbers drive a metre of skull through the
+  // road on him (measured: jaw 1.2 units under on the charge, brow 1.2 on the
+  // plunge, chin 1.7 in the air tuck), so the moves that do it are swapped for
+  // ceratopsian versions — see the TRITONE_* block in animations.js for what
+  // changes and why. His OWN clips (tritoneGore/Toss/Brace) are authored for
+  // this body already and are not overridden here.
+  tritone: {
+    clipOverrides: {
+      chargeLean: GLB_CLIP_VARIANTS.tritoneChargeGlb,
+      heavy: GLB_CLIP_VARIANTS.tritoneSlamGlb,
+      groundPound: GLB_CLIP_VARIANTS.tritonePoundGlb,
+      land: GLB_CLIP_VARIANTS.tritoneLandGlb,
+      landReach: GLB_CLIP_VARIANTS.tritoneLandReachGlb,
+      taunt: GLB_CLIP_VARIANTS.tritoneTauntGlb,
+    },
+  },
   nullbot: {},   // humanoid — direct map (glitch strobe is material-only)
 
   // VULCAN — hand-authored custom rig (src/mechs/rigs/vulcan.rig.js): his bones

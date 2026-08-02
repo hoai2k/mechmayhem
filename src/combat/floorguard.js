@@ -49,14 +49,16 @@ import { clamp } from '../core/utils.js';
 // a palm is fine at. gltf.js already classifies the mesh (core vs limb vs
 // tail) for the prone clamp, so the guard reads the same split rather than
 // inventing a second one.
-const ALLOW = 0.35;         // limbs, and anything else that grips the world
+const ALLOW = 0.30;         // limbs, and anything else that grips the world
 const ALLOW_CORE = 0.06;    // torso, head — the silhouette
-// ...and the TAIL, which gltf.js leaves out of both other numbers on purpose
-// (a tail dragging on the floor must not lift a prone body off it). Left out
-// of the guard as well, it simply sinks: measured, tritone's tail went 2.0
-// units under on the heavy toss while his core sat perfectly. A drag is fine,
-// a buried tail is not, so it gets a limb's worth of give and no more.
-const ALLOW_TAIL = 0.4;
+// ...and the TAIL, which is the loosest of the three and has to be. It hangs
+// LOW by construction — an armoured tail that trails near the deck is what
+// the animal looks like — so asking it to clear the floor lifts the whole
+// body by however far it droops: measured, tightening this to 0.26 left
+// tritone hovering 2.3 units off the ground for an entire plunge landing,
+// which is a worse artifact than the one it was fixing. A drag is fine. Only
+// a tail genuinely buried past its own thickness is not.
+const ALLOW_TAIL = 0.6;
 const RATE = 20;       // how fast the lift servos (1/s) — fast enough to keep up with a
                        // slam, which is where the deepest dips happen
 const MAX = 3.0;        // ...and the most it will ever lift, x scale

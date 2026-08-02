@@ -833,6 +833,18 @@ export const ROSTER = [
     noTwistClips: ['tritoneToss'],
     // a body this long does not counter-rotate its waist to sidestep
     strafeLegs: false,
+    // THE AIR TUCK, for a body with no waist to curl. The shared ball folds a
+    // biped nose-to-knees, which on him swings the skull down and through the
+    // floor on landing (measured: chin 1.7 units under). A quadruped in the
+    // air pulls all four legs in under the belly and keeps its head UP —
+    // which is both what the animal does and what keeps the horns clear.
+    ballPose: {
+      hipsPos: [0, -0.06, 0], hipsRot: [-3, 0, 0], torso: [-6, 0, 0], head: [18, 0, 0],
+      thighL: [-40, 0, -6], thighR: [-42, 0, 6], kneeL: [76, 0, 0], kneeR: [74, 0, 0],
+      ankleL: [-26, 0, 0], ankleR: [-26, 0, 0],
+      shoulderL: [-38, 8, -10], shoulderR: [-38, -8, 10], elbowL: [-64, 0, 0], elbowR: [-64, 0, 0],
+      handL: [10, 0, 0], handR: [10, 0, 0],
+    },
     // HE KEEPS HIS CHIN UP (combat/floorguard.js). A metre of skull, three
     // horns and a jaw hang off the front of a body that is already low, so
     // every shared clip's forward pitch — authored for a humanoid, where the
