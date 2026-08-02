@@ -6302,3 +6302,50 @@ NOT DONE: the mid pair's feet still dip ~2% of body height below the floor at
 the bottom of the stance and the front pair's still float ~3% above it. That is
 the rig placing the right-hand legs lower than the left, not the gait — one
 `splay` cannot raise one pair and lower the other.
+
+## KONGA + TRITONE JOIN THE ROSTER, a shorter SAURION, and the pointer in mech select (user request, 2026-08-02)
+
+Both work-in-progress apes are ready enough to fight, so `hidden: true` came off
+KONGA and TRITONE — that one flag is the whole gate, since every workbench
+already saw the full ROSTER and only `playableRoster()`/`isPlayable()` filter it.
+AEGIS and NOVA stay hidden.
+
+What the flag does NOT bring with it is the POSTER. Neither had one, and a mech
+with no entry in `posters.json` quietly falls back to building a real model on
+every keypress in mech select — the exact cost the posters exist to avoid, and
+invisible because it still looks right. `node tools/posters.mjs konga tritone`
+merged them in (it MERGES on a named run; a bare run would have re-shot the lot).
+Icons needed nothing: both already had hand-made badges on disk AND in `BADGES`,
+so `tools/iconcheck.mjs` was green before and after.
+
+SAURION IS 20% SHORTER (owner call), which is two numbers because he is two
+bodies. The GLB's height is PINNED by `modelScale`, so the artist knob is
+`heightScale: 0.8` in the manifest; `body.scale` 1.12 -> 0.896 shrinks the
+procedural build and everything derived from the dims (anchors, muzzle units,
+the canonical height). Measured with `tools/ankleprobe.mjs`: ankle 0.297 ->
+0.237 and foot depth 0.305 -> 0.244, both exactly 0.800, with `depth%h`
+unchanged at 4.3/3.2% — a uniform shrink, not a squash. Poster re-shot.
+
+MECH SELECT LEARNS THE POINTER PROPERLY. Three things, all in the one screen:
+
+- A CLICK ON A ROBOT IS A TOGGLE. Clicking the cell you are standing on locks
+  it in as before; clicking that same cell again LETS IT GO. A locked mouse
+  user previously had no click that undid the lock at all — B/Esc only. The
+  unlock path is now one `unlock(pk)` shared with the pad's B.
+- THE BOTTOM CARDS ARE THE LB/RB RING. A click no longer cycles a slot
+  outright: the first click VISITS it (`pk.sel = i` — the same state the
+  bumpers set, so the card frames in your colour and ↑↓ drive it), and a click
+  on the card you are already visiting walks its options. Your own card is
+  HOME: it brings you back while you are visiting, and only leaves the match
+  on a click with nothing visited. With no mouse picker at all (everyone on
+  pads) a click is still the plain step through the ring it always was.
+- CLICKING NOTHING DESELECTS. A sticky focus that re-aims ↑↓ at somebody
+  else's card needs somewhere to be put down, so a capture-phase window click
+  outside `.roster-cell` / `.player-card` / `.hot-btn` / the touch bar clears
+  it — the 3D stage, the heading, the bare backdrop all work.
+
+And the SELECT-button glyph beside "use pointer" sat a whole radius below the
+line of text. `.xb-btn` is an inline-FLEX box, so its baseline is its first flex
+item's — the top bar of the three-line glyph, a third of the way down the circle
+— and the `vertical-align: -4px` nudge was pushing an already-sunken box further
+down. `vertical-align: middle` ignores the phantom baseline and centres it.
