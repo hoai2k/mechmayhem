@@ -539,8 +539,21 @@ audio). Progress history: `TASKS.md`.
   orange is mud. Same answer as the fire tint: rotate the SAMPLED texture round
   the hue wheel (`hue` on emit), which moves the corona to the target colour and
   leaves the white-hot core white, a rotation about the grey axis being the
-  identity on grey. `sparkHue` derives the rotation from `color2`, so authoring
-  stays "give me this colour".
+  identity on grey. `sparkPalette` derives the rotation from the colour it is
+  asked for, so authoring stays "give me this colour".
+  AND THE CRACKLE ANSWERS TO THE PAINT, on inferno's rule and inferno's
+  function: `sparkPalette` asks `fireTintOf` for the scheme's colour and uses
+  the top two ramp stops (white-hot core, bright body) for the sparks, the lip
+  glow and the arc — so an AMETHYST tempest sparks purple — while a scheme with
+  no colour of its own (STOCK, MIDNIGHT, UMBER, IVORY, SILVER — `schemeFire`
+  returns null) falls back to his authored electric blue, exactly as inferno
+  falls back to ordinary fire. The rotation is measured against the SPARK
+  atlas' orange, which is a shade off the flame atlas': `tint.rot` is the
+  flame's number, not this one.
+  IT IS TRIM, NOT A FIRE: sparks, lip glow and arcs are all sized at HALF what
+  the first build used (sizes halved, arc throw and `jag` halved), which is the
+  difference between a chimney that crackles and one that looks like it is
+  venting. The dynamics — throw, gravity, gap — are untouched.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
@@ -716,7 +729,12 @@ audio). Progress history: `TASKS.md`.
   and one WITHOUT thrusts straight down the BODY's own -Y. That default is
   deliberate — an ankle bone's local axes rotate with every step, so "+Z out of
   the sole" standing still points sideways two frames later, while a foot jet
-  should always push under him.
+  should always push under him. NO SHIPPED MECH AUTHORS A BOOST `rot`, so every
+  nozzle on the roster burns body-down today. The ANIMATION workbench's
+  direction arrow draws what the GAME will use rather than the raw +Z — amber
+  down the body for an un-rotated booster, orange along +Z for an authored aim
+  — because drawing +Z there said "forward" about jets that have always burned
+  straight down.
   THE BALL TUCK IS BLOCK'S ALONE. A used to have a fourth meaning (press it
   falling with the tank spent and you curled into the descent ball), which meant
   the ball arrived by accident every time a flight ran dry. It is gone:

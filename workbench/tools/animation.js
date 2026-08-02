@@ -98,8 +98,15 @@ export async function runAnimationWorkbench(config, params) {
   let selAnchor = null;              // anchor name the anchor gizmo holds
   const anchorBase = {};             // name -> {parent, pos, rot} captured at load
   const anchorMarks = new THREE.Group(); scene.add(anchorMarks);
-  // barrel-direction arrow for the held anchor: its +Z is what combat fires
-  // along once the anchor carries a `rot` (see world.js barrelDeflect)
+  // Direction arrow for the held anchor. It draws WHAT THE GAME WILL USE, not
+  // the raw +Z: an anchor with an authored `rot` aims along its own +Z (a
+  // barrel — world.js barrelDeflect), and a BOOSTER with no rot thrusts down
+  // the BODY's -Y whatever its ankle bone is doing (fighter.js boosterJets).
+  // Drawing +Z there was a lie — an un-rotated boostL rides the ankle bone,
+  // whose +Z points wherever the rig's foot axis happens to point (forward on
+  // most of the roster), so the arrow said "forward" about a jet that has
+  // always burned straight down. Amber = the body-down default, orange = an
+  // authored aim.
   const barrelArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(),
     2.4, 0xff6a3d, 0.55, 0.3);
   barrelArrow.visible = false;
@@ -957,8 +964,12 @@ export async function runAnimationWorkbench(config, params) {
       barrelArrow.visible = !!sel;
       if (sel) {
         sel.getWorldPosition(barrelArrow.position);
-        barrelArrow.setDirection(_barrelV.set(0, 0, 1)
-          .applyQuaternion(sel.getWorldQuaternion(_barrelQ)).normalize());
+        // a boost nozzle with no authored rot burns down the BODY, not along +Z
+        const bodyDown = selAnchor.startsWith('boost') && !sel.userData.aimRot;
+        _barrelV.set(0, bodyDown ? -1 : 0, bodyDown ? 0 : 1)
+          .applyQuaternion((bodyDown ? glbF.group : sel).getWorldQuaternion(_barrelQ));
+        barrelArrow.setDirection(_barrelV.normalize());
+        barrelArrow.setColor(bodyDown ? 0xffb347 : 0xff6a3d);
       }
     }
   };
