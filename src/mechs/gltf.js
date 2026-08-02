@@ -924,10 +924,13 @@ function buildGlbMech(def, entry, gltf) {
     }
     return wantCore ? { minY, minCore, minTail } : minY;
   };
-  mech.lowestRenderedY = () => {
+  // `wantCore` passes straight through: callers that only need "the lowest
+  // pixel" get a number, and callers that must tell a buried CHIN from a hand
+  // pressed on the floor (combat/floorguard.js) get the split.
+  mech.lowestRenderedY = (wantCore) => {
     root.updateWorldMatrix(true, true);
     for (const m of meshes) if (m.isSkinnedMesh) m.updateMatrixWorld();
-    return lowestRenderedY();
+    return lowestRenderedY(wantCore);
   };
   mech.groundClamp = (active) => {
     if (!active) {

@@ -41,9 +41,22 @@
 // Opt in per mech with roster `floorGuard: true`. Off, this file does nothing.
 import { clamp } from '../core/utils.js';
 
-// How deep the mech may be before the guard reacts, as a fraction of his own
-// scale — a contact limb's worth of give.
-const ALLOW = 0.35;
+// How deep he may be before the guard reacts, as a fraction of his own scale,
+// and it is TWO numbers because the parts are not equivalent. A hand pressed
+// on the floor or a hoof taking weight belongs slightly under it — holding
+// that to a hairline is what makes a body look like it is hovering. A CHIN
+// does not: a skull through the pavement is a bug at a fraction of the depth
+// a palm is fine at. gltf.js already classifies the mesh (core vs limb vs
+// tail) for the prone clamp, so the guard reads the same split rather than
+// inventing a second one.
+const ALLOW = 0.35;         // limbs, and anything else that grips the world
+const ALLOW_CORE = 0.06;    // torso, head — the silhouette
+// ...and the TAIL, which gltf.js leaves out of both other numbers on purpose
+// (a tail dragging on the floor must not lift a prone body off it). Left out
+// of the guard as well, it simply sinks: measured, tritone's tail went 2.0
+// units under on the heavy toss while his core sat perfectly. A drag is fine,
+// a buried tail is not, so it gets a limb's worth of give and no more.
+const ALLOW_TAIL = 0.4;
 const RATE = 20;       // how fast the lift servos (1/s) — fast enough to keep up with a
                        // slam, which is where the deepest dips happen
 const MAX = 3.0;        // ...and the most it will ever lift, x scale
@@ -55,9 +68,18 @@ export function floorGuard(f, dt, floorY = 0) {
   const lift = f._floorLift || 0;
   // measured THROUGH the lift already applied, which is what makes this a
   // feedback loop rather than an estimate
-  const low = mech.lowestRenderedY();
+  const m = mech.lowestRenderedY(true);
+  const low = typeof m === 'number' ? m : m.minY;
+  const core = typeof m === 'number' ? Infinity : m.minCore;
+  const tail = typeof m === 'number' ? Infinity : m.minTail;
   if (!Number.isFinite(low)) return lift;
-  const want = lift + ((floorY - ALLOW * scale) - low);
+  // whichever rule is being broken worse
+  const need = Math.max(
+    (floorY - ALLOW * scale) - low,
+    Number.isFinite(core) ? (floorY - ALLOW_CORE * scale) - core : -Infinity,
+    Number.isFinite(tail) ? (floorY - ALLOW_TAIL * scale) - tail : -Infinity
+  );
+  const want = lift + need;
   const target = clamp(Math.max(0, want), 0, MAX * scale);
   const next = lift + (target - lift) * (1 - Math.exp(-RATE * dt));
   f._floorLift = Math.abs(next) < 1e-4 ? 0 : next;
