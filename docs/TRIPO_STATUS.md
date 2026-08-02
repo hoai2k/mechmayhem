@@ -327,3 +327,46 @@ What the swap buys, measured:
   identical at rest (Δpos 0, Δaim 0°) between the two builds.
 - `?rigedit=colossus` now opens the PRIMARY directly instead of being forced
   onto the alt with the checkbox disabled.
+
+## Session 7 (2026-08-02): KONGA + TRITONE — two new characters
+
+Two roster additions built end-to-end from `docs/canonical/mech_{konga,tritone}.png`.
+Tripo H3 + rig, 55 credits each (balance 1355 -> 1245). Both riggable; tritone's
+prerigcheck reported `others` but the forced biped rig came out usable (4 clean
+leg chains, head, 3-segment tail, separate cannon bones).
+
+KONGA — knuckle-walking cyborg gorilla, twin shoulder missile pods, one
+cybernetic arm. New `knuckle` gait: NOT a quadruped gallop — a gorilla carries
+its trunk on planted forelimbs at every speed, so it is the standard cycle on
+short back legs plus the foreleg dials (carry/foldClear/handGround/handClear)
+on the arm joints, diagonal couplet (`arms.phase: π`).
+TRITONE — ceratopsian gun platform. New `trike` gait, `base: 'standard'` and
+deliberately NOT fenrir's `quad` block: that folds the hinds under the belly
+for a wolf bound and drove tritone's FRONT feet 2.15 units through the floor.
+A ceratopsian keeps three feet down and swings the fourth.
+
+STANCE IS MEASURED, NOT EYEBALLED. Both bodies were leveled by probing the
+lowest rendered vertex of each contact limb over full gait cycles at several
+speeds. That is what caught (a) konga's arms being physically too short to
+reach the ground (3.77 long under a 5.05 shoulder — the knuckles could never
+have touched) and (b) the trike quad-block problem above.
+
+FACIAL PERFORMANCE — `src/mechs/face.js`, new. These are the first two mechs
+with organic faces. Two levels so it survives both routes: HEAD GESTURE through
+`tgt.head`/`tgt.torso` (every build has a head, GLB included) and FACE PARTS on
+the `jaw`/`browL`/`browR` joints (procedural; skipped silently when absent).
+Expression priority: dead > flinch(hitstun) > roar(heavy/special/ult) >
+snarl(any attack) > firing > idle, damped, and attack expressions ride the
+CLIP'S OWN PHASE so the mouth peaks at the blow (the cranky-gape idiom).
+`faceRoar(f, dur)` lets a special force a bellow on a scheduled beat.
+Fighter ctx gained `state` so the layer can see hitstun.
+
+GLB intake notes: facing solved numerically (head-vs-hips offset per candidate
+yaw) — both 270. TRITONE needs `heightScale: 0.55`: the auto-sizer matches
+head-top HEIGHT, which balloons a long low quadruped (25.8 long vs the
+procedural 13.6), so he is scaled to footprint instead. Worth remembering for
+any future quadruped intake.
+
+Verified: contact probes, showcase + battle screenshots on BOTH routes, a
+konga-vs-tritone GLB soak to a clean KO, and direct invocation of all four new
+specials/ults (chestBeat, goreCharge, apexBarrage, siegeProtocol) with no errors.
