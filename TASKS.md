@@ -6349,3 +6349,51 @@ line of text. `.xb-btn` is an inline-FLEX box, so its baseline is its first flex
 item's — the top bar of the three-line glyph, a third of the way down the circle
 — and the `vertical-align: -4px` nudge was pushing an already-sunken box further
 down. `vertical-align: middle` ignores the phantom baseline and centres it.
+
+## KONGA'S SKIN, take two — and what the chest beat actually shows (user request, 2026-08-02)
+
+An owner export from `/workbench/?edit=skin` landed konga's skinOps at 40 ops:
+the 35 that shipped plus five new ones moving ~4.8k vertices of HEAD, JAW and
+TORSO. Applied with `tools/manifestfmt.mjs`'s surgical splice, so the diff is
+the five new lines and nothing else.
+
+ONE THING THE EXPORT COULD NOT CARRY. The panel writes the feather block from
+its own dials, and this one came back as a flat `radius: 0.04` — losing the
+`pod*: 0.012` hairline band that keeps the bolted-on missile launchers crisp
+against a soft ape. Swept against the NEW op set (skin-audit severity total,
+`node tools/skindebug.mjs konga`): 0.035 → 349.4 · 0.04 → 290.3 · **0.045 →
+281.8** · 0.05 → 313.7 · 0.055 → 418.3. The shipped 0.045 is still the optimum
+on the new ops, and the pod band costs nothing measurable (0.04 flat and 0.04
++ pod both total 290.3 — the audit cannot see a seam that never exceeds a
+limit, which is exactly why the band is authored rather than derived). So the
+ops are the export's and the feather block is the one that shipped.
+
+Where that leaves the audit: 22 findings / 270.7 before, 25 / 281.8 after. THE
+TOTAL WENT UP AND THE PICTURE GOT BETTER, which is the thing to understand
+about this number — the audit only samples edges whose ends carry DIFFERENT
+weights, so geometry that was welded flat to one bone contributed nothing and
+now that it articulates it can be measured. `featherprobe` reads 0.125 mean
+dominant-weight jump across 5302 border edges, the same 0.12 the band was
+tuned to.
+
+THE CHEST BEAT (`chestBeat`, konga's finisher roar — `game/finisher/konga.js`,
+and the clip `face.js` bares his teeth on). Frozen frame by frame with
+`tools/pose.mjs`:
+
+- THE SKINNING IS BETTER WHERE THE MOVE LIVES. At the first drum (t=0.42) the
+  old bind smeared the orange chest harness up over the sternum in a long
+  stretched wedge; it now stays a compact band with the abdomen reading
+  underneath. The shout (t=0.92) is the same story, and from behind the pods
+  and shoulders are unchanged — crisp, no spikes, no tears anywhere in the
+  clip.
+- WHAT IS NOT A SKINNING PROBLEM: HIS FACE IS GONE from the drum onward. The
+  clip pitches `torso` back 26° and then `head` back another 30 (34/34 at the
+  shout), so the skull folds ~60° onto the upper back — measured on the bones,
+  the JAW ends up ABOVE the head joint (7.3 vs 6.5) and behind it, i.e. the
+  mouth points at the sky. From the player's camera you see the top of the
+  crest and a featureless black hump where the face should be; from BEHIND he
+  reads perfectly. It is the same before and after the reskin, so it is
+  authored pose, not bind — but it defeats the one clip that has a face
+  expression attached. The fix is a couple of numbers in the clip's head keys
+  (roughly halve the head-back on the 0.26/0.92 keys and let the torso carry
+  the rear-up), NOT touched here: it is authored art and the ask was to verify.
