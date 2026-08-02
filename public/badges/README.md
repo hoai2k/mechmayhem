@@ -1,16 +1,24 @@
 # Mech badges — the hand-made icon art
 
-**Put a mech's badge here as `<id>.png`** (the roster id exactly: `konga.png`,
-`tritone.png`, …), then add that id to the `BADGES` set in `src/ui/icons.js`.
-Both steps, or nothing happens: an id with no file falls back to the
-thumbnail, a file with no id is never used.
-
-To convert generated art into the right format:
+**Run generated art through the tool and it lands here, declared, in one go:**
 
 ```
-node tools/badgekey.mjs <in.png> <mechId>     # keys the backdrop, trims, squares, resizes
-node tools/iconcheck.mjs                      # proves it landed and the fallbacks still work
+node tools/badgekey.mjs <in.png> <mechId>   # keys the backdrop, trims, squares, resizes,
+                                            # writes public/badges/<id>.png AND adds the id
+                                            # to BADGES in src/ui/icons.js
+node tools/iconcheck.mjs                    # proves it landed and every fallback still works
 ```
+
+A badge is only used if BOTH exist: the file here, and the id in the `BADGES`
+set in `src/ui/icons.js`. `badgekey.mjs` does both so they cannot drift, and
+`iconcheck.mjs` fails in **either** direction — a declared id with no file,
+**or a file nobody declared**. That second one is the state that reads as "why
+is that mech still showing its snapshot": the art is sitting right here and
+the thumbnail is quietly winning. A backup must never outrank the real thing
+in silence.
+
+(Dropping a PNG in by hand still works — just add the id yourself, or re-run
+`badgekey.mjs` on it, and let `iconcheck.mjs` confirm.)
 
 ---
 

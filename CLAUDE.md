@@ -965,8 +965,13 @@ audio). Progress history: `TASKS.md`.
   replaced the roster's icons in the menus. That tool now fills in only the
   mechs with NO icon on a bare run (name ids to re-shoot those, `--all` to
   redo the roster) and cannot write outside `public/thumbs/`.
-  `node tools/iconcheck.mjs` proves it: every declared badge has a file, every
-  mech has a thumbnail, and each rung of the fallback still lands.
+  A BACKUP MUST NEVER QUIETLY OUTRANK THE REAL THING, which needs the file and
+  the `BADGES` entry to stay in step: `tools/badgekey.mjs` writes both when it
+  lands the art (idempotently), and `node tools/iconcheck.mjs` FAILS in either
+  direction — a declared id with no file, or a badge sitting in the folder that
+  nothing declares, which is exactly the state that reads as "why is that mech
+  still showing its snapshot". It also checks every mech has a thumbnail and
+  that each rung of the fallback still lands.
   A BADGE IS A MARK, NOT A PICTURE OF THE MECH, and that is the one thing to
   get right before commissioning art: it is drawn at 17px in the HUD and 52px
   at its biggest, so a portrait-in-a-circle — the obvious thing to ask an image

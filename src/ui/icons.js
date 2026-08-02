@@ -31,8 +31,9 @@
 // no file costs one 404 and falls back to the thumbnail; a file with no id
 // here is simply never used.
 export const BADGES = new Set([
-  // (none yet — every mech is on its auto-captured thumbnail. As emblem art
-  //  arrives, list the id here beside the file.)
+  // tools/badgekey.mjs adds an id here when it lands the art, so the file and
+  // this list cannot drift apart; tools/iconcheck.mjs fails if they ever do,
+  // in EITHER direction. Empty means every mech is on its thumbnail.
 ]);
 
 export function badgeUrl(id) { return `badges/${id}.png`; }
