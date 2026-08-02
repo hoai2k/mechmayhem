@@ -55,6 +55,7 @@ const ROLE = {
   shield: 'AEGIS passive cover: the live geometric test for attacks arriving THROUGH the tower shield. Gameplay, not FX — moving it changes what gets blocked.',
   eye: 'Wraith\'s eye — DEATH SWARM flare origin.',
 };
+const BOOST_ROLE = 'Booster nozzle — the hover jets\' white/yellow thrust flame burns from here whenever this mech is FLYING. With no authored rotation the thrust runs straight down the BODY (right for a foot jet, whatever the ankle is doing); give it a rot and the exhaust follows the anchor\'s own +Z instead, like a barrel. Every build gets boostL/boostR under the soles; any extra anchor whose name starts with "boost" is another nozzle.';
 const WING_ROLE = 'Wraith wing-tip laser emitter — one of six beams fired by the wingLasers heavy FX. Missing tips are simply skipped.';
 
 // Every action on THIS mech that reads `name`. `available` (a Set of anchor
@@ -113,6 +114,15 @@ export function anchorUses(def, name, available) {
   if (name === 'eye' && def?.moves?.ult?.id === 'deathSwarm' && !has('eye')) {
     notes.push('This build has no eye anchor, so the flare comes off the mech centre.');
   }
-  const role = ROLE[name] || (/^wing[0-5]$/.test(name) ? WING_ROLE : '');
+  // BOOSTERS are not a move — they belong to the shared hover jets, so every
+  // mech with a tank reads them and the panel should say so rather than
+  // calling them unused.
+  if (name.startsWith('boost')) {
+    if (def?.stats?.noHover) notes.push('This mech has no jets (stats.noHover), so its boosters never fire.');
+    else add('flight', 'Hover jets — booster flame', 'burns while flying');
+  }
+
+  const role = ROLE[name] || (name.startsWith('boost') ? BOOST_ROLE : '')
+    || (/^wing[0-5]$/.test(name) ? WING_ROLE : '');
   return { role, uses, notes, unused: uses.length === 0 };
 }

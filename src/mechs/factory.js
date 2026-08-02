@@ -280,6 +280,17 @@ export function buildMech(def) {
   if (!anchors.muzzleR) anchors.muzzleR = addAnchor(joints['handR'], 0, -0.2 * D.scale, 0.4 * D.scale);
   if (!anchors.muzzleL) anchors.muzzleL = addAnchor(joints['handL'], 0, -0.2 * D.scale, 0.4 * D.scale);
   if (!anchors.core) anchors.core = addAnchor(joints['torso'], 0, D.torsoH * 0.5, D.torsoD * 0.4);
+  // BOOSTER NOZZLES — where the hover jets' flame comes out. The default is
+  // the obvious one, under each SOLE. POSITION only: with no authored `rot`
+  // the thrust runs straight down the body (fighter.boosterJets), which is
+  // what a foot jet does whatever the ankle is doing. A mech that wants its
+  // thrust somewhere else — a back pack, wing pods — drags these in the
+  // animation workbench and exports a `muzzles` entry, and a `rot` in that
+  // entry aims the exhaust along the anchor's +Z instead.
+  for (const side of ['L', 'R']) {
+    const k = 'boost' + side;
+    if (!anchors[k]) anchors[k] = addAnchor(joints['ankle' + side], 0, -0.34 * D.scale, 0);
+  }
   anchors.overhead = addAnchor(joints['root'], 0, D.hipHeight + D.torsoH + D.headSize * 2 + 1.2 * D.scale, 0);
 
   root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
