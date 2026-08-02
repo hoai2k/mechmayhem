@@ -30,7 +30,7 @@ import { prefetchTex } from '../core/texload.js';
 import { playableRoster } from '../mechs/roster.js';
 import { preloadMechModels } from '../mechs/gltf.js';
 import { loadPosterIndex, posterUrl } from '../ui/posters.js';
-import { thumbUrl } from '../ui/icons.js';
+import { iconUrl } from '../ui/icons.js';
 
 // Pull an image into the browser's cache. decode() so the DECODE cost is paid
 // here too — a cached-but-undecoded PNG still hitches the first time it is
@@ -208,8 +208,11 @@ export class Predictor {
     this._push('posters', () => loadPosterIndex().then((idx) => Promise.allSettled(
       Object.keys(idx).map((id) => fetchImage(posterUrl(id))))), 3);
     if (ids.length) {
-      this._push('thumbs:' + ids.join(','),
-        () => Promise.allSettled(ids.map((id) => fetchImage(thumbUrl(id)))), 3);
+      // whichever tier each mech actually wears — badge if it has one, its
+      // thumbnail otherwise (ui/icons.js), so the warm covers what the menu
+      // will really ask for rather than a fixed folder
+      this._push('icons:' + ids.join(','),
+        () => Promise.allSettled(ids.map((id) => fetchImage(iconUrl(id)))), 3);
     }
     this._pump();
   }
