@@ -106,7 +106,10 @@ export async function runRigWorkbench(config, params) {
   // what's missing on screen — previously a mech with no rig file sailed
   // through to applyCustomRig and died on a null bone root.
   let raw = null, loadErr = null;
-  try { raw = await config.variants.raw(id, { variant: useAlt ? 'alt' : 'glb' }); } catch (e) { loadErr = e; }
+  // `drops: true` — this tool never touches skin ops, so it can have the
+  // manifest's surplus geometry taken off up front and show the body the game
+  // builds rather than the raw file's stray lumps.
+  try { raw = await config.variants.raw(id, { variant: useAlt ? 'alt' : 'glb', drops: true }); } catch (e) { loadErr = e; }
   let probeMesh = null;
   raw?.scene.traverse((o) => { if (o.isSkinnedMesh && !probeMesh) probeMesh = o; });
   const startRig = loadRig();

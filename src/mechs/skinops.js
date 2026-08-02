@@ -33,6 +33,9 @@
 // up to 4 bones, renormalized on apply — authored in the ?debug=skin
 // workbench's "Bind Geometry" panel.
 import * as THREE from 'three';
+// circular by design and safe: feather.js reads boneHierDist from here, and
+// both sides are hoisted function declarations called only at runtime.
+import { featherSkin } from './feather.js';
 
 // Analyze one SkinnedMesh: dominant bone per vertex + bone-islands.
 // Returns { compId: Int32Array per vertex, comps: [{id, count, boneIndex,
@@ -513,6 +516,17 @@ export function applySkinOps(mesh, ops, analysis = null) {
     if (op.purgeFar) {
       const n = purgeFarWeights(mesh, { minDist: op.minDist, minW: op.minW });
       if (n) { applied++; total += n; }
+      continue;
+    }
+    // {"feather": {radius, rigid, maxLinks, …}} — SOFTEN every bone border on
+    // the mesh (feather.js). A whole-model op like purgeFar, and the LAST one
+    // a list should carry: it reads the partition the rebinds leave behind and
+    // grows each bone's influence out of its own region, so an op after it
+    // would slam a rigid weight back over the gradient. Dominance is preserved
+    // by construction, so island ordinals below it stay valid either way.
+    if (op.feather) {
+      const res = featherSkin(mesh, op.feather);
+      if (res.blended) { applied++; total += res.blended; }
       continue;
     }
     // {"purgePair": ["boneA", "boneB"]} — these two bones never share a vertex

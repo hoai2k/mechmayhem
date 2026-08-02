@@ -554,6 +554,24 @@ audio). Progress history: `TASKS.md`.
   the first build used (sizes halved, arc throw and `jag` halved), which is the
   difference between a chimney that crackles and one that looks like it is
   venting. The dynamics — throw, gravity, gap — are untouched.
+- A FIRE BURNS ON A THING, NOT AT A COORDINATE (`flameLanding` in world.js).
+  `Effects.jet` returns the end of RANGE, not a contact point, and the fire path
+  passes a NEGATIVE gravity (the tube climbs), so the ground clamp inside `jet`
+  never runs — inferno's impact bloom was planted a fixed distance in front of
+  the muzzle whether or not anything was there, which is the reported "flames in
+  mid-air", and when it did land on someone it stayed put while they walked out
+  of it. The stream is CAST now, nearest hit first: a FIGHTER through the same
+  hurtbox capsules melee and bullets use (which also NAMES the part), then the
+  GROUND solved against the arc, then nothing — and nothing means no impact fire
+  at all, because a flamethrower fired at the sky sets nothing alight. A hit
+  fighter is remembered on the jet (`fj.on`), and the burning spot is re-read off
+  that limb EVERY FRAME rather than per weapon tick, so it rides him through the
+  fade-out. THE FIRE IS THE SIZE OF WHAT IT IS ON: pavement gets the wide fuel
+  bed (`FLAME_GROUND_R`), a limb gets half the horizontal extent of its capsule
+  plus its radius — so an arm held out sideways burns along its length and the
+  same arm hanging straight down burns at the width of the arm. Measured on
+  titanus at 8 units: it lands on `thighL`/`upperArmL` with radii 1.08-1.65
+  swinging with the pose, and the spot tracks him ~1 unit a frame as he moves.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
@@ -679,6 +697,50 @@ audio). Progress history: `TASKS.md`.
   carrying `comp` ids are only valid against the rig they were authored on: check
   them with `node tools/skindebug.mjs <mech>` before and after (the severity
   total moves the wrong way when they have shifted).
+- FEATHERED SEAMS — THE ORGANIC BIND (`src/mechs/feather.js`, the FEATHER SEAMS
+  panel in `/workbench/?edit=skin`, hotkey **F**). Everything else in the skin
+  pipeline answers WHICH BONE owns a piece of geometry; this answers HOW HARD
+  THE LINE BETWEEN TWO BONES IS. reskin.js hands each vertex to exactly one bone
+  and a paint stroke rebinds a vertex list rigidly, so the finest border either
+  can draw is still ONE VERTEX WIDE — a step, not a gradient. Right for a plate
+  on a hinge, wrong for a body made of muscle: KONGA is a cyborg gorilla whose
+  shoulder should swell into his chest.
+  So the border is DERIVED rather than painted. The pass reads the partition the
+  ops leave behind and grows each bone's influence OUT of its own region across
+  the mesh's own surface, dying away over `radius`: `w_b(v) = falloff(geodesic
+  distance from v to bone b's region)`, the vertex's own bone at 1. Two vertices
+  either side of a border swap (1, ~1) for (~1, 1), so the weights CROSS OVER
+  continuously and an arm raise takes a little chest with it, letting go
+  gradually. Authored as the LAST entry of a manifest's `skinOps`:
+  `{"feather":{"radius":{"*":0.045,"pod*":0.012},"maxLinks":2}}`.
+  FOUR THINGS IT KEEPS. **Dominance never flips** — a foreign bone's weight is
+  capped just under the vertex's own (`cap`), so `analyzeSkin`'s partition, every
+  `{comp:N}`, the skin audit and the hurtbox buckets see exactly what they saw
+  before; feathering softens a border, it never moves one (which is also why it
+  must be LAST — an op after it would slam a rigid weight back over the
+  gradient). **Distance is geodesic**, over the mesh's edges with UV/normal
+  duplicates welded — a knuckle resting against a shin is a straight-line
+  neighbour and a surface path all the way up the arm and down the leg, and only
+  the second one is right. **`maxLinks`** refuses to blend bones further apart
+  than that in the skeleton (2 by default: a shoulder may reach past the torso,
+  a brow may not reach a shoulder it merely touches). **The robot parts stay
+  robot** — `radius` may be a per-bone table (`"pod*": 0.012`) and `rigid` is the
+  hard case (band 0, neither a source nor a destination, and the flood does not
+  travel THROUGH that geometry), so konga's missile pods keep the crisp seam a
+  bolted-on launcher should have while the ape around them is soft.
+  BAND WIDTH IS MEASURED, NOT GUESSED. Too narrow leaves the tear, too wide
+  PINCHES (the LBS candy wrapper), so it has an optimum: konga's skin-audit
+  severity total ran 1851 rigid → 483 at 0.03 → 288 at 0.04 → **280 at 0.045**
+  → 329 at 0.05 → 355 at 0.06 → 498 at 0.08. Judge a value with `node
+  tools/skindebug.mjs <mech>` (the severity total), `node
+  tools/featherprobe.mjs <mech> [--off] [--radius r] [--band 'pod*=0.012']`
+  (share of the mesh sharing bones, and the MEAN DOMINANT-WEIGHT JUMP across
+  every border edge — 1.00 is a step, konga ships at 0.12) and `node
+  tools/feathershot.mjs <mech> out.png <clip> <t>` (the same frame, same camera,
+  rigid vs feathered as two files). In the workbench, **blend colours** mixes
+  each vertex's bone colours BY WEIGHT instead of showing its dominant bone
+  flat — the only view a gradient shows up in at all — and comes on with the
+  panel.
 - SKIN WORKBENCH **Debug output ▶** downloads ONE self-contained HTML file for
   handing a deformation problem to someone else: two screenshots of the current
   frame (shaded + bone colours), the full tool state (mech, build, selected
@@ -698,6 +760,17 @@ audio). Progress history: `TASKS.md`.
   every write had to be blocked — and neither answered the question as well as
   Skin Debug, which plays every clip. The warning note stays; the toggle does
   not.)
+  THE DROPS *ARE* APPLIED THERE, though, and that is the other half of the same
+  rule: `dropGeo`/`dropBones` delete geometry the game does not build, so a raw
+  view that skips them floats a stray lump beside the mech — konga's 121-triangle
+  blob sat in front of his chest in this tool and nowhere else, which reads as
+  something wrong with the model. The skin workbench applies them AFTER its ops
+  and its island partition (`config.skin.applyDrops`), which is the game's own
+  order and the only one that is safe: a dropped lump is its own island, so no
+  `{comp:N}` moves — dropping FIRST would renumber tempest's 122 of them onto
+  other geometry. The rig editor, which touches no ops at all, just asks for
+  them up front (`config.variants.raw(id, {drops: true})`). Seam cuts stay out
+  of both: they APPEND duplicate vertices, which a vertex list cannot name.
 - Skin workbench selections: click = the bone-island under the cursor ·
   SHIFT-click = the BLEND PATCH (the run of geometry sharing that vertex's own
   bone plus a minority weight on another — the bit of torso that wiggles with
@@ -1178,6 +1251,39 @@ audio). Progress history: `TASKS.md`.
   Editor: `src/editor/`, loader + authored-placement format:
   `src/arena/level.js`.
 
+- …AND NOTHING SHOULD BE ABOVE IT EITHER WHEN IT IS PRONE
+  (`node tools/proneprobe.mjs [mech …]`). A downed body is floor-clamped
+  (`gltf.js groundClamp`, called by Fighter.update for knockdown/getup): the
+  model is shifted until its lowest RENDERED point rests on y=0. That is right
+  for a body lying flat and wrong the moment anything narrow hangs below it,
+  because A POINT IS NOT A CONTACT PATCH — a pointed toe, a heel spur, a tail
+  tip takes the clamp's weight and the whole mech levitates on it. Measured
+  before: titanus 15.5% of his height off the ground on `heelL`, tempest 10.7%
+  on an ankle, wraith 24.6% ON HIS OWN CLOAK HEM, fenrir 40.5% propped up on his
+  blade-tail, tritone 93.6% — nearly a whole body height, standing on his tail.
+  TWO RULES FIX IT AND THE BODY WINS WHERE IT CAN. (1) The clamp lands his CORE
+  (the geometry owned by hips/torso/head, named through `boneMap` so an auto-rig
+  noun like `tripo0_Right_Limb_1` still resolves) and only backs off when doing
+  that would bury an extremity deeper than `PRONE_SINK` (8% of body height —
+  about half a boot, and the floor is opaque). `PRONE_SINK 0` is exactly the old
+  rule. (2) WHAT HANGS OFF HIM GOES LIMP: `Animator.limpTail` is a quasi-static
+  solve over the chains named by `mech.limpChains` (a rig's `limpChains`, a
+  manifest entry's, else `tail0`) — each segment keeps a WORLD direction damped
+  toward straight down and toward a floor it cannot pass through, run root to
+  tip with the matrices refreshed between segments, so the chain FLOPS out flat
+  in whatever direction it was pointing over ~0.3s. The clamp then ignores those
+  bones entirely, which is only honest because the solver has already laid them
+  on the ground. THE BONE LINE IS NOT THE SURFACE — on a thin blade it is, on
+  tritone's armoured slab it is the middle of it — so rather than author a
+  thickness per rig, the clamp reports how far the chain's geometry actually
+  ended up underground (`mech.tailUnder`) and the solver integrates it into its
+  own floor. After: 20 failing clips across the roster down to 5, tritone 93.6%
+  -> 0.0%, fenrir 40.5% -> 0.8%, wraith 24.6% -> 7.2%, titanus 15.5% -> 8.9%,
+  tempest 10.7% -> 3.8%. STILL FAILING, left as found: jerry (35%, propped on a
+  long rigid back leg — no chain to go limp, the knockdown clip's leg pose is
+  authored for a humanoid) and saurion (43%, an auto-rigged tail on
+  `tripoSpine_0`; declaring it fixes his knockdown and makes his ragdoll worse,
+  so it is not declared).
 - NOTHING SHOULD BE UNDER THE FLOOR, and `node tools/groundprobe.mjs <mech>`
   is how you know: it plays every clip the mech can actually play, CPU-skins
   the model at each sample and reports the LOWEST VERTEX against the ground,

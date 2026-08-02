@@ -39,7 +39,12 @@
  * @property {Object} variants        WHICH BUILD of a subject stands on the stage
  *   list(id)          -> [{ key, label, available }]  ('glb' | 'proc' | 'alt' | …)
  *   build(id, opts)   -> model            (opts: { variant, overrides })
- *   raw(id, opts)     -> { scene, entry } — the untouched asset, for skin/rig work
+ *   raw(id, opts)     -> { scene, entry } — the untouched asset, for skin/rig
+ *                        work. `opts.drops` also takes off the surplus
+ *                        geometry the manifest deletes, so a tool that only
+ *                        LOOKS at the model isn't showing lumps the game does
+ *                        not build; a tool that applies skin ops itself leaves
+ *                        it off and calls `skin.applyDrops` after its ops
  *   groundHeight(m)   -> number           — measured rendered height, for framing
  *
  * A MODEL is the one shape the tools do assume, because it is the shape a
@@ -155,6 +160,10 @@
  *   toJson(ops, ind)  -> the manifest text for a skinOps array
  *   blendPatch / weldedAdjacency / enclaveScan — selection helpers
  *   ops(id, opts) / seamCuts(id, opts) / save(id, ops, opts)
+ *   applyDrops(mesh, id, opts) -> the manifest's dropGeo/dropBones applied to a
+ *                        mesh the tool owns. Call it AFTER the ops and the
+ *                        island partition, which is the order the game uses —
+ *                        an island ordinal is drawn on the undropped mesh
  * @property {Object} arena          a THIRD family after characters and props:
  *                                  the PLACES a match happens in. An arena is
  *                                  not an asset but a RECIPE — a theme plus a

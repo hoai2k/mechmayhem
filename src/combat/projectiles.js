@@ -205,6 +205,12 @@ export class ProjectileSystem {
       gravity: spec.arcTo || type === 'mortar' ? 26 : 0, // lobbed shots arc
       homing: spec.homing || null,
       retarget: !!spec.retarget,
+      // A SEEKER THAT IS NOT SEEKING YET. `seekDelay` seconds of dumb ballistic
+      // flight before `retarget` switches on — which is what turns "fired
+      // straight up" into "fired straight up and then it came looking for
+      // you" (TRITONE's SIEGE PROTOCOL). Without it a shot aimed at the sky
+      // curves over within a metre of the muzzle and the arc never happens.
+      seekDelay: spec.seekDelay || 0,
       turnRate: spec.turnRate || 3.2,
       life: spec.life ?? 3.2,
       dist: 0,
@@ -212,6 +218,11 @@ export class ProjectileSystem {
       pierce: !!spec.pierce,
       hitSet: new Set(),
       trailT: 0,
+      // A PROJECTILE MAY OVERRIDE ITS TYPE'S WAKE. The VISUALS table says what
+      // a `plasma` normally trails; a caller that wants the same body flying
+      // with a different wake ('comet' — TRITONE's energy blasts) names it per
+      // shot rather than forcing a whole new projectile type into existence.
+      trail: spec.trail || null,
       launch: spec.launch || 0,
       status: spec.status || null,
       size: spec.size || 1,
@@ -272,6 +283,9 @@ export class ProjectileSystem {
       // homing: retargeting projectiles re-acquire the nearest living enemy
       // whenever their target is gone, so pop-up volleys always curve down
       // onto someone instead of sailing into the sky.
+      // ...counted down here, so it is spent in flight rather than on a timer
+      // the projectile could outlive
+      if (p.seekDelay > 0) { p.seekDelay -= dt; if (p.seekDelay <= 0) p.retarget = true; }
       if (p.retarget && !p.committed && (!p.homing || !p.homing.alive)) {
         let best = null, bestD = Infinity;
         for (const f of world.fighters) {
@@ -369,7 +383,37 @@ export class ProjectileSystem {
       if (p.trailT <= 0 && world.effects) {
         p.trailT = 0.016;
         const vis = p.mesh.userData.vis;
-        if (vis.trail === 'smoke') {
+        const trail = p.trail || vis.trail;
+        if (trail === 'comet') {
+          // A COMET, not a dotted line. The plain 'glow' wake drops one
+          // short-lived puff per tick at the bolt's own size, which reads as a
+          // ball with a smudge behind it. A comet is three things at once:
+          //   • a HEAD — a bright core sitting on the bolt, renewed every tick
+          //     so it never lags behind however fast the thing is going;
+          //   • a TAIL of glows that live long enough to still be there when
+          //     the head is metres away, each born a little smaller and dimmer
+          //     than the last so the tail visibly tapers rather than ending;
+          //   • SPARKS shed BACKWARD off the head — thrown against the flight
+          //     line at a fraction of its speed, which is what gives the tail
+          //     its ragged, streaming edge instead of a clean airbrushed cone.
+          // The tail particles are given a little lateral drift and NO forward
+          // speed, so they hang where they were laid down: the trail marks the
+          // path flown, which is the whole read on a shot that curves.
+          const x = p.mesh.position.x, y = p.mesh.position.y, z = p.mesh.position.z;
+          const c = p.trailColor || p.color;
+          const s = p.size || 1;
+          world.effects.glows.emit(x, y, z, 0, 0, 0,
+            { life: 0.09, size: 2.6 * s, color: 0xffffff, alpha: 0.95 });
+          world.effects.glows.emit(x, y, z,
+            rand(-0.7, 0.7), rand(-0.5, 0.7), rand(-0.7, 0.7),
+            { life: rand(0.42, 0.62), size: rand(1.5, 2.4) * s, color: c, alpha: 0.75, grow: -0.9 });
+          if (Math.random() < 0.55) {
+            _v.copy(p.vel).multiplyScalar(-rand(0.10, 0.26));
+            world.effects.sparks.emit(x, y, z,
+              _v.x + rand(-2, 2), _v.y + rand(-1, 3), _v.z + rand(-2, 2),
+              { life: rand(0.22, 0.42), size: rand(0.5, 1.0) * s, color: c, alpha: 1, gravity: 6 });
+          }
+        } else if (trail === 'smoke') {
           world.effects.smoke.emit(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z,
             rand(-0.5, 0.5), rand(0.5, 1.5), rand(-0.5, 0.5),
             { life: 0.55, size: rand(0.8, 1.3), color: 0x3a3a40, alpha: 0.45, grow: 2 });
@@ -381,12 +425,12 @@ export class ProjectileSystem {
             rand(-0.6, 0.6), rand(-1.5, 0.2), rand(-0.6, 0.6),
             { life: rand(0.35, 0.6), size: rand(0.8, 1.5), color: p.goopTint.trail, color2: p.goopTint.trail2,
               alpha: 0.95, gravity: 16, spin: 1.5, fadeIn: 0.05 });
-        } else if (vis.trail === 'glitch') {
+        } else if (trail === 'glitch') {
           // corrupted wake: square data-flecks hang in the air behind it,
           // and the shard itself keeps re-rendering in the wrong color
           world.effects.glitchFleck(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z, 0.9);
           if (Math.random() < 0.4) p.mesh.material.color.setHex(glitchColor());
-        } else if (vis.trail === 'glow') {
+        } else if (trail === 'glow') {
           world.effects.glows.emit(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z,
             0, 0, 0, { life: 0.18, size: rand(0.9, 1.5), color: p.trailColor || p.color, alpha: 0.6 });
         }

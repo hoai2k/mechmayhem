@@ -36,7 +36,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { dequantizeScene } from './dequantize.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { buildMech, buildRig, computeDims, addAnchor } from './factory.js';
-import { Animator } from './animator.js';
+import { Animator, LIMP_ROOTS } from './animator.js';
 import { RigAdapter, mapBones, JOINT_ORDER } from './rigadapter.js';
 import { GLB_DRESS } from './designs.js';
 import { profileFor as glbProfileFor } from './glbanim.js';
@@ -58,7 +58,7 @@ let manifestPromise = null;
 const KNOWN_ENTRY_KEYS = new Set([
   'url', 'bindPose', 'boneOverrides', 'heightScale', 'yawOffset',
   'emissiveBoost', 'stretch', 'bonePos', 'boneCorrections', 'noHeadMatch',
-  'skinOps', 'seamCuts', 'dropBones', 'dropGeo', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
+  'skinOps', 'seamCuts', 'dropBones', 'dropGeo', 'limpChains', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
 ]);
 const _entryWarned = new Set(); // "<id>|<msg>" — each complaint fires once per entry
 // Fields of a manifest entry that decide where the bones end up, and
@@ -117,6 +117,7 @@ const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
 const _gcTmp = new THREE.Vector3();   // groundClamp scratch
 const _gcTmp2 = new THREE.Vector3();
+const PRONE_SINK = 0.08;              // see groundClamp / bodyH
 
 // The GLB models are the DEFAULT: any mech with a manifest url renders from
 // its service model, and only `?debug=fallback` forces the whole roster back
@@ -253,7 +254,29 @@ export async function loadRawGlbScene(id, opts = {}) {
     scene.traverse((o) => { if (o.isSkinnedMesh && !sk) sk = o; });
     if (sk) applyCustomRig(sk, customRig);
   }
+  // `{drops: true}` — also take off the surplus lumps the manifest names
+  // (dropGeo/dropBones), so a tool that only LOOKS at the model shows what the
+  // game builds instead of a stray blob floating beside it. Opt-in, and NOT
+  // for a tool that applies skinOps itself: the game drops them AFTER the ops,
+  // and a `{comp:N}` ordinal is drawn on the undropped mesh (see
+  // applyEntryDrops).
+  if (opts.drops) {
+    let sk = null;
+    scene.traverse((o) => { if (o.isSkinnedMesh && !sk) sk = o; });
+    if (sk) applyEntryDrops(sk, entry);
+  }
   return { scene, entry };
+}
+
+// The manifest's geometry drops, in the game's own order, on a mesh a tool
+// already owns. The skin workbench calls it AFTER its ops+analysis pass, which
+// is the same order buildGlbMech uses and the only order that leaves island
+// ordinals meaning what their author meant. Returns what came off.
+export function applyEntryDrops(mesh, entry) {
+  return {
+    geo: applyGeoDrop(mesh, entry?.dropGeo),
+    bones: applyBoneDrop(mesh, entry?.dropBones),
+  };
 }
 
 // ---- shared geometry-edit helpers (load path AND bake path) ---------------
@@ -675,6 +698,11 @@ function buildGlbMech(def, entry, gltf) {
   // Spit: the hook bails on `if (!bones) return`, and his shots went back to
   // flying out sideways with nothing in the fidelity check to catch it.
   mech.rigBones = rigBones || Object.fromEntries(bones.map((b) => [b.name, b]));
+  // WHAT GOES LIMP when he goes down (animator.js limpTail) — and, by exactly
+  // the same list, what the prone floor clamp must not stand him up on. A rig
+  // declares it, a manifest entry can declare it for a mech that has no custom
+  // rig, and `tail0` is the default every tailed body already answers to.
+  mech.limpChains = entry.limpChains || customRig?.limpChains || LIMP_ROOTS;
   mech.adapter = adapter;
 
   // Muzzle (projectile-spawn) anchors — the SINGLE source of every ranged /
@@ -816,25 +844,85 @@ function buildGlbMech(def, entry, gltf) {
   // down-states (knockdown / getup / dead) — upright stances keep the
   // retarget's own per-foot grounding, which is already correct.
   const clampBaseY = container.position.y;
+  // HOW DEEP AN EXTREMITY MAY GO to put the body down, as a fraction of the
+  // mech's height. About half a boot: the floor is opaque and a downed mech is
+  // looked at from above, so a toe under the pavement is invisible while a
+  // torso a tenth of a body height in the air is the thing that gets reported.
+  const bodyH = targetH;
   // THE LOWEST PIXEL OF HIM, in world space — skin-aware, sampled on a stride
   // (a foot or a horn tip is hundreds of vertices wide, so 1500 samples find
   // it and a full scan would cost a frame). Shared by the prone clamp below
   // and the deep-penetration guard: both need the same number, and measuring
   // it twice two ways is how they would come to disagree.
-  const lowestRenderedY = () => {
-    let minY = Infinity;
+  // WHICH VERTICES ARE "THE BODY". A prone mech should be resting on his BACK,
+  // and the lowest-pixel rule cannot tell a back from a toe — so the clamp
+  // measures both, and the core is what it tries to land (see groundClamp).
+  // Named through boneMap, the only thing that knows what this rig calls its
+  // spine: a raw name test would miss `tripo0_Right_Limb_1` and every other
+  // auto-rig noun.
+  const coreBones = new Set();
+  for (const j of ['hips', 'torso', 'head']) {
+    const b = boneMap?.[j];
+    if (b) coreBones.add(b.name);
+  }
+  // …and which vertices the clamp must not measure AT ALL. A TAIL never carries
+  // a body's weight — that is the premise the downed-tail ragdoll is built on
+  // (Animator.limpTail lays the chain out ON the floor when he goes down). Left
+  // in the measurement it pins `minY` to exactly the floor every frame, so the
+  // clamp's sink allowance is spent on a tail that needed none and the body
+  // stays in the air: the two corrections fight, and the tail wins because it
+  // re-solves after every shift the clamp makes.
+  // The WHOLE subtree under the chain root, not just the `tailN` run: a rig may
+  // finish the chain with a differently-named leaf (tritone's `tailTip`), and
+  // half a tail in the measurement props the body up exactly as all of it did.
+  const skipBones = new Set();
+  for (const rootName of mech.limpChains) {
+    const r = rigBones?.[rootName];
+    if (r) r.traverse((b) => { if (b.name) skipBones.add(b.name); });
+  }
+  const coreOf = new WeakMap();          // per mesh: is sampled vertex i core?
+  const coreMask = (m) => {
+    let mask = coreOf.get(m.geometry);
+    if (mask) return mask;
+    const si = m.geometry.attributes.skinIndex, sw = m.geometry.attributes.skinWeight;
+    const names = m.skeleton?.bones.map((b) => b.name) || [];
+    const n = m.geometry.attributes.position.count;
+    mask = new Uint8Array(n);
+    if (si && sw && coreBones.size) {
+      for (let i = 0; i < n; i++) {
+        let best = -1, bi = 0;
+        for (let c = 0; c < 4; c++) {
+          const w = sw.getComponent(i, c);
+          if (w > best) { best = w; bi = si.getComponent(i, c); }
+        }
+        mask[i] = skipBones.has(names[bi]) ? 2 : coreBones.has(names[bi]) ? 1 : 0;
+      }
+    }
+    coreOf.set(m.geometry, mask);
+    return mask;
+  };
+  // Both heights in one sweep: the lowest pixel of ALL of him, and the lowest
+  // pixel of his core.
+  const lowestRenderedY = (wantCore) => {
+    let minY = Infinity, minCore = Infinity, minTail = Infinity;
     for (const m of meshes) {
       const posAttr = m.geometry?.attributes?.position;
       if (!posAttr) continue;
       if (m.isSkinnedMesh) m.skeleton.update();
+      const mask = wantCore && m.isSkinnedMesh ? coreMask(m) : null;
       const stride = Math.max(1, Math.floor(posAttr.count / 1500));
       for (let i = 0; i < posAttr.count; i += stride) {
         m.getVertexPosition(i, _gcTmp2);   // skin-aware on SkinnedMesh
         m.localToWorld(_gcTmp2);
+        if (mask && mask[i] === 2) {
+          if (_gcTmp2.y < minTail) minTail = _gcTmp2.y;
+          continue;
+        }
         if (_gcTmp2.y < minY) minY = _gcTmp2.y;
+        if (mask && mask[i] === 1 && _gcTmp2.y < minCore) minCore = _gcTmp2.y;
       }
     }
-    return minY;
+    return wantCore ? { minY, minCore, minTail } : minY;
   };
   mech.lowestRenderedY = () => {
     root.updateWorldMatrix(true, true);
@@ -858,10 +946,33 @@ function buildGlbMech(def, entry, gltf) {
     // off the floor — the reported knockdown bug. This resyncs it to 1:1.
     for (const m of meshes) if (m.isSkinnedMesh) m.updateMatrixWorld();
     const rootY = root.getWorldPosition(_gcTmp).y;
-    const minY = lowestRenderedY();
+    const { minY, minCore, minTail } = lowestRenderedY(true);
+    if (minY === Infinity) return;
     // container Y is root-local; root carries only translation + yaw, so a
-    // local-Y delta equals a world-Y delta. Bring worldMinY up/down to rootY.
-    if (minY !== Infinity) container.position.y = clampBaseY + (rootY - minY);
+    // local-Y delta equals a world-Y delta.
+    //
+    // TWO ANSWERS, AND THE BODY WINS WHERE IT CAN. Standing the LOWEST PIXEL on
+    // the floor is right for a body lying flat and wrong the moment anything
+    // narrow hangs below it — a pointed toe, a heel spur, a horn — because a
+    // point is not a contact patch, and the whole mech ends up levitating on it
+    // (measured before this: titanus 15.5% of his height off the ground resting
+    // on `heelL`, tempest 10.7% on an ankle, viper 14.1%). So the clamp lands
+    // his CORE instead, and only backs off when doing that would bury an
+    // extremity deeper than `sink`. With sink 0 this is exactly the old rule.
+    const lift = rootY - minY;
+    const coreLift = minCore === Infinity ? lift : rootY - minCore;
+    const sink = PRONE_SINK * (bodyH || 0);
+    const y = clampBaseY + Math.max(coreLift, lift - sink);
+    container.position.y = y;
+    // HOW FAR THE TAIL ENDED UP UNDER THE FLOOR, handed back to the ragdoll.
+    // Exempting the tail from the clamp is only honest if the ragdoll actually
+    // lays it ON the ground, and the ragdoll works on the BONE LINE — which on a
+    // thin blade is the tail and on a thick armoured one (tritone's) is the
+    // middle of a slab, leaving half of it buried. Rather than measure a
+    // thickness per rig, the error is reported here and the solver servos its
+    // own floor up by it (Animator.limpTail): the surface lands wherever the
+    // geometry actually is, in whatever pose it is in.
+    mech.tailUnder = minTail === Infinity ? 0 : Math.max(0, -(minTail + (y - clampBaseY)));
   };
 
   // Visual-only floor lift for the ?debug=models workbench. Raises just the

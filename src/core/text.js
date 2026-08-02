@@ -436,7 +436,7 @@ export const MESSAGES = {
   'mech.konga.quote.win': '"You brought armor. I brought both arms."',
   'mech.konga.move.ranged': 'Shoulder Salvo',
   'mech.konga.move.special': 'Skull Driver',
-  'mech.konga.move.ult': 'APEX BARRAGE',
+  'mech.konga.move.ult': 'APEX POUND',
 
   'mech.tritone.name': 'TRITONE',
   'mech.tritone.title': 'The Walking Siege',

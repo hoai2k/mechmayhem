@@ -33,7 +33,7 @@ import {
 } from '../../../src/mechs/mannequin.js';
 import { profileFor } from '../../../src/mechs/glbanim.js';
 import {
-  buildGlbForTool, fetchRawManifest, loadRawGlbScene, skinnedBox, measureHeadTop, setAssetBase,
+  buildGlbForTool, fetchRawManifest, loadRawGlbScene, applyEntryDrops, skinnedBox, measureHeadTop, setAssetBase,
   clearGlbCache,
 } from '../../../src/mechs/gltf.js';
 import { rigFor, rigIds } from '../../../src/mechs/rigs/index.js';
@@ -183,12 +183,18 @@ const CONFIG = defineWorkbenchConfig({
     // (it IS private geometry, freshly built), which is what lets the skin and
     // rig tools open the reference body with the code they already have; there
     // is no manifest entry behind it, and both tools disable saving on that.
-    raw: (id, { variant = 'glb' } = {}) => {
+    // `drops: true` also takes off the manifest's surplus geometry (dropGeo /
+    // dropBones), for a tool that only LOOKS at the raw model — otherwise a
+    // lump the game deletes floats beside it here and reads as a bug in the
+    // model. A tool that applies skinOps itself must NOT ask for it: the game
+    // drops after the ops, and an island ordinal is drawn on the undropped
+    // mesh — that tool calls `skin.applyDrops` at the right moment instead.
+    raw: (id, { variant = 'glb', drops = false } = {}) => {
       if (variant === 'mannequin' || isReference(id)) {
         const m = referenceBody(1);      // raw-asset scale; the tools re-fit it
         return { scene: m.group, entry: null, mannequin: m };
       }
-      return loadRawGlbScene(id, { alt: variant === 'alt' });
+      return loadRawGlbScene(id, { alt: variant === 'alt', drops });
     },
     entry: (id, { variant = 'glb' } = {}) => entryOf(id, variant === 'alt'),
     height: (model) => {
@@ -397,6 +403,10 @@ const CONFIG = defineWorkbenchConfig({
     // preview of the cut here any more — judging one needs the deforming model
     // over every clip, which is Skin Debug's job.
     seamCuts: (id, { variant = 'glb' } = {}) => (entryOf(id, variant === 'alt')?.seamCuts || []),
+    // GEOMETRY DROPS — the surplus lumps a manifest entry deletes (dropGeo /
+    // dropBones). A tool applies them to its own mesh once its ops have been
+    // applied and its island partition taken, which is the game's own order.
+    applyDrops: (mesh, id, { variant = 'glb' } = {}) => applyEntryDrops(mesh, entryOf(id, variant === 'alt') || {}),
   },
 
   hurtbox: { build: buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE },
