@@ -741,6 +741,15 @@ export const ROSTER = [
     // radius has to cover the span he can actually grab across.
     climb: {
       speed: 0.66, reach: 0.42, style: 'ape',
+      // HE STAYS THE RIGHT WAY UP. `upright` is how much he refuses to lie
+      // down on a surface (0 = become part of it, jerry's insect answer; 1 =
+      // never tilt at all). An ape has shoulders: he climbs a facade standing
+      // vertically and REACHING, and he comes down it backwards with his head
+      // still up, because that is the only way an arm works. The movement
+      // plane is still the wall's — climb.js maps the stick through the
+      // SURFACE and the body's posture separately — so up is still up the
+      // face however vertical he is holding himself.
+      upright: 0.82,
       // hanging, not pinned: the belly drops less than a spider's (he is
       // holding on above his head, not lying on the wall), the chest opens
       // toward the surface and the arms go high

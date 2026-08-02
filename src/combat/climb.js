@@ -94,6 +94,8 @@ const _root = new THREE.Vector3();
 const _mid = new THREE.Vector3();
 const _end = new THREE.Vector3();
 const _axis = new THREE.Vector3();
+const _pre = new THREE.Vector3();   // position before this frame's step
+const _blockN = new THREE.Vector3();  // what pushed the body back this frame
 
 // ===========================================================================
 // THE SOLIDS NEAR THE BODY
@@ -289,6 +291,134 @@ function nearestSurface(f, px, py, pz, range) {
   return best < range ? best : Infinity;
 }
 
+// IS THERE A FLOOR UNDER HIM? Not "is there a surface" — the field answers
+// that — but specifically something GROUND-ORIENTED he could stand on, within
+// a step of his feet. This is what separates a kerb from a wall: a crate top,
+// a ledge, a roof and the pavement all answer here, and a facade does not.
+//
+// Returns the HIGHEST such top in range, or null. The search box is his own
+// radius wide, so a step he is walking into counts before he is over it —
+// which is what lets him rise onto it instead of stopping dead at its face.
+function groundSupport(f, radius, stepUp, stepDown) {
+  const px = f.pos.x, py = f.pos.y, pz = f.pos.z;
+  let best = null;
+  // A TOP INSIDE A BUILDING IS NOT A FLOOR. A building is a grid of chunks,
+  // and a body pressed against its facade is horizontally within the
+  // footprint of every one of them — so "the top of a box near me" finds the
+  // ceiling of the chunk he is leaning on, forty floors up, and calls it
+  // ground. Measured: jerry read STANDING for an entire ascent and never
+  // tilted onto the wall at all. A top only counts if the space directly
+  // above it is empty, which is the difference between a roof and a storey.
+  // ...and the test has to be made ON THE SURFACE, not where the body is
+  // standing. Asking "is the air above ME free" is always yes when he is
+  // beside a wall rather than under it, so the chunk he is leaning on passes
+  // and the facade reads as a floor at his own height. Ask above the SPOT
+  // he would stand on — the point of that box's top nearest him — and a wall
+  // fails immediately, because the next chunk up is sitting on it.
+  const clearAt = (cx, top, cz) => {
+    const y = top + f.height * 0.12;
+    for (let i = 0; i < _nBoxes; i++) {
+      const b = _boxes[i];
+      if (cx > b.x0 && cx < b.x1 && cz > b.z0 && cz < b.z1 && y > b.y0 && y < b.y1) return false;
+    }
+    return true;
+  };
+  const consider = (top, cx, cz) => {
+    if (top > py + stepUp || top < py - stepDown) return;
+    if (best !== null && top <= best) return;
+    if (!clearAt(cx, top, cz)) return;
+    best = top;
+  };
+  for (let i = 0; i < _nBoxes; i++) {
+    const b = _boxes[i];
+    if (px < b.x0 - radius || px > b.x1 + radius) continue;
+    if (pz < b.z0 - radius || pz > b.z1 + radius) continue;
+    // clamp INSIDE the footprint, not onto its edge: a body standing off the
+    // face clamps to exactly x1, and the chunk stacked above is then tested
+    // with a strict `< x1` that its own boundary fails — so every wall chunk
+    // reported a clear top and the whole facade read as walkable ground.
+    const ex = Math.min((b.x1 - b.x0) * 0.25, 0.4);
+    const ez = Math.min((b.z1 - b.z0) * 0.25, 0.4);
+    consider(b.y1, clamp(px, b.x0 + ex, b.x1 - ex), clamp(pz, b.z0 + ez, b.z1 - ez));
+  }
+  for (let i = 0; i < _nCyls; i++) {
+    const c = _cyls[i];
+    const dx = px - c.x, dz = pz - c.z;
+    if (dx * dx + dz * dz > (c.r + radius) * (c.r + radius)) continue;
+    const cl = Math.hypot(dx, dz) || 1;
+    const k = Math.min(1, c.r / cl);
+    consider(c.h, c.x + dx * k, c.z + dz * k);
+  }
+  consider(f.world.arena?.terrainHeightAt?.(px, pz) ?? 0, px, pz);
+  return best;
+}
+
+// THE BODY IS NOT A POINT, and that is the whole of this. The walker holds a
+// SAMPLE the right distance off a surface, which keeps his feet honest and
+// says nothing at all about his chest, his shoulders or his skull — so a mech
+// hugging a facade puts his torso through it, and one crossing a lip buries a
+// shoulder in the parapet. The report is always the same: he clips into
+// buildings and props.
+//
+// So push the whole body out, not the sample: a stack of spheres up his own
+// axis, each shoved out of anything it is inside. Cheap (four probes against
+// an already-gathered list), and it cannot fight the surface pull, because
+// that pull acts along the body's up and this acts along whatever normal is
+// doing the intruding — a floor pushes up and a wall pushes sideways.
+//
+// LIMBS ARE EXEMPT BY CONSTRUCTION: this only knows about the body axis, so
+// hands and feet stay free to reach into and grip whatever they like, which
+// is the point of having them.
+const BODY_PROBES = [0.22, 0.48, 0.74, 0.95];
+function pushBodyOut(f, up) {
+  const r = f.radius * 0.9;
+  _blockN.set(0, 0, 0);
+  const h = f.height;
+  let moved = 0;
+  for (const k of BODY_PROBES) {
+    _p.copy(f.pos).addScaledVector(up, h * k);
+    _want.set(0, 0, 0);
+    let hits = 0;
+    for (let i = 0; i < _nBoxes; i++) {
+      const d = boxNearest(_boxes[i], _p.x, _p.y, _p.z, _fcp, _fn);
+      if (d < r) { _want.addScaledVector(_fn, r - d); hits++; }
+    }
+    for (let i = 0; i < _nCyls; i++) {
+      const d = cylNearest(_cyls[i], _p.x, _p.y, _p.z, _fcp, _fn);
+      if (d < r) { _want.addScaledVector(_fn, r - d); hits++; }
+    }
+    if (!hits) continue;
+    // WHAT IS STOPPING HIM, kept for the orientation rule. The average field
+    // normal is a poor answer to "which plane am I climbing" once the body is
+    // held out of geometry: the floor he is standing on is at arm's length and
+    // the wall he is touching is a whole radius away, so the average stays
+    // nearly flat (measured on konga: 0.83 up while pressed against a facade,
+    // a 34 degree plane he could never climb). The thing pushing him back IS
+    // the wall, and its normal needs no averaging.
+    _blockN.add(_want);
+    // spread the correction over the probes rather than applying each in full:
+    // a body wedged in a corner is inside two faces at once, and obeying both
+    // at full strength launches it out of the gap
+    _want.multiplyScalar(2 / BODY_PROBES.length);
+    const l = _want.length();
+    if (l > 1e-5) {
+      if (l > r) _want.setLength(r);       // never teleport out of a deep overlap
+      f.pos.add(_want);
+      moved = Math.max(moved, l);
+    }
+  }
+  // only a SIDEWAYS shove counts as a wall: being pushed up out of the floor
+  // is the floor doing its job, not something to climb
+  if (_blockN.lengthSq() > 1e-8) {
+    _blockN.normalize();
+    if (Math.abs(_blockN.y) < 0.7) {
+      const w = f._climbBlockN || (f._climbBlockN = new THREE.Vector3(0, 1, 0));
+      w.lerp(_blockN, 0.35).normalize();
+    }
+  }
+  return moved;
+}
+
 // ===========================================================================
 // THE WALKER
 // ===========================================================================
@@ -327,7 +457,17 @@ export function climbStep(f, dt, mv) {
   }
   const up = f.climbUp, fwd = f.climbFwd;
   const D = f.def.climb;
-  const range = D.reach * f.height;
+  // THE FIELD MUST REACH PAST HIS OWN SHELL. `reach` is authored as a
+  // fraction of body height, and on a broad mech that can be less than the
+  // body's own radius — which was survivable only while the body was allowed
+  // to sink INTO things: the wall then sat at distance ~0 and dominated the
+  // average. Now that the body is held out of geometry (pushBodyOut), a wall
+  // he is touching is a full radius away from his centre, and a field that
+  // stops at the shell cannot feel it at all. Measured on konga: hands
+  // planted on the facade, body upright, nothing moving — the loop that turns
+  // walking-at-a-wall into walking-up-it never started, because as far as the
+  // field was concerned there was no wall.
+  const range = Math.max(D.reach * f.height, f.radius * 1.85);
   // THE STANDOFF. The field is sampled a little way OFF the surface, along the
   // body's own up — above his soles on a floor, out from the face on a wall —
   // and the same number is the distance the walker holds him at. Asking at the
@@ -351,7 +491,18 @@ export function climbStep(f, dt, mv) {
   // whatever it walked into and then sit forty units up pressing forward at a
   // rooftop. (Drop this the day the AI can want height.)
   const may = !f.isAI && bodyFree(f) && !f._climbRelease && f._climbCd <= 0;
-  _p.copy(f.pos).addScaledVector(up, stand);
+  // THE SAMPLE RIDES THE SURFACE, NOT THE POSTURE. It used to be offset along
+  // the BODY's up, which was the same thing back when the body always lay down
+  // on whatever it was holding. It is not the same thing once a mech is
+  // allowed to stay upright on a wall (climb.upright): sampling above the feet
+  // of a vertical body keeps the FLOOR nearest and dominant, the field normal
+  // never tilts, and the loop that turns "walking at a wall" into "walking up
+  // it" never starts — measured, konga stood at the foot of the tower with
+  // both hands planted, going nowhere. Offsetting along the last known SURFACE
+  // normal keeps that feedback exactly as it was for jerry (whose posture and
+  // surface agree) and gives it back to anyone who holds themselves upright.
+  const smp = f._climbN || up;
+  _p.copy(f.pos).addScaledVector(smp, stand);
   const fld = may ? fieldAt(f, _p.x, _p.y, _p.z, range) : null;
 
   // FLAT GROUND IS NOT CLIMBING, and this is the line that keeps the whole
@@ -387,21 +538,112 @@ export function climbStep(f, dt, mv) {
   f.climb = true;
   if (f.intent.jump) { wallJump(f); return false; }
 
-  // ---- 1. ORIENTATION IS THE FIELD, TWICE DAMPED. The raw field normal can
-  // hop between answers at a block seam (a chunk enters reach, the average
-  // jumps); a pre-filter (`normRate`) takes the hop out of the SIGNAL and the
-  // body then follows the filtered normal at `tiltRate`. Two stages of
-  // smoothing is what turns a seam crossing from a flicker into a lean.
+  // ---- 1. THE SURFACE, TWICE DAMPED. The raw field normal can hop between
+  // answers at a block seam (a chunk enters reach, the average jumps); a
+  // pre-filter (`normRate`) takes the hop out of the SIGNAL and everything
+  // downstream follows the filtered version. Two stages of smoothing is what
+  // turns a seam crossing from a flicker into a lean.
   const nS = f._climbN || (f._climbN = new THREE.Vector3(0, 1, 0));
-  nS.lerp(fld.n, 1 - Math.exp(-C.normRate * dt)).normalize();
-  up.lerp(nS, 1 - Math.exp(-C.tiltRate * dt)).normalize();
-  upRotation(up, _qUp);
+  // ...and when he is up against something, THAT is the plane, not the
+  // average. `_climbBlockN` is the normal of whatever the body was last
+  // pushed out of (pushBodyOut); a body that cannot sink into a wall barely
+  // registers it in a distance-weighted average, but it is unmistakable in
+  // the shove. Blended in by how blocked he is, so a mech merely brushing
+  // past a corner is unaffected and one pressed flat against a facade climbs
+  // the facade.
+  // (reads the latch from LAST frame — it is decided below, once the support
+  // probe has run, and a frame of lag on a damped normal is invisible)
+  _tgt.copy(f._climbCommit && f._climbBlockN ? f._climbBlockN : fld.n);
+  nS.lerp(_tgt, 1 - Math.exp(-C.normRate * dt)).normalize();
+
+  // ---- 1b. WHAT HE STANDS ON vs WHAT HE HANGS OFF, which are not the same
+  // question and used to be answered by one number.
+  //
+  // A SMALL OBSTACLE IS NOT A WALL. Walking at a crate, the field tilts —
+  // that is what it is for — and the body used to tilt with it, so a mech
+  // stepping over a knee-high box lay down on its face for a moment and got
+  // up again on the other side. But there was a floor under him the whole
+  // time. So ask that directly: is there a GROUND-ORIENTED top within a step
+  // of my feet (groundSupport)? If there is, he is WALKING, whatever the
+  // field thinks — he stays upright and simply rises and falls over the
+  // thing. Only when nothing underfoot could be stood on does he reorient,
+  // because only then does he have to hold onto a different plane to be
+  // anywhere at all.
+  const stepUp = f.height * (D.step?.up ?? 0.55);
+  const stepDown = f.height * (D.step?.down ?? 0.7);
+  // ONCE HE HAS COMMITTED TO A SURFACE, the floor he left has to be right
+  // under his feet to take him back — not merely within a step. Climbing the
+  // first couple of metres of a facade, the pavement is still a step below
+  // him, and a symmetric test hands him back to it every time the blockage
+  // eases, which reads as the body flickering between upright and tilted for
+  // the whole bottom of the climb (measured: up.y bouncing 0.86/0.63/0.85/0.48
+  // over two seconds).
+  const wasStanding = f._climbStanding !== false;
+  const support = groundSupport(f, f.radius * 1.15, stepUp,
+    wasStanding ? stepDown : f.height * 0.2);
+  // ...AND WHETHER STANDING ON IT IS STILL GETTING HIM ANYWHERE. Ground under
+  // his feet is not on its own a reason to stay upright: at the foot of a
+  // tower there is pavement under him for as long as he cares to stand there,
+  // and a rule that only asks "is there a floor" leaves him pressed against
+  // the facade walking on the spot forever. The other half of the rule is the
+  // one the design states out loud — he reorients when he has NOWHERE TO GO
+  // BUT UP — so it is measured as exactly that: how much of the movement he
+  // asked for he is actually getting (`_climbBlocked`, updated at the end of
+  // this function). Walk at a crate and he steps onto it, never blocked, never
+  // tilts. Walk at a wall and progress goes to zero, and the wall becomes the
+  // thing he is standing on.
+  //
+  // The threshold is HYSTERETIC: it takes real, sustained blockage to leave
+  // the ground, and genuine free movement to come back to it — otherwise the
+  // first metre of a climb (where the pavement is still within a step of his
+  // feet) flickers between the two.
+  // COMMITTING TO A WALL IS A STATE, NOT A COMPARISON. Reading the blockage
+  // fresh every frame makes a limit cycle out of it: blocked crosses the line,
+  // he adopts the wall, he starts moving, the blockage falls, he is handed
+  // back to the floor, he stops, and around again — measured as a body parked
+  // at the foot of the tower with `blocked` sitting exactly on the threshold
+  // (0.54) forever. Moving freely IS what climbing looks like, so it cannot be
+  // the signal to stop.
+  //
+  // So he COMMITS when he has nowhere to go but up, and stays committed until
+  // there is somewhere to stand again — which is the top of the climb, a
+  // terrace, or the ground when he comes back down.
+  const blocked = f._climbBlocked || 0;
+  if (!f._climbCommit && blocked > 0.55) f._climbCommit = true;
+  if (f._climbCommit && support !== null && blocked < 0.3) f._climbCommit = false;
+  const committed = !!f._climbCommit;
+  const standing = support !== null && !committed;
+  f._climbStanding = standing;
+  f._climbSupport = standing ? support : null;   // probe hook (tools/climbprobe.mjs)
+
+  // ...and HOW UPRIGHT HE INSISTS ON BEING even when there is nothing to
+  // stand on (roster `climb.upright`, 0..1). This is the difference between
+  // an insect and an ape. JERRY (0) becomes part of the wall: his up IS the
+  // face's normal, so climbing down he points head-first at the ground.
+  // KONGA (high) is a body with arms — he stays basically vertical and
+  // reaches, so going down a facade is a BACKWARDS climb with his head still
+  // up, which is the only way a shoulder joint actually works.
+  const upright = clamp01(D.upright || 0);
+  _tgt.copy(standing ? UP : nS);
+  if (!standing && upright > 0) {
+    _tgt.lerp(UP, upright);
+    if (_tgt.lengthSq() < 1e-8) _tgt.copy(UP);
+    _tgt.normalize();
+  }
+  up.lerp(_tgt, 1 - Math.exp(-C.tiltRate * dt)).normalize();
   const tilt = clamp01((1 - up.y) / C.tiltFull);
 
-  // ---- 2. INPUT THROUGH THE SAME ROTATION ----
+  // ---- 2. INPUT THROUGH THE SURFACE, NOT THROUGH THE BODY. These were one
+  // rotation, and they cannot be once a mech is allowed to stay upright on a
+  // wall: mapping the stick through KONGA's near-vertical body would leave
+  // "push forward" meaning "walk into the bricks" while he hangs there. The
+  // stick is mapped through the SURFACE he is on (so forward is up the face
+  // for everyone), and the body's own orientation is free to differ.
+  upRotation(nS, _qUp);          // the movement plane
   _dir.set(mv.x, 0, mv.z);
   const drive = Math.min(_dir.length(), 1);
   _dir.applyQuaternion(_qUp);
+  upRotation(up, _qUp);          // ...and the body frame, for everyone downstream
   // STABILITY OVER SPEED, in two rules. A surfaced body never moves faster
   // than the climbing pace — a fast WALK, whatever the terrain (`D.speed` of
   // his walk; running belongs to open ground). And while the body frame is
@@ -415,6 +657,7 @@ export function climbStep(f, dt, mv) {
     (f.blocking ? TUNING.movement.blockMoveMult : 1);
   if (_dir.lengthSq() > 1e-8) _dir.setLength(drive * speed);
   f._climbSpeed = drive * speed;
+  _pre.copy(f.pos);                 // where he was, for the progress test below
   f.pos.addScaledVector(_dir, dt);
   f.vel.copy(_dir);
 
@@ -423,9 +666,38 @@ export function climbStep(f, dt, mv) {
   // the right height exactly when the sample's distance IS `stand` — pull the
   // error out along the line to the surface, and floors and walls are the same
   // arithmetic.
-  _p.copy(f.pos).addScaledVector(up, stand);
+  // A BODY THAT IS STANDING ON SOMETHING RIDES IT. The surface pull below is
+  // the right rule for a mech clinging to a plane; over a crate it is the
+  // wrong one, because the nearest surface is the crate's SIDE and the pull
+  // would drag him into it. With a top underfoot, just track that top — that
+  // is the scramble: he rises onto the thing and drops off the far side
+  // without the body ever reorienting.
+  if (standing) {
+    const err = support - f.pos.y;
+    const rate = err > 0 ? 14 : 9;              // step up briskly, settle down softer
+    f.pos.y += err * (1 - Math.exp(-rate * dt));
+  }
+  // A BODY HELD OUT OF GEOMETRY STANDS OFF BY ITS OWN RADIUS, not by the
+  // hairline the sample uses. The pull below aims to keep a SAMPLE POINT a
+  // fixed small distance off the surface, which was right when the body was
+  // allowed to overlap the wall; with pushBodyOut in the loop the two want
+  // different things — the pull dragging the centre onto the face, the shove
+  // holding it a radius off — and the fight showed up as the body sitting 0.6
+  // units inside the building for the whole climb. So while he is committed
+  // to a wall, the job is only to stop him DRIFTING AWAY from it: pull him in
+  // when he is further out than his shell, and leave the shove to hold the
+  // near side.
+  if (committed) {
+    const shell = f.radius * 1.15;
+    const d0 = nearestSurface(f, f.pos.x, f.pos.y, f.pos.z, range + shell);
+    if (d0 !== Infinity && d0 > shell) {
+      const pull = Math.min(d0 - shell, C.stickMax * dt);
+      f.pos.addScaledVector(nS, -pull);
+    }
+  }
+  _p.copy(f.pos).addScaledVector(nS, stand);
   const post = fieldAt(f, _p.x, _p.y, _p.z, range);
-  if (post.hits) {
+  if (post.hits && !standing && !committed) {
     f.pos.add(post.push);                       // never inside anything
     const err = post.d - stand;
     if (Math.abs(err) > 0.02 && post.d > 1e-4) {
@@ -436,6 +708,33 @@ export function climbStep(f, dt, mv) {
       if (Math.abs(err) > C.stickGlide) _want.setLength(C.stickMax * dt);
       f.pos.add(_want);
     }
+  }
+
+  // ---- 3b. AND THE BODY ITSELF STAYS OUT OF THE GEOMETRY. Everything above
+  // positions a POINT; this is what keeps his chest, shoulders and head from
+  // being inside the wall he is holding (see pushBodyOut). Last, so it has
+  // the final word over both the surface pull and the step-up.
+  // TWICE. Each probe applies only its share of the correction (a body wedged
+  // in a corner is inside two faces at once, and obeying both in full launches
+  // it out of the gap), so one pass leaves a fast body still overlapping when
+  // it arrives at speed — measured at 0.62 units on jerry crossing a facade
+  // sideways. A second pass re-measures what the first left and finishes it,
+  // which is the same converging-servo shape used everywhere else here.
+  pushBodyOut(f, up);
+  pushBodyOut(f, up);
+
+  // ---- 3c. HOW MUCH OF THAT ACTUALLY HAPPENED. The intended step was
+  // `_dir * dt`; what he got is whatever survived the surface pull, the
+  // step-up and the de-penetration. The ratio is the blockage that decides,
+  // next frame, whether the ground under him is still worth standing on
+  // (above). Held while he is not pushing — a mech standing still is not
+  // blocked, he is parked.
+  if (drive > 0.3) {
+    _want.copy(f.pos).sub(_pre);
+    const intended = f._climbSpeed * dt;
+    const got = intended > 1e-6 ? clamp01(_want.dot(_dir) / (intended * (_dir.length() || 1))) : 1;
+    f._climbBlocked = (f._climbBlocked || 0) + ((1 - got) - (f._climbBlocked || 0)) *
+      (1 - Math.exp(-6 * dt));
   }
 
   // facing: the way he is going, damped exactly like a turn on the ground
@@ -456,6 +755,8 @@ export function climbStep(f, dt, mv) {
 // asks for it.
 function release(f, cooldown) {
   f.climb = false;
+  f._climbCommit = false;
+  f._climbBlocked = 0;
   f._climbSpeed = 0;
   if (cooldown) f._climbCd = 0.25;
   f.grounded = false;

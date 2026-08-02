@@ -16,6 +16,12 @@
 //   move      how far the body moved in one frame BEYOND what its own speed
 //             explains — i.e. a teleport. The arena step-over used to show up
 //             here as a ~2.8-unit hop onto the first block.
+//   body      how deep the BODY is inside geometry — the worst overlap of a
+//             stack of spheres up his own axis against every nearby solid.
+//             This is the "he clips into buildings" report as a number, and
+//             it must stay at zero: hands and feet may grip whatever they
+//             like (that is what `tips` measures), the torso may not be
+//             inside anything at all.
 //   tips      each foot's and hand's distance to the nearest solid (0 = planted).
 //   limbs     the spider stepper's own state per limb, [ankleL ankleR handL
 //             handR]: P planted (pinned to its plant point) · S swinging (arc
@@ -80,6 +86,36 @@ const setup = await page.evaluate(() => {
     }
     return best2;
   };
+  // HOW DEEP IS THE BODY INSIDE SOMETHING. Distance-to-nearest cannot answer
+  // this: a point inside a box clamps to itself and reads zero, exactly like
+  // a point resting on the surface. So measure the INTERIOR depth — the
+  // shallowest face to escape by — over a stack of spheres up the body axis,
+  // which is the same stack climb.js pushes out.
+  window.__bodyDeep = (fighter) => {
+    const w2 = window.__world;
+    const up = fighter.climbUp || { x: 0, y: 1, z: 0 };
+    const r = fighter.radius * 0.9;
+    let worst = 0;
+    for (const k of [0.22, 0.48, 0.74, 0.95]) {
+      const px = fighter.pos.x + up.x * fighter.height * k;
+      const py = fighter.pos.y + up.y * fighter.height * k;
+      const pz = fighter.pos.z + up.z * fighter.height * k;
+      for (const b of w2.arena.destructo.buildings) {
+        if (b.alive <= 0) continue;
+        const a = b.aabb;
+        if (px < a.minX - 14 || px > a.maxX + 14 || pz < a.minZ - 14 || pz > a.maxZ + 14) continue;
+        for (const c of b.grid.values()) {
+          if (!c.alive) continue;
+          const cx = Math.max(c.x - c.w / 2, Math.min(px, c.x + c.w / 2));
+          const cy = Math.max(c.y - c.h / 2, Math.min(py, c.y + c.h / 2));
+          const cz = Math.max(c.z - c.d / 2, Math.min(pz, c.z + c.d / 2));
+          const d = Math.hypot(px - cx, py - cy, pz - cz);
+          if (d < r) worst = Math.max(worst, r - d);
+        }
+      }
+    }
+    return worst;
+  };
   return { ok: true, top: +best.maxY.toFixed(2), height: +f.height.toFixed(2) };
 });
 if (!setup.ok) { console.log('SETUP FAILED:', setup.why); await browser.close(); process.exit(1); }
@@ -93,7 +129,7 @@ async function run(script, frames, dist) {
     window.__park(dist);
     const fn = new Function('t', 'f', `return (${script});`);
     const trace = [];
-    let worstUp = 0, worstUpT = 0, worstPos = 0, worstPosT = 0;
+    let worstUp = 0, worstUpT = 0, worstPos = 0, worstPosT = 0, worstDeep = 0, worstDeepT = 0;
     const prevUp = new V(0, 1, 0);
     const prevPos = f.pos.clone();
     for (let i = 0; i < frames; i++) {
@@ -116,6 +152,8 @@ async function run(script, frames, dist) {
       const dPos = Math.max(0, moved - explained);
       if (i > 4 && dUp > worstUp) { worstUp = dUp; worstUpT = t; }
       if (i > 4 && dPos > worstPos) { worstPos = dPos; worstPosT = t; }
+      const deep = window.__bodyDeep(f);
+      if (i > 4 && deep > worstDeep) { worstDeep = deep; worstDeepT = t; }
       prevUp.copy(up);
       prevPos.copy(f.pos);
       if (i % 15 === 0 || i === frames - 1) {
@@ -150,12 +188,17 @@ async function run(script, frames, dist) {
           on: f.climb ? 'surf' : (f.grounded ? 'grnd' : 'air '),
           limbs: limb(0) + limb(1) + limb(2) + limb(3),
           spr: nspr ? +(spr / nspr).toFixed(1) : 0,
+          body: +window.__bodyDeep(f).toFixed(2),
+          sup: f._climbSupport === null || f._climbSupport === undefined ? '-' : +f._climbSupport.toFixed(1),
+          nY: f._climbN ? +f._climbN.y.toFixed(2) : 1,
+          blk: +(f._climbBlocked || 0).toFixed(2),
           tips: [tip('ankleL'), tip('ankleR'), tip('handL'), tip('handR')],
         });
       }
     }
     return { trace, worstUp: +worstUp.toFixed(1), worstUpT: +worstUpT.toFixed(2),
-      worstPos: +worstPos.toFixed(2), worstPosT: +worstPosT.toFixed(2) };
+      worstPos: +worstPos.toFixed(2), worstPosT: +worstPosT.toFixed(2),
+      worstDeep: +worstDeep.toFixed(2), worstDeepT: +worstDeepT.toFixed(2) };
   }, { script, frames, dist });
 }
 
@@ -179,11 +222,13 @@ for (const [label, script, frames, dist] of SCENARIOS) {
   const r = await run(script, frames, dist);
   console.log(`\n== ${label}`);
   console.log(`   WORST per-frame: up-turn ${r.worstUp} deg (t=${r.worstUpT}), ` +
-    `unexplained move ${r.worstPos} (t=${r.worstPosT})`);
+    `unexplained move ${r.worstPos} (t=${r.worstPosT}), ` +
+    `body inside geometry ${r.worstDeep} (t=${r.worstDeepT})`);
+  if (r.worstDeep > 0.5) console.log('   ^ BODY IS CLIPPING INTO GEOMETRY');
   for (const s of r.trace) {
     console.log(` t=${String(s.t).padStart(5)} ${s.on} upY=${String(s.upY).padStart(5)} ` +
       `tilt=${String(s.tilt).padStart(4)} y=${String(s.y).padStart(6)} z=${String(s.z).padStart(7)} ` +
-      `limbs=${s.limbs} spr=${String(s.spr).padStart(4)} tips=[${s.tips.join(', ')}]`);
+      `limbs=${s.limbs} nY=${String(s.nY).padStart(5)} blk=${String(s.blk).padStart(4)} sup=${String(s.sup).padStart(5)} body=${String(s.body).padStart(4)}`);
   }
 }
 

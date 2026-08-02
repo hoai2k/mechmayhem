@@ -63,7 +63,11 @@ async function shoot(name, cond, waitMs = 90000) {
   console.log(`${name}: y=${state.y} tilt=${state.tilt} -> ${out}-${name}.png`);
 }
 
-await shoot('wall', 'f.climb && f._climbTilt > 0.9');
+// ON THE WALL — which is no longer the same as TILTED. A mech with
+// climb.upright (konga) climbs a facade standing vertically and hanging off
+// his hands, so a tilt test waits forever on him; height off the deck is what
+// both kinds of climber have in common.
+await shoot('wall', 'f.climb && (f._climbTilt > 0.9 || f.pos.y > 8)');
 await shoot('lip', 'f.climb && f._climbTilt > 0.25 && f._climbTilt < 0.8 && f.pos.y > 8');
 
 if (errors.length) console.log('PAGE ERRORS:\n' + errors.join('\n'));

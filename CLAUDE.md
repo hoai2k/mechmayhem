@@ -779,6 +779,48 @@ audio). Progress history: `TASKS.md`.
   special case. Measured over one held stick: ground -> wall -> terrace ->
   wall -> roof -> far lip -> 49 units down, worst single-frame body rotation
   7.1° and ZERO unexplained movement.
+  A SMALL OBSTACLE IS NOT A WALL, and the body only reorients when it has to.
+  Two questions are asked separately now. IS THERE A FLOOR — a GROUND-ORIENTED
+  top within a step of his feet (`groundSupport`, and a top only counts if the
+  space above it is clear, or every chunk of a facade reads as a storey he
+  could stand on)? And IS STANDING ON IT GETTING HIM ANYWHERE — measured as
+  how much of the movement he asked for he actually got (`_climbBlocked`).
+  With a floor under him he stays UPRIGHT and simply rises and falls over the
+  thing, which is the scramble; he commits to a new plane only when he has
+  NOWHERE TO GO BUT UP. That commitment is a LATCH, not a comparison: reading
+  the blockage fresh each frame makes a limit cycle (he adopts the wall, moves,
+  is handed back to the floor, stops — measured parked at the foot of a tower
+  with `blocked` sitting on the threshold), because moving freely is what
+  climbing looks like. He commits when blocked and uncommits when there is
+  somewhere to stand again.
+  WHICH PLANE HE COMMITS TO is the thing that STOPPED him, not the field
+  average. A body held out of geometry touches a wall at a full radius, where
+  a distance-weighted average still favours the floor at his feet (measured:
+  0.83 up while pressed against a facade — a 34° plane nobody can climb), so
+  the normal comes off the shove that pushed him back (`_climbBlockN`).
+  POSTURE AND DIRECTION ARE SEPARATE (roster `climb.upright`, 0..1). JERRY (0)
+  becomes part of the wall — his up IS the face's normal, so he walks it like
+  ground and points head-down coming back. KONGA (0.82) commits DIRECTIONALLY
+  ONLY: "forward" means "up the face", but he stays vertical and hangs off his
+  hands, hauling himself up and backing down with his head still up, because
+  that is the only way a shoulder works. The stick is mapped through the
+  SURFACE and the body's posture damped separately — one rotation for movement,
+  another for the frame. Two consequences to remember: the field must be
+  sampled along the SURFACE normal rather than the body's up (sampling above
+  the feet of a vertical body keeps the floor dominant and the climb never
+  starts), and its range must exceed the body's own radius (`f.radius * 1.85`
+  floor) or a body that cannot penetrate can never feel what it is touching.
+  THE BODY STAYS OUT OF GEOMETRY (`pushBodyOut`): a stack of spheres up his own
+  axis, shoved out of anything they are inside, twice a frame. Everything else
+  in the walker positions a POINT, which says nothing about his chest or his
+  skull — so a mech hugging a facade used to put his torso through it. LIMBS
+  ARE EXEMPT by construction (this only knows the body axis), so hands and feet
+  stay free to grip whatever they like. Judge it with the `body=` column in
+  `tools/climbprobe.mjs`, which reports the worst overlap per scenario: konga
+  0.07 and jerry 0.06 typical, 0.38 worst on a fast sideways facade crossing.
+  Note the wall STANDOFF for a committed body is its own RADIUS, not the
+  hairline the sample uses — the two rules fought and left the body 0.6 units
+  inside the building for a whole climb.
   FLAT GROUND IS NOT CLIMBING, and that line keeps the feature cheap: the
   walker only takes over when something NOT flat is genuinely underfoot
   (`flatCos`), and gives the body back once it is upright again over flat
