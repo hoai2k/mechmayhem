@@ -507,6 +507,139 @@ export const SPECIALS = {
     });
   },
 
+  // KONGA: HEAD SLAM. Not a throw — a PIKEDRIVER. He takes whoever is in
+  // front of him by the skull with the nearer fist, lifts them clean off the
+  // floor upside down, and drives them head-first into the ground.
+  //
+  // The size of the victim picks the grip, which is the only branch in it:
+  //   ONE HAND, BY THE HEAD — anything he can palm. The fist closes on the
+  //     crown and the body hangs from it inverted (Fighter._carryHead), so
+  //     the head is the lowest point of the arc and the head is what lands.
+  //   BOTH HANDS, BODY SLAM — a victim as big as he is cannot be held by the
+  //     skull, so he takes them across both palms exactly as colossus does
+  //     (the flat roll, the same carry) and then, instead of hurling them
+  //     downrange, drives the whole body straight down.
+  // Either way they finish ON THEIR BACK: the landing is a real launch into
+  // the floor with `_onBack` set, so the ordinary rollover takes over — the
+  // long knockdown, not the quick one.
+  headSlam(f, sp) {
+    const w = f.world;
+    const LIFT = 0.55, DRIVE = 0.16;
+    cast(f, 'grabReach', { stateT: 2.0 });
+    w.audio?.play('servo');
+    w.schedule(0.2, () => {
+      if (!f.alive || f.state !== 'special') return;
+      let prey = null, best = Infinity;
+      for (const v of w.fighters) {
+        if (v === f || !v.alive || v.iframes > 0 || f.isAllyOf(v)) continue;
+        const dx = w.wrapDelta(v.pos.x - f.pos.x), dz = w.wrapDelta(v.pos.z - f.pos.z);
+        const d = Math.hypot(dx, dz);
+        if (d > (sp.range || 4.2) * f.scale + v.hitRadius) continue;
+        if (Math.abs(angleDiff(f.yaw, Math.atan2(dx, dz))) > 0.85) continue;
+        if (Math.abs(v.pos.y - f.pos.y) > 4) continue;
+        if (d < best) { prey = v; best = d; }
+      }
+      if (!prey) {
+        f.animator.stop();
+        f.setState('attack', 0.35);
+        f.specialCd = Math.min(f.specialCd, 0.75);  // a whiff is not a spent slam
+        return;
+      }
+      // BIG ENOUGH TO NEED BOTH ARMS? Measured against his own frame rather
+      // than a list of names, so a mech resized at runtime (colossus' ult)
+      // is answered by what it IS at that moment.
+      // "as big as he is", literally: anything shorter than him is palmed by
+      // the skull. (0.85 of his height made a 6.0-unit viper 'large' against
+      // a 6.6-unit ape, which is most of the roster — the two-hand slam is
+      // meant to be the exception, not the default.)
+      const twoHanded = prey.height > f.height || prey.hitRadius > f.hitRadius * 1.25;
+      f._carryHead = !twoHanded;
+      if (!twoHanded) {
+        // WHICH FIST: the one already nearer the victim, in his own frame —
+        // a cross-body grab with the far arm reads as a reach through himself
+        const dx = w.wrapDelta(prey.pos.x - f.pos.x), dz = w.wrapDelta(prey.pos.z - f.pos.z);
+        const side = dx * Math.cos(f.yaw) - dz * Math.sin(f.yaw);  // + = his right
+        f._oneArmLift = side >= 0 ? 'R' : 'L';
+      }
+      f.animator.play('liftHold');
+      w.engine.addHitStop(0.06);
+      prey.takeHit(sp.dmg * 0.25 * f.dmgMult(), f, { knock: 0, srcPos: f.pos, heavy: true, silent: true });
+      prey.setState('launched', 3.2);
+      prey.animator.play('launched');
+      prey.iframes = LIFT + 0.3;
+      prey.grounded = false;
+      prey._carry = {
+        by: f, t: LIFT + 0.5, roll: twoHanded ? 1.45 : Math.PI,
+        x0: prey.pos.x, y0: prey.pos.y, z0: prey.pos.z, riseT: 0,
+      };
+      w.audio?.play('hitHeavy');
+
+      // THE DRIVE — straight down, at the floor in front of him
+      w.schedule(LIFT + 0.02, () => {
+        const clear = () => { f._carryHead = false; f._oneArmLift = false; };
+        if (!f.alive || f.state !== 'special' || !prey.alive) {
+          prey._carry = null;
+          prey.group.rotation.x = 0;
+          prey.group.rotation.z = 0;
+          clear();
+          return;
+        }
+        f.animator.play('kongaSlam');
+        f.setState('special', DRIVE + 0.55);
+        prey._carry = null;
+        prey.iframes = 0;                       // the slam itself always lands
+        const impact = fwd(f, 2.2 * f.scale);
+        impact.y = 0;
+        const from = prey.pos.clone();
+        // ridden down over DRIVE seconds rather than teleported, so the arm
+        // and the body arrive together and the eye can follow the arc
+        let t = 0;
+        const drive = () => {
+          if (!prey.alive || !f.alive) { clear(); return; }
+          t = Math.min(1, t + 0.05 / DRIVE);
+          const k = t * t;                       // accelerating into the floor
+          prey.pos.set(
+            from.x + (impact.x - from.x) * k,
+            from.y + (0 - from.y) * k,
+            from.z + (impact.z - from.z) * k
+          );
+          prey.vel.set(0, 0, 0);
+          prey.grounded = false;
+          // held inverted all the way in — the head leads
+          prey.group.rotation.z = twoHanded ? 1.45 : Math.PI;
+          if (t < 1) { w.schedule(0.05, drive); return; }
+
+          // IMPACT
+          prey.group.rotation.x = 0;
+          prey.group.rotation.z = 0;
+          prey.takeHit(sp.dmg * 0.75 * f.dmgMult(), f, {
+            knock: 0, srcPos: f.pos, heavy: true,
+          });
+          // …and they are left ON THEIR BACK: a short bounce with `_onBack`
+          // set hands them to the rollover, which is the long stay on the
+          // floor rather than the quick knockdown.
+          prey._onBack = true;
+          prey.vel.set(0, 2.5, 0);
+          prey.grounded = false;
+          prey.setState('launched', 1.2);
+          prey.animator.play('launched');
+          w.groundShockwave(f, impact, (sp.radius || 6) * f.scale,
+            sp.dmg * 0.3 * f.dmgMult(), sp.knock || 14, f.def.colors.glow || 0xffa432);
+          w.effects.explosion(impact, 2.4, { color: 0x9a8878, smoke: true, sparks: false });
+          w.effects.dustPuff(impact, 22, 0x8c8266);
+          w.effects.addShake(0.9);
+          w.engine.addHitStop(0.12);
+          w.audio?.play('slam');
+          w.audio?.play('explosionBig');
+          faceRoar(f, 0.6);
+          clear();
+          w.schedule(0.5, () => { if (f.state === 'special') f.setState('normal'); });
+        };
+        w.schedule(0.05, drive);
+      });
+    });
+  },
+
   // COLOSSUS (legacy): artillery barrage on target area
   barrage(f, sp) {
     const fallback = fwd(f, 24);

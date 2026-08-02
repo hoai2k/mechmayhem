@@ -382,10 +382,24 @@ export class Fighter {
   // palms: subtract the victim's feet->torso offset through their CURRENT
   // rotation, so the center rides the hands exactly at any roll angle.
   // A COLOSSAL-FORM giant palms the whole victim in ONE hand instead.
+  // WHERE THE CARGO SITS. `_oneArmLift` may name a SIDE ('L'/'R') — KONGA
+  // grabs with whichever fist is nearer — and plain `true` still means the
+  // right hand (colossus at giant size).
   carryPoint(prey, out) {
     const J = this.mech.joints;
-    if (this._oneArmLift && J.handR) J.handR.getWorldPosition(out);
+    const arm = this._oneArmLift === 'L' ? J.handL
+      : this._oneArmLift ? (J.handR || J.handL) : null;
+    if (arm) arm.getWorldPosition(out);
     else this.palmsMid(out);
+    // A HEAD GRIP IS NOT A CRADLE: the fist closes on the skull and the body
+    // HANGS off it, inverted, so the carry point is the victim's head rather
+    // than a palm under their back. Their crown ends up in the hand and
+    // everything else dangles below it — which is the pose the slam needs,
+    // because whatever is at the bottom of that arc hits the floor first.
+    if (this._carryHead) {
+      out.y += prey.height * 0.92;   // pos is at the feet, and the feet are now UP
+      return out;
+    }
     _carryOff.set(0, prey.height * 0.5, 0).applyEuler(prey.group.rotation);
     out.sub(_carryOff);
     out.y += 0.24 * this.scale; // palm(s) cradle UNDER the torso
@@ -2789,7 +2803,11 @@ export class Fighter {
         this.yaw = this.targetYaw = carrier.yaw;
         this.group.rotation.y = carrier.yaw;
         this.group.rotation.x += (0 - this.group.rotation.x) * Math.min(1, dt * 10);
-        this.group.rotation.z += (1.45 * k - this.group.rotation.z) * Math.min(1, dt * 10);
+        // ...or, for a HEAD GRIP (konga), rolled all the way over: held by the
+        // skull, feet at the sky. `roll` is the carry's own, so the flat
+        // body-slam (1.45) and the inversion (pi) are the same mechanism.
+        const roll = c.roll ?? 1.45;
+        this.group.rotation.z += (roll * k - this.group.rotation.z) * Math.min(1, dt * 10);
         this.animator.update(dt, { speed: 0, grounded: false, vy: 0 });
         return;
       }

@@ -559,6 +559,27 @@ export class Animator {
       tgt.shoulderR[0] += -0.3 * fall;
       tgt.torso[0] += 0.12 * tuck - 0.1 * fall;
 
+      // AN APE IN THE AIR REACHES (roster `airReach`, KONGA). A jump is not a
+      // pose for him, it is the first half of a grab: both arms go up and
+      // OPEN, ready to catch a ledge, a pipe or a roof edge on the way past.
+      // It REPLACES the default flail rather than adding to it — the two
+      // describe opposite arms — and eases in over the first fraction of a
+      // second so a hop does not snap them overhead.
+      if (this.mech.def?.airReach && !ctx.hovering) {
+        this._airK = Math.min(1, (this._airK || 0) + dt / 0.22);
+        const k = this._airK;
+        const spread = 0.34 + 0.1 * fall;
+        for (const [sh, el, sgn] of [['shoulderL', 'elbowL', -1], ['shoulderR', 'elbowR', 1]]) {
+          tgt[sh][0] += (-2.55 - tgt[sh][0]) * k;
+          tgt[sh][2] += (sgn * spread - tgt[sh][2]) * k;
+          tgt[el][0] += (-0.35 - tgt[el][0]) * k;
+        }
+        tgt.torso[0] += 0.10 * k;
+        tgt.head[0] += -0.18 * k;   // watching the thing he means to grab
+      } else if (this._airK) {
+        this._airK = Math.max(0, this._airK - dt / 0.18);
+      }
+
       if (ctx.hovering) {
         // jet flight: pitch the whole frame forward with speed — Iron Man,
         // not elevator. Legs trail, head stays level.

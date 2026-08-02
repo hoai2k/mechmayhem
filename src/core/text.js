@@ -435,7 +435,7 @@ export const MESSAGES = {
   'mech.konga.quote.intro': '"*drums chest* ...Come closer. I want to reach you."',
   'mech.konga.quote.win': '"You brought armor. I brought both arms."',
   'mech.konga.move.ranged': 'Shoulder Salvo',
-  'mech.konga.move.special': 'Thunder Drums',
+  'mech.konga.move.special': 'Skull Driver',
   'mech.konga.move.ult': 'APEX BARRAGE',
 
   'mech.tritone.name': 'TRITONE',

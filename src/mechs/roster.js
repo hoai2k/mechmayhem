@@ -720,6 +720,39 @@ export const ROSTER = [
     // guard is a hunched shoulder-wall with the head tucked behind the arms
     combatPose: { hipsPos: [0, -0.10, 0], hipsRot: [8, 0, 0], torso: [14, 0, 0], head: [-14, 0, 0], shoulderL: [-10, 5, -10], shoulderR: [-10, -5, 10], elbowL: [-18, 0, 0], elbowR: [-18, 0, 0], thighL: [-10, 0, -8], thighR: [-3, 0, 8], kneeL: [22, 0, 0], kneeR: [15, 0, 0] },
     gait: 'knuckle',
+    // A JUMP IS THE FIRST HALF OF A GRAB (animator.js `airReach`): both arms
+    // go up and open the moment he leaves the ground, ready to catch a ledge
+    // on the way past. The ape is the only body this is right for.
+    airReach: true,
+    // SURFACE WALKING, APE-STYLE (combat/climb.js; `style: 'ape'` picks the
+    // brachiator rules out of the shared stepper). The body carriage is
+    // jerry's — the same field of nearby geometry, the same continuous
+    // orientation, the same "flat ground is not climbing" hand-back — but the
+    // LIMBS work the way an animal with arms longer than its legs works:
+    //   • he hangs from ONE arm, not a diagonal pair, so the alternation gate
+    //     is arm-against-arm and the legs are free;
+    //   • the arms reach AHEAD along the travel and UP, grab, and the body
+    //     swings past the grip before the other arm goes out — reach, grab,
+    //     pull through, reach again;
+    //   • a foot only plants on something GROUND-ORIENTED (a ledge, a roof, a
+    //     crate top). On a sheer face there is nothing to stand on, so the
+    //     legs hang under him and the arms carry him.
+    // `reach` is bigger than jerry's because his arms ARE bigger: the field
+    // radius has to cover the span he can actually grab across.
+    climb: {
+      speed: 0.66, reach: 0.42, style: 'ape',
+      // hanging, not pinned: the belly drops less than a spider's (he is
+      // holding on above his head, not lying on the wall), the chest opens
+      // toward the surface and the arms go high
+      pose: {
+        hipsPos: [0, -3.6, 0],
+        torso: [-16, 0, 0], head: [26, 0, 0],
+        shoulderL: [-62, 0, -14], shoulderR: [-62, 0, 14],
+        elbowL: [-26, 0, 0], elbowR: [-26, 0, 0],
+        thighL: [10, 0, -6], thighR: [10, 0, 6],
+        kneeL: [26, 0, 0], kneeR: [26, 0, 0],
+      },
+    },
     lightClips: ['bigPunch1', 'bigPunch2', 'light3'],
     heavyClip: 'kongaSlam',
     heavyFx: 'apeQuake',
@@ -731,8 +764,15 @@ export const ROSTER = [
     moves: {
       light: { dmg: [40, 44, 62], knock: [6, 7, 15], range: 3.5 },
       heavy: { dmg: 98, knock: 26, range: 4.0, launch: 10 },
-      ranged: { name: 'Shoulder Salvo', type: 'rocket', dmg: 34, speed: 30, cooldown: 1.5, splash: 2.6, ammo: 12 },
-      special: { id: 'chestBeat', name: 'Thunder Drums', cooldown: 8, dmg: 46, knock: 20, radius: 9, duration: 6 },
+      // BOTH PODS EMPTY THEMSELVES: a ripple of small missiles alternating
+      // shoulder to shoulder (world.js `salvo`), not one big rocket.
+      ranged: { name: 'Shoulder Salvo', type: 'salvo', dmg: 13, count: 10, speed: 34, cooldown: 2.1, splash: 1.8, ammo: 12 },
+      // THE PILEDRIVER (specials.js headSlam): grabbed by the head with the
+      // nearer fist, hoisted upside down and driven skull-first into the
+      // floor — or, for a victim as big as he is, taken across both palms
+      // like colossus and slammed down instead of thrown. Either way they
+      // finish on their back.
+      special: { id: 'headSlam', name: 'Skull Driver', cooldown: 8, dmg: 96, range: 4.2, knock: 16, radius: 6 },
       ult: { id: 'apexBarrage', name: 'APEX BARRAGE', dmg: 26, count: 34, radius: 20, duration: 5.5 },
     },
   },
