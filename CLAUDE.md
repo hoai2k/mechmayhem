@@ -745,6 +745,17 @@ audio). Progress history: `TASKS.md`.
   hard case (band 0, neither a source nor a destination, and the flood does not
   travel THROUGH that geometry), so konga's missile pods keep the crisp seam a
   bolted-on launcher should have while the ape around them is soft.
+  A FACE IS A ROBOT PART TOO, for this purpose. The same table names konga's
+  `head`/`crest`/`jaw`/`snout`/`brow*` at 0.012, because a band wide enough to
+  swell his shoulder into his chest also reaches his MUZZLE — and a muzzle that
+  takes a minority weight off the torso melts every time he leans (measured on
+  his chest-beat taunt: the snout dragged into a smooth droop with no mouth
+  line). A FACE THAT MOVES AS ONE SOLID PIECE IS RIGHT; a face that smears is
+  never right, whatever it costs. And it does cost: the skin audit reads a
+  narrow band as stretch, so the total goes 282.8 → 340.0 — ALL OF IT at the
+  face seam (non-face severity is 113.8 either way, to the decimal). Full
+  `rigid` on those bones was tried and is worse: crisp, but it opens a visible
+  gap under the chin.
   BAND WIDTH IS MEASURED, NOT GUESSED. Too narrow leaves the tear, too wide
   PINCHES (the LBS candy wrapper), so it has an optimum: konga's skin-audit
   severity total ran 1851 rigid → 483 at 0.03 → 288 at 0.04 → **280 at 0.045**
