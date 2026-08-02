@@ -429,6 +429,24 @@ export const MESSAGES = {
   'mech.nullbot.move.special': 'SEGFAULT',
   'mech.nullbot.move.ult': 'SYSTEM CRASH',
 
+  'mech.konga.name': 'KONGA',
+  'mech.konga.title': 'The Silverback Siege',
+  'mech.konga.blurb': 'Half the mountain gorilla they started with, half the ordnance they bolted on afterward. The engineers called the arm-graft a success. KONGA calls it the smaller fist.',
+  'mech.konga.quote.intro': '"*drums chest* ...Come closer. I want to reach you."',
+  'mech.konga.quote.win': '"You brought armor. I brought both arms."',
+  'mech.konga.move.ranged': 'Shoulder Salvo',
+  'mech.konga.move.special': 'Thunder Drums',
+  'mech.konga.move.ult': 'APEX BARRAGE',
+
+  'mech.tritone.name': 'TRITONE',
+  'mech.tritone.title': 'The Walking Siege',
+  'mech.tritone.blurb': 'Three horns, two cannons, one direction. TRITONE was rebuilt as a mobile gun platform, but nobody told the animal underneath — it still prefers to solve things at a full gallop.',
+  'mech.tritone.quote.intro': '"*low bellow* ...Move, or be moved."',
+  'mech.tritone.quote.win': '"The horns were enough. The guns were courtesy."',
+  'mech.tritone.move.ranged': 'Flank Cannons',
+  'mech.tritone.move.special': 'Gore Charge',
+  'mech.tritone.move.ult': 'SIEGE PROTOCOL',
+
   // =========================================================================
   // ARENAS — applied onto THEMES at import time (src/arena/themes.js).
   // =========================================================================

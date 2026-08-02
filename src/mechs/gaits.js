@@ -781,6 +781,96 @@ export const GAITS = {
       hockSnap: 0.75, hockCarry: -0.28,
     },
   },
+
+  // KONGA — KNUCKLE-WALK. A gorilla is not a quadruped that gallops; it is a
+  // biped-shaped body that CARRIES ITS TRUNK ON ITS ARMS at every speed. So
+  // this is not `quad` (no onset, no commit, no flight phase) — it is the
+  // arthropod trick: the ordinary stride on short back legs, plus the four
+  // foreleg dials putting the knuckles on the ground the whole time.
+  //
+  // The shape those dials have to make: the arms are LONGER than the legs, so
+  // the shoulders ride high and the spine slopes DOWN to the hips — that is
+  // `body.lean` doing the work, not a pitch that would nose him into the floor.
+  // Steps are short and heavy (low `cadence`, big `bob`), the track is wide
+  // (`adduct`), and the whole mass rolls side to side over whichever arm is
+  // planted (`body.roll`), which is the read that says "heavy" more than any
+  // other dial here.
+  knuckle: {
+    base: 'standard',
+    name: 'Knuckle-walk',
+    note: 'Gorilla travel: the trunk rides on planted knuckles at every speed, short heavy back-leg steps, big side-to-side roll over the loaded arm.',
+    legs: {
+      // short bowed legs taking short strides — the arms cover the ground
+      swing: 0.30, swingRun: 0.34, reach: 0.30, extend: 0.34,
+      adduct: 0.20, adductRun: 0.14, adductTrail: 0.20,
+      stanceBend: 0.34, stanceBendRun: 0.30,
+      kneeLift: 0.52, kneeLiftRun: 0.60, kneePhase: 1.05, phase: 0,
+      cadence: 0.62, cadenceCap: 13,
+    },
+    ankle: { roll: 0.34, tilt: -0.08, push: 0.44, pushRun: 0.56, level: 0.35, hang: 0 },
+    // THE ARMS ARE THE FRONT LEGS. `carry` is the constant shoulder pitch that
+    // plants the knuckles; it is strongly negative because his arms hang from
+    // high shoulders and must reach well forward of them to meet the ground.
+    // `handGround` levels the loaded fist the way footFlat levels a sole —
+    // a knuckle-walker rolls over the BACK of the fingers, so this is high.
+    arms: {
+      swing: 0.62, swingRun: 0.72, lift: 0, elbow: 0.20, elbowRun: 0.12,
+      elbowPump: 0, tuck: -0.10, cross: 0,
+      carry: -0.46, foldClear: 0.44, handGround: 0.85, handClear: 0.34,
+      // 0 lands each fist with the foot on its OWN side; π swaps to the
+      // diagonal couplet. A gorilla walks the diagonal, so: π.
+      phase: Math.PI,
+    },
+    body: {
+      bob: 0.26, pitch: 0.05, yaw: 0.07, roll: 0.16, lean: 0.46, twist: 0.08, head: -0.16,
+    },
+  },
+
+  // TRITONE — CERATOPSIAN. A true four-on-the-floor quadruped, but the opposite
+  // animal to fenrir: six tonnes of armored gun platform, not a wolf. So it
+  // borrows `quad`'s machinery and de-tunes almost every dial of it:
+  //   • `onset` is LOW and `snap` LONG — he is on all fours essentially always
+  //     and eases between speeds instead of committing to a gallop.
+  //   • `bodyArch` ~0 — a ceratopsian's back is a rigid weight-bearing bridge
+  //     with a fused sacrum. Arching it would read as a cat, not a tank.
+  //   • the hinds SWING far less and CARRY far more: columnar elephantine legs
+  //     that plant and push rather than folding up under the belly.
+  //   • the head is enormous, so `bodyPitch` stays small — nodding that frill
+  //     through a big arc would swing his whole mass around.
+  trike: {
+    base: 'quad',
+    name: 'Ceratopsian',
+    note: 'Heavy four-legged gun platform: columnar legs, rigid weight-bearing spine, a rolling walk that lengthens into a thunderous trot.',
+    legs: {
+      swing: 0.34, swingRun: 0.38, reach: 0.30, extend: -0.30,
+      adduct: 0.16, adductRun: 0.10, adductTrail: 0.14,
+      stanceBend: 0.20, stanceBendRun: 0.18,
+      kneeLift: 0.34, kneeLiftRun: 0.40, kneePhase: 1.0, phase: 0,
+      cadence: 0.70, cadenceCap: 11,
+    },
+    runLegs: {
+      swing: 0.38, swingRun: 0.42, reach: 0.26, extend: -0.42,
+      adduct: 0.14, adductRun: 0.08, adductTrail: 0.10,
+      stanceBend: 0.20, stanceBendRun: 0.18,
+      kneeLift: 0.38, kneeLiftRun: 0.44, kneePhase: 1.0,
+      cadence: 0.70, cadenceCap: 11,
+    },
+    ankle: { roll: 0.22, tilt: -0.05, push: 0.34, pushRun: 0.42, level: 0.5, hang: 0 },
+    runAnkle: { push: 0.30, pushRun: 0.36 },
+    // heavy armored tail: hangs low, sways slowly, lags well behind the body
+    tail: { droop: 0.30, straight: 0.55, sway: 0.06, swayRun: 0.07, lag: 1.5, lift: 0.03, idle: 0.7 },
+    body: { bob: 0.13, pitch: 0.05, yaw: 0.05, roll: 0.09, lean: 0.16, twist: 0.05, head: -0.10 },
+    runBody: { bob: 0.15, pitch: 0.06, yaw: 0.05, roll: 0.10, lean: 0.22, twist: 0.05, head: -0.12 },
+    quad: {
+      onset: 0.18, blend: 0.55, snap: 0.55, stride: 0.72, lag: 0.18,
+      bodyPitch: 0.16, bodyArch: 0.04, drop: 0.16, heave: 0.05,
+      frontReach: 0.72, frontSwing: 0.40, frontRake: 0.18, frontFold: 0.42,
+      hindReach: 0.20, hindExtend: 0,
+      hindSwing: 0.62, hindCarry: -0.12,
+      hindFold: -0.44, hindKneeCarry: 0.34,
+      hockSnap: 0.30, hockCarry: -0.12,
+    },
+  },
 };
 
 // ---------------------------------------------------------------------------

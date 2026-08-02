@@ -107,6 +107,18 @@ export const CONTRACT = {
   nullbot: {
     materials: ['glow2'],               // corruption-shard strobe (GLB: via GLB_DRESS)
   },
+  konga: {
+    // jaw/brow are the FACE layer (mechs/face.js); pods are the launchers the
+    // ranged attack and the ult both fire from, and the animator aims.
+    joints: ['jaw', 'browL', 'browR', 'podL', 'podR'],
+    anchors: ['podL', 'podR', 'fistL', 'fistR'],
+  },
+  tritone: {
+    // frill flares on the brace; the tail chain rides the gait's tail layer;
+    // the cannons traverse and recoil.
+    joints: ['jaw', 'browL', 'browR', 'frill', 'tail0', 'tail1', 'tail2', 'cannonL', 'cannonR'],
+    anchors: ['hornL', 'hornR', 'hornNose', 'frillPods'],
+  },
 };
 
 /**
