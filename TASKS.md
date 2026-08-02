@@ -6397,3 +6397,38 @@ and the clip `face.js` bares his teeth on). Frozen frame by frame with
   expression attached. The fix is a couple of numbers in the clip's head keys
   (roughly halve the head-back on the 0.26/0.92 keys and let the torso carry
   the rear-up), NOT touched here: it is authored art and the ask was to verify.
+
+## KONGA'S CHEST BEAT: the owner's clip pass, and a face that stops melting (user request, 2026-08-02)
+
+THE CLIP. `KONGA_TAUNT` — his chest beat — came back from the pose workbench
+with five keys reworked. What changed is the ELBOWS: the beat was authored as
+elbow PITCH alone, which drives the fist up the centre line and lands the
+knuckles edge-on, and the pass puts real yaw/roll into each one (0.42's left
+elbow goes [-160,0,0] → [-17.1,-49.9,78.3]) so the fist turns over and arrives
+FLAT on the pec, with the off arm holding its own cocked angle instead of the
+mirrored pitch. Applied verbatim; the comments around the keys were kept and
+one added to say why an elbow has three numbers in it now.
+
+THE FACE. Reported as "that weird deform thing", and it is the FEATHER, not
+the clip and not the bind: `radius 0.045` of the model's longest dimension is
+wide enough to swell a shoulder into a chest, and on a head that size it also
+reaches the MUZZLE — so the snout carried a minority torso weight and was
+dragged into a smooth droop with no mouth line every time he leaned into a
+beat. Proved by rendering the same frame with the feather op stripped (crisp
+face, hard seam under the jaw) against the shipped one (melted muzzle).
+
+Three answers, all rendered at the same frame and camera:
+  · `rigid: [head crest jaw snout brow*]` — face solid, but it opens a visible
+    GAP UNDER THE CHIN. Rejected.
+  · face band 0.028 — muzzle still soft. 0.02 no better.
+  · **face band 0.012** (`head`/`crest`/`jaw`/`snout`/`brow*` in the same
+    per-bone table the pods already use) — brow, eye sockets, muzzle and mouth
+    line all hold their shape, and the neck keeps a hairline blend rather than
+    a seam. Shipped.
+
+What it costs, stated plainly: the skin audit reads a narrow band as stretch,
+so konga's severity total goes 282.8 → 340.0. ALL of that is the face seam —
+non-face findings total 113.8 before and 113.8 after, to the decimal. The
+audit is a proxy for "does this look wrong", and here it points the wrong way:
+a solid face is what the owner asked for and what a gorilla should have. Same
+reasoning the pods have shipped on since they were given 0.012.

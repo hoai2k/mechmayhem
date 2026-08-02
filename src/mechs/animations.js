@@ -1899,13 +1899,20 @@ const KONGA_TAUNT = {
     // real travel of about a metre in and up.
     { t: 0.24, ease: 'outBack', pose: { torso: [-17, 0, 0], head: [-8, 0, 0], hipsPos: [0, 0.07, 0],
       shoulderL: [-30, -30, -22], shoulderR: [-30, 30, 22], elbowL: [-95, 0, 0], elbowR: [-95, 0, 0] } },
-    { t: 0.42, ease: 'inQuad', pose: { shoulderL: [-14, 40, -4], elbowL: [-160, 0, 0] } },       // L beat
-    { t: 0.58, ease: 'outQuad', pose: { shoulderL: [-30, -30, -22], elbowL: [-95, 0, 0], shoulderR: [-14, -40, 4], elbowR: [-160, 0, 0] } },
-    { t: 0.74, ease: 'inQuad', pose: { shoulderL: [-14, 40, -4], elbowL: [-160, 0, 0], shoulderR: [-30, 30, 22], elbowR: [-95, 0, 0] } },
-    { t: 0.90, ease: 'outQuad', pose: { shoulderL: [-30, -30, -22], elbowL: [-95, 0, 0], shoulderR: [-14, -40, 4], elbowR: [-160, 0, 0] } },
+    // …AND THE FOREARM ROLLS ACROSS, which is the half a fold cannot say. A
+    // beat authored as elbow PITCH alone drives the fist up the centre line and
+    // the knuckles arrive edge-on; the owner's pass (pose workbench, 2026-08-02)
+    // puts real yaw/roll into each elbow so the fist turns over and lands FLAT
+    // on the pec, and gives the off arm its own cocked angle instead of the
+    // mirrored pitch it used to hold.
+    { t: 0.42, ease: 'inQuad', pose: { shoulderL: [-7.1, 28.96, -18.96], elbowL: [-17.07, -49.94, 78.25], elbowR: [-129.49, 37.89, 56.17] } },  // L beat
+    { t: 0.58, ease: 'outQuad', pose: { shoulderL: [-30, -30, -22], elbowL: [-95, 0, 0], shoulderR: [-14, -40, 4], elbowR: [32.82, 30.12, -121.64] } },
+    { t: 0.74, ease: 'inQuad', pose: { shoulderL: [16, 29.78, -10.5], elbowL: [-47.58, -43.19, 53.1], shoulderR: [-30, 30, 22], elbowR: [-95, 0, 0] } },
+    { t: 0.90, ease: 'outQuad', pose: { shoulderL: [-30, -30, -22], elbowL: [-95, 0, 0], shoulderR: [-14, -40, 4], elbowR: [42.11, 15.89, -121.64] } },
     // both fists together, the punctuation
     { t: 1.08, ease: 'inQuad', pose: { torso: [-21, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.10, 0],
-      shoulderL: [-16, 42, -4], shoulderR: [-16, -42, 4], elbowL: [-164, 0, 0], elbowR: [-164, 0, 0] } },
+      shoulderL: [-16, 42, -4], shoulderR: [-16, -42, 4],
+      elbowL: [-121.27, -4.87, -67.06], elbowR: [-103.32, 41.94, 46.32] } },
     // the release OPENS rather than flings: the wide cock pose held here read
     // as a wing on the way back to rest
     { t: 1.34, ease: 'outQuad', pose: { torso: [-14, 0, 0], shoulderL: [-20, -20, -12], shoulderR: [-20, 20, 12], elbowL: [-104, 0, 0], elbowR: [-104, 0, 0] } },
