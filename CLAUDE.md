@@ -554,6 +554,24 @@ audio). Progress history: `TASKS.md`.
   the first build used (sizes halved, arc throw and `jag` halved), which is the
   difference between a chimney that crackles and one that looks like it is
   venting. The dynamics — throw, gravity, gap — are untouched.
+- A FIRE BURNS ON A THING, NOT AT A COORDINATE (`flameLanding` in world.js).
+  `Effects.jet` returns the end of RANGE, not a contact point, and the fire path
+  passes a NEGATIVE gravity (the tube climbs), so the ground clamp inside `jet`
+  never runs — inferno's impact bloom was planted a fixed distance in front of
+  the muzzle whether or not anything was there, which is the reported "flames in
+  mid-air", and when it did land on someone it stayed put while they walked out
+  of it. The stream is CAST now, nearest hit first: a FIGHTER through the same
+  hurtbox capsules melee and bullets use (which also NAMES the part), then the
+  GROUND solved against the arc, then nothing — and nothing means no impact fire
+  at all, because a flamethrower fired at the sky sets nothing alight. A hit
+  fighter is remembered on the jet (`fj.on`), and the burning spot is re-read off
+  that limb EVERY FRAME rather than per weapon tick, so it rides him through the
+  fade-out. THE FIRE IS THE SIZE OF WHAT IT IS ON: pavement gets the wide fuel
+  bed (`FLAME_GROUND_R`), a limb gets half the horizontal extent of its capsule
+  plus its radius — so an arm held out sideways burns along its length and the
+  same arm hanging straight down burns at the width of the arm. Measured on
+  titanus at 8 units: it lands on `thighL`/`upperArmL` with radii 1.08-1.65
+  swinging with the pose, and the spot tracks him ~1 unit a frame as he moves.
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
@@ -1136,6 +1154,39 @@ audio). Progress history: `TASKS.md`.
   Editor: `src/editor/`, loader + authored-placement format:
   `src/arena/level.js`.
 
+- …AND NOTHING SHOULD BE ABOVE IT EITHER WHEN IT IS PRONE
+  (`node tools/proneprobe.mjs [mech …]`). A downed body is floor-clamped
+  (`gltf.js groundClamp`, called by Fighter.update for knockdown/getup): the
+  model is shifted until its lowest RENDERED point rests on y=0. That is right
+  for a body lying flat and wrong the moment anything narrow hangs below it,
+  because A POINT IS NOT A CONTACT PATCH — a pointed toe, a heel spur, a tail
+  tip takes the clamp's weight and the whole mech levitates on it. Measured
+  before: titanus 15.5% of his height off the ground on `heelL`, tempest 10.7%
+  on an ankle, wraith 24.6% ON HIS OWN CLOAK HEM, fenrir 40.5% propped up on his
+  blade-tail, tritone 93.6% — nearly a whole body height, standing on his tail.
+  TWO RULES FIX IT AND THE BODY WINS WHERE IT CAN. (1) The clamp lands his CORE
+  (the geometry owned by hips/torso/head, named through `boneMap` so an auto-rig
+  noun like `tripo0_Right_Limb_1` still resolves) and only backs off when doing
+  that would bury an extremity deeper than `PRONE_SINK` (8% of body height —
+  about half a boot, and the floor is opaque). `PRONE_SINK 0` is exactly the old
+  rule. (2) WHAT HANGS OFF HIM GOES LIMP: `Animator.limpTail` is a quasi-static
+  solve over the chains named by `mech.limpChains` (a rig's `limpChains`, a
+  manifest entry's, else `tail0`) — each segment keeps a WORLD direction damped
+  toward straight down and toward a floor it cannot pass through, run root to
+  tip with the matrices refreshed between segments, so the chain FLOPS out flat
+  in whatever direction it was pointing over ~0.3s. The clamp then ignores those
+  bones entirely, which is only honest because the solver has already laid them
+  on the ground. THE BONE LINE IS NOT THE SURFACE — on a thin blade it is, on
+  tritone's armoured slab it is the middle of it — so rather than author a
+  thickness per rig, the clamp reports how far the chain's geometry actually
+  ended up underground (`mech.tailUnder`) and the solver integrates it into its
+  own floor. After: 20 failing clips across the roster down to 5, tritone 93.6%
+  -> 0.0%, fenrir 40.5% -> 0.8%, wraith 24.6% -> 7.2%, titanus 15.5% -> 8.9%,
+  tempest 10.7% -> 3.8%. STILL FAILING, left as found: jerry (35%, propped on a
+  long rigid back leg — no chain to go limp, the knockdown clip's leg pose is
+  authored for a humanoid) and saurion (43%, an auto-rigged tail on
+  `tripoSpine_0`; declaring it fixes his knockdown and makes his ragdoll worse,
+  so it is not declared).
 - NOTHING SHOULD BE UNDER THE FLOOR, and `node tools/groundprobe.mjs <mech>`
   is how you know: it plays every clip the mech can actually play, CPU-skins
   the model at each sample and reports the LOWEST VERTEX against the ground,

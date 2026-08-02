@@ -7,6 +7,7 @@ import { FlameFX, fireTint } from '../combat/flamefx.js';
 import { ProjectileSystem } from '../combat/projectiles.js';
 import { FleaSystem } from '../combat/fleas.js';
 import { overlapsY } from '../combat/movekit.js';
+import { bodyHitSegment } from '../combat/hurtbox.js';
 import { rand, clamp } from '../core/utils.js';
 
 const _v = new THREE.Vector3();
@@ -442,6 +443,20 @@ export class World {
         fj.nozzle.extinguish(0.22);
         fj.impact.extinguish(0.35);
       }
+      // A FIRE BURNING ON SOMEBODY RIDES HIM. The handler only runs on a weapon
+      // tick; between ticks (and all the way through the fade-out) the victim
+      // keeps moving, and a spot of fire left at a world coordinate is the
+      // "flames floating in mid-air" report. Re-read the limb every frame.
+      if (fj.on) {
+        const { f: victim, part } = fj.on;
+        if (!victim.alive) fj.on = null;
+        else {
+          const hb = victim.hurtbox;
+          const p = part && hb ? hb.partPoint(part, _flp, this.time) : null;
+          fj.impact.setPose(p || victim.center(_flp));
+          if (part && hb) fj.impact.radius = flamePartRadius(hb.part(part));
+        }
+      }
       const nozzleLive = fj.nozzle.update(dt);
       const impactLive = fj.impact.update(dt);
       return nozzleLive || impactLive;
@@ -611,6 +626,79 @@ export class World {
 const FLAME_PITCH = 0.4;
 const FLAME_RISE = 0.05;
 
+// ---------------------------------------------------------------------------
+// WHERE A FLAME STREAM ACTUALLY LANDS — and how wide the fire it starts is.
+//
+// TWO BUGS LIVED IN THE ANSWER "the end of the arc". `Effects.jet` returns the
+// point where the tube runs out of RANGE, not the point where it meets
+// anything, and the fire path passes a NEGATIVE gravity (the jet climbs), so
+// the ground clamp inside jet() never even runs. The impact bloom was therefore
+// planted at a fixed distance in front of the muzzle whether or not there was
+// anything there — fire hanging in mid-air — and when it DID happen to be on an
+// enemy, it stayed at that world point while the enemy walked out of it.
+//
+// So the stream is cast, nearest hit first:
+//   1. a FIGHTER, through the same hurtbox capsules melee and bullets use, which
+//      also names the PART — an arm, a shin — so the fire can be handed the
+//      thing it is burning rather than a coordinate.
+//   2. the GROUND, solving the arc against y=0 rather than assuming it.
+//   3. nothing, in which case there is no impact fire at all. A flamethrower
+//      fired at the sky sets nothing alight.
+//
+// AND THE FIRE IS THE SIZE OF WHAT IT IS ON. A fuel bed spread across pavement
+// is wide; a limb is as wide as the limb, which is a HORIZONTAL measurement of
+// a capsule that swings — an arm held out sideways gives a long bed, the same
+// arm hanging straight down gives one the width of the arm. That falls out of
+// the capsule directly: half its horizontal extent plus its radius.
+const _fl0 = new THREE.Vector3(), _fl1 = new THREE.Vector3(), _flp = new THREE.Vector3();
+const FLAME_GROUND_R = 1.15;    // fuel spread on open pavement
+const FLAME_CAST_R = 0.5;       // the stream's own thickness, for the cast
+
+function flameLanding(w, f, from, dir, range, out) {
+  _fl1.copy(from).addScaledVector(dir, range);
+  let best = null;
+  for (const t of w.fighters) {
+    if (t === f || !t.alive) continue;
+    const hit = bodyHitSegment(t, from, _fl1, FLAME_CAST_R, 0, w.time);
+    if (hit && (!best || hit.t < best.t)) best = { t: hit.t, fighter: t, part: hit.part?.name || null };
+  }
+  // the ground: y(u) along the same arc the tube is drawn on (see Effects.jet)
+  const G = -4, speed = 30, tEnd = range / speed;
+  let groundT = null;
+  for (let i = 1; i <= 12; i++) {
+    const u = i / 12, tt = tEnd * u;
+    if (from.y + dir.y * speed * tt - 0.5 * G * tt * tt <= 0.05) { groundT = u; break; }
+  }
+  if (groundT !== null && (!best || groundT < best.t)) best = { t: groundT, fighter: null, part: null };
+  if (!best) return null;
+  out.point = out.point || new THREE.Vector3();
+  if (best.fighter) {
+    // ON the part, not at the parameter — a capsule is not a point, and the
+    // fire belongs where the limb is, so it can be re-read as the limb moves.
+    const hb = best.fighter.hurtbox;
+    const p = best.part && hb ? hb.partPoint(best.part, _flp, w.time) : null;
+    out.point.copy(p || best.fighter.center(_flp));
+    out.radius = best.part && hb ? flamePartRadius(hb.part(best.part)) : best.fighter.hitRadius * 0.6;
+    out.fighter = best.fighter;
+    out.part = best.part;
+  } else {
+    const tt = tEnd * best.t;
+    out.point.set(from.x + dir.x * speed * tt, 0.05, from.z + dir.z * speed * tt);
+    out.radius = FLAME_GROUND_R;
+    out.fighter = null;
+    out.part = null;
+  }
+  return out;
+}
+
+// The horizontal footprint of a hurtbox capsule: how wide the fuel bed on it
+// looks from above. Swings with the limb, which is the whole point.
+function flamePartRadius(part) {
+  if (!part) return FLAME_GROUND_R;
+  const dx = part.b.x - part.a.x, dz = part.b.z - part.a.z;
+  return Math.hypot(dx, dz) * 0.5 + part.r;
+}
+
 const _bQ = new THREE.Quaternion(), _bOff = new THREE.Quaternion();
 const _bFwd = new THREE.Vector3(), _bFace = new THREE.Vector3();
 function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
@@ -695,9 +783,22 @@ const WEAPONS = {
     }
     fj.ttl = 0.16;
     fj.nozzle.rekindle();
-    fj.impact.rekindle();
     fj.nozzle.setPose(from, dir);
-    if (end) fj.impact.setPose(end.setY(Math.max(0, end.y - 0.5)));
+    // WHERE THE FIRE ACTUALLY STARTS. `end` is the end of RANGE, which is why
+    // the impact bloom used to hang in mid-air; `flameLanding` casts the stream
+    // and returns what it met — a limb, the pavement, or nothing at all.
+    const land = flameLanding(w, f, from, dir, mv.range * 1.05, fj.land || (fj.land = {}));
+    if (land) {
+      fj.impact.rekindle();
+      fj.impact.radius = land.radius;
+      // ATTACHED, not placed: remember the limb so the burning spot rides the
+      // enemy between ticks instead of staying where he was standing.
+      fj.on = land.fighter ? { f: land.fighter, part: land.part } : null;
+      fj.impact.setPose(land.point);
+    } else {
+      fj.on = null;
+      fj.impact.extinguish(0.25);   // fired at the sky: nothing catches light
+    }
     if (Math.random() < 0.4) w.effects.fire(from, dir, 34, 0.15, tint); // embers riding the blast
     w.audio?.play('flame');
     // cone tick damage
