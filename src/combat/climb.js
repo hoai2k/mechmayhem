@@ -336,7 +336,15 @@ export function climbStep(f, dt, mv) {
   // the standoff) buries the body by exactly this much: measured, that put his
   // feet 0.5 under the pavement on flat ground.
   const stand = f.height * 0.06;
-  collectSolids(f, range + f.radius);
+  // THE GATHER HAS TO COVER THE HANDS, not just the body. The solids are
+  // collected once and then queried five times — the body at `range`, and the
+  // four limbs out at their own full extension (conformClimbLimbs). For a
+  // spider those are similar numbers; for an APE the arms are longer than the
+  // whole field radius, so a gather sized for the body alone hands the hands
+  // an empty list and every grab fails. Measured on konga: both arms read
+  // airborne for an entire 49-unit ascent — he went up the facade without
+  // once touching it.
+  collectSolids(f, range + f.radius + (D.style === 'ape' ? f.height * 0.8 : 0));
 
   // THE CPU DOES NOT SURFACE-WALK. Nothing in ai.js knows a wall is a route: it
   // steers at an enemy on the ground, so a CPU that went up would climb
@@ -611,9 +619,56 @@ const SPLAY_LADDER = [1, 0.6, 0.28, 0];
 const _splay = new THREE.Vector3();
 const _tipT = new THREE.Vector3();
 const _homeT = new THREE.Vector3();
+const _fwdFallback = new THREE.Vector3();
+
+// ===========================================================================
+// THE APE (`climb.style: 'ape'` — KONGA). Same stepper, four rules changed,
+// because a gorilla on a wall is not a spider on a wall:
+//
+//   HE HANGS FROM ONE ARM. The spider's diagonal trot needs a pair down at
+//     all times; a brachiator needs ONE grip and the rest of him is cargo. So
+//     the alternation gate is between the two ARMS only, and the legs gate
+//     against nothing.
+//   THE ARMS LEAD, AND THEY REACH UP. A hand's home is searched ahead along
+//     the travel by a long lead and ABOVE the shoulder rather than below it
+//     (`apeHang` is negative) — he grabs where he is going, high, and then
+//     the body swings past the grip, which is the pull-through. It is the
+//     same pinning the spider uses; what makes it read as a pull rather than
+//     a step is that the hand goes up and forward and the body follows it.
+//   THE FEET WANT A FLOOR. A foot only plants on a GROUND-ORIENTED surface
+//     (`footCos` off world up — a ledge, a roof, the top of a crate); on a
+//     sheer face there is nothing for a foot to stand on, so the legs simply
+//     hang under him and the arms do the work. That one rule is most of the
+//     difference between a gorilla and a gecko.
+//   HE STANDS WHEN HE CAN. Falls out of the above for free: feet planted on
+//     something flat with the body upright is exactly the condition
+//     climbStep already hands back to ordinary walking.
+// ===========================================================================
+const APE = {
+  lead: 0.34,        // seconds of travel a hand reaches ahead by (spider: 0.13)
+  // HOW FAR THE HAND REACHES, and the two directions are NOT interchangeable.
+  //   `hang` is toward the SURFACE (along the body's own down) and must stay
+  //     positive: on a wall the body's up IS the outward normal, so a hand
+  //     told to reach "up" reaches into open air and grabs nothing. Measured:
+  //     at -0.35 both arms read airborne for the whole ascent — he went up a
+  //     40-unit facade without ever touching it.
+  //   `ahead` is along his TRAVEL, and that is where "reach high" actually
+  //     lives: climbing, his forward IS up the face. Held even at a
+  //     standstill, so a stopped ape still has his hands out in front rather
+  //     than hanging at his sides.
+  hang: 0.30,
+  ahead: 0.34,       // x reach, along the body's forward
+  spread: 0.34,      // arms come in narrower than a spider's starfish
+  swing: 0.26,       // seconds per reach — a long deliberate arm swing
+  lift: 0.42,        // and a high arc: the hand goes up and over to the grip
+  len: 0.42,         // he lets a grip trail further behind before re-reaching
+  footCos: 0.62,     // a foot needs a surface within ~52° of level to stand on
+  legTuck: 0.55,     // otherwise the leg hangs this far under the hips, x reach
+};
 
 export function conformClimbLimbs(f, dt) {
   const S = C.step;
+  const ape = f.def.climb?.style === 'ape';
   // who owns the limbs this frame?
   const spd = Math.hypot(f.vel.x, f.vel.z);
   const scuttle = !f.climb && f.grounded && f.alive && f.state === 'normal' &&
@@ -636,11 +691,20 @@ export function conformClimbLimbs(f, dt) {
   const node = (n) => (bones && bones[n]) || mech.joints?.[n] || null;
   f.group.updateWorldMatrix(true, true);
   const up = f.climbUp || UP;
+  // WHICH WAY HE IS GOING, in the body's own frame — up the face when he is
+  // climbing one. The ape's hands are thrown out along it (see APE.ahead).
+  const fwd = f.climbFwd || _fwdFallback.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
   const sole = f.animator?.footDepth || 0.32 * f.scale;
 
-  // which diagonal pairs are mid-swing (computed first: the alternation gate)
+  // WHO MAY SWING. The spider gates on diagonal PAIRS (a trot); the ape gates
+  // one arm against the other and lets the legs do as they like, because a
+  // hanging body only needs the one grip.
+  const gateOf = (L) => (ape ? (L.foot ? -1 : (L.splay.x < 0 ? 0 : 1)) : L.group);
   const swinging = [false, false];
-  for (let i = 0; i < 4; i++) if (st[i].sw >= 0) swinging[LIMBS[i].group] = true;
+  for (let i = 0; i < 4; i++) {
+    const g = gateOf(LIMBS[i]);
+    if (g >= 0 && st[i].sw >= 0) swinging[g] = true;
+  }
 
   for (let i = 0; i < 4; i++) {
     const L = LIMBS[i], s0 = st[i];
@@ -661,18 +725,70 @@ export function conformClimbLimbs(f, dt) {
     // reachable surface, which is the pole-hug case. The travel lead is
     // CLAMPED to a fraction of reach — unclamped, ground pace pushed every
     // home past full extension and the whole stepper read airborne.
+    // THE APE reaches with his ARMS: further ahead, and UP rather than down.
+    // His legs keep the ordinary search but only accept a floor (below).
+    const armReach = ape && !L.foot;
+    const lead = armReach ? APE.lead : S.lead;
+    const hang = armReach ? APE.hang : S.hang;
+    const spread = armReach ? APE.spread : S.spread;
     _splay.copy(L.splay).applyQuaternion(f.group.quaternion);
-    _want.copy(f.vel).multiplyScalar(S.lead);
+    _want.copy(f.vel).multiplyScalar(lead);
+    if (armReach) _want.addScaledVector(fwd, reach * APE.ahead);
     const ldLen = _want.length();
-    if (ldLen > reach * 0.35) _want.multiplyScalar((reach * 0.35) / ldLen);
+    if (ldLen > reach * 0.55) _want.multiplyScalar((reach * 0.55) / ldLen);
     let homeOk = false;
-    for (const rung of SPLAY_LADDER) {
+    // A HAND SEARCHES FROM THE SURFACE, NOT FROM A POINT IN SPACE. The
+    // spider's ladder guesses a spot out along the limb's splay and asks what
+    // is near it; that works when the limb is short next to the body, and
+    // fails on an ape, whose shoulder sits a body's DEPTH off the wall he is
+    // climbing (he is on his back to it — the body's up IS the outward
+    // normal). Every guessed point then landed 4.9-5.3 units out on a
+    // 5.0-unit arm and the grab quietly failed: measured, both hands read
+    // airborne for most of a 49-unit ascent.
+    //
+    // So invert it. Find what is nearest the SHOULDER — that is the surface
+    // he is on, at the only distance that is certainly reachable — then SLIDE
+    // the grab along that face, in the plane of the face, toward where he is
+    // going, by however much arm is left over. Reach is spent going somewhere
+    // rather than on getting to the wall at all.
+    if (armReach) {
+      const d0 = nearestSurface(f, _root.x, _root.y, _root.z, reach * 1.1);
+      if (d0 !== Infinity) {
+        _homeT.copy(_limbCp);
+        // the along-face part: ahead + out along the splay + the travel lead,
+        // each flattened INTO the surface plane so the hand slides along the
+        // face instead of drifting off it
+        _tgt.set(0, 0, 0)
+          .addScaledVector(fwd, reach * APE.ahead)
+          .addScaledVector(_splay, reach * APE.spread)
+          .add(_want);
+        _tgt.addScaledVector(_limbN, -_tgt.dot(_limbN));
+        _homeT.add(_tgt);
+        // ...and never further than the arm goes
+        _tgt.copy(_homeT).sub(_root);
+        const hl = _tgt.length();
+        if (hl > reach * 0.9) _homeT.copy(_root).addScaledVector(_tgt, (reach * 0.9) / hl);
+        const d = nearestSurface(f, _homeT.x, _homeT.y, _homeT.z, reach);
+        if (d !== Infinity) {
+          _tgt.copy(_limbCp).addScaledVector(_limbN, stand);
+          if (_tgt.distanceTo(_root) <= reach) {
+            homeOk = true;
+            s0.tn.copy(_limbN);
+          }
+        }
+      }
+    } else for (const rung of SPLAY_LADDER) {
       _homeT.copy(_root)
-        .addScaledVector(_splay, reach * S.spread * rung)
-        .addScaledVector(up, -reach * S.hang)
+        .addScaledVector(_splay, reach * spread * rung)
+        .addScaledVector(up, -reach * hang)
         .add(_want);
       const d = nearestSurface(f, _homeT.x, _homeT.y, _homeT.z, reach * 1.25);
       if (d === Infinity) continue;
+      // A GORILLA'S FOOT NEEDS A FLOOR. On a sheer face there is nothing to
+      // stand on, so a leg that finds only wall reports no home and hangs —
+      // which is what puts all the work on the arms and all the weight under
+      // the grip. (The spider is unaffected: it plants on anything.)
+      if (ape && L.foot && _limbN.y < APE.footCos) continue;
       _tgt.copy(_limbCp).addScaledVector(_limbN, stand);
       if (_tgt.distanceTo(_root) <= reach) {
         homeOk = true;
@@ -681,6 +797,7 @@ export function conformClimbLimbs(f, dt) {
       }
     }
 
+    const gate = gateOf(L);
     let target = null, w = 0;
     if (!homeOk) {
       // nothing in range of full extension: the limb hangs/reaches, gently —
@@ -688,35 +805,54 @@ export function conformClimbLimbs(f, dt) {
       s0.has = false;
       s0.sw = -1;
       s0.air = true;
+      // an ape's UNPLANTED LEG does not reach for the wall it cannot stand
+      // on — it hangs straight down under the hips, out of the way of the
+      // arms that are carrying him
+      if (ape && L.foot) {
+        _homeT.copy(_root).addScaledVector(UP, -reach * APE.legTuck);
+      }
       target = _homeT;
       w = act * S.airHold;
     } else {
       s0.air = false;
-      if (!s0.has && s0.sw < 0) {
+      // ONE ARM AT A TIME, from the very first grab. Without the gate here
+      // both hands reach together on contact and he swims up the wall; with
+      // it he throws one, catches, and only then throws the other — which IS
+      // the brachiation. The exception is having NOTHING on the surface: then
+      // whichever arm is ready goes, or he would hang in the air waiting for
+      // a grip that no one is allowed to take.
+      const gripped = ape && !L.foot && (st[2].has || st[3].has);
+      if (!s0.has && s0.sw < 0 && !(gripped && gate >= 0 && swinging[1 - gate])) {
         // first contact: swing to the home rather than teleporting onto it
         s0.sw = 0;
         s0.from.copy(_end);
         s0.to.copy(_tgt);
-        swinging[L.group] = true;
+        if (gate >= 0) swinging[gate] = true;
       } else if (s0.has && s0.sw < 0) {
         const err = s0.plant.distanceTo(_tgt);
         const stretched = s0.plant.distanceTo(_root) > reach;
         // step when a stride behind the home and the OTHER pair is planted —
         // or immediately when near full stretch, gate or no gate (a limb must
         // never be left pinned beyond what it can reach)
-        if ((err > reach * S.len && !swinging[1 - L.group]) ||
-            stretched || err > reach * 0.85) {
+        // step when a stride behind the home and the limb that has to stay
+        // put IS put — for the ape that is the OTHER ARM (one grip is
+        // enough), for the spider the other diagonal pair. A leg with no
+        // partner to wait for (`gate < 0`) simply steps when it needs to.
+        const held = gate < 0 ? false : swinging[1 - gate];
+        const stride = ape && !L.foot ? APE.len : S.len;
+        if ((err > reach * stride && !held) || stretched || err > reach * 0.85) {
           s0.sw = 0;
           s0.from.copy(_end);
           s0.to.copy(_tgt);
-          swinging[L.group] = true;
+          if (gate >= 0) swinging[gate] = true;
         }
       }
       if (s0.sw >= 0) {
         s0.to.copy(_tgt);                 // chase the live home while swinging
         // a fast body needs a fast cadence: swings shorten with speed, so the
         // stride keeps up instead of every step firing the stretch emergency
-        const swT = S.time * clamp(10 / Math.max(f.vel.length(), 10), 0.45, 1);
+        const swT = (ape && !L.foot ? APE.swing : S.time)
+          * clamp(10 / Math.max(f.vel.length(), 10), 0.45, 1);
         s0.sw += dt / swT;
         if (s0.sw >= 1) {
           s0.sw = -1;
@@ -727,8 +863,13 @@ export function conformClimbLimbs(f, dt) {
           w = act;
         } else {
           const k = s0.sw * s0.sw * (3 - 2 * s0.sw);
-          _want.lerpVectors(s0.from, s0.to, k)
-            .addScaledVector(up, Math.sin(Math.PI * k) * reach * S.lift);
+          // THE ARC. The spider lifts its foot over the ground it is crossing;
+          // the APE throws his hand up and over to the next grip, which is a
+          // taller arc taken in WORLD up — a reach is aimed at the sky, not at
+          // whatever the body happens to be lying against.
+          _want.lerpVectors(s0.from, s0.to, k).addScaledVector(
+            ape && !L.foot ? UP : up,
+            Math.sin(Math.PI * k) * reach * (ape && !L.foot ? APE.lift : S.lift));
           target = _want;
           w = act;
         }

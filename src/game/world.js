@@ -721,6 +721,36 @@ const WEAPONS = {
     w.effects.muzzleFlash(from);
   },
 
+  salvo(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // KONGA: a RIPPLE of small
+    // missiles out of BOTH shoulder pods — the ordnance bolted on top of the
+    // animal. They leave in alternating pairs a few hundredths apart rather
+    // than as one clump, which is what makes it read as a pod emptying itself
+    // instead of a shotgun: the launch positions are re-read every tick, so
+    // the stream pours out of the pods wherever his shoulders have carried
+    // them, and each round takes its own small spread off the aim.
+    const n = mv.count || 10;
+    const pods = [anchors.podR || anchors.muzzleR, anchors.podL || anchors.muzzleL]
+      .filter(Boolean);
+    if (!pods.length) return;
+    for (let i = 0; i < n; i++) {
+      w.schedule(i * 0.05, () => {
+        if (!f.alive) return;
+        const pod = pods[i % pods.length];
+        const p = pod.getWorldPosition(new THREE.Vector3());
+        const d = dir.clone();
+        d.x += rand(-0.07, 0.07);
+        d.y += rand(-0.02, 0.06);
+        d.z += rand(-0.07, 0.07);
+        w.projectiles.spawn('rocket', f, p, d.normalize(), {
+          dmg: mv.dmg * f.dmgMult(), speed: mv.speed * rand(0.9, 1.12),
+          splash: mv.splash, color: 0xffb43c, knock: 6, launch: 2, size: 0.7,
+        });
+        w.effects.muzzleFlash(p);
+        if (i % 2 === 0) w.audio?.play('missile');
+      });
+    }
+  },
+
   fist(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // TITANUS: the fist itself is the round — it flies out
     // flat, swings around at range and comes home to the wrist,
     // clobbering on both legs of the trip (boomerang + pierce).
