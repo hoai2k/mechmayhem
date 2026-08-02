@@ -618,6 +618,15 @@ function buildGlbMech(def, entry, gltf) {
   // joint (see installMuzzles).
   mech.anchors.core = addAnchor(joints.torso, 0, D.torsoH * 0.5, D.torsoD * 0.4);
   mech.anchors.overhead = addAnchor(joints.root, 0, targetH + 1.2 * D.scale, 0);
+  // BOOSTER NOZZLES: default under each sole, POSITION only — with no authored
+  // `rot` the thrust runs down the body (fighter.boosterJets). A `muzzles`
+  // entry named boostL/boostR re-points them onto any joint or bone (the loop
+  // below re-parents an anchor that already exists) and, with a `rot`, aims
+  // the exhaust — which is how a mech moves its thrust off its feet with no
+  // line of code here.
+  for (const side of ['L', 'R']) {
+    mech.anchors['boost' + side] = addAnchor(joints['ankle' + side], 0, -0.34 * D.scale, 0);
+  }
   const coreLight = new THREE.PointLight(def.colors.glow, 14, 11 * D.scale, 2);
   mech.anchors.core.add(coreLight);
 

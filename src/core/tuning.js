@@ -65,9 +65,11 @@ export const TUNING = {
   },
 
   // ---- AIR SOMERSAULT ------------------------------------------------------
-  // The ball tuck: free on an A-press while falling with the hover tank
-  // empty, or bought any time airborne by pressing BLOCK in the air (that
-  // one drains the stamina bar at the standard block rate).
+  // The ball tuck: bought by pressing BLOCK while airborne, and paid for out
+  // of the stamina bar at the standard block rate for as long as it is held.
+  // (A used to buy a free one on the way down with the jets spent. One button
+  // that jumped, double-jumped, lit the jets AND balled up meant the ball
+  // arrived by accident every time a flight ran dry, so it is BLOCK's alone.)
   airRoll: {
     spinRate: 37.5,        // rad/s at full tilt (~6 turns a second)
     rampSeconds: 0.16,     // how quickly it reaches that rate
@@ -84,8 +86,10 @@ export const TUNING = {
 
   // ---- SURFACE WALKING -----------------------------------------------------
   // Walking on the WORLD rather than the floor, for the mechs whose roster def
-  // carries a `climb` block (JERRY, who trades the hover jets for it). Shared
-  // feel lives here; per-mech reach and pace live on the def.
+  // carries a `climb` block (today only JERRY, who flies as well — he traded
+  // the jets for the walls once and it was the wrong trade: a jet gets you UP,
+  // the walls get you AROUND). Shared feel lives here; per-mech reach and pace
+  // live on the def.
   //
   // THERE IS NO MODE AND NO NAMED SURFACE (combat/climb.js). Every frame the
   // walker asks what is near his feet and averages it into one normal; his up

@@ -580,12 +580,12 @@ export const ROSTER = [
     // grasshopper crouch: legs splayed wide, deeply folded, ready to spring
     restPose: { torso: [14, 0, 0], head: [-8, 0, 0], shoulderL: [-30, 0, -14], shoulderR: [-30, 0, 14], elbowL: [22, 0, 0], elbowR: [22, 0, 0], thighL: [-26, 0, -24], thighR: [-26, 0, 24], kneeL: [58, 0, 4], kneeR: [58, 0, -4], ankleL: [-30, 0, 20], ankleR: [-30, 0, -20] },
     // jumpWindup: he CROUCHES first, then launches — highest jump in the game
-    // by a clear margin (nothing else is over 24), and `noHover` is the price:
-    // JERRY has NO JETS. Every other mech double-taps A into a hover; his
-    // second A-press in the air goes straight to the ball tuck, because the
-    // way he gets height is the spring in his legs and then the WALL (see
-    // `climb` below + combat/climb.js).
-    stats: { hp: 980, speed: 9.8, jump: 30, jumpWindup: 0.18, weight: 0.45, armor: 0.08, duck: 0.9, blockMult: 0.15, noHover: true },
+    // by a clear margin (nothing else is over 24). He FLIES like everyone else
+    // too (he carried `noHover: true` for a while, on the theory that the
+    // walls were his height and the jets would make them pointless; they
+    // don't — a jet gets you UP, the walls get you AROUND), so his air game is
+    // spring, then jets, then the WALL (see `climb` below + combat/climb.js).
+    stats: { hp: 980, speed: 9.8, jump: 30, jumpWindup: 0.18, weight: 0.45, armor: 0.08, duck: 0.9, blockMult: 0.15 },
     // SURFACE WALKING (combat/climb.js; shared feel in TUNING.climb). The
     // splayed arthropod legs that make him look wrong as a biped make him right
     // as a SPIDER, so he does not walk on the FLOOR, he walks on the WORLD: up

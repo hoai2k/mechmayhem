@@ -703,11 +703,35 @@ audio). Progress history: `TASKS.md`.
   the list (exact, and it reaches a bone with no geometry left to click)
   completes it. The list header and its border go amber while it is armed. The
   bone list sits ABOVE the ops list, since it is the one you work in.
+- FLIGHT: THE BOOSTER FLAME COMES OUT OF ANCHORS. Every build carries
+  `boostL`/`boostR` under the soles (`factory.js` + `gltf.js`, beside
+  muzzleR/muzzleL/core/overhead), and `Fighter.boosterJets` burns
+  `effects.booster` — a white-hot heart, a short yellow flipbook tongue and a
+  spit of sparks — out of EVERY anchor whose name starts with `boost` while the
+  hover jets are lit. So moving a mech's thrusters is anchor work, not code:
+  drag them in the ANIMATION workbench (`/workbench/?edit=animation`) and paste
+  the exported `muzzles` entry, or add `boostBack`/`boostPodL`/… to that entry
+  and the mech simply has more nozzles. WHICH WAY IT BURNS follows the muzzle
+  rule: an anchor with an authored `rot` exhausts along its own +Z (aimable),
+  and one WITHOUT thrusts straight down the BODY's own -Y. That default is
+  deliberate — an ankle bone's local axes rotate with every step, so "+Z out of
+  the sole" standing still points sideways two frames later, while a foot jet
+  should always push under him.
+  THE BALL TUCK IS BLOCK'S ALONE. A used to have a fourth meaning (press it
+  falling with the tank spent and you curled into the descent ball), which meant
+  the ball arrived by accident every time a flight ran dry. It is gone:
+  `startAirRoll` takes no argument, the only way in is BLOCK pressed AIRBORNE,
+  and it is held by BLOCK plus the stamina that funds it.
+  `stats.noHover` (empty tank, no jets at all) survives as a lever but no mech
+  sets it — JERRY carried it while the walls were meant to be his height, and
+  now flies like everyone else.
 - SURFACE WALKING (`src/combat/climb.js`, dials in `TUNING.climb`) belongs to
-  whichever roster def carries a `climb` block — today only JERRY, who PAID for
-  it with his jets (`stats.noHover: true` empties the hover tank, so his second
-  airborne A-press falls through to the ball tuck) and got the roster's biggest
-  jump in the same trade. fighter.js owns four call sites and no logic.
+  whichever roster def carries a `climb` block — today only JERRY, who also has
+  the roster's biggest jump. (He PAID for the walls with his jets for a while —
+  `stats.noHover: true` — on the theory that a flier would never bother
+  climbing; he wouldn't have, but a jet gets you UP and the walls get you
+  AROUND, so he flies now and the flag is gone.) fighter.js owns four call
+  sites and no logic.
   HE DOES NOT WALK ON THE FLOOR, HE WALKS ON THE WORLD: up a facade, over its
   lip, across the roof, down the far side, over the crates on the way, with no
   mode change and no scripted move anywhere in it.

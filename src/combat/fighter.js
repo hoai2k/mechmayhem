@@ -19,6 +19,8 @@ import { PLAYER_COLORS } from '../core/colors.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _boostDir = new THREE.Vector3();  // booster exhaust: the body's own down
+const _boostQ = new THREE.Quaternion();
 const _rollQ = new THREE.Quaternion();  // air-roll pivot: body-space transform
 const _rollBase = new THREE.Vector3();
 const _rollTmp = new THREE.Vector3();
@@ -293,10 +295,10 @@ export class Fighter {
 
     // hover jets: double-tap jump and HOLD to fly. Lighter mechs get more
     // fuel and stronger jets — the little ones really take to the air.
-    // …EXCEPT a mech whose def says `noHover`: JERRY has no jets at all (an
-    // empty tank, so every jet check downstream already answers no, and his
-    // second airborne A-press falls through to the ball tuck). He buys height
-    // with the biggest jump on the roster and with WALLS — see combat/climb.js.
+    // …EXCEPT a mech whose def says `noHover`, which empties the tank so every
+    // jet check downstream already answers no. Nobody on the roster sets it
+    // today (JERRY did, and flies now); the lever stays because "this frame
+    // has no jets" is a real design choice and it costs one boolean.
     const lightness = 1 - def.stats.weight;
     this.hoverFuelMax = def.stats.noHover ? 0 : 1.5 + lightness * 1.9;   // seconds of thrust
     this.hoverFuel = this.hoverFuelMax;
@@ -2754,12 +2756,12 @@ export class Fighter {
     // held guard costs; the tank running dry opens the tuck like a release.
     // The PRESS has to happen in the air — a guard held from the ground into
     // a jump keeps the plain standing block, so a turtle who jumps doesn't
-    // eat the tuck's prone-landing risk without asking for it. (The A-press
-    // descent tuck further down is the free-of-stamina one, available only
-    // once the hover tank is spent.)
+    // eat the tuck's prone-landing risk without asking for it. This is the
+    // ONLY way into the ball: A no longer tucks on the way down, so nobody
+    // curls up by accident while mashing the jets.
     if (this.blocking && !this.grounded && !this.hovering && !this._airRoll && !this.climb &&
         this.state === 'normal' && I.block && !this._blockPrev) {
-      this.startAirRoll('block');
+      this.startAirRoll();
     }
     this._blockPrev = !!I.block;
 
@@ -2898,15 +2900,12 @@ export class Fighter {
         // the tuck — release the ball first, then the jets answer)
         this.hovering = true;
         this.world.audio?.play('jump');
-      } else if (I.jump && !this.grounded && !this.hovering && this.vel.y < 0 &&
-                 !this._airRoll) {
-        // TANK EMPTY and falling: A again TUCKS into the ball — the one
-        // somersault that costs NO stamina, since the flight is already
-        // spent and this is the way down. Held behind the all-around
-        // bubble for as long as A is held, at the price of falling PRONE
-        // if still tucked at touchdown (updateAirRoll owns the mechanics)
-        this.startAirRoll();
       }
+      // (A used to have a FOURTH meaning down here — tank empty and falling,
+      // press again to tuck into the descent ball. It is gone: one button
+      // that jumped, double-jumped, ignited the jets AND balled up meant the
+      // ball arrived by accident every time a flight ran dry. The tuck is
+      // BLOCK's now, in the air, and only ever on purpose.)
     } else if (this.state === 'attack' && this.queuedLight && this.stateT < 0.14) {
       // combo chain
       this.queuedLight = false;
@@ -2939,12 +2938,8 @@ export class Fighter {
         this.vel.y = Math.min(this.vel.y + (GRAVITY + 26) * dt, this.hoverRise);
         this.jetT -= dt;
         if (this.jetT <= 0) {
-          this.jetT = 0.05;
-          const fx = this.world.effects;
-          fx.glows.emit(this.pos.x + rand(-0.8, 0.8) * this.scale, this.pos.y + 0.6, this.pos.z + rand(-0.8, 0.8) * this.scale,
-            0, -6, 0, { life: 0.28, size: 1.5 * this.scale, color: 0x7fd8ff, alpha: 0.85 });
-          fx.smoke.emit(this.pos.x, this.pos.y + 0.3, this.pos.z,
-            rand(-1, 1), -3, rand(-1, 1), { life: 0.5, size: 1.1 * this.scale, color: 0x445055, alpha: 0.3, grow: 2 });
+          this.jetT = 0.04;
+          this.boosterJets();
         }
       } else {
         this.hovering = false;
@@ -3233,6 +3228,39 @@ export class Fighter {
     this.updateGlitch(dt);
   }
 
+  // ---- BOOSTER FLAME (the hover jets' exhaust) ----------------------------
+  // The fire comes out of ANCHORS, not out of a point under the mech: every
+  // build carries `boostL`/`boostR` at the soles (factory.js / gltf.js), and
+  // ANY anchor whose name starts with `boost` is a nozzle — so a mech that
+  // wants four of them, or wants them on its back, adds `boostBack` (etc.) to
+  // its manifest `muzzles` block and the flame follows with no code here.
+  // WHICH WAY IT BURNS is the same rule a muzzle's barrel follows: an anchor
+  // with an AUTHORED rotation (`userData.aimRot`, set by the manifest's `rot`)
+  // exhausts along its own +Z, so a nozzle can be aimed as well as placed in
+  // the workbench. With no rot it thrusts straight DOWN THE BODY — the mech's
+  // own -Y, not the world's, so a tilted flight still reads as thrust under
+  // him. That default is what makes the anchors usable without authoring
+  // angles: an ankle bone's local axes rotate with the step, so "+Z out of the
+  // sole" standing still is pointing off sideways two frames later.
+  boosterJets() {
+    const anchors = this.mech?.anchors;
+    if (!anchors) return;
+    if (!this._boostAnchors) {
+      this._boostAnchors = Object.keys(anchors)
+        .filter((n) => n.startsWith('boost') && anchors[n]?.isObject3D)
+        .map((n) => anchors[n]);
+    }
+    if (!this._boostAnchors.length) return;
+    const fx = this.world.effects;
+    const down = _boostDir.set(0, -1, 0).applyQuaternion(this.group.getWorldQuaternion(_boostQ));
+    for (const a of this._boostAnchors) {
+      a.getWorldPosition(_v);
+      if (a.userData.aimRot) a.getWorldDirection(_v2); else _v2.copy(down);
+      fx.booster(_v, _v2, this.scale);
+    }
+  }
+
+
   // ================= air somersault =================
   // The mech curls into the TIGHT BALL (the 'ball' clip — knees to chest,
   // spine curled, arms hugging the shins; per-body-type via def.ballPose)
@@ -3244,16 +3272,16 @@ export class Fighter {
   // cartwheeling.
   // A subtle sphere shield bubbles around them and every hit is taken as a
   // block — from any direction, since a tumbling ball has no facing.
-  // Two ways in (`hold` is which input keeps it up):
-  //   'jump'  — A pressed falling with the hover tank EMPTY: the free one.
-  //   'block' — LT pressed airborne: stamina drains like any held guard
-  //             (see the intents block), and an empty tank opens the tuck.
-  // Release the held input and the roll finishes its current turn at speed,
+  // ONE way in: LT pressed airborne. Stamina drains like any held guard (see
+  // the intents block) and an empty tank opens the tuck. (A used to buy a
+  // free one on the way down with the jets spent; that made the ball an
+  // accident of the flight button, so it went.)
+  // Release BLOCK and the roll finishes its current turn at speed,
   // lands the pose back exactly where the clip left it, and the guard drops
   // for that wind-down (the risk half of the trade). Still tucked at
   // touchdown? He hits the dirt PRONE.
-  startAirRoll(hold = 'jump') {
-    this._airRoll = { t: 0, spin: 0, ending: false, endAt: 0, hold };
+  startAirRoll() {
+    this._airRoll = { t: 0, spin: 0, ending: false, endAt: 0 };
     this.animator.play('ball'); // the tuck: curled tight around the hips
     this.world.audio?.play('whoosh');
   }
@@ -3462,12 +3490,9 @@ export class Fighter {
       ? 0 : TUNING.airRoll.spinRate;
     r.t += dt;
     const rate = SPIN * Math.min(1, r.t / TUNING.airRoll.rampSeconds);
-    // which input is keeping the ball closed (see startAirRoll): the free
-    // descent tuck rides A; the paid air guard rides LT AND the stamina
+    // what keeps the ball closed (see startAirRoll): LT held AND the stamina
     // that funds it — `blocking` going false (tank dry, stagger) lets go.
-    const held = r.hold === 'block'
-      ? this.intent.block && this.blocking
-      : this.intent.jumpHeld;
+    const held = this.intent.block && this.blocking;
     if (!r.ending && !held) {
       // released: finish the CURRENT turn at speed — the body arrives back
       // upright at exactly 2π, which IS the blend back to normal — and the

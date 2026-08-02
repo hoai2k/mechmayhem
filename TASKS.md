@@ -12,7 +12,34 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE ROOFTOP CAMERA GETS A POLE CLAMP AND THE PLAYER'S HANDS; THE
+- **Latest:** THE TUCK BECOMES BLOCK'S ALONE, JERRY FLIES, AND FLIGHT GROWS A
+  BOOSTER FLAME ON ANCHORS. Owner: "let's not have A button do the
+  descending-from-flying shield/flip anymore, let's just let the block button do
+  it, so the action is more optional and less error prone. Also, let's have
+  Jerry able to fly too. Also for flying in general, can we generate a
+  white/yellow booster fire effect that comes out of the robots' feet when they
+  fly. Add that as a muzzle so that I can move it to other locations for
+  specific robots."
+  THE TUCK: A had four meanings (jump, double-jump, ignite the jets, and — tank
+  empty and falling — curl into the descent ball), so the ball arrived by
+  accident every time a flight ran dry. The fourth is deleted; `startAirRoll`
+  takes no argument, the only way in is BLOCK pressed AIRBORNE, and it is held
+  by BLOCK plus the stamina that funds it.
+  JERRY FLIES: `stats.noHover: true` off his def. The flag stays supported (no
+  mech sets it now) because "this frame has no jets" is a real design choice.
+  THE FLAME (`effects.booster` + `Fighter.boosterJets`): a white-hot heart at
+  the nozzle, two short yellow flipbook tongues down the exhaust and a spit of
+  sparks — a torch, not `fire()`'s burning fuel, with the atlas's baked orange
+  ramp walked up into yellow by a hue rotation rather than a tint over it.
+  IT COMES OUT OF ANCHORS: every build now carries `boostL`/`boostR` under the
+  soles (factory.js + gltf.js), and boosterJets burns EVERY anchor whose name
+  starts with `boost` — so moving a mech's thrusters is anchor work in the
+  animation workbench plus a pasted `muzzles` entry, and `boostBack` (etc.) in
+  that entry just gives it more nozzles. Aim follows the muzzle rule: an
+  authored `rot` exhausts along the anchor's own +Z, no rot thrusts down the
+  BODY's -Y — the right default for a foot jet, since an ankle's local axes
+  rotate with every step.
+- **Previous:** THE ROOFTOP CAMERA GETS A POLE CLAMP AND THE PLAYER'S HANDS; THE
   LIMBS REACH OUT. Owner feedback on the spider pass: on top of a building the
   camera parks straight overhead where the pitch stick does nothing and yaw just
   spins ("perhaps it's gimbal lock" — it is: a spherical orbit AT the pole has

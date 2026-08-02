@@ -90,6 +90,7 @@ export const GOO_TINTS = {
   bilge: { trail: 0x2b2820, trail2: 0x0c0c0e, drip: 0x1d1a15, drip2: 0x08080a, blotch: 0x14130f, puddle: 0x121110, ring: 0x2a2620 },
 };
 const _ja = new THREE.Vector3(), _jb = new THREE.Vector3(), _jt = new THREE.Vector3();
+const _bd = new THREE.Vector3(), _bv = new THREE.Vector3();
 
 // ---------- shader point particle pool ----------
 const VERT = /* glsl */`
@@ -666,6 +667,39 @@ export class Effects {
       this.smoke.emit(pos.x + Math.cos(a) * rand(0.5), pos.y + 0.3, pos.z + Math.sin(a) * rand(0.5),
         Math.cos(a) * rand(1.5, 4), rand(0.5, 2), Math.sin(a) * rand(1.5, 4),
         { life: rand(0.5, 1.1), size: rand(1.6, 3), color, alpha: 0.45, drag: 2, grow: 1.6, spin: 0.9, fadeIn: 0.15 });
+    }
+  }
+
+  // BOOSTER JET — one tick of the thrust flame a FLYING mech throws out of
+  // its nozzles (fighter.js boosterJets, riding the boostL/boostR anchors).
+  // Deliberately not `fire()`: that is burning fuel, orange and buoyant and
+  // smoky. This is a torch — a white-hot heart at the nozzle, a short yellow
+  // tongue blown straight down the exhaust `dir`, and a spit of sparks. The
+  // flipbook cells carry the flicker; the hue rotation walks the atlas's
+  // baked orange ramp up into yellow (a flat tint over it would just mud, see
+  // the sprite-fire note in CLAUDE.md).
+  // NOTE ON SIZE: `size` here is not world units. The vertex shader draws a
+  // point at `size * 240 / distance` pixels while the 46-degree camera puts
+  // ~506 px on a world unit at that distance, so a sprite covers roughly
+  // size/2 units of world. A plume that reads at combat range on a ~9-unit
+  // mech therefore wants sizes in the 3-6 range, not the 1-2 that looks right
+  // when you read the number as "units".
+  booster(origin, dir, scale = 1, speed = 17) {
+    const d = _bd.copy(dir).normalize();
+    this.glows.emit(origin.x, origin.y, origin.z, d.x * speed * 0.2, d.y * speed * 0.2, d.z * speed * 0.2,
+      { life: 0.1, size: rand(3.4, 4.6) * scale, color: 0xfffbe8, alpha: 0.95, fadeIn: 0.02 });
+    for (let i = 0; i < 2; i++) {
+      const v = _bv.copy(d).multiplyScalar(speed * rand(0.65, 1.15));
+      v.x += rand(-1.5, 1.5) * scale; v.y += rand(-1.5, 1.5) * scale; v.z += rand(-1.5, 1.5) * scale;
+      this.flames.emit(origin.x, origin.y, origin.z, v.x, v.y, v.z,
+        { life: rand(0.16, 0.28), size: rand(2.8, 4.2) * scale, color: 0xfffdf4, color2: 0xffc22e,
+          alpha: 0.9, cell: -1, spin: 1.4, drag: 3.6, grow: 1.1, fadeIn: 0.04, hue: 0.22 });
+    }
+    if (Math.random() < 0.5) {
+      this.sparks.emit(origin.x, origin.y, origin.z,
+        d.x * speed + rand(-4, 4), d.y * speed + rand(-4, 4), d.z * speed + rand(-4, 4),
+        { life: rand(0.12, 0.3), size: rand(1, 1.9) * scale, color: 0xffeaa8,
+          gravity: 8, drag: 1.4, fadeIn: 0.02 });
     }
   }
 
