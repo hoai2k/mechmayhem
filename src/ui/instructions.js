@@ -45,9 +45,11 @@ const CONTROLS = [
   { id: 'lstick', from: [221, 205], side: 'left', route: 'flat' },
   // aimed at the d-pad's UP arm, since UP is the control that does something
   { id: 'dpad', from: [250, 246], side: 'left', route: 'flat' },
-  // SELECT and START sit dead centre: leaving sideways would cross a stick, so
-  // they drop down the waist, clear of the grips, and run out from there
-  { id: 'select', from: [292, 196], side: 'left', route: 'elbow', y: 346 },
+  // START sits dead centre: leaving sideways would cross a stick, so it drops
+  // down the waist, clear of the grips, and runs out from there. SELECT/VIEW
+  // beside it is DELIBERATELY not called out — the taunt moved to D-pad DOWN
+  // and the button is unbound, held for something later. An empty callout is a
+  // worse answer than no callout.
   { id: 'start', from: [328, 196], side: 'left', route: 'elbow', y: 400 },
   // RIGHT column. X climbs out of the cluster to sit directly above Y — its
   // run threads the 15-unit band between the RB bumper (ends 155) and Y's

@@ -762,7 +762,12 @@ body.touch-mode .screen > .touch-navbtn { position: fixed; z-index: 25; }
 .xb-btn {
   display: inline-flex; flex-direction: column; justify-content: center; align-items: center;
   gap: 2px; width: 19px; height: 19px; border-radius: 50%;
-  background: #cdeeff; vertical-align: -4px; margin: 0 4px;
+  /* an inline-FLEX box takes its baseline from its first flex item, and the
+     first bar of the SELECT glyph sits a third of the way down the circle —
+     so baseline alignment (and the -4px nudge that used to ride on top of
+     it) hung the badge a whole radius below the line of text. `middle`
+     ignores the phantom baseline and centres it on the text instead. */
+  background: #cdeeff; vertical-align: middle; margin: 0 4px;
 }
 .xb-btn i { display: block; width: 10px; height: 1.5px; border-radius: 1px; background: #0b131f; }
 

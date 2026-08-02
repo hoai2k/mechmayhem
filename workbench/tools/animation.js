@@ -10,10 +10,11 @@
 // front of the mech. The anchor editor (below the action buttons) rides along.
 //
 // COMPARE TO (&compare): what stands beside the mech under study — the
-// procedural body (default), the mech's alternate GLB, or nothing at all
-// ('solo', which centres the survivor). Mechs without an alternate get a
-// plain checkbox instead of the three-way dropdown. `&left=` is the old name
-// of this param and is still read.
+// procedural body, the mech's alternate GLB, or NOTHING AT ALL ('solo', which
+// centres the survivor). Solo is the DEFAULT: a second body halves the room the
+// one you came to look at gets, and the comparison is a thing you ask for.
+// Mechs without an alternate get a plain checkbox instead of the three-way
+// dropdown. `&left=` is the old name of this param and is still read.
 //
 // POSING lives in its OWN workbench now — ?debug=pose (src/dev/posework.js):
 // joint gizmo, bone display, limb-length constraints, and both the clip-pose
@@ -31,7 +32,7 @@ import { describeAction, ACTIONS } from '../adapters/actionchars.js';
 const R2D = 180 / Math.PI;
 const PAIR_X = 6;              // half-separation of the two models
 const INTENT_BTNS = ['light', 'lightHeld', 'heavy', 'heavyHeld', 'ranged', 'rangedHeld',
-  'special', 'specialHeld', 'ult', 'block', 'dash', 'jump', 'jumpHeld', 'duck'];
+  'special', 'specialHeld', 'ult', 'block', 'dash', 'jump', 'jumpHeld', 'duck', 'taunt'];
 
 export async function runAnimationWorkbench(config, params) {
   const startId = params.get('mech') || params.get('id');
@@ -307,7 +308,7 @@ export async function runAnimationWorkbench(config, params) {
     ['walk', (s) => Math.abs(s.moveX) + Math.abs(s.moveZ) > 0.1],
     ['ult', (s) => s.ult], ['special', (s) => s.special], ['heavy', (s) => s.heavy], ['light', (s) => s.light],
     ['dash', (s) => s.dash], ['ranged', (s) => s.ranged || s.rangedHeld], ['block', (s) => s.block],
-    ['fall', () => pulse.fall],
+    ['taunt', (s) => s.taunt], ['fall', () => pulse.fall],
   ];
   function detectAction() {
     let pressed = false;
@@ -596,14 +597,14 @@ export async function runAnimationWorkbench(config, params) {
   // `left=` is this param's old name; still read so old links keep working,
   // never written back.
   let compareTo = params.get('compare') || params.get('left')
-    || (params.get('alt') === '1' ? 'alt' : 'proc');
-  if (!['proc', 'alt', 'solo'].includes(compareTo)) compareTo = 'proc';
+    || (params.get('alt') === '1' ? 'alt' : 'solo');
+  if (!['proc', 'alt', 'solo'].includes(compareTo)) compareTo = 'solo';
   const setCompareTo = (v) => {
     compareTo = v;
     const u = new URL(location.href);
     u.searchParams.delete('alt');                 // legacy flag, superseded
     u.searchParams.delete('left');                // ditto — 'compare' is the name now
-    if (v === 'proc') u.searchParams.delete('compare'); else u.searchParams.set('compare', v);
+    if (v === 'solo') u.searchParams.delete('compare'); else u.searchParams.set('compare', v);
     history.replaceState(null, '', u);
     load(curId);
   };
@@ -636,11 +637,14 @@ export async function runAnimationWorkbench(config, params) {
   const btnGrid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px');
   const BTNS = [['walk', 'Walk (W/stick) — hold'], ['light', 'Light (F/✕)'], ['heavy', 'Heavy (G/△)'], ['ranged', 'Ranged (R/RB)'],
     ['special', 'Special (T/RT)'], ['ult', 'Ultimate (Y/DPad↑)'], ['block', 'Block (H/LB)'], ['dash', 'Dash (⇧/B)'],
-    ['fall', 'Falling down']];
+    ['taunt', 'Taunt (B/DPad↓)'], ['fall', 'Falling down']];
   // ONE-SHOT actions fire on press and clear themselves the next frame: an ult
   // held down would relaunch the moment the last one ends, and knockdown is a
   // direct state kick, not an intent at all.
-  const ONE_SHOT = new Set(['ult', 'fall']);
+  // A TAUNT IS A ONE-SHOT for the same reason an ult is: fighter.js starts it
+  // from `normal` on the intent being SET, not on its edge, so a held button
+  // relaunches it the instant the last one hands the body back.
+  const ONE_SHOT = new Set(['ult', 'taunt', 'fall']);
   for (const [act, txt] of BTNS) {
     const b = el('button', `padding:5px 3px;font-size:11px;border-radius:4px;cursor:pointer;background:#1a2433;color:#cfe0f5;border:1px solid #2c3648`);
     b.textContent = txt;
@@ -915,6 +919,7 @@ export async function runAnimationWorkbench(config, params) {
     // one-shot presses: the ult rides the intent, the knockdown is applied
     // to the fighters directly further down
     if (pulse.ult) scratch.ult = true;
+    if (pulse.taunt) scratch.taunt = true;
     // a NEW action press snaps everyone home first, so the move plays out
     // from the reference spot (translation from the previous move is temporary)
     if (detectAction()) { resetPositions(); lastWasWalk = false; }
@@ -925,7 +930,7 @@ export async function runAnimationWorkbench(config, params) {
       if (f.ammoMax !== undefined) f.ammo = f.ammoMax;
     }
     if (pulse.fall) knockBothDown();
-    pulse.ult = pulse.fall = false;
+    pulse.ult = pulse.taunt = pulse.fall = false;
     world.update(dt);      // dt pre-scaled by engine.timeScale
     if (selAnchor) {
       // ANCHOR EDITING: hold both mechs at the deterministic rest so the
