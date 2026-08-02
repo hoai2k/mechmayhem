@@ -944,7 +944,7 @@ audio). Progress history: `TASKS.md`.
   keeps the hot core hot. 0 = untouched, so every untinted particle in the game
   is bit-identical.
 - Work-in-progress mechs: a roster def flagged `hidden: true` (currently
-  AEGIS + NOVA) is kept out of the GAME's roster — mech select, RANDOM
+  AEGIS, NOVA, KONGA + TRITONE) is kept out of the GAME's roster — mech select, RANDOM
   picks, CPU picks, title line-up — until SETTINGS → SHOW ALL ROBOTS is
   turned on (persisted in `rw.showAllRobots`). Every workbench (`?showcase`,
   `?rigedit`, pose/skin tools, `?battle=...`, the level editor) always sees
