@@ -241,6 +241,28 @@ function pitchAxis(c) {
   return _ax.normalize().applyQuaternion(_q.copy(c.restQuat).invert()).normalize();
 }
 
+// DRIVE THE BARRELS BY HAND, ignoring the aim solver entirely: each gun is
+// pitched `angle` radians nose-UP from its own rest line, in its own frame. No
+// damping, no limits and no legality check — this is not aiming, it is
+// CHOREOGRAPHY (TRITONE's SIEGE PROTOCOL sweeps the two mounts through a full
+// half-turn in opposite phase to hose energy at the sky), and clamping a
+// deliberate 180° sweep into the ±55° firing envelope would just flatten it.
+// The caller owns the barrels for as long as it keeps calling this — the
+// moment it stops, the ordinary traverse pulls them home.
+//
+// Returns the pair (side/bone/anchor) so a caller can spawn from the muzzle it
+// just moved, or null on a mech with no cannons.
+export function driveCannons(f, angleL, angleR) {
+  const rig = measure(f);
+  if (!rig) return null;
+  for (const c of rig) {
+    const a = c.side === 'L' ? angleL : angleR;
+    c.bone.quaternion.copy(c.restQuat).multiply(_q2.setFromAxisAngle(pitchAxis(c), a));
+    c.err = 0;
+  }
+  return rig;
+}
+
 // Is this mech a traversing-cannon mech at all? (Cheap, cached.)
 export function hasCannons(f) {
   return !!measure(f);

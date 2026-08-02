@@ -3053,38 +3053,10 @@
     "bindPose": "native",
     "yawOffset": 270,
     "muzzles": {
-      "podL": {
-        "joint": "torso",
-        "offset": [
-          -1.33,
-          2.9,
-          0.3
-        ]
-      },
-      "podR": {
-        "joint": "torso",
-        "offset": [
-          1.57,
-          2.9,
-          0.3
-        ]
-      },
-      "R": {
-        "joint": "torso",
-        "offset": [
-          1.57,
-          2.9,
-          0.3
-        ]
-      },
-      "L": {
-        "joint": "torso",
-        "offset": [
-          -1.33,
-          2.9,
-          0.3
-        ]
-      },
+      "podL": {"joint":"torso","offset":[-1.33,2.9,0.3]},
+      "podR": {"joint":"torso","offset":[1.57,2.9,0.3]},
+      "R": {"bone":"podTipR","offset":[0.14,0.15,-0.017],"rot":[-94.12,84.55,94.59]},
+      "L": {"bone":"podL","offset":[1.551,0.059,0.01],"rot":[-85.47,84.7,86]},
       "boostL": {"bone":"podL","offset":[-0.306,-0.102,0.109]},
       "boostR": {"bone":"podR","offset":[-0.334,-0.152,-0.011]}
     },

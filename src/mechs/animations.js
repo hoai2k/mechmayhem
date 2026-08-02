@@ -1288,15 +1288,43 @@ const CLIPS_RAW = {
       { t: 0.92, type: 'fire' },
     ],
   },
-  kongaLob: { // ranged: rears up so the shoulder pods clear the back, and holds
+  kongaLob: { // ranged: HUNCHES FORWARD over the knuckles and holds while the
+    // racks empty. He used to rear BACK for this, which tipped the pods'
+    // mouths at the sky and turned a direct-fire salvo into a lob — the
+    // rockets left along a barrel line that was no longer the one he was
+    // looking down. Leaning INTO the shot keeps the shoulder mounts level and
+    // pointed where the body is pointed (the pods themselves are held flat by
+    // SIGNATURES.konga), so what the animation says and what the missiles do
+    // are the same thing. The arms still drop and open outward, which is what
+    // clears the racks over the top of them.
     dur: 0.86, upper: true,
     keys: [
       { t: 0, pose: {} },
-      { t: 0.22, ease: 'outCubic', pose: { torso: [-20, 0, 0], head: [-16, 0, 0], shoulderL: [-40, 14, -30], shoulderR: [-40, -14, 30], elbowL: [-70, 0, 0], elbowR: [-70, 0, 0] } },
-      { t: 0.46, ease: 'inOutQuad', pose: { torso: [-24, 0, 0], head: [-12, 0, 0] } },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [14, 0, 0], head: [-10, 0, 0], shoulderL: [-24, 16, -34], shoulderR: [-24, -16, 34], elbowL: [-64, 0, 0], elbowR: [-64, 0, 0] } },
+      { t: 0.46, ease: 'inOutQuad', pose: { torso: [17, 0, 0], head: [-13, 0, 0] } },
       { t: 0.86, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0] } },
     ],
     events: [{ t: 0.24, type: 'fire' }, { t: 0.24, type: 'sfx', arg: 'missile' }],
+  },
+  kongaPound: { // ULT beat: one fist gathered high and DRIVEN into the road.
+    // Upper-body only, deliberately — the ult lets him keep walking while he
+    // does it (Fighter._ultMove), so the legs stay on the locomotion layer and
+    // he can march the shockwaves onto someone. Short, so the beats can
+    // alternate fast enough to read as drumming rather than as repeated slams.
+    dur: 0.52, upper: true, strikeArm: 'R',
+    keys: [
+      { t: 0, pose: {} },
+      // gather: this fist up and back over the shoulder, the chest opening
+      { t: 0.18, ease: 'outCubic', pose: { hipsRot: [-10, 0, 0], torso: [-18, -12, 0], head: [-14, 0, 0], shoulderR: [-150, -14, 26], elbowR: [-46, 0, 0], shoulderL: [-14, 0, -12], elbowL: [-24, 0, 0] } },
+      // DOWN — the whole shoulder behind it, hips punched into the floor
+      { t: 0.30, ease: 'outQuad', pose: { hipsPos: [0, -0.22, 0.14], hipsRot: [16, 0, 0], torso: [30, 8, 0], head: [18, 0, 0], shoulderR: [-8, 0, 12], elbowR: [-6, 0, 0], shoulderL: [-6, 0, -14], elbowL: [-20, 0, 0] } },
+      // recover onto the knuckles, ready for the other hand
+      { t: 0.52, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0] } },
+    ],
+    events: [
+      { t: 0.10, type: 'sfx', arg: 'whooshBig' },
+      { t: 0.30, type: 'fire' }, { t: 0.30, type: 'sfx', arg: 'slam' }, { t: 0.31, type: 'shake', arg: 0.45 },
+    ],
   },
 
   // ---------- TRITONE: everything is thrown with the NECK ------------------
@@ -1381,6 +1409,8 @@ CLIPS_RAW.light2L = mirrorRaw(CLIPS_RAW.light2); // left cross
 CLIPS_RAW.light3L = mirrorRaw(CLIPS_RAW.light3); // left uppercut
 // TRITONE gores off alternate horns, so his combo swings the neck both ways.
 CLIPS_RAW.tritoneGoreL = mirrorRaw(CLIPS_RAW.tritoneGore);
+// KONGA's ult drums the ground with alternating fists — same beat, other hand.
+CLIPS_RAW.kongaPoundL = mirrorRaw(CLIPS_RAW.kongaPound);
 
 // ---------- smash mirrors ----------
 // The shared overhead smash winds the body onto ONE side (hips/torso yaw)

@@ -22,6 +22,50 @@ const _qb = new THREE.Quaternion();
 const SHIELD_REST = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.1, 0));
 const SHIELD_BRACE = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.1, 0, 0));
 
+// A STABILIZED MOUNT: turn `mount` so that the muzzle ANCHOR hanging off it
+// points along `yaw`, level, in the WORLD — whatever the body carrying it is
+// doing. Used for KONGA's shoulder racks; general enough for any bolted-on
+// barrel whose aim must not inherit the animal's posture.
+//
+// The maths is one step once it is stated the right way round. The anchor is
+// rigidly attached somewhere below the mount, so the barrel direction is a
+// CONSTANT `u` in the mount's own frame (the anchor's authored `rot`, plus any
+// intermediate bone — the R muzzle rides a pod TIP, the L rides the pod). The
+// wanted direction is a constant in the world. Pull the world one back into
+// the mount's PARENT frame and the mount's local rotation is simply whatever
+// takes u there. The roll about the barrel is left free, which is correct: a
+// tube has nothing to roll.
+//
+// Damped and capped, like every other servo in the game — the racks swing onto
+// the line, they never snap to it. Returns false when the anchor does not
+// actually hang off this mount, so the caller can fall back.
+const _qm = new THREE.Quaternion();
+const _vm = new THREE.Vector3();
+const _vm2 = new THREE.Vector3();
+const MOUNT_K = 12;      // exponential damping toward the solution
+const MOUNT_CAP = 7;     // rad/s the mount may turn, however far off it is
+function aimBarrel(mount, anchor, yaw, dt) {
+  // u — the barrel line in the MOUNT's frame, composed up the chain from the
+  // anchor. Bails if we walk off the top without meeting the mount.
+  _qm.identity();
+  let o = anchor, guard = 0;
+  for (; o && o !== mount && guard < 8; o = o.parent, guard++) _qm.premultiply(o.quaternion);
+  if (o !== mount) return false;
+  _vm.set(0, 0, 1).applyQuaternion(_qm);
+  if (_vm.lengthSq() < 1e-9) return false;
+  _vm.normalize();
+  // ...and where it should be, expressed in the same frame the mount's own
+  // rotation lives in
+  if (!mount.parent) return false;
+  mount.parent.updateWorldMatrix(true, false);
+  mount.parent.getWorldQuaternion(_qm).invert();
+  _vm2.set(Math.sin(yaw), 0, Math.cos(yaw)).applyQuaternion(_qm).normalize();
+  _qm.setFromUnitVectors(_vm, _vm2);
+  const err = mount.quaternion.angleTo(_qm);
+  mount.quaternion.rotateTowards(_qm, Math.min(err * (1 - Math.exp(-MOUNT_K * dt)), MOUNT_CAP * dt));
+  return true;
+}
+
 // wrist counter-pitch for mechs whose hand hardware (gatling pods, torch
 // bells, pincers) extends along the hand's +Z: as the arm chain raises, the
 // hardware would pitch skyward, so the wrist rolls back by the raise amount
@@ -374,10 +418,16 @@ export const SIGNATURES = {
   // KONGA — a body that walks on its arms and fights with them.
   //   • THE FACE. He is one of two mechs with real features, so the expression
   //     layer runs every frame (see face.js): brow furrows with effort, jaw
-  //     opens on a swing, full bellow on the drums and the barrage.
-  //   • THE PODS. The launchers ride his shoulders and TRACK: they pitch up to
-  //     lob while firing, and settle back down flat when he's brawling — so
-  //     you can read at a glance whether he's about to shoot or swing.
+  //     opens on a swing, full bellow on the drums and the ult.
+  //   • THE PODS. The launchers ride his shoulders and TRACK, but they track
+  //     ONTO THE FACING and never into the sky: they run out DEAD LEVEL and
+  //     splay slightly outboard while he is firing, and settle flush against
+  //     the shoulders when he's brawling — so you can still read at a glance
+  //     whether he's about to shoot or swing, and the barrel line you can SEE
+  //     is the line the salvo actually leaves on (world.js `salvo` fires each
+  //     rocket down its own pod muzzle). They used to pitch 0.9 rad UP to lob,
+  //     which made "where they point" and "where the rockets go" two different
+  //     directions and left him shooting over the top of what he was facing.
   //   • THE SHOULDER ROLL. A silverback's mass rides forward over whichever
   //     arm is loaded; the gait supplies the roll, this adds the heavy
   //     breathing swell on top so he's never completely still.
@@ -385,22 +435,41 @@ export const SIGNATURES = {
     const t = anim.t;
     driveFace(anim, dt, ctx, tgt, FACE_PRESETS.konga);
 
-    // shoulder pods: pitch UP to lob while firing / barraging, flat otherwise
-    const act = anim.action;
-    const clipName = act && !act.fadingOut ? act.clip.name : '';
-    const lobbing = ctx.firing || clipName === 'kongaLob' || ctx.state === 'ult';
-    anim._podK = lerp(anim._podK || 0, lobbing ? 1 : 0, 1 - Math.exp(-9 * dt));
-    const k = anim._podK;
+    // SHOULDER PODS: two stabilized mounts that hold the barrel line on the
+    // body's own facing, level, whatever the animal under them is doing.
+    //
+    // This cannot be said as a joint angle, and that is why it used to be
+    // wrong. `pod.rotation.x = 0` means "unrotated RELATIVE TO THE TORSO", and
+    // the torso is where all the movement is: he walks on his knuckles with
+    // his chest pitched forward, and the ranged clip pitches it forward again,
+    // so racks that were level in the bind pose were measured 25° into the
+    // road at rest and swung another 12° with the clip. The rockets went
+    // exactly where the barrels pointed, which was down.
+    //
+    // So the ask is answered in the WORLD, where it was made: solve the pod's
+    // own rotation so that the muzzle ANCHOR's +Z — the real barrel line the
+    // salvo leaves on (world.js `salvo`) — lies on the horizon along the
+    // mech's facing. Nothing is assumed about which local axis is pitch (on
+    // this rig it is not the obvious one), nothing is assumed about where the
+    // anchor hangs (the R muzzle rides a pod TIP bone, the L rides the pod
+    // itself), and any pose the torso reaches is cancelled by construction.
+    const yaw = ctx.yaw;
     for (const side of ['L', 'R']) {
       // anim.part: virtual joint on the procedural body, custom-rig BONE on the
       // GLB (rigs/konga.rig.js) — one driver, both routes
       const pod = anim.part('pod' + side);
+      const anchor = anim.mech.anchors?.['muzzle' + side];
       if (!pod) continue;
-      // -0.9 rad tips the tube mouths skyward for an arcing salvo
-      pod.rotation.x = lerp(pod.rotation.x, -0.9 * k, dt * 12);
-      // pods splay slightly outward as they come up, so both racks read
-      pod.rotation.z = lerp(pod.rotation.z, (side === 'L' ? 0.14 : -0.14) * k, dt * 10);
-      // recoil jolt while actually firing
+      if (yaw !== undefined && anchor && aimBarrel(pod, anchor, yaw, dt)) {
+        // recoil jolt while actually firing — ON TOP of the solved aim, so it
+        // is a kick the servo pulls back rather than a pose it fights
+        if (ctx.firing) pod.rotateX(Math.sin(t * 34) * 0.05);
+        continue;
+      }
+      // no anchor to solve against (a build with no authored muzzles): fall
+      // back to simply holding the rack unrotated on the shoulder
+      pod.rotation.x = lerp(pod.rotation.x, 0, dt * 12);
+      pod.rotation.z = lerp(pod.rotation.z, 0, dt * 10);
       if (ctx.firing) pod.rotation.x += Math.sin(t * 34) * 0.05;
     }
 
