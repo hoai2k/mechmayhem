@@ -111,13 +111,20 @@ export const CONTRACT = {
     // jaw/brow are the FACE layer (mechs/face.js); pods are the launchers the
     // ranged attack and the ult both fire from, and the animator aims.
     joints: ['jaw', 'browL', 'browR', 'podL', 'podR'],
+    // the GLB reinstates all five as real bones of the same name
+    // (rigs/konga.rig.js), so SIGNATURES.konga drives them on both routes
+    glbBones: ['jaw', 'browL', 'browR', 'podL', 'podR'],
     anchors: ['podL', 'podR', 'fistL', 'fistR'],
+    glbAnchors: ['podL', 'podR'],       // manifest `muzzles` reinstates these
   },
   tritone: {
     // frill flares on the brace; the tail chain rides the gait's tail layer;
     // the cannons traverse and recoil.
     joints: ['jaw', 'browL', 'browR', 'frill', 'tail0', 'tail1', 'tail2', 'cannonL', 'cannonR'],
+    // all nine exist as bones of the same name in rigs/tritone.rig.js
+    glbBones: ['jaw', 'browL', 'browR', 'frill', 'tail0', 'tail1', 'tail2', 'cannonL', 'cannonR'],
     anchors: ['hornL', 'hornR', 'hornNose', 'frillPods'],
+    glbAnchors: ['frillPods'],          // manifest `muzzles` reinstates this
   },
 };
 

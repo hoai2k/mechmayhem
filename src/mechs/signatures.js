@@ -382,7 +382,7 @@ export const SIGNATURES = {
   //     arm is loaded; the gait supplies the roll, this adds the heavy
   //     breathing swell on top so he's never completely still.
   konga(anim, dt, ctx, tgt) {
-    const J = anim.J, t = anim.t;
+    const t = anim.t;
     driveFace(anim, dt, ctx, tgt, FACE_PRESETS.konga);
 
     // shoulder pods: pitch UP to lob while firing / barraging, flat otherwise
@@ -392,7 +392,9 @@ export const SIGNATURES = {
     anim._podK = lerp(anim._podK || 0, lobbing ? 1 : 0, 1 - Math.exp(-9 * dt));
     const k = anim._podK;
     for (const side of ['L', 'R']) {
-      const pod = J['pod' + side];
+      // anim.part: virtual joint on the procedural body, custom-rig BONE on the
+      // GLB (rigs/konga.rig.js) — one driver, both routes
+      const pod = anim.part('pod' + side);
       if (!pod) continue;
       // -0.9 rad tips the tube mouths skyward for an arcing salvo
       pod.rotation.x = lerp(pod.rotation.x, -0.9 * k, dt * 12);
@@ -422,7 +424,7 @@ export const SIGNATURES = {
   //   • THE TAIL is driven by the gait's own tail layer (gaits.trike.tail),
   //     not here — it is locomotion, not personality.
   tritone(anim, dt, ctx, tgt) {
-    const J = anim.J, t = anim.t;
+    const t = anim.t;
     driveFace(anim, dt, ctx, tgt, FACE_PRESETS.tritone);
 
     const act = anim.action;
@@ -434,17 +436,18 @@ export const SIGNATURES = {
     // charge (a charging ceratopsian presents the frill, it doesn't show it off)
     const want = bracing ? -0.42 : charging ? 0.30 : 0;
     anim._frillK = lerp(anim._frillK ?? 0, want, 1 - Math.exp(-8 * dt));
-    if (J.frill) {
-      J.frill.rotation.x = anim._frillK;
+    const frill = anim.part('frill');
+    if (frill) {
+      frill.rotation.x = anim._frillK;
       // a low shiver through the crown while the rockets are cooking
-      if (bracing) J.frill.rotation.x += Math.sin(t * 26) * 0.012;
+      if (bracing) frill.rotation.x += Math.sin(t * 26) * 0.012;
     }
 
     // CANNONS: traverse toward the aim while firing, buck on each shot
     anim._cannonK = lerp(anim._cannonK || 0, bracing ? 1 : 0, 1 - Math.exp(-10 * dt));
     const ck = anim._cannonK;
     for (const side of ['L', 'R']) {
-      const c = J['cannon' + side];
+      const c = anim.part('cannon' + side);
       if (!c) continue;
       // level the barrels as they come online, and toe them in slightly so
       // both guns converge ahead of the horns instead of firing parallel

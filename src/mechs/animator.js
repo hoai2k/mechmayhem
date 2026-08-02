@@ -989,6 +989,25 @@ export class Animator {
     hips.rotation.set(pose.hipsRot[0], pose.hipsRot[1], pose.hipsRot[2]);
   }
 
+  /**
+   * An engine-driven EXTRA part by name, whichever route this body came from.
+   *
+   * A procedural body carries its extras as virtual JOINTS (`mech.joints.jaw`);
+   * a GLB carries the same names as custom-rig BONES (`mech.rigBones.jaw`, from
+   * rigs/<id>.rig.js). Same name, same intent, two different homes — so a
+   * signature or the face layer that reaches through here is written ONCE and
+   * drives both routes, instead of being duplicated into a glbanim post hook.
+   *
+   * Returns null when neither exists (a GLB with no custom rig), which is what
+   * lets every caller stay a plain `if (part) part.rotation.x = ...`.
+   *
+   * Safe to write to on the GLB route: the retarget (RigAdapter.sync) only ever
+   * writes bones it MAPPED to a game joint, and these are not those.
+   */
+  part(name) {
+    return this.J[name] || this.mech.rigBones?.[name] || null;
+  }
+
   signature(dt, ctx, tgt) {
     SIGNATURES[this.mech.def.id]?.(this, dt, ctx, tgt);
     // hand-hardware wrist counter-pitch, opted into via roster def flag

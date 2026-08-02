@@ -374,3 +374,39 @@ any future quadruped intake.
 Verified: contact probes, showcase + battle screenshots on BOTH routes, a
 konga-vs-tritone GLB soak to a clean KO, and direct invocation of all four new
 specials/ults (chestBeat, goreCharge, apexBarrage, siegeProtocol) with no errors.
+
+### Custom rigs for KONGA + TRITONE (same session)
+
+Both now run hand-placed skeletons (`src/mechs/rigs/{konga,tritone}.rig.js`,
+`"rig"` in the manifest) instead of the Tripo auto-rig. The auto-rigs walked
+fine but had a bone for nothing that makes these two characters: konga's skull,
+jaw, brow ridge and BOTH missile pods were one 14k-vertex lump on a single
+bone, and tritone had no jaw, no brow, no frill and no tail chain.
+
+Positions were MEASURED off each model in bind space (bone rest positions via
+`skeleton.boneInverses`, feature locations by slicing the geometry), not
+eyeballed in the editor.
+
+TWO THINGS THAT COST A PASS EACH, worth knowing before authoring another rig:
+
+1. `bias` scores `d = dist^2 * bias`, so **below 1 WIDENS** a bone's win radius
+   and above 1 narrows it. Backwards from the intuition the name suggests. The
+   measured symptom was brows OWNING MORE geometry after I "reduced" their bias.
+2. With `skinSpan: 'child'` a LEAF bone only gets a POINT to compete with, while
+   its parent's span runs right through the part to reach it — so konga's pods
+   and tritone's frill owned literally ZERO vertices until each got a TIP child
+   (podTipL/R, frillTip) giving it a span along its own box/plate. The cannons
+   worked from the start only because they already had barrel tips.
+
+THE DRIVER GAP. Bones existing is not enough: `SIGNATURES` and `face.js` read
+`mech.joints` (virtual joints), while a custom rig puts the same names in
+`mech.rigBones`. So the new bones were inert on the GLB — the movement visible
+in a roar was just the head gesture carrying them. Fixed with one lookup,
+`Animator.part(name)`, which resolves a name to whichever home this body has;
+face.js and both signatures reach through it, so ONE driver runs both routes
+rather than being duplicated into a glbanim post hook.
+
+Verified by reading the GLB rig bones' own rotations per state — they now match
+the procedural values exactly (konga jaw: idle 0.006 -> roar 0.589 -> flinch
+0.111 -> dead 0.30; podL 0 -> -0.95 while firing; tritone frill 0 -> -0.43 on a
+brace), plus vertex-level motion checks, contract clean, ace soak clean.

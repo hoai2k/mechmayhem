@@ -3020,26 +3020,9 @@
   "_readme": "Drop rigged humanoid GLBs (Meshy/Tripo/Mixamo auto-rig, T-pose or A-pose) into public/models/ and add an entry per mech id. Fields: url (required), bindPose ('tpose'|'apose'|'native' or {joint:[x,y,z] degrees}), boneOverrides ({jointName: 'ExactBoneName'}), heightScale, yawOffset (deg), emissiveBoost. Mechs without an entry use the built-in procedural model. See docs/CHARACTER_PIPELINE.md.",
   "konga": {
     "url": "models/mech_konga.glb",
-    "modelScale": 7.47654,
+    "modelScale": 7.77566,
     "bindPose": "native",
     "yawOffset": 270,
-    "boneOverrides": {
-      "hips": "tripoRoot",
-      "torso": "tripoSpine_1",
-      "head": "tripo0_Right_Limb_0",
-      "shoulderL": "bone_8",
-      "elbowL": "bone_10",
-      "handL": "bone_11",
-      "shoulderR": "tripo0_Right_Limb_1",
-      "elbowR": "tripo0_Right_Limb_3",
-      "handR": "tripo0_Right_Limb_4",
-      "thighL": "tripo1_Left_Limb_0",
-      "kneeL": "tripo1_Left_Limb_1",
-      "ankleL": "tripo1_Left_Limb_2",
-      "thighR": "tripo0_Left_Limb_0",
-      "kneeR": "tripo0_Left_Limb_1",
-      "ankleR": "tripo0_Left_Limb_2"
-    },
     "muzzles": {
       "podL": {
         "joint": "torso",
@@ -3073,30 +3056,14 @@
           0.3
         ]
       }
-    }
+    },
+    "rig": "konga"
   },
   "tritone": {
     "url": "models/mech_tritone.glb",
-    "modelScale": 26.42417,
+    "modelScale": 24.71821,
     "bindPose": "native",
     "yawOffset": 270,
-    "boneOverrides": {
-      "hips": "tripoRoot",
-      "torso": "tripoSpine_1",
-      "head": "tripoHead_0",
-      "shoulderL": "tripo0_Left_Limb_0",
-      "elbowL": "tripo0_Left_Limb_1",
-      "handL": "tripo0_Left_Limb_2",
-      "shoulderR": "tripo0_Right_Limb_0",
-      "elbowR": "tripo0_Right_Limb_1",
-      "handR": "tripo0_Right_Limb_2",
-      "thighL": "tripo1_Left_Limb_0",
-      "kneeL": "tripo1_Left_Limb_1",
-      "ankleL": "tripo1_Left_Limb_1",
-      "thighR": "tripo1_Right_Limb_0",
-      "kneeR": "tripo1_Right_Limb_1",
-      "ankleR": "tripo1_Right_Limb_1"
-    },
     "heightScale": 0.55,
     "muzzles": {
       "R": {
@@ -3123,6 +3090,7 @@
           1.2
         ]
       }
-    }
+    },
+    "rig": "tritone"
   }
 }

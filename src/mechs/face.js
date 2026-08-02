@@ -12,10 +12,11 @@
 //     drops it and shakes, a flinch snaps it aside. This is the layer that
 //     carries the acting, and it works on a Tripo model with no face bones.
 //
-//   FACE PARTS — the `jaw`, `browL`, `browR` joints. The procedural designs
-//     build them; a hand-authored GLB rig may reinstate them by name. When
-//     they're absent the whole block is skipped in silence, so a GLB simply
-//     performs with its head and body instead of breaking.
+//   FACE PARTS — the `jaw`, `browL`, `browR` parts. The procedural designs
+//     build them as virtual joints; the GLB route carries the same names as
+//     real bones in rigs/<id>.rig.js, and `Animator.part()` resolves whichever
+//     this body has. When neither exists the block is skipped in silence, so a
+//     GLB with no custom rig simply performs with its head instead of breaking.
 //
 // WHY IT LIVES HERE and not in each mech's signature: the two faces want the
 // same VOCABULARY (idle breath, snarl, roar, flinch, death slack) with different
@@ -84,7 +85,6 @@ export function faceRoar(f, dur = 0.5) {
  * joints directly (nothing else touches them).
  */
 export function driveFace(anim, dt, ctx, tgt, cfg) {
-  const J = anim.J;
   const act = anim.action;
   const clip = act && !act.fadingOut ? act.clip : null;
   const name = clip ? clip.name : '';
@@ -147,10 +147,15 @@ export function driveFace(anim, dt, ctx, tgt, cfg) {
   prev.shake = lerp(prev.shake, shake, 1 - Math.exp(-18 * dt));
 
   // ---- apply -------------------------------------------------------------
-  // FACE PARTS (skipped silently on a rig without them)
-  if (J.jaw) J.jaw.rotation.x = prev.jaw;
-  if (J.browL) J.browL.rotation.x = prev.brow;
-  if (J.browR) J.browR.rotation.x = prev.brow;
+  // FACE PARTS. `anim.part` finds them whether this body is procedural (virtual
+  // joints) or a GLB on a custom rig (bones of the same name), so the SAME
+  // performance drives both routes. Silently skipped on a rig with no face.
+  const jawPart = anim.part('jaw');
+  const browLPart = anim.part('browL');
+  const browRPart = anim.part('browR');
+  if (jawPart) jawPart.rotation.x = prev.jaw;
+  if (browLPart) browLPart.rotation.x = prev.brow;
+  if (browRPart) browRPart.rotation.x = prev.brow;
 
   // HEAD GESTURE — always available, on both routes. Additive into tgt so the
   // clip's own head keys still lead.
