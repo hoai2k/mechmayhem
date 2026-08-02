@@ -206,6 +206,21 @@ export const ROSTER = [
     stats: { hp: 880, speed: 11.5, jump: 15, weight: 0.42, armor: 0.04, blockMult: 0.14 },
     gait: 'sprint', // light and quick: reaching stride, driving arms
     ui: { power: 7, speed: 8, defense: 3 },
+    // HIS CHIMNEYS CRACKLE. The GLB carried two sculpted "spark" squiggles on
+    // the stack mouths — a frozen zigzag of triangles standing in for
+    // electricity, which is the one thing electricity is never still enough to
+    // be. `dropGeo` takes them off (they share their bones with the whole
+    // shoulder pauldron, so unlike inferno there was no bone to name) and this
+    // burns in their place: bursts of little sparks popping out of each mouth,
+    // a lip glow pulsing with them, and the odd short arc licking off the rim.
+    // Same block as inferno's burners with `kind: 'spark'` — see stackfx.js.
+    // `anchors` are the manifest anchors on the chimney bones; `joints` is the
+    // fallback for the procedural body, which has no chimneys at all.
+    stackFx: {
+      kind: 'spark',
+      anchors: ['stackL', 'stackR'], joints: ['shoulderL', 'shoulderR'], lift: 1.15,
+      sparkGap: 0.09, color: 0xd8f6ff, color2: 0x3fd8ff, arc: 0x9fdcff,
+    },
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.12, 0], hipsRot: [0, -18, 0], torso: [4, 20, 0], head: [0, -16, 0], shoulderR: [-72, -10, 6], elbowR: [-24, 0, 0], shoulderL: [-14, -6, -26], elbowL: [-60, 0, 0], thighL: [6, 0, -6], thighR: [-22, 0, 6], kneeL: [10, 0, 0], kneeR: [28, 0, 0] },
     // heavy: spins up into a grinding tornado that TRAVELS — real forward
