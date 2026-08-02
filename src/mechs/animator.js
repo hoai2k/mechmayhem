@@ -33,8 +33,30 @@ const LEG_TURN_MAX = LEG_BACK_ON;
 const LEG_TURN_RATE = 9;
 const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
+// How fast a downed tail goes limp, and how fast it picks itself back up
+// (1/s — ~0.3s either way, which reads as a flop rather than a switch).
+const LIMP_RATE = 9;
+const DOWN_STATES = new Set(['knockdown', 'getup', 'dead']);
+// WHICH PARTS GO LIMP when a body goes down: the roots of the chains that
+// hang off it and carry no weight. `tail0` by convention (fenrir's blade,
+// tritone's armoured tail); a rig may name others with `limpChains` — wraith's
+// cloak is `cape0`, four columns of dead cloth that were holding him a quarter
+// of a body height off the ground, and a manifest entry may name them for a
+// mech with no custom rig at all (saurion's auto-rigged raptor tail is
+// `tripoSpine_0`). gltf.js resolves the list ONCE onto `mech.limpChains` and
+// reads the same field to decide what the prone floor clamp must not measure,
+// so the ragdoll and the clamp can never disagree about what is dead weight.
+export const LIMP_ROOTS = ['tail0'];
+export const limpRootsOf = (mech) => mech?.limpChains || LIMP_ROOTS;
+
 const _wp = new THREE.Vector3();
 const _sp = new THREE.Vector3();
+const _lp = new THREE.Vector3();
+const _lc = new THREE.Vector3();
+const _ld = new THREE.Vector3();
+const _lg = new THREE.Vector3();
+const _lr = new THREE.Vector3();
+const _lq = new THREE.Quaternion();
 const _qa = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
 const _up = new THREE.Vector3();
@@ -446,6 +468,11 @@ export class Animator {
   // ctx: { speed, maxSpeed, grounded, vy, blocking, dead, dashT, aimYaw, firing }
   update(dt, ctx = {}) {
     this.t += dt;
+    // IS HE DOWN? Only the tail solver reads this today (see limpTail), and it
+    // needs the frame time as well, because it is the one part of the pose that
+    // integrates rather than being evaluated.
+    this._limpDt = dt;
+    this._limp = damp(this._limp || 0, DOWN_STATES.has(ctx.state) ? 1 : 0, LIMP_RATE, dt);
     const tgt = this.makeRestTarget();
 
     // ===== locomotion layer =====
@@ -967,15 +994,117 @@ export class Animator {
   // applyPose because those are the 15 VIRTUAL joints and these are not joints
   // at all — they belong to one model's skeleton and nothing retargets them.
   applyTailPose() {
-    const tail = this._tail;
-    if (!tail) return;
     const bones = this.mech.rigBones;
     if (!bones) return;
-    for (let i = 0; i < tail.n; i++) {
-      const v = this.cur['tail' + i];
-      const b = bones['tail' + i];
-      if (v && b) b.rotation.set(v[0], v[1], v[2]);
+    // NOT gated together, and that is the point: the KEYED angles exist only
+    // where a gait authored a tail, while the LIMP solve belongs to any body
+    // with something hanging off it — wraith's cloak has no gait layer at all
+    // and still has to fall down when he does.
+    const tail = this.tailChain();
+    if (tail) {
+      for (let i = 0; i < tail.n; i++) {
+        const v = this.cur['tail' + i];
+        const b = bones['tail' + i];
+        if (v && b) b.rotation.set(v[0], v[1], v[2]);
+      }
     }
+    if (this._limp > 0.001) this.limpTail(bones, this._limp);
+    else { this._limpDir = null; this._tailFloor = 0; }
+  }
+
+  // ---------------------------------------------------------------------------
+  // A DOWNED TAIL IS DEAD WEIGHT.
+  //
+  // The gait's tail is a live thing — it wags, it lags, it carries itself. A
+  // knocked-out mech's tail does none of that, and while it keeps carrying
+  // itself it is also a KICKSTAND: fenrir's blade curls under him, the prone
+  // floor clamp finds the tip as his lowest point, and the whole wolf is stood
+  // up in the air on the end of his own tail. (Measured: 48.6% of his body
+  // height off the ground, resting on `tail4`.)
+  //
+  // So when he goes down the chain goes LIMP, and this is a real if quasi-static
+  // solve rather than a second authored pose — a pose would have to be authored
+  // per body, and would still be wrong for a tail that went down mid-swing.
+  // Each segment keeps a WORLD direction that damps toward two things:
+  //   GRAVITY  straight down, which is what limp means;
+  //   THE FLOOR which it cannot pass through — so once a segment's start is
+  //             lower than its own length the end lands ON the ground and the
+  //             remaining length goes sideways, keeping the heading it had.
+  // Run root-to-tip with the matrices refreshed between segments, that lays the
+  // whole chain out flat along whatever direction it was pointing: it FLOPS.
+  // The state is the directions themselves, so it settles over ~0.3s instead of
+  // snapping, and it is dropped the moment he gets up.
+  limpTail(bones, w) {
+    // EVERY bone-to-bone link in the SUBTREE under each limp root, parents
+    // first. A subtree rather than the `tailN` run, for two reasons: a rig may
+    // finish its chain with a differently-named leaf (tritone's `tailTip`), and
+    // a hanging thing is not always one strand (wraith's cloak is four columns
+    // off `cape0`). Left out, that geometry keeps its animated angle on a body
+    // the clamp has stopped measuring — which is straight through the floor.
+    let seg = this._limpSeg;
+    if (!seg) {
+      seg = this._limpSeg = { pairs: [] };
+      for (const rootName of limpRootsOf(this.mech)) {
+        const r = bones[rootName];
+        if (!r?.parent) continue;
+        // one entry per bone (a rotation can only aim at ONE child, so a fork
+        // follows its first branch and the other branches are solved on their
+        // own bones a level down)
+        r.traverse((b) => {
+          const c = b.children.find((x) => x.isBone);
+          if (c) seg.pairs.push([b, c]);
+        });
+      }
+      this._limpDir = null;
+    }
+    let dirs = this._limpDir;
+    if (!dirs) {
+      dirs = this._limpDir = seg.pairs.map(() => new THREE.Vector3());
+      this._limpSeed = true;
+    }
+    if (!seg.pairs.length) return;
+    seg.pairs[0][0].parent.updateWorldMatrix(true, false);
+    const dt = this._limpDt || 1 / 60;
+    const k = 1 - Math.exp(-LIMP_RATE * dt);
+    // THE FLOOR THE BONE LINE RESTS ON is not y=0 — it is half a tail's
+    // thickness above it, and that is a per-rig number nobody wants to author.
+    // The prone clamp measures how far the tail's GEOMETRY actually ended up
+    // under the ground (mech.tailUnder) and this integrates it away, so the
+    // solver converges on whatever the real thickness is in the pose it is in.
+    const floorY = this._tailFloor = clamp(
+      (this._tailFloor || 0) + (this.mech.tailUnder || 0) * k * 2, 0, 12 * this.s);
+    for (let i = 0; i < seg.pairs.length; i++) {
+      const [b, c] = seg.pairs[i];
+      b.updateWorldMatrix(false, false);
+      c.updateWorldMatrix(false, false);
+      b.getWorldPosition(_lp);
+      c.getWorldPosition(_lc);
+      const len = _lp.distanceTo(_lc) || 1e-5;
+      _ld.subVectors(_lc, _lp).divideScalar(len);          // where it points now
+      if (this._limpSeed) dirs[i].copy(_ld);
+      // …and where a dead one wants to point: down, until the floor stops it.
+      _lg.set(0, -1, 0);
+      const drop = (floorY - _lp.y) / len;                  // floor, in segments
+      if (drop > -1) {
+        // the end would be through the floor: lay the rest of the segment out
+        // flat, keeping whatever heading it already has
+        const hl = Math.hypot(dirs[i].x, dirs[i].z) || 1e-5;
+        const dy = clamp(drop, -1, 1);
+        const hs = Math.sqrt(Math.max(0, 1 - dy * dy));
+        _lg.set(dirs[i].x / hl * hs, dy, dirs[i].z / hl * hs);
+      }
+      dirs[i].lerp(_lg, k).normalize();
+      // blend animated -> limp, so going down is a flop and getting up is not
+      _ld.lerp(dirs[i], w).normalize();
+      // aim the bone: a bone with no rotation points its child along the bind
+      // offset, so the rotation wanted is the one taking that to `_ld`
+      b.parent.getWorldQuaternion(_lq).invert();
+      _lg.copy(_ld).applyQuaternion(_lq);
+      _lr.copy(c.position).normalize();
+      b.quaternion.setFromUnitVectors(_lr, _lg);
+      b.updateWorldMatrix(false, false);
+    }
+    this._limpSeed = false;
   }
 
   // The extra legs' smoothed angles onto the rig's own bones. Same placement as

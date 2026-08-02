@@ -66,6 +66,13 @@
 //                       last driven joint of each chain to reach along.
 export const WRAITH_RIG = {
   skinSpan: 'child',
+  // THE CLOAK IS DEAD WEIGHT. `limpChains` names the roots of the chains that
+  // hang off him and carry nothing (Animator.limpTail): knocked down they go
+  // limp and lie on the ground, and the prone floor clamp stops measuring them.
+  // Without it the four cloth columns were the lowest thing on him, so the
+  // clamp stood his whole body up on a hem — measured 24.6% of his height off
+  // the pavement, resting on `capeMR2`.
+  limpChains: ['cape0'],
   bones: [
     // ---- spine ---- narrow body under the cloak; the hood sits high and
     //      forward, so `head` gets both an up tip (hood) and a forward one
