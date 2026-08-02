@@ -88,6 +88,12 @@ audio). Progress history: `TASKS.md`.
   their scrollbars). Widen it when a bone/op name ellipsizes.
 - Workbenches: `?debug=models[&mech=<id>]` — procedural-vs-GLB ACTION
   comparison (trigger any move on both at once, slow-mo, live anchor editor).
+  COMPARE TO defaults to **None (solo)** — a second body halves the room the one
+  you came to look at gets, so the comparison is a thing you ask for
+  (`&compare=proc|alt`; solo writes no param). The action grid triggers every
+  intent the game has, TAUNT included — it is a one-shot like the ult, because
+  fighter.js starts it from `normal` on the intent being SET rather than on its
+  edge, so a held button relaunches it the instant the last one ends.
   `?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>][&key=<n>|&t=<s>]` —
   pose a single mech by joint: load one of THAT mech's own clip poses as a
   starting point,

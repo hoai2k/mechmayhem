@@ -152,10 +152,11 @@ export class Input {
       const i = +device[3];
       mx = this.padsCur[i].lx || 0;
       mz = -(this.padsCur[i].ly || 0);
-      // dpad as movement fallback (UP is the ultimate now — see below)
+      // dpad as movement fallback — LEFT and RIGHT only. UP is the ultimate
+      // and DOWN is the taunt (see below), so neither can also walk you: a
+      // button that moves the body cannot be a press you hold to pose.
       if (this.padHeld(i, 'DL')) mx -= 1;
       if (this.padHeld(i, 'DR')) mx += 1;
-      if (this.padHeld(i, 'DD')) mz -= 1;
       intent.jump = this.padPressed(i, 'A');
       intent.jumpHeld = this.padHeld(i, 'A');
       intent.light = this.padPressed(i, 'X');
@@ -181,8 +182,11 @@ export class Input {
       if (this.padPressed(i, 'LB')) this._lockLatch[i] = !this._lockLatch[i];
       intent.lockOn = this._lockLatch[i];
       intent.strafe = false;
-      // BACK/View button — RS click would misfire while steering the camera
-      intent.taunt = this.padPressed(i, 'BACK');
+      // D-PAD DOWN, the twin of the ultimate on UP: the taunt lives on the pad
+      // itself rather than out on BACK/View, which is a menu button the thumb
+      // has to leave the sticks to reach. BACK is deliberately unbound now,
+      // reserved. (RS click would misfire while steering the camera.)
+      intent.taunt = this.padPressed(i, 'DD');
       // LEFT-STICK CLICK is CAMERA ADJUST, not crouch: hold it and the right
       // stick zooms the view instead of pitching it (boot.js feeds the camera).
       // Crouch lives on the B coil now — holding it crouches while it winds.

@@ -44,7 +44,7 @@ const NOTES = {
 };
 
 // action key -> the game intent field(s) it maps to
-export const ACTIONS = ['light', 'heavy', 'ranged', 'special', 'ult', 'block', 'dash', 'fall'];
+export const ACTIONS = ['light', 'heavy', 'ranged', 'special', 'ult', 'block', 'dash', 'taunt', 'fall'];
 
 export function describeAction(def, action) {
   const m = def.moves || {};
@@ -103,6 +103,11 @@ export function describeAction(def, action) {
   } else if (action === 'dash') {
     title = 'Dash';
     push('Quick evasive burst');
+  } else if (action === 'taunt') {
+    title = 'Taunt';
+    push('The `taunt` clip — flourish, no damage, no meter');
+    push('Only starts from the normal state, and any movement cancels it');
+    push('Fires on a press: held, it would relaunch the moment it ended');
   } else {
     title = 'Idle';
     push('Battle-ready rest stance');

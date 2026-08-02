@@ -100,7 +100,7 @@ export const MESSAGES = {
   'pause.controls.html': `
       <b style="color:#fff">KEYBOARD P1</b> — WASD move · SPACE jump · F light · G heavy · H block · R ranged · T special · Y ultimate · SHIFT dash · Q strafe-lock · C duck · B taunt<br>
       <b style="color:#fff">KEYBOARD P2</b> — Arrows move · Num0 jump · Num1 light · Num2 heavy · Num3 block · Num4 ranged · Num5 special · Num6 ult · NumEnter dash · Num7 strafe-lock · Num8 duck<br>
-      <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera (free look, nothing auto-swings it) · A jump · X light · Y heavy · RB ranged · RT special · LT block · L-stick CLICK camera adjust (R-stick ↑↓ zooms in/out) · D-pad ↑ ultimate · VIEW taunt<br>
+      <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera (free look, nothing auto-swings it) · A jump · X light · Y heavy · RB ranged · RT special · LT block · L-stick CLICK camera adjust (R-stick ↑↓ zooms in/out) · D-pad ↑ ultimate · D-pad ↓ taunt<br>
       <b style="color:#fff">B / SHIFT — DASH &amp; SPRINT</b> — standing still, HOLD to wind up a dash coil (3s cap, crouches); the moment you push a direction it FIRES a dash that way — longer wind-up, farther dash. Already moving, press-and-HOLD for a short dash into a SPRINT that drains the yellow stamina bar (refills when you let go)<br>
       <b style="color:#fff">PAD LB — TARGET LOCK</b> — HOLD to lock onto the nearest enemy: you face them, the camera keeps them framed, and sideways movement becomes a strafe<br>
       <b style="color:#fff">AIM</b> — while LB target lock is held, a light crosshair drifts onto the target and ranged shots fly at it (height included); unlocked shots fire along your facing<br>
@@ -157,17 +157,14 @@ export const MESSAGES = {
   'controls.lstick.action': 'move',
   'controls.lstick.detail': 'walks your mech around the arena. Press in for camera adjust mode: while held, the right stick will zoom the view in and out, and where you leave it is remembered.',
   'controls.dpad.name': 'D-PAD',
-  'controls.dpad.action': '▲ ultimate',
-  'controls.dpad.detail': 'UP fires your ultimate once you\'ve collected a charge from a golden fountain — the big one, named on your mech\'s card. You can pocket two. The other three directions walk you around as a backup for the left stick.',
+  'controls.dpad.action': '▲ ultimate · ▼ taunt',
+  'controls.dpad.detail': 'UP fires your ultimate once you\'ve collected a charge from a golden fountain — the big one, named on your mech\'s card. You can pocket two. DOWN strikes your mech\'s pose and calls its line — free, and worth nothing, except that standing still to do it in front of someone holding an ultimate charge is its own kind of statement. LEFT and RIGHT walk you around as a backup for the left stick.',
   'controls.lb.name': 'LB',
   'controls.lb.action': 'target lock',
   'controls.lb.detail': 'HOLD to lock onto the nearest enemy: you turn to face them, the camera keeps them framed, sideways movement becomes a strafe, and a crosshair drifts onto them so ranged shots fly their way.',
   'controls.lt.name': 'LT',
   'controls.lt.action': 'block',
   'controls.lt.detail': 'holds your guard up: blocking bleeds incoming damage down and stops chip knockback. A heavy swing will break it, so it buys you a beat rather than safety.',
-  'controls.select.name': 'SELECT',
-  'controls.select.action': 'taunt',
-  'controls.select.detail': 'strikes your mech\'s pose and calls its line. Free, and worth nothing — except that standing still to do it in front of someone holding an ultimate charge is its own kind of statement.',
   'controls.start.name': 'START',
   'controls.start.action': 'pause',
   'controls.start.detail': 'pauses the match: also access settings, sound and exiting to main menu.',
