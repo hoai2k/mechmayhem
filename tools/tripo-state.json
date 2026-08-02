@@ -236,6 +236,16 @@
   },
   "tritone": {
     "modelTask": "0eb21dd3-faa2-42c8-bac9-7d7a0bed4fc7",
-    "modelFailed": false
+    "modelFailed": false,
+    "modelCredits": 30,
+    "checkTask": "18dec786-194a-49da-889f-c8301316d785",
+    "riggable": true,
+    "rigType": "others",
+    "rigTask": "28fa13d2-5b18-4a35-b551-ec6fe2290c4b",
+    "rigFailed": false,
+    "rigCredits": 25,
+    "glb": "public/models/mech_tritone.glb",
+    "bytes": 6952272,
+    "done": true
   }
 }
