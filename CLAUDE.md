@@ -461,6 +461,17 @@ audio). Progress history: `TASKS.md`.
   fans to its own centre vertex, bound to the bone most of the rim already
   answers to. The BONES STAY — they carry no skin but still ride the animation,
   which is what the effect that replaces the geometry hangs off.
+  …AND WHEN THE LUMP HAS NO BONE OF ITS OWN: `"dropGeo": [{"verts":[…]}]` is the
+  same cut selected by VERTEX, for geometry that shares its bone with armour you
+  keep (tempest's spark squiggles are weighted to the same two bones as the whole
+  shoulder pauldron). Everything past the selection is one shared implementation.
+  A vertex index is a property of the geometry, which no re-rig can renumber —
+  the same reason skinOps are pinned to vertex lists on export — but it IS tied
+  to the export, so `dropGeo` runs BEFORE seamCuts (a cut appends duplicate
+  vertices a list authored against the raw file cannot name) while `dropBones`,
+  immune because it names bones, stays last. Find the lump and write the list
+  with `node tools/geodrop.mjs <mech> [--above y] [--bone b] [--pick i,j]`, which
+  ranks the mesh's connected islands (welded) with bbox and owning bones.
   INFERNO is the worked example: his chimneys used to end in two sculpted
   tongues of flame, frozen at whatever angle the sculptor left them. The drop
   takes them off and seals the mouths; the manifest hangs `stackL`/`stackR`
@@ -477,6 +488,20 @@ audio). Progress history: `TASKS.md`.
   and the warm-up sandbox by `world.sandbox` (a robot on a plinth inside its own
   leash radius just ends up in a fog bank). A POSTER still shows cold pipes —
   it is a PNG — so mech select burns only once the real body is in.
+  TEMPEST IS THE SECOND KIND (`stackFx.kind: 'spark'`): his chimneys carried two
+  sculpted zigzag "spark" squiggles, which is the one thing electricity is never
+  still enough to be. `dropGeo` takes them off and the same block emits a live
+  crackle instead — BURSTS of little sparks (a spark is discrete, so it pops off
+  in twos and threes with a real ballistic arc, never as a stream), a lip glow
+  pulsed by the same flicker oscillator the flames use, and the odd short arc off
+  the rim (`fx.lightning`, so the menus simply do without it, exactly as they do
+  without smoke). THE SPARK SPRITE IS ORANGE and `color` cannot fix it — like the
+  flame atlas, `sparkTexture()` bakes its ramp into its own pixels, so cyan x
+  orange is mud. Same answer as the fire tint: rotate the SAMPLED texture round
+  the hue wheel (`hue` on emit), which moves the corona to the target colour and
+  leaves the white-hot core white, a rotation about the grey axis being the
+  identity on grey. `sparkHue` derives the rotation from `color2`, so authoring
+  stays "give me this colour".
 - Alternate GLBs: a manifest entry may carry a standalone `alt` sub-entry —
   a second model, or the same model on a staged custom rig. `?debug=skin`,
   `?debug=pose`, `?debug=collider` and `?rigedit` all show an **Edit
