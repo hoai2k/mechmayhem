@@ -59,9 +59,9 @@ export const TRITONE_RIG = {
     // buildRigPosts) — the mount the sculpt left out. It is parented to the
     // TORSO and derived from the bind offset, so it stays put while the
     // cannon traverses on top of it.
-    { name: 'cannonL', parent: 'torso', pos: [0.090, 0.180, 0.230], bias: 0.9, post: { radius: 0.024 } },
+    { name: 'cannonL', parent: 'torso', pos: [0.090, 0.180, 0.230], bias: 0.9, post: { radius: 0.012 } },
     { name: 'barrelL', parent: 'cannonL', pos: [0.300, 0.190, 0.230], bias: 0.9 },
-    { name: 'cannonR', parent: 'torso', pos: [0.100, 0.180, -0.230], bias: 0.9, post: { radius: 0.024 } },
+    { name: 'cannonR', parent: 'torso', pos: [0.100, 0.180, -0.230], bias: 0.9, post: { radius: 0.012 } },
     { name: 'barrelR', parent: 'cannonR', pos: [0.300, 0.190, -0.230], bias: 0.9 },
     // ---- FRONT legs = the ARM joints (the quadruped convention fenrir uses)
     { name: 'shoulderL', parent: 'torso', pos: [0.240, 0.220, 0.120], bias: 0.85 },
