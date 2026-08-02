@@ -195,19 +195,26 @@ function levelBarrel(anim, tgt) {
 // most of the work and the fringe follows.
 const CLOAK_COLS = ['R', 'MR', 'ML', 'L'];
 const CLOAK_ROW_K = [1, 0.62, 0.38];
-function swayCloak(anim, dt, ctx) {
+// `wind` (0..1) is a SECOND source of movement, added to what his own speed
+// already gives the cloak: it stands in for a gale he is not actually running
+// into, which is what his TAUNT needs — he is stationary and looming, and a
+// cloak driven only by ground speed is a dead sheet while he does it.
+function swayCloak(anim, dt, ctx, wind = 0) {
   const rb = anim.mech.rigBones;
   if (!rb) return;
   const t = (anim._cloakT = (anim._cloakT || 0) + dt);
-  const spd = Math.min(1, (ctx.speed || 0) / (ctx.maxSpeed || 10));
+  const spd = Math.min(1, Math.max((ctx.speed || 0) / (ctx.maxSpeed || 10), wind));
   // trail back with speed; in the air the drag lifts it further
   let trail = -0.30 * spd;
   if (!ctx.grounded) trail -= Math.min(0.35, 0.02 * Math.max(0, -(ctx.vy || 0)));
   const rate = 2.0 + 3.0 * spd;
   for (let c = 0; c < CLOAK_COLS.length; c++) {
-    const wave = Math.sin(t * rate + c * 0.8);
+    // a gale RIPPLES as well as swings — a second, faster wave whose amplitude
+    // is the wind alone, so ordinary running is unchanged to the bit
+    const wave = Math.sin(t * rate + c * 0.8) + wind * 0.8 * Math.sin(t * (rate * 2.3) + c * 2.1);
     const swing = trail + (0.03 + 0.075 * spd) * wave;
-    const fan = (0.02 + 0.05 * spd) * Math.sin(t * rate * 0.7 + c * 1.3);
+    const fan = (0.02 + 0.05 * spd) * Math.sin(t * rate * 0.7 + c * 1.3)
+      + wind * 0.06 * Math.sin(t * rate * 1.7 + c * 0.6);
     for (let r = 0; r < 3; r++) {
       const b = rb[`cape${CLOAK_COLS[c]}${r + 1}`];
       if (!b) continue;
@@ -264,6 +271,7 @@ export const GLB_ANIM = {
   //     that roll/yaw and let the shoulder+elbow arc carry the slash, so the
   //     blade stays speared along the forearm through the whole swing.
   viper: {
+    clipOverrides: { taunt: GLB_CLIP_VARIANTS.viperTaunt },
     post(anim, dt, ctx, tgt) {
       if (attacking(anim)) {
         tgt.handL[1] *= 0.3; tgt.handR[1] *= 0.3;
@@ -308,7 +316,12 @@ export const GLB_ANIM = {
   // The rest read correctly with the retargeted procedural motion (verified
   // in showcase/battle). Entries kept so each GLB has a documented home for
   // future per-model animation work.
-  titanus: {},   // heavy biped brawler — direct map
+  // TITANUS — heavy biped brawler, direct map. His TAUNT is the capoeira
+  // ginga (animations.js), the only clip on him that is not the shared one.
+  titanus: { clipOverrides: { taunt: GLB_CLIP_VARIANTS.titanusTaunt } },
+  // TEMPEST — direct map. His taunt opens the chest and holds it while the
+  // static walks all over him (Fighter.arcTaunt, roster `arcTaunt`).
+  tempest: { clipOverrides: { taunt: GLB_CLIP_VARIANTS.tempestTaunt } },
   // KONGA — cyborg silverback, direct map. His only reinterpretation is the
   // TAUNT: a beckoning hand means nothing on an ape, and a chest beat means
   // everything.
@@ -366,6 +379,7 @@ export const GLB_ANIM = {
       poundHoldMirror: GLB_CLIP_VARIANTS.colossusClapHoldGlb,
       poundSlam: GLB_CLIP_VARIANTS.colossusClapGlb,
       poundSlamMirror: GLB_CLIP_VARIANTS.colossusClapGlb,
+      taunt: GLB_CLIP_VARIANTS.colossusTaunt,
     },
   },
 
@@ -388,10 +402,14 @@ export const GLB_ANIM = {
   wraith: {
     mirrorArms: true,
     build: wraithBuild,
-    clipOverrides: { wraithLasers: GLB_CLIP_VARIANTS.wraithLasersGlb },
+    clipOverrides: { wraithLasers: GLB_CLIP_VARIANTS.wraithLasersGlb, taunt: GLB_CLIP_VARIANTS.wraithTaunt },
     post(anim, dt, ctx, tgt) {
       levelBarrel(anim, tgt);
-      swayCloak(anim, dt, ctx);
+      // THE TAUNT BLOWS A GALE THROUGH THE CLOAK. He stands still to do it, and
+      // a cloak driven only by ground speed hangs dead while he looms.
+      const act = anim.action;
+      const taunting = !!act && !act.fadingOut && act.clip.name === 'taunt';
+      swayCloak(anim, dt, ctx, taunting ? 1 : 0);
       wraithCapeGrow(anim, dt);
     },
   },
@@ -439,6 +457,7 @@ export const GLB_ANIM = {
   // the clip's counter-pose, and every other clip is untouched. (The head is
   // held by the shared `rigidShell` lock, not here.)
   glacier: {
+    clipOverrides: { taunt: GLB_CLIP_VARIANTS.glacierTaunt },
     post(anim, dt, ctx, tgt) {
       const act = anim.action;
       const n = act && !act.fadingOut ? act.clip.name : '';
@@ -705,6 +724,7 @@ export const GLB_ANIM = {
   // stack of corrections the Tripo auto-rig needed lives on as `vulcan_tripo`
   // below, for the alt build that still runs that skeleton.
   vulcan: {
+    clipOverrides: { taunt: GLB_CLIP_VARIANTS.vulcanTaunt },
     post(anim, dt, ctx, tgt) {
       const raw = anim.action?.clip.name || '';
       const n = anim.action && !anim.action.fadingOut ? raw : '';

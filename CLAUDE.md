@@ -1317,6 +1317,48 @@ audio). Progress history: `TASKS.md`.
   -> 2.0 and no better, because rotating the head can only raise the jaw to
   where the NECK is, and on these clips the neck is under the floor too. You
   cannot fix a buried body from the buried body's own joints.)
+- TAUNTS ARE PER-MECH (`*_TAUNT` raws in animations.js, compiled into
+  `GLB_CLIP_VARIANTS` under the name `taunt` and hung off each mech's glbanim
+  `clipOverrides`). The shared taunt is a beckoning arm — right for a humanoid
+  brawler, meaningless on a crab, a wolf or a hologram. 16 of the roster carry
+  their own; the procedural build of the same mech keeps the shared one, and
+  every check keyed on the clip NAME still matches because they all compile as
+  `taunt`. Judge one with `node tools/clipsheet.mjs <mech> taunt [out.png]
+  [frames] [front|q|side|back]` — the clip as a filmstrip, stepped
+  DETERMINISTICALLY at 1/60 from t=0 for every frame, which is the only way to
+  read a one-shot under a renderer running 20x slow.
+  THREE THINGS BIT, IN ORDER. (1) A limb has to ARRIVE somewhere, and the angle
+  that gets it there is not always the obvious one: konga's chest beat is
+  shoulder YAW, because his arms are the longest on the roster and the
+  pitch-and-roll a biped beats its chest with swings those hands clean over his
+  own head. Measure it (hand world position against the chest bone) rather than
+  eyeballing degrees. (2) Clip values on LEGS/TORSO/HEAD are ADDITIVE over
+  restPose (`Animator.restBias`) while ARMS are ABSOLUTE. (3) A clip track
+  REPLACES what the gait wrote, so fenrir's tail whip is a `post` pass on his
+  profile — keyed into the clip it would flatten the droop and the measured
+  straightening for the length of the howl.
+  AND SOME TAUNTS ARE NOT POSES. Four are effects, each driven off
+  `Fighter.taunting()` (is the clip named `taunt` playing) and nothing else,
+  which is what makes "a hit interrupts it" free — a hit plays hitFlinch over
+  the top and every effect unwinds on its own next frame, with no cancel hook to
+  keep in step. INFERNO vents instead of burning (`stackToot`, burners held dark
+  — chimneys and back tanks straight up in WORLD space, hand torches along their
+  own +Z, because a torch is aimable and a chimney is not). NULLBOT breaks the
+  RENDER (`holoTaunt`, roster `holoTaunt`) — a stutter, not a fade. TEMPEST
+  crawls with static (`arcTaunt`, roster `arcTaunt.nodes` — each arc picks a
+  random PAIR of hot points and endpoints are re-resolved every spawn, since the
+  arms are moving). WRAITH LOOMS (`growTaunt`, roster `tauntGrow: 1.6` — the
+  same levers colossus' ult pulls, `Animator.sizeMul` included) with a gale
+  blown through his cloak (`swayCloak`'s `wind`). GLACIER freezes SOLID
+  (`iceTaunt`, roster `tauntIce`). Two traps in that last one, both worth
+  remembering: `fighter.group` IS `mech.group` (aliased in the constructor), so
+  hiding the mech hides whatever is standing in for it — hide the CHILDREN
+  instead; and `Box3.setFromObject` takes in every anchor and helper parented to
+  him and does not skip invisible ones, so it measured a 7x9x9 cube round a mech
+  who is 7 tall and 4 wide. The block is sized off `baseHeight` and the measured
+  hit radius. (`MeshPhysicalMaterial.transmission` is also a trap here — it
+  renders through a pass this scene does not run, so the first block was
+  perfectly correct and completely invisible.)
 - A HELD CLIP IS AS STUCK AS A LOOPING ONE. `hold: true` pins an action at its
   last frame instead of fading it, so it outlives its move forever — and if it
   keys the LEGS the locomotion layer has nothing left to drive and the mech
