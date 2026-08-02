@@ -100,7 +100,14 @@ const out = await page.evaluate(async ({ FRAMES, STRIDE, ALL }) => {
   // for knockdown/getup), so a probe that skips it reports every mech's
   // knockdown as metres of buried tail. Replicate it exactly, for the same
   // clips, or the report is measuring the harness rather than the game.
-  const PRONE = new Set(['knockdown', 'getup', 'flipOver', 'proneBack', 'rollUpR', 'rollUpL']);
+  // PRONE CLIPS BELONG TO tools/proneprobe.mjs. A downed body is laid on the
+  // floor by its own system (gltf.js' prone clamp), which has its own rules,
+  // its own measurement and its own tool; replicating it here means keeping a
+  // second copy of somebody else's logic in step, and the moment it drifts
+  // this tool reports metres of buried tail for a body their probe says is
+  // resting perfectly. Measure what this tool owns — the standing clips.
+  const PRONE = new Set(['knockdown', 'getup', 'dead', 'flipOver', 'proneBack',
+    'rollUpR', 'rollUpL', 'ragdoll']);
   let clamping = false;
   const step = (dt) => {
     anim.update(dt, {
@@ -132,9 +139,11 @@ const out = await page.evaluate(async ({ FRAMES, STRIDE, ALL }) => {
   const listed = mechClipList(def, mech.animProfile || null);
   const names = ALL ? Object.keys(CLIPS) : listed.map((c) => c.name);
   const rows = [];
+  const skipped = [];
   for (const name of names) {
     const clip = CLIPS[name];
     if (!clip) continue;
+    if (PRONE.has(name)) { skipped.push(name); continue; }
     clamping = false;
     anim.stop(0);
     for (let i = 0; i < 20; i++) step(1 / 60);   // back to rest between clips
@@ -154,14 +163,18 @@ const out = await page.evaluate(async ({ FRAMES, STRIDE, ALL }) => {
     }
     rows.push({ name, ...worst });
   }
-  return { rest, rows, clips: names.length, scale: mech.dims?.scale || 1, verts: pos.count, sampled: Math.ceil(pos.count / STRIDE) };
+  return { rest, rows, skipped, clips: names.length, scale: mech.dims?.scale || 1, verts: pos.count, sampled: Math.ceil(pos.count / STRIDE) };
 }, { FRAMES, STRIDE, ALL });
 
 if (out.err) { console.error(out.err); await browser.close(); process.exit(1); }
 console.log(`${MECH}: ${out.sampled} of ${out.verts} vertices sampled per frame, ${FRAMES + 1} frames per clip`);
 console.log(`standing, the lowest geometry sits at y=${out.rest.y.toFixed(3)} (${out.rest.bone})\n`);
 // how deep a part may legitimately go, as a fraction of the mech's own scale
-const CONTACT = /^(hand|foot|toe|hoof|claw|ankle|paw|finger|thumb)/i;
+// ...and a TAIL counts here too: it is not a locking point, but a tail tip
+// brushing the floor is contact, not a bug, and the engine classifies it the
+// same way (gltf.js keeps it out of the core measurement so a dragging tail
+// cannot lift a prone body).
+const CONTACT = /^(hand|foot|toe|hoof|claw|ankle|paw|finger|thumb|tail)/i;
 const allow = (bone) => (CONTACT.test(bone) ? 0.35 : 0.06) * (out.scale || 1);
 
 console.log('clip                      min y   under   part            limit');
@@ -175,7 +188,10 @@ for (const r of out.rows.sort((a, b) => a.y - b.y)) {
     `${under > 0 ? under.toFixed(3).padStart(8) : '       -'}   ${r.bone.padEnd(14)}` +
     `${lim.toFixed(2).padStart(6)}${over ? '  <-- THROUGH THE FLOOR' : ''}`);
 }
-console.log(`\n${out.clips} clips checked. ` + (bad.length
+if (out.skipped?.length) {
+  console.log(`\n(${out.skipped.join(', ')} are prone clips — see tools/proneprobe.mjs)`);
+}
+console.log(`${out.rows.length} clips checked. ` + (bad.length
   ? `FAIL: ${bad.length} put geometry under the arena floor`
   : 'nothing is under the floor beyond what a contact limb may dig in.'));
 if (errors.length) console.log('page errors:', errors.slice(0, 3));
