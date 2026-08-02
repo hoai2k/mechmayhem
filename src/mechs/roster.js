@@ -702,7 +702,7 @@ export const ROSTER = [
     // hits with; the ordnance is bolted on TOP of an animal that was already
     // dangerous. So: enormous melee numbers, a slow committed heavy, and a
     // ranged option that exists mainly to make you walk into the fists.
-    id: 'konga', name: 'KONGA', title: 'The Silverback Siege', icon: '🦍', seed: 211,
+    id: 'konga', name: 'KONGA', title: 'The Silverback Siege', icon: '🦍', seed: 211, hidden: true,
     blurb: 'placeholder — see src/core/text.js',
     quotes: { win: '', intro: '' },
     colors: { primary: 0x33302e, accent: 0xa8532c, glow: 0xffa432, stripes: false },
@@ -741,7 +741,7 @@ export const ROSTER = [
     // cannot jump, so everything is built around the one thing he does better
     // than anyone: pick a line and arrive at the end of it. The cannons are
     // what he does while he waits to be pointed at something.
-    id: 'tritone', name: 'TRITONE', title: 'The Walking Siege', icon: '🦕', seed: 223,
+    id: 'tritone', name: 'TRITONE', title: 'The Walking Siege', icon: '🦕', seed: 223, hidden: true,
     blurb: 'placeholder — see src/core/text.js',
     quotes: { win: '', intro: '' },
     colors: { primary: 0x62684a, accent: 0xa8532c, glow: 0xff8a24, stripes: false },
