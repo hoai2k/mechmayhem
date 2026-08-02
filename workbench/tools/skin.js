@@ -102,6 +102,11 @@ export async function runSkinWorkbench(config, params) {
   let selComp = null;        // selected island (from pristine analysis)
   let mode = 'select';       // select | picktarget
   let texturedMat = null, boneMat = null, showTex = false;
+  // FEATHER SEAMS — the organic bind (src/mechs/feather.js). `blendColors`
+  // paints each vertex with its bones MIXED BY WEIGHT rather than its dominant
+  // one flat, which is the only view a gradient shows up in; it comes on with
+  // the panel, since that is what you opened it to look at.
+  let featherOpen = false, blendColors = false, featherStats = null;
   let wiggle = null;         // {bone, orig, clip} while wiggling
   // ---- real-animation driver ----
   // The workbench renders the RAW GLB (private geometry, pristine weights), so
@@ -173,9 +178,27 @@ export async function runSkinWorkbench(config, params) {
     if (mesh.geometry.getAttribute('color') !== colorAttr) mesh.geometry.setAttribute('color', colorAttr);
     // colors reflect the CURRENT (post-ops) dominant bone so a rebind is
     // instantly visible
+    // BLEND COLOURS mixes each vertex's bone colours by WEIGHT instead of
+    // showing its dominant bone flat. A rigid bind looks identical either way
+    // (one bone at 1.0); the moment a border is feathered, the gradient is the
+    // thing you came to look at, and the flat view cannot show it at all.
+    const jnt = mesh.geometry.attributes.skinIndex;
+    const wgt = mesh.geometry.attributes.skinWeight;
     for (let i = 0; i < n; i++) {
-      const c = boneColor(liveAnalysis.domBone[i]);
-      colorAttr.setXYZ(i, c.r, c.g, c.b);
+      if (!blendColors) {
+        const c = boneColor(liveAnalysis.domBone[i]);
+        colorAttr.setXYZ(i, c.r, c.g, c.b);
+        continue;
+      }
+      let r = 0, g = 0, b = 0, sum = 0;
+      for (let k = 0; k < 4; k++) {
+        const w = wgt.getComponent(i, k);
+        if (w <= 0) continue;
+        const c = boneColor(jnt.getComponent(i, k));
+        r += c.r * w; g += c.g * w; b += c.b * w; sum += w;
+      }
+      if (sum > 0) colorAttr.setXYZ(i, r / sum, g / sum, b / sum);
+      else { const c = boneColor(liveAnalysis.domBone[i]); colorAttr.setXYZ(i, c.r, c.g, c.b); }
     }
     if (selComp) {
       for (const v of selComp.verts) colorAttr.setXYZ(v, 1, 1, 1);
@@ -196,6 +219,8 @@ export async function runSkinWorkbench(config, params) {
     liveAnalysis = analyzeSkin(mesh);
     rebuildColors();
     renderOps();
+    // keep the feather readout honest about the weights on screen
+    if (featherOpen) { measureFeather(); renderFeatherPanel(); }
   }
 
   // Selector for an op made from a LIVE island: islands unchanged since load
@@ -279,6 +304,15 @@ export async function runSkinWorkbench(config, params) {
       skinWeight: mesh.geometry.attributes.skinWeight.array.slice(),
     };
     analysis = analyzeSkin(mesh);
+    // ...and only NOW take off the manifest's surplus geometry (dropGeo /
+    // dropBones). The game drops it after the ops, and every `{comp:N}`
+    // selector is an ordinal into the partition just taken — dropping first
+    // would renumber tempest's 122 of them onto other geometry. Dropping here
+    // costs nothing (a dropped lump is its own island, so no ordinal moves)
+    // and stops the stray blob the game deletes from floating in this view,
+    // where it reads as something wrong with the model.
+    const dropped = config.skin.applyDrops?.(mesh, id, { variant: altOn ? 'alt' : 'glb' });
+    const droppedTris = (dropped?.geo?.tris || 0) + (dropped?.bones?.tris || 0);
     // normalize display size: ~7 units tall, grounded, facing camera.
     // Measure the RENDERED skin (skinnedBox), not the geometry box — Tripo
     // rigs carry an Armature offset on the mesh node that skinning cancels,
@@ -333,8 +367,9 @@ export async function runSkinWorkbench(config, params) {
         + '\nblend band across each. Nothing here can be saved — untick to go back'
         + (mannOn ? `\nto ${id.toUpperCase()}.` : '\nPick a mech above to go back to real geometry.'));
     } else {
-      setStatus(`${id.toUpperCase()} — ${liveAnalysis.comps.length} islands, ${bones.length} bones.` +
-        `\nClick a wrong-colored patch to select it.`);
+      setStatus(`${id.toUpperCase()} — ${liveAnalysis.comps.length} islands, ${bones.length} bones.`
+        + (droppedTris ? `  (${droppedTris} dropped triangle(s) hidden, as in game)` : '')
+        + `\nClick a wrong-colored patch to select it.`);
     }
   }
 
@@ -1008,6 +1043,8 @@ export async function runSkinWorkbench(config, params) {
       else if (selComp) startWiggle(bones[selComp.boneIndex]);
     } else if (ev.key === 'b' || ev.key === 'B') {
       toggleBindPanel();
+    } else if (ev.key === 'f' || ev.key === 'F') {
+      toggleFeather();
     } else if (ev.key === 'e' || ev.key === 'E') {
       absorbEnclaves();
     } else if (ev.key === 'q' || ev.key === 'Q') {
@@ -1378,6 +1415,183 @@ export async function runSkinWorkbench(config, params) {
     }
   }
 
+  // ================= FEATHER SEAMS =================
+  // The organic bind, as one op (src/mechs/feather.js). Everything else in
+  // this tool answers "WHICH bone owns this geometry"; this answers "how HARD
+  // is the line between two bones" — the one thing the paint brush cannot do,
+  // since a brush writes one bone per vertex and its finest border is still a
+  // step. Feathering is authored as the LAST entry of the ops list, reads the
+  // partition every rebind above it left behind, and never moves a border: a
+  // foreign bone's weight is capped under the vertex's own, so island ids,
+  // the audit and the hurtbox buckets all see the same partition as before.
+  const featherBtn = actionBtn('Feather seams (F)', () => toggleFeather());
+  panel.appendChild(featherBtn);
+  const featherPanel = document.createElement('div');
+  featherPanel.style.cssText = 'display:none;margin:4px 0;padding:7px;border:1px solid #5a4a2c;border-radius:6px;background:#1b1710';
+  panel.appendChild(featherPanel);
+
+  const findFeather = () => ops.find((o) => o.feather);
+  const featherCfg = () => {
+    const op = findFeather();
+    if (!op) return null;
+    const f = op.feather === true ? {} : op.feather;
+    const r = f.radius;
+    return {
+      radius: typeof r === 'number' ? r : (r?.['*'] ?? 0.05),
+      // every pattern except '*' is a per-bone band, written back as-is
+      bands: typeof r === 'object' && r ? Object.entries(r).filter(([k]) => k !== '*') : [],
+      rigid: f.rigid || [],
+      maxLinks: f.maxLinks ?? 2,
+    };
+  };
+  // write the panel's numbers back into the op (creating/removing it), then
+  // re-apply the whole list exactly as the loader would
+  function setFeather(cfg, { undoable = true } = {}) {
+    if (undoable) pushUndo();
+    ops = ops.filter((o) => !o.feather);
+    if (cfg) {
+      const radius = cfg.bands.length
+        ? Object.fromEntries([['*', cfg.radius], ...cfg.bands])
+        : cfg.radius;
+      const f = { radius, maxLinks: cfg.maxLinks };
+      if (cfg.rigid.length) f.rigid = cfg.rigid;
+      ops.push({ feather: f });          // always LAST: it reads what the rebinds left
+    }
+    applyAllOps();
+    measureFeather();
+    renderFeatherPanel();
+  }
+  // what the bind actually looks like now — measured off the weights rather
+  // than predicted from the dials, so it also reports a mech with no feather
+  // op at all (100% one bone, which is what a rigid border reads as)
+  function measureFeather() {
+    if (!mesh) { featherStats = null; return; }
+    const wgt = mesh.geometry.attributes.skinWeight;
+    const n = mesh.geometry.attributes.position.count;
+    let multi = 0, domSum = 0;
+    for (let i = 0; i < n; i++) {
+      let c = 0, bw = 0;
+      for (let k = 0; k < 4; k++) { const w = wgt.getComponent(i, k); if (w > 0.01) c++; if (w > bw) bw = w; }
+      if (c > 1) multi++;
+      domSum += bw;
+    }
+    featherStats = { n, multi, meanDom: domSum / n };
+  }
+  function toggleFeather() {
+    featherOpen = !featherOpen;
+    // the gradient is invisible in the flat dominant-bone view, so opening the
+    // panel switches the colours over and closing it puts them back
+    blendColors = featherOpen;
+    if (mesh) { measureFeather(); rebuildColors(); }
+    renderFeatherPanel();
+  }
+  function renderFeatherPanel() {
+    featherBtn.style.background = featherOpen ? '#8a6a24' : '#1a2433';
+    featherBtn.style.color = featherOpen ? '#fff' : '#cfe0f5';
+    featherPanel.style.display = featherOpen ? 'block' : 'none';
+    featherPanel.innerHTML = '';
+    if (!featherOpen) return;
+    const cfg = featherCfg();
+
+    const on = document.createElement('label');
+    on.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:5px;cursor:pointer';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = !!cfg;
+    cb.onchange = () => setFeather(cb.checked
+      ? { radius: 0.05, bands: [], rigid: [], maxLinks: 2 } : null);
+    const t = document.createElement('span');
+    t.textContent = 'Feather this mech\u2019s borders';
+    t.style.cssText = 'font-size:11px;color:#e8d5a8';
+    on.append(cb, t);
+    featherPanel.appendChild(on);
+
+    if (cfg) {
+      // ---- band width ----
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:5px;align-items:center;margin:3px 0';
+      const nm = document.createElement('span');
+      nm.style.cssText = 'width:56px;font:11px ui-monospace,monospace;color:#cfe0f5';
+      nm.textContent = 'band';
+      const sl = document.createElement('input');
+      sl.type = 'range'; sl.min = '0.005'; sl.max = '0.15'; sl.step = '0.005';
+      sl.value = String(cfg.radius); sl.style.cssText = 'flex:1';
+      const num = document.createElement('input');
+      num.type = 'number'; num.step = '0.005'; num.value = String(cfg.radius);
+      num.style.cssText = 'width:58px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:2px';
+      const commit = (v) => setFeather({ ...cfg, radius: Math.max(0.001, +v || 0.001) });
+      sl.oninput = () => { num.value = sl.value; };
+      sl.onchange = () => commit(sl.value);
+      num.onchange = () => commit(num.value);
+      row.append(nm, sl, num);
+      featherPanel.appendChild(row);
+      const hint = document.createElement('div');
+      hint.style.cssText = 'color:#8a7f66;font-size:10px;line-height:1.4;margin-bottom:4px';
+      hint.textContent = 'A fraction of the model\u2019s longest dimension: how far each bone\u2019s '
+        + 'influence reaches ACROSS THE SURFACE past its own geometry. Wider = more overlap.';
+      featherPanel.appendChild(hint);
+
+      // ---- the parts that stay mechanical ----
+      const mk = (labelText, value, note, onCommit) => {
+        const r = document.createElement('div');
+        r.style.cssText = 'display:flex;gap:5px;align-items:center;margin:3px 0';
+        const l = document.createElement('span');
+        l.style.cssText = 'width:56px;font:11px ui-monospace,monospace;color:#cfe0f5';
+        l.textContent = labelText;
+        const inp = document.createElement('input');
+        inp.value = value;
+        inp.style.cssText = 'flex:1;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:2px;font:11px ui-monospace,monospace';
+        inp.onchange = () => onCommit(inp.value);
+        r.append(l, inp);
+        featherPanel.appendChild(r);
+        const nn = document.createElement('div');
+        nn.style.cssText = 'color:#8a7f66;font-size:10px;line-height:1.4;margin-bottom:4px';
+        nn.textContent = note;
+        featherPanel.appendChild(nn);
+      };
+      mk('tight', cfg.bands.map(([k, v]) => `${k}=${v}`).join(' '),
+        'Bones with their own (usually much smaller) band — "pod*=0.012". A bolted-on '
+        + 'launcher wants a hairline blend, not a shoulder\u2019s. Where two bands meet the tighter wins.',
+        (v) => setFeather({ ...cfg, bands: v.split(/[\s,]+/).filter(Boolean)
+          .map((kv) => kv.split('=')).filter((kv) => kv.length === 2 && +kv[1] > 0)
+          .map(([k, w]) => [k, +w]) }));
+      mk('hard', (cfg.rigid || []).join(' '),
+        'Bones that keep a HARD edge — no blend in, none out, and nothing floods through '
+        + 'their geometry. Names or "prefix*".',
+        (v) => setFeather({ ...cfg, rigid: v.split(/[\s,]+/).filter(Boolean) }));
+      mk('links', String(cfg.maxLinks),
+        'How far apart in the skeleton two bones may be and still blend. 1 = touching joints '
+        + 'only; 2 lets a shoulder reach past the torso. Higher binds parts that merely rest against each other.',
+        (v) => setFeather({ ...cfg, maxLinks: Math.max(1, Math.round(+v) || 1) }));
+    }
+
+    const blend = document.createElement('label');
+    blend.style.cssText = 'display:flex;gap:6px;align-items:center;margin:6px 0 4px;cursor:pointer';
+    const bcb = document.createElement('input');
+    bcb.type = 'checkbox'; bcb.checked = blendColors;
+    bcb.onchange = () => { blendColors = bcb.checked; rebuildColors(); };
+    const bt = document.createElement('span');
+    bt.textContent = 'Blend colours (bones mixed by weight)';
+    bt.style.cssText = 'font-size:11px;color:#cfe0f5';
+    blend.append(bcb, bt);
+    featherPanel.appendChild(blend);
+
+    const read = document.createElement('div');
+    read.style.cssText = 'font:11px ui-monospace,monospace;color:#9fdcf0;line-height:1.5';
+    if (!featherStats) measureFeather();
+    if (featherStats) {
+      const pc = (v) => (100 * v / featherStats.n).toFixed(1) + '%';
+      read.textContent = `${pc(featherStats.multi)} of the mesh shares two or more bones`
+        + `\nmean dominant weight ${featherStats.meanDom.toFixed(3)}  (1.000 = fully rigid)`;
+      read.style.whiteSpace = 'pre-line';
+    }
+    featherPanel.appendChild(read);
+    const foot = document.createElement('div');
+    foot.style.cssText = 'color:#8a7f66;font-size:10px;line-height:1.4;margin-top:4px';
+    foot.textContent = 'Leaves in "Export ops" like any other op. Judge it by wiggling a bone '
+      + '(W) with blend colours on, and with node tools/featherprobe.mjs / skindebug.mjs.';
+    featherPanel.appendChild(foot);
+  }
+
   panel.appendChild(label('Ops (this session + committed)'));
   const opsEl = document.createElement('div');
   opsEl.style.cssText = 'margin-bottom:6px;max-height:150px;overflow:auto';
@@ -1400,6 +1614,13 @@ export async function runSkinWorkbench(config, params) {
         t.textContent = `purgeFar (strip far-hierarchy weights)`;
       } else if (op.purgePair) {
         t.textContent = `purgePair ${op.purgePair.join(' / ')}`;
+      } else if (op.feather) {
+        const f = op.feather === true ? {} : op.feather;
+        const r = typeof f.radius === 'number' ? f.radius : (f.radius?.['*'] ?? 0.05);
+        t.textContent = `feather seams · band ${r}`
+          + (typeof f.radius === 'object' && f.radius
+            ? ' · ' + Object.entries(f.radius).filter(([k]) => k !== '*').map(([k, v]) => `${k} ${v}`).join(' ') : '')
+          + (f.rigid?.length ? ` · hard ${f.rigid.join(' ')}` : '');
       } else if (!op.sel) {
         t.textContent = JSON.stringify(op);
       } else if (op.weights) {
