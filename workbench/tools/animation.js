@@ -532,12 +532,22 @@ export async function runAnimationWorkbench(config, params) {
       }
       const k = (p?.isBone ? units.bone : units.joint) || 1;
       spec.offset = [rnd(obj.position.x / k, 3), rnd(obj.position.y / k, 3), rnd(obj.position.z / k, 3)];
-      // ALWAYS emit rot for a muzzle: its presence is what tells the loader the
-      // orientation is authored, so combat may aim along the barrel. Dropping a
-      // near-zero rot would silently turn barrel-aiming off for that muzzle.
+      // `rot` IS THE AUTHORING, not a readout. Its presence is what tells the
+      // loader the orientation was chosen — a muzzle aims along its barrel, a
+      // booster with no rot thrusts down the BODY rather than along an ankle
+      // bone's +Z. So it is emitted only where it means something: always for a
+      // muzzle (dropping a near-zero rot would silently turn barrel-aiming off),
+      // for an anchor the manifest ALREADY authored one on, and for one this
+      // session actually turned in Rotate mode. Whatever rotation an anchor
+      // merely INHERITED from its bone is not an edit, and moving an anchor
+      // must not quietly author an aim the owner never asked for.
       const r = [obj.rotation.x * R2D, obj.rotation.y * R2D, obj.rotation.z * R2D];
       const isMuzzle = key === 'R' || key === 'L' || mech.anchors[name]?.userData?.aimRot;
-      if (isMuzzle || r.some((v) => Math.abs(v) > 0.05)) spec.rot = [rnd(r[0]), rnd(r[1]), rnd(r[2])];
+      const bs = anchorBase[name];
+      const turned = !bs || Math.abs(obj.rotation.x - bs.rot.x) > 1e-4
+        || Math.abs(obj.rotation.y - bs.rot.y) > 1e-4
+        || Math.abs(obj.rotation.z - bs.rot.z) > 1e-4;
+      if (isMuzzle || turned) spec.rot = [rnd(r[0]), rnd(r[1]), rnd(r[2])];
       muzzles[key] = spec;
       changed.push(`${name} → ${spec.bone ? 'bone ' + spec.bone : 'joint ' + spec.joint}`);
     }
