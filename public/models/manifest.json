@@ -2863,6 +2863,7 @@
   "_readme": "Drop rigged humanoid GLBs (Meshy/Tripo/Mixamo auto-rig, T-pose or A-pose) into public/models/ and add an entry per mech id. Fields: url (required), bindPose ('tpose'|'apose'|'native' or {joint:[x,y,z] degrees}), boneOverrides ({jointName: 'ExactBoneName'}), heightScale, yawOffset (deg), emissiveBoost. Mechs without an entry use the built-in procedural model. See docs/CHARACTER_PIPELINE.md.",
   "konga": {
     "url": "models/mech_konga.glb",
+    "modelScale": 7.47654,
     "bindPose": "native",
     "yawOffset": 270,
     "boneOverrides": {
@@ -2881,10 +2882,45 @@
       "thighR": "tripo0_Left_Limb_0",
       "kneeR": "tripo0_Left_Limb_1",
       "ankleR": "tripo0_Left_Limb_2"
+    },
+    "muzzles": {
+      "podL": {
+        "joint": "torso",
+        "offset": [
+          -1.33,
+          2.9,
+          0.3
+        ]
+      },
+      "podR": {
+        "joint": "torso",
+        "offset": [
+          1.57,
+          2.9,
+          0.3
+        ]
+      },
+      "R": {
+        "joint": "torso",
+        "offset": [
+          1.57,
+          2.9,
+          0.3
+        ]
+      },
+      "L": {
+        "joint": "torso",
+        "offset": [
+          -1.33,
+          2.9,
+          0.3
+        ]
+      }
     }
   },
   "tritone": {
     "url": "models/mech_tritone.glb",
+    "modelScale": 26.42417,
     "bindPose": "native",
     "yawOffset": 270,
     "boneOverrides": {
@@ -2904,6 +2940,32 @@
       "kneeR": "tripo1_Right_Limb_1",
       "ankleR": "tripo1_Right_Limb_1"
     },
-    "heightScale": 0.55
+    "heightScale": 0.55,
+    "muzzles": {
+      "R": {
+        "joint": "torso",
+        "offset": [
+          1,
+          0.45,
+          2.5
+        ]
+      },
+      "L": {
+        "joint": "torso",
+        "offset": [
+          -1,
+          0.45,
+          2.5
+        ]
+      },
+      "frillPods": {
+        "joint": "torso",
+        "offset": [
+          0,
+          1.3,
+          1.2
+        ]
+      }
+    }
   }
 }

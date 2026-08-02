@@ -27,6 +27,8 @@ import { cranky } from './cranky.js';
 import { frogger } from './frogger.js';
 import { jerry } from './jerry.js';
 import { nullbot } from './nullbot.js';
+import { konga } from './konga.js';
+import { tritone } from './tritone.js';
 
 export const SCRIPTS = {
   default: defaultFinisher,
@@ -47,4 +49,6 @@ export const SCRIPTS = {
   frogger,
   jerry,
   nullbot,
+  konga,
+  tritone,
 };
