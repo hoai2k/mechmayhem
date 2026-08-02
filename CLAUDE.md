@@ -996,6 +996,23 @@ audio). Progress history: `TASKS.md`.
   `?rigedit`, pose/skin tools, `?battle=...`, the level editor) always sees
   the full `ROSTER`, so iteration is unaffected. Game code that offers mechs
   must go through `playableRoster()` / `isPlayable()` from `roster.js`.
+- MECH ICONS ARE TWO THINGS, in two folders, and the split is the point
+  (`src/ui/icons.js`): a hand-made **BADGE** (`public/badges/<id>.png`) is what
+  a mech is SUPPOSED to wear, and its auto-captured **THUMBNAIL**
+  (`public/thumbs/<id>.png`, `node tools/thumbs.mjs`) is the BACKUP so nothing
+  is ever iconless; the roster emoji is the last resort. A mech has a badge
+  only if its id is listed in `BADGES` — the list is the declaration, and the
+  ladder is enforced twice (`iconUrl()` picks the tier, and the `<img>` carries
+  an onerror ladder, so a listed-but-missing badge degrades to the thumbnail
+  instead of a broken image). THE FOLDERS ARE SEPARATE BECAUSE THE LIFETIMES
+  ARE: a thumbnail churns with every model change, a badge is judged art that
+  must never change because a tool ran — which is exactly what happened when
+  `thumbs.mjs`, run to add two missing icons, re-shot all seventeen and
+  replaced the roster's icons in the menus. That tool now fills in only the
+  mechs with NO icon on a bare run (name ids to re-shoot those, `--all` to
+  redo the roster) and cannot write outside `public/thumbs/`.
+  `node tools/iconcheck.mjs` proves it: every declared badge has a file, every
+  mech has a thumbnail, and each rung of the fallback still lands.
 - MECH-SELECT POSTERS (`public/posters/`, `src/ui/posters.js`): flipping
   through the roster shows a pre-rendered PNG per mech and builds no model;
   the real body appears after 0.7s of rest or on lock-in. A poster stands in
