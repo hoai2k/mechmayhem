@@ -721,15 +721,24 @@ const WEAPONS = {
     w.effects.muzzleFlash(from);
   },
 
-  salvo(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // KONGA: a RIPPLE of small
+  salvo(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // KONGA: a RIPPLE of small
     // missiles out of BOTH shoulder pods — the ordnance bolted on top of the
     // animal. They leave in alternating pairs a few hundredths apart rather
     // than as one clump, which is what makes it read as a pod emptying itself
     // instead of a shotgun: the launch positions are re-read every tick, so
     // the stream pours out of the pods wherever his shoulders have carried
     // them, and each round takes its own small spread off the aim.
+    //
+    // IT LEAVES DOWN THE BARREL IT CAME OUT OF. The muzzle anchors ride the
+    // pod TIPS and carry an authored `rot`, so each rack has a real barrel
+    // direction — `dirFrom` deflects the aim onto it, exactly as tritone's
+    // twin cannons do. The pods are held level by SIGNATURES.konga, so that
+    // direction is a flat, direct-fire line rather than the old sky-lob, and
+    // the vertical scatter is symmetric about it instead of biased upward.
+    // (podR/podL — the torso-mounted rack anchors — stand in on any build
+    // that has no tip muzzles.)
     const n = mv.count || 10;
-    const pods = [anchors.podR || anchors.muzzleR, anchors.podL || anchors.muzzleL]
+    const pods = [anchors.muzzleR || anchors.podR, anchors.muzzleL || anchors.podL]
       .filter(Boolean);
     if (!pods.length) return;
     for (let i = 0; i < n; i++) {
@@ -737,10 +746,10 @@ const WEAPONS = {
         if (!f.alive) return;
         const pod = pods[i % pods.length];
         const p = pod.getWorldPosition(new THREE.Vector3());
-        const d = dir.clone();
-        d.x += rand(-0.07, 0.07);
-        d.y += rand(-0.02, 0.06);
-        d.z += rand(-0.07, 0.07);
+        const d = dirFrom ? dirFrom(pod, new THREE.Vector3()) : dir.clone();
+        d.x += rand(-0.06, 0.06);
+        d.y += rand(-0.035, 0.035);
+        d.z += rand(-0.06, 0.06);
         w.projectiles.spawn('rocket', f, p, d.normalize(), {
           dmg: mv.dmg * f.dmgMult(), speed: mv.speed * rand(0.9, 1.12),
           splash: mv.splash, color: 0xffb43c, knock: 6, launch: 2, size: 0.7,
@@ -914,9 +923,13 @@ const WEAPONS = {
       const d = new THREE.Vector3(0, 0, 1).applyQuaternion(a.getWorldQuaternion(new THREE.Quaternion()));
       if (d.lengthSq() < 1e-8) d.copy(dir);
       d.normalize();
+      // A COMET, not a bullet: the blast flies with a real tapering wake of
+      // glowing particles laid down along the path it actually flew
+      // (projectiles.js `comet`), so a shot arriving from a cannon that had to
+      // go up and over its own hull reads as the curve it is.
       w.projectiles.spawn('plasma', f, p, d, {
         dmg: mv.dmg * f.dmgMult(), speed: mv.speed, splash: mv.splash,
-        color: col, knock: mv.knock ?? 11, size: 1.25,
+        color: col, knock: mv.knock ?? 11, size: 1.25, trail: 'comet',
       });
       w.effects.muzzleFlash(p, col);
       w.effects.glows.emit(p.x, p.y, p.z, 0, 0, 0,

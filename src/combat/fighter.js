@@ -335,6 +335,11 @@ export class Fighter {
     this._smashMirror = Math.random() < 0.5;
     this._plungeVy = 0;
     this._moveAttack = false; // basic light/heavy melee lets you keep moving
+    // A WALKING ULT. Ults root you, which is right for everything that stands
+    // and channels — but KONGA's APEX POUND is a move you are meant to WALK
+    // FORWARD with (drum the road, knock them down, march over the top of them
+    // and drum on THEM). The ult itself opts in; every other one is unaffected.
+    this._ultMove = false;
     this._onBack = false;     // ROLLOVER: turned right over, stranded on his back
     this._flipT = 0;          // ...time left in the one-shot flip before the prone loop
     this._rollUp = null;      // ...the flank he committed the righting roll to
@@ -532,6 +537,9 @@ export class Fighter {
     // a mobile light/heavy grants locomotion only for its own 'attack' window;
     // any other transition (attack end, launch, special...) drops it
     if (s !== 'attack') this._moveAttack = false;
+    // same rule for the walking ult: the grant belongs to the 'ult' window
+    // that asked for it, so any transition out of it takes the legs back
+    if (s !== 'ult') this._ultMove = false;
   }
 
   lockFor(t) { this.setState('attack', t); }
@@ -1031,6 +1039,12 @@ export class Fighter {
   // quarter of a second; firing only on a good solution would mean a target
   // parked inboard of one gun never gets shot at at all.
   updateCannons(dt) {
+    // A MOVE MAY TAKE THE GUNS. While `_cannonDrive` is set (TRITONE's SIEGE
+    // PROTOCOL sweeps both mounts through a half-turn by hand — cannonaim
+    // driveCannons), the aim solver does not run at all: two things writing
+    // the same two bones is a frame of the servo undoing the choreography.
+    // The move clears it when it ends and the traverse takes over again.
+    if (this._cannonDrive) { this._cannonDrive(dt); return; }
     const v = this._volley;
     if (v && (!this.alive || this.state === 'hitstun' || this.state === 'knockdown'
       || this.state === 'special' || this.state === 'ult')) {
@@ -3090,7 +3104,8 @@ export class Fighter {
     // half pace (applyPhysics' BLOCK_MOVE_MULT), so a guard is a fighting
     // stance you can carry rather than a decision to stand still.
     const canMove = this.state === 'normal' || this.state === 'channel' ||
-      (this.state === 'attack' && this._moveAttack);
+      (this.state === 'attack' && this._moveAttack) ||
+      (this.state === 'ult' && this._ultMove);
     if (canMove) {
       ax = I.moveX; az = I.moveZ;
       const len = Math.hypot(ax, az);
@@ -3195,6 +3210,13 @@ export class Fighter {
       grounded: this.grounded || this.climb,
       vy: this.vel.y,
       dashT: this.dashT,
+      // WHICH WAY THE BODY IS POINTED, in world radians. Almost nothing in the
+      // animator wants this — a pose is authored in the body's own frame and
+      // is the same pose whichever way he happens to be facing. A SIGNATURE
+      // that drives a stabilized MOUNT does: "level, and pointed where he is
+      // pointed" is a statement about the world, and cannot be said in joint
+      // space (KONGA's shoulder racks — signatures.js).
+      yaw: this.yaw,
       // the combat state verbatim ('attack' | 'hitstun' | 'special' | ...).
       // The face layer (mechs/face.js) reads it to flinch on a hit and to
       // bellow through a special — expression is a reaction to what the body

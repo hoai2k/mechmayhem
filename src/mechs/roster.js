@@ -773,7 +773,21 @@ export const ROSTER = [
       // like colossus and slammed down instead of thrown. Either way they
       // finish on their back.
       special: { id: 'headSlam', name: 'Skull Driver', cooldown: 8, dmg: 96, range: 4.2, knock: 16, radius: 6 },
-      ult: { id: 'apexBarrage', name: 'APEX BARRAGE', dmg: 26, count: 34, radius: 20, duration: 5.5 },
+      // APEX POUND (specials.js): he drops onto his knuckles and drums the
+      // ROAD, fist after fist, each blow throwing a travelling shockwave that
+      // sweeps anyone standing off their feet. `slamDmg` is the payoff — a
+      // fist landing on a body that is already down, which is what he walks
+      // forward to do (the ult is the one that hands the legs back).
+      // TEN SECONDS, deliberately: the move is a hunt, not a burst, and the
+      // walk to a downed victim has to fit inside it. `dmg`/`slamDmg` are
+      // sized against that length — measured on tritone with the victim held
+      // underfoot for the whole duration (the worst case a player can make),
+      // it comes to ~876, two thirds of his bar, for ten seconds of standing
+      // in fist range.
+      ult: {
+        id: 'apexPound', name: 'APEX POUND', dmg: 18, slamDmg: 54, knock: 12,
+        radius: 13, waveSpeed: 30, beat: 0.58, fistRange: 3.6, duration: 10,
+      },
     },
   },
   {
@@ -829,7 +843,14 @@ export const ROSTER = [
       // down and the tank lasts, and everything it hits is paid for out of
       // the speed he arrived at. See specials.js goreCharge.
       special: { id: 'goreCharge', name: 'Gore Charge', cooldown: 7, dmg: 88, knock: 30, launch: 12, hold: true },
-      ult: { id: 'siegeProtocol', name: 'SIEGE PROTOCOL', dmg: 30, count: 26, duration: 6.5, radius: 5 },
+      // SIEGE PROTOCOL (specials.js): both mounts leave the aim solver and
+      // sweep a full 180° in opposite phase, hosing energy particles at the
+      // sky. Each one flies dumb for `seekTime` and then hunts — so `count` is
+      // a cloud, and `dmg` is per particle rather than per shell.
+      ult: {
+        id: 'siegeProtocol', name: 'SIEGE PROTOCOL', dmg: 20, count: 96,
+        duration: 6.5, radius: 3.2, speed: 38, seekTime: 0.62, sweep: 1.5,
+      },
     },
   },
 ];

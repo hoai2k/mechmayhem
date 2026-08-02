@@ -12,6 +12,7 @@ import { Fighter } from './fighter.js';
 import { AIController } from '../game/ai.js';
 import { cloneMech } from '../mechs/factory.js';
 import { stillCasting, cast, eachEnemy, volley, timedUpdater, overlapsY } from './movekit.js';
+import { driveCannons } from './cannonaim.js';
 import { faceRoar } from '../mechs/face.js';
 
 const _v = new THREE.Vector3();
@@ -80,6 +81,45 @@ function aimDir(f, pitch = 0) {
     }
   }
   return dir.normalize();
+}
+
+// A SHOCKWAVE THAT TRAVELS (KONGA's APEX POUND). world.groundShockwave is an
+// instant sphere — right for a slam whose whole radius lands on one frame,
+// wrong for a wave you are supposed to be able to JUMP. This one is a real
+// expanding front: a radius growing at `speed`, catching each victim exactly
+// as it reaches them, once. Two gates make it a thing in the FLOOR rather
+// than a sphere with a delay — the victim must be GROUNDED at the moment the
+// front arrives (so a jump is a genuine dodge, and someone already airborne is
+// simply missed) and must be on roughly the same level as the fist that made
+// it (so a wave rolling past a building does not sweep a mech off its roof).
+function poundWave(w, f, origin, { radius, speed = 30, dmg, knock = 12, color = 0xffa432 }) {
+  const at = origin.clone();
+  w.effects.rings.spawn(at, { from: 1.2, to: radius * 2, dur: radius / speed, color, y: 0.35 });
+  const hit = new Set();
+  let r = 0, puff = 0;
+  w.addUpdater((dt) => {
+    r = Math.min(radius, r + speed * dt);
+    // dust kicked up along the front itself, so the wave is visibly SOMEWHERE
+    puff -= dt;
+    if (puff <= 0 && r < radius) {
+      puff = 0.05;
+      const a = rand(TAU);
+      w.effects.dustPuff(_v.set(at.x + Math.cos(a) * r, at.y + 0.1, at.z + Math.sin(a) * r), 4);
+    }
+    eachEnemy(w, f, at, r, (e, d) => {
+      if (hit.has(e)) return;
+      hit.add(e);                    // reached: this wave is done with them
+      if (!e.grounded || Math.abs(e.pos.y - at.y) > 3) return;   // jumped it
+      const falloff = 1 - 0.5 * (d / radius);
+      e.takeHit(dmg * falloff, f, {
+        // LAUNCH is the point: it puts them on their back, which is what the
+        // next fist is for (see rule 3 in apexPound).
+        knock: knock * falloff, launch: 4, srcPos: at, heavy: true,
+      });
+      w.effects.impactSparks(e.center(), color, 10, 8);
+    }, (e) => e.hitRadius * 0.5);
+    return r < radius;
+  });
 }
 
 // ============================= SPECIALS =============================
@@ -3130,107 +3170,213 @@ export const ULTS = {
     f.iframes = dur;
   },
 
-  // KONGA: APEX BARRAGE. He rears to full height and empties BOTH pods —
-  // not aimed fire but saturation: tube after tube going up, then the whole
-  // sky coming down across a wide footprint. His special rewards being close;
-  // his ult punishes running away from it.
-  apexBarrage(f, u) {
+  // KONGA: APEX POUND. The ordnance is bolted on TOP of the animal, and the
+  // ult is the animal. He drops onto his knuckles and starts DRUMMING THE
+  // ROAD, one fist then the other, and every blow sends a shockwave running
+  // out across the ground.
+  //
+  // Three rules, and the third is the whole move:
+  //
+  //  1. A SHOCKWAVE IS A THING IN THE FLOOR. It travels — a real expanding
+  //     front at a real speed, not an instant sphere — and it only touches
+  //     what the floor touches. Someone STANDING gets swept off their feet;
+  //     someone in the air at that moment is simply missed, and that is the
+  //     counterplay: jump the wave.
+  //
+  //  2. HE WALKS WHILE HE DRUMS (`_ultMove`). Every other ult roots you; this
+  //     one hands the legs back, because the pounding is how he ADVANCES. The
+  //     clip is upper-body only, so the locomotion layer keeps his knuckle
+  //     walk running underneath the beat, and it runs for a LONG time (ten
+  //     seconds) — long enough to knock someone down at one end of a street
+  //     and walk the whole way to them before they are up.
+  //     ON THE FLOOR ONLY. He does not go up walls with this: surface walking
+  //     needs `state === 'normal'` (climb.js `bodyFree`), so the ult refuses to
+  //     engage the walker and drops him off a face he was already on, the same
+  //     frame. The legs he gets back are the arena's, not the architecture's.
+  //
+  //  3. THE FLOOR IS WHERE HE FINISHES IT. A fist landing on someone already
+  //     DOWN does not knock them down again — it does `slamDmg`, which is
+  //     several times a shockwave's worth. So the wave is not the damage, it
+  //     is the SETUP: knock them over, close the distance, stand over them and
+  //     land the next beat on their chest. Running away from an ape with long
+  //     arms only works while you are on your feet.
+  apexPound(f, u) {
     const w = f.world;
-    const DUR = u.duration || 5.5;
-    cast(f, 'castRaise', { state: 'ult', stateT: DUR * 0.5, speed: 1.1 });
+    const DUR = u.duration || 6;
+    const BEAT = u.beat || 0.58;            // seconds between fists
+    const R = u.radius || 13;               // how far one wave reaches
+    const WAVE_SPEED = u.waveSpeed || 30;   // ...and how fast the front travels
+    const col = f.def.colors.glow || 0xffa432;
+
+    f.setState('ult', DUR);
+    f._ultMove = true;                      // rule 2 — the legs stay his
     w.audio?.play('ultReady');
-    faceRoar(f, 1.2);
-    // rear up and beat once — the same tell as the special, at ult scale
-    w.schedule(0.35, () => {
-      if (!f.alive) return;
-      w.effects.addShake(0.6);
-      w.effects.rings.spawn(f.pos, { from: 1.5, to: 9, dur: 0.4, color: f.def.colors.glow, y: 0.4 });
-      w.audio?.play('howl');
-    });
-    const N = u.count || 34;
-    const R = (u.radius || 20);
-    // ripple-fire every tube: alternate pods, each missile lobbed high and
-    // arcing down onto a scattered ground point in front of him
-    volley(w, f, N, 0.09, (i) => {
-      const pod = f.mech.anchors[i % 2 ? 'podR' : 'podL'] || f.mech.anchors.muzzleR;
-      const origin = pod ? pod.getWorldPosition(new THREE.Vector3()) : muzzle(f);
-      // land points spread over a disc centred well ahead of him
-      const a = rand(TAU), rr = Math.sqrt(rand(0, 1)) * R;
-      const c = fwd(f, R * 0.55);
-      const land = new THREE.Vector3(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr);
-      const d = land.clone().sub(origin).normalize();
-      w.projectiles.spawn('missile', f, origin, d, {
-        dmg: u.dmg * f.dmgMult(), speed: 34, splash: 3.4, color: 0xff8a30,
-        arcTo: land, arcTime: 1.05, life: 4,
+    faceRoar(f, 1.4);
+    w.effects.rings.spawn(f.pos, { from: 1.5, to: 9, dur: 0.4, color: col, y: 0.4 });
+    w.audio?.play('howl');
+
+    // ONE BEAT: gather the fist, drive it into the road, and pay out both
+    // kinds of damage from where it actually lands.
+    let side = 0;
+    const pound = () => {
+      if (!f.alive || f.state !== 'ult') return;
+      const s = side++ % 2 ? 'L' : 'R';
+      f.animator.play(s === 'L' ? 'kongaPoundL' : 'kongaPound', {
+        onEvent: (t, a) => {
+          if (t === 'shake') w.effects.addShake(a);
+          if (t !== 'fire') return;
+          if (!f.alive || f.state !== 'ult') return;
+          // WHERE THE FIST IS, not where he is: he is walking, and the blow
+          // lands under the arm that threw it. Bone first (the GLB's real
+          // knuckle), virtual joint otherwise, his own feet as a last resort.
+          const hand = f.mech.rigBones?.['hand' + s] || f.mech.joints?.['hand' + s];
+          const at = hand ? hand.getWorldPosition(new THREE.Vector3()) : f.pos.clone();
+          at.y = f.pos.y;                   // the impact is on the FLOOR he stands on
+          w.audio?.play('slam');
+          w.effects.dustPuff(at, 18);
+          w.arena?.damageSphere(_v.set(at.x, at.y + 1, at.z), 4.5 * f.scale,
+            u.dmg * 1.4, null, true);
+
+          // ---- rule 3: anyone already DOWN under this fist wears all of it
+          const FIST_R = (u.fistRange || 3.6) * f.scale;
+          let crushed = false;
+          eachEnemy(w, f, at, FIST_R, (e) => {
+            // DOWN means down. 'getup' is deliberately NOT on this list: a
+            // mech that has started standing back up has escaped, and counting
+            // it would make the crush inescapable rather than merely brutal.
+            const down = e.state === 'knockdown' || e.state === 'launched' || e._onBack;
+            if (!down || !overlapsY(e, f.pos.y - 1, 4)) return;
+            crushed = true;
+            e.takeHit((u.slamDmg || u.dmg * 5) * f.dmgMult(), f, {
+              // NO launch: a body driven into the road stays in the road.
+              knock: 3, srcPos: at, heavy: true, unblockable: true,
+            });
+            // NOTE it deliberately does NOT re-pin them. Re-stamping the
+            // knockdown on every crush (which the first build did) is a true
+            // loop: the beat is shorter than the pin, so a body that goes down
+            // once never gets up again and the ult reads as an execution. They
+            // stay down for exactly as long as the knockdown they already have.
+            w.effects.impactSparks(e.center(), col, 16, 12);
+            w.effects.explosion(at, 3.2, { color: col, smoke: true, ring: true });
+          }, (e) => e.hitRadius * 0.6);
+          w.effects.addShake(crushed ? 0.9 : 0.5);
+          if (crushed) w.audio?.play('hitHeavy');
+
+          // ---- rule 1: the wave goes out whether or not the fist found anyone
+          poundWave(w, f, at, {
+            radius: R, speed: WAVE_SPEED, dmg: u.dmg * f.dmgMult(),
+            knock: u.knock || 12, color: col,
+          });
+        },
       });
-      w.audio?.play('missile', { vol: 0.5 });
-      // launch flash off the firing pod
-      w.effects.muzzleFlash?.(origin, 0xff9a40);
-      w.effects.smoke.emit(origin.x, origin.y, origin.z, rand(-1, 1), rand(1, 3), rand(-1, 1),
-        { life: 0.7, size: 1.4, color: 0x8a8a8a, alpha: 0.5 });
-    }, { guard: (f) => f.alive && f.state === 'ult' });
-    w.schedule(DUR, () => { if (f.state === 'ult') { f.animator.stop(); f.setState('normal'); } });
+    };
+    pound();
+    // NOTE the arity: world.addUpdater calls its tick with `dt` ONLY (world.js
+    // `u.tick(dt)`). A `(dt, t) => ... return t <= DUR` updater therefore reads
+    // `undefined <= DUR`, which is false, and the whole move ends on its first
+    // frame — so the elapsed clock is kept here.
+    let beatT = BEAT, el = 0;
+    w.addUpdater((dt) => {
+      if (!f.alive || f.state !== 'ult') return false;
+      el += dt;
+      beatT -= dt;
+      if (beatT <= 0) { beatT = BEAT; pound(); }
+      return el <= DUR;
+    }, () => {
+      f._ultMove = false;
+      if (f.state === 'ult') { f.animator.stop(); f.setState('normal'); }
+    });
   },
 
   // TRITONE: SIEGE PROTOCOL. He stops being a charger and becomes what the
   // engineers actually built: he plants all four legs, the frill crown opens,
-  // and everything on the chassis fires at once — flank cannons flat and level,
-  // frill rockets arcing over the top — for as long as the protocol runs.
+  // and both flank cannons come off their aim solver entirely and start
+  // HOSING THE SKY.
+  //
+  // THE MOUNTS SWEEP, THEY DO NOT AIM. For the length of the protocol the
+  // guns are choreography, not artillery: each one turns through a full 180°
+  // — level, up, over the back and down again — and the two run in OPPOSITE
+  // PHASE, so one is always climbing while the other falls. Nothing is aimed
+  // at anybody. The barrels are moving while they fire, so the stream leaves
+  // in a fan that changes direction faster than a target can read it, which
+  // is what makes the spray look like a spray rather than a hose. The aim
+  // servo (cannonaim.js) is handed the bones back the moment it ends.
+  //
+  // AND THEN IT COMES DOWN. Every particle flies dumb and ballistic for
+  // `seekTime` seconds — long enough to get properly high — and then wakes up
+  // and goes looking for the nearest living enemy (projectiles.js seekDelay +
+  // retarget, which re-acquires whenever its mark dies, so a cloud fired at
+  // nobody in particular converges on whoever is left). So the move is two
+  // beats you can watch: a fountain, and a rain of it.
   //
   // Deliberately the opposite of his special: rooted instead of mobile, area
   // instead of single-target, so his two big buttons never want the same range.
   siegeProtocol(f, u) {
     const w = f.world;
     const DUR = u.duration || 6.5;
+    const N = u.count || 88;              // particles over the whole protocol...
+    const GAP = DUR / Math.max(1, N / 2); // ...fired in pairs, one per cannon
+    const SEEK = u.seekTime || 0.62;      // dumb ballistic flight before it hunts
+    const SWEEP = u.sweep || 1.5;         // seconds for one 180° out-and-back
+    const col = f.def.colors.glow || 0xff8a24;
     cast(f, 'tritoneBrace', { state: 'ult', stateT: DUR });
     w.audio?.play('ultReady');
     faceRoar(f, 0.9);
     // planted: he does not move while the protocol runs
     const anchorX = f.pos.x, anchorZ = f.pos.z;
-    w.effects.rings.spawn(f.pos, { from: 6, to: 1.4, dur: 0.5, color: f.def.colors.glow, y: 0.3 });
-    let shellT = 0, rocketT = 0;
-    w.addUpdater((dt, t) => {
+    w.effects.rings.spawn(f.pos, { from: 6, to: 1.4, dur: 0.5, color: col, y: 0.3 });
+
+    // THE SWEEP. `driveCannons` pitches each barrel nose-up from its own rest
+    // line by this many radians, so 0 is level-forward and PI is straight back
+    // over the spine, through vertical on the way. cos gives an out-and-back
+    // that EASES at both ends — a linear sweep snaps at the turnaround — and
+    // the half-cycle offset between the two is the opposite phase.
+    let swp = 0;
+    const angleAt = (ph) => Math.PI * 0.5 * (1 - Math.cos(ph));
+    f._cannonDrive = (dt) => {
+      swp += dt;
+      const ph = swp * TAU / SWEEP;
+      driveCannons(f, angleAt(ph), angleAt(ph + Math.PI));
+    };
+
+    // `el`, not a second updater parameter: world.addUpdater passes its tick
+    // `dt` and nothing else (see the note in apexPound above).
+    let emitT = 0, el = 0;
+    w.addUpdater((dt) => {
       if (!f.alive || f.state !== 'ult') return false;
+      el += dt;
       // rooted — recoil rocks him but he does not travel
       f.vel.x = 0; f.vel.z = 0;
       f.pos.x = anchorX; f.pos.z = anchorZ;
-      // ---- FLANK CANNONS: flat, fast, alternating left/right ----
-      shellT -= dt;
-      if (shellT <= 0) {
-        shellT = 0.30;
-        const side = (Math.floor(t / 0.30) % 2) ? 'muzzleL' : 'muzzleR';
-        const an = f.mech.anchors[side] || f.mech.anchors.muzzleR;
-        const from = an ? an.getWorldPosition(new THREE.Vector3()) : muzzle(f);
-        const e = f.nearestEnemy();
-        const aim = e ? leadPos(f, e, 0.35) : fwd(f, 30, 1.2);
-        const dir = aim.clone().sub(from).normalize();
-        w.projectiles.spawn('shell', f, from, dir, {
-          dmg: u.dmg * f.dmgMult(), speed: 46, splash: u.radius || 5,
-          knock: 12, color: 0xffb060, life: 3,
-        });
-        w.audio?.play('cannon');
-        w.effects.muzzleFlash?.(from, 0xffb060);
-        f.animator.addImpulse?.('torso', [-0.10, 0, 0], 30, 10);
-        w.effects.addShake(0.18);
+      emitT -= dt;
+      if (emitT <= 0) {
+        emitT = GAP;
+        for (const key of ['muzzleR', 'muzzleL']) {
+          const a = f.mech.anchors[key];
+          if (!a) continue;
+          const from = a.getWorldPosition(new THREE.Vector3());
+          // down the barrel WHEREVER THE SWEEP HAS PUT IT, then biased toward
+          // the sky: the mount is what scatters the stream, the bias is what
+          // keeps the whole fountain going up instead of half of it into the
+          // road behind him. A little jitter on top so no two leave alike.
+          const d = new THREE.Vector3(0, 0, 1)
+            .applyQuaternion(a.getWorldQuaternion(new THREE.Quaternion()));
+          if (d.lengthSq() < 1e-8) d.set(0, 1, 0);
+          d.normalize().lerp(_v.set(0, 1, 0), 0.5);
+          d.x += rand(-0.18, 0.18); d.z += rand(-0.18, 0.18); d.y += rand(-0.05, 0.2);
+          w.projectiles.spawn('plasma', f, from, d.normalize(), {
+            dmg: u.dmg * f.dmgMult(), speed: (u.speed || 38) * rand(0.85, 1.15),
+            splash: u.radius || 2.4, knock: 5, color: col, size: 0.75,
+            trail: 'comet', seekDelay: SEEK * rand(0.85, 1.2), turnRate: 3.4, life: 7,
+          });
+          w.effects.muzzleFlash?.(from, col);
+        }
+        w.audio?.play('plasma', { vol: 0.35 });
+        f.animator.addImpulse?.('torso', [-0.05, 0, 0], 30, 10);
       }
-      // ---- FRILL ROCKETS: arcing over the top onto scattered ground ----
-      rocketT -= dt;
-      if (rocketT <= 0) {
-        rocketT = 0.42;
-        const fp = f.mech.anchors.frillPods || f.mech.anchors.core;
-        const from = fp ? fp.getWorldPosition(new THREE.Vector3()) : f.center();
-        const a = rand(TAU), rr = Math.sqrt(rand(0, 1)) * 16;
-        const c = fwd(f, 12);
-        const land = new THREE.Vector3(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr);
-        const dir = land.clone().sub(from).normalize();
-        w.projectiles.spawn('missile', f, from, dir, {
-          dmg: u.dmg * 0.7 * f.dmgMult(), speed: 30, splash: 3.2, color: 0xff8a24,
-          arcTo: land, arcTime: 0.95, life: 4,
-        });
-        w.audio?.play('missile', { vol: 0.45 });
-      }
-      return t <= DUR;
+      return el <= DUR;
     }, () => {
+      f._cannonDrive = null;              // the aim servo gets its guns back
       if (f.state === 'ult') { f.animator.stop(); f.setState('normal'); }
     });
   },
