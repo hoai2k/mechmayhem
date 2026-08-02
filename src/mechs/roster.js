@@ -499,8 +499,12 @@ export const ROSTER = [
     // head craned back up, alert on the prey
     restPose: {
       torso: [27, 0, 0], head: [-25, 0, 0],
-      shoulderL: [-34, 0, -7], shoulderR: [-34, 0, 7],
-      elbowL: [-62, 0, 0], elbowR: [-62, 0, 0],
+      // the FORELIMBS carried higher — the Jurassic Park raptor's hands held up
+      // under the chest rather than hanging. Arm values in a clip are ABSOLUTE
+      // (only legs/torso/head take the restPose bias — Animator.restBias), so
+      // raising these changes his standing carriage and nothing a clip does.
+      shoulderL: [-52, 0, -9], shoulderR: [-52, 0, 9],
+      elbowL: [-78, 0, 0], elbowR: [-78, 0, 0],
       handL: [28, 0, 10], handR: [28, 0, -10],
       thighL: [-50, 0, -14], thighR: [-40, 0, 14],
       kneeL: [80, 0, 0], kneeR: [70, 0, 0],
@@ -676,6 +680,10 @@ export const ROSTER = [
     // plate with a faint violet sheen, twin red eyes, red null-sigil core,
     // and multicolor data-corruption flickering off shoulders/arms/shins
     // (the flicker itself is runtime FX — see fighter.updateNullbotAura)
+    // …and his TAUNT drops the whole body in and out like a lost connection —
+    // Fighter.holoTaunt, which is a render effect and not a pose, so it rides
+    // on top of the jitter his taunt clip animates.
+    holoTaunt: true,
     colors: { primary: 0x17131e, accent: 0x0a080d, glow: 0xff1f2a, glow2: 0x27f6ff, stripes: false },
     skin: {
       primary: { base: 0x14111a, base2: 0x0b0910, metal: 0x2e2a38, wear: 0.3, grime: 0.38, panelDepth: 4, roughPaint: 0.56, metalPaint: 0.32, normalStrength: 1.25 },

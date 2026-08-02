@@ -279,12 +279,40 @@ export const GLB_ANIM = {
   // so it is tunable in /workbench/?edit=gait against the live body instead of
   // being three numbers in a post hook, and it beats with the stride instead of
   // with a free-running clock.
-  fenrir: {},
+  // …and his TAUNT whips it. The whip is added HERE rather than keyed into the
+  // clip, because a clip track REPLACES what the gait wrote — droop, the
+  // measured straightening of the rig's own curve, the wag — and a tail laid
+  // out flat and rigid for the duration of a howl is worse than no whip at all.
+  // This runs after applyTailGait (post is the last pass over `tgt`), so it is
+  // a sweep ADDED to the carriage he already has: two full passes left-right
+  // over the clip, the wave lagging down the chain exactly as the gait's does.
+  fenrir: {
+    clipOverrides: { taunt: GLB_CLIP_VARIANTS.fenrirTaunt },
+    post(anim, dt, ctx, tgt) {
+      const act = anim.action;
+      if (!act || act.clip.name !== 'taunt') return;
+      const chain = anim.tailChain?.();
+      if (!chain) return;
+      const ph = Math.min(1, act.t / act.clip.dur);
+      // fade in and out so the whip cannot pop against the ambient wag
+      const amp = 0.5 * Math.sin(Math.PI * Math.min(1, ph / 0.85));
+      for (let i = 0; i < chain.n; i++) {
+        const a = tgt['tail' + i];
+        if (!a) continue;
+        const k = chain.n > 1 ? i / (chain.n - 1) : 0;
+        a[1] += Math.sin(ph * Math.PI * 4 - 1.1 * k) * amp * (0.35 + k);
+      }
+    },
+  },
 
   // The rest read correctly with the retargeted procedural motion (verified
   // in showcase/battle). Entries kept so each GLB has a documented home for
   // future per-model animation work.
   titanus: {},   // heavy biped brawler — direct map
+  // KONGA — cyborg silverback, direct map. His only reinterpretation is the
+  // TAUNT: a beckoning hand means nothing on an ape, and a chest beat means
+  // everything.
+  konga: { clipOverrides: { taunt: GLB_CLIP_VARIANTS.kongaTaunt } },
   nova: {},      // slender caster — direct map (halo is procedural-only)
   // RHINO — hand-mounted cannons (manifest muzzles ride the handR/handL BONES,
   // each with an authored `rot` = that barrel's own aim axis). This GLB's bind
@@ -300,6 +328,7 @@ export const GLB_ANIM = {
   // the kick still reads), and the off arm is ramped up to the same line so he
   // braces both cannons forward instead of firing one-handed from the hip.
   rhino: {
+    clipOverrides: { taunt: GLB_CLIP_VARIANTS.rhinoTaunt },
     post(anim, dt, ctx, tgt) {
       const act = anim.action;
       const n = act && !act.fadingOut ? act.clip.name : '';
@@ -447,6 +476,7 @@ export const GLB_ANIM = {
   // the torso like a boxer, which a wide crab shouldn't do — square him up so he
   // THRUSTS the claws straight ahead instead of winding up.
   cranky: {
+    clipOverrides: { taunt: GLB_CLIP_VARIANTS.crankyTaunt },
     // post: crab-squaring during attacks (no boxer torso-twist) + advance the
     // hexapod gait clock from walk speed. build: drive all SIX legs in a tripod
     // gait (custom rig gives each crab leg a real hip bone; two carry the game
@@ -589,6 +619,7 @@ export const GLB_ANIM = {
       saurionClawL: GLB_CLIP_VARIANTS.saurionClawLGlb,
       saurionKick1: GLB_CLIP_VARIANTS.saurionKick1Glb,
       saurionKick2: GLB_CLIP_VARIANTS.saurionKick2Glb,
+      taunt: GLB_CLIP_VARIANTS.saurionTaunt,
     },
   },
   // FROGGER — four-arm; the lower arms are procedural-only joints. His gunk
@@ -599,6 +630,7 @@ export const GLB_ANIM = {
     clipOverrides: {
       shoot: GLB_CLIP_VARIANTS.froggerShootGlb,
       shootL: GLB_CLIP_VARIANTS.froggerShootLGlb,
+      taunt: GLB_CLIP_VARIANTS.froggerTaunt,
     },
   },
   // JERRY — the CANNON PODS aim the Bilge Spit. His two pods are modelled
@@ -621,6 +653,7 @@ export const GLB_ANIM = {
     clipOverrides: {
       shoot: GLB_CLIP_VARIANTS.jerryShootGlb,
       shootL: GLB_CLIP_VARIANTS.jerryShootLGlb,
+      taunt: GLB_CLIP_VARIANTS.jerryTaunt,
     },
     post(anim, dt, ctx, tgt) {
       // (The light-clip torso damping that used to live here is gone: the
@@ -659,7 +692,12 @@ export const GLB_ANIM = {
       taunt: GLB_CLIP_VARIANTS.tritoneTauntGlb,
     },
   },
-  nullbot: {},   // humanoid — direct map (glitch strobe is material-only)
+  // NULLBOT — humanoid, direct map (the glitch strobe is material-only). His
+  // TAUNT is the one place the corruption is the point: a jitter on the spot,
+  // with the body flickering out and back like a bad connection. The flicker is
+  // Fighter.glitchTaunt, not a clip track — what breaks up is the render, not
+  // the pose.
+  nullbot: { clipOverrides: { taunt: GLB_CLIP_VARIANTS.nullbotTaunt } },
 
   // VULCAN — hand-authored custom rig (src/mechs/rigs/vulcan.rig.js): his bones
   // ARE the game joints, placed where the model's own shoulders/elbows/wrists

@@ -278,3 +278,62 @@ export function stackBlast(mech, sf, { fx, scale = 1, smoke = true }) {
         alpha: 0.95, cell: -1, spin: 1.6, drag: 2.4, grow: 2.6 * s, gravity: -4 * s, hue });
   }
 }
+
+// ---------------------------------------------------------------------------
+// THE TOOT — one round of smoke puffs out of every nozzle he has.
+//
+// INFERNO'S TAUNT. A flamethrower's boast is not another gout of fire, it is
+// the engine venting: the chimneys STOP burning for a moment and the whole
+// machine blows soot instead, out of the hand torches, up the shoulder stacks
+// and up off the back tanks. Fighter.updateStackFlames suppresses burnStacks
+// for the duration and calls this a few times across the clip, so what a player
+// sees is three or four discrete puffs rather than a smoke machine.
+//
+// EACH NOZZLE BLOWS THE WAY IT POINTS, which is the only interesting part.
+// A hand torch is aimable, so its puff leaves along the anchor's own +Z — the
+// same axis the flame jet fires down (world.js barrelDeflect). A chimney and a
+// back tank are not: they vent UP, in world space, and must keep venting up
+// whatever the arm or the spine is doing that frame. So the direction is per
+// GROUP, not per anchor.
+const _tp = new THREE.Vector3(), _td = new THREE.Vector3();
+const _tq = new THREE.Quaternion(), _tdir = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
+
+export function stackToot(mech, sf, { fx, scale = 1, smoke = true, power = 1 } = {}) {
+  if (!smoke || !fx?.smoke) return 0;
+  const s = scale;
+  let n = 0;
+  const puff = (node, dir, speed, size) => {
+    node.getWorldPosition(_tp);
+    for (let i = 0; i < 4; i++) {
+      // a puff is a little cone, not a line — spread around the nozzle axis
+      _td.copy(dir).multiplyScalar(speed * rand(0.75, 1.25) * s);
+      _td.x += rand(-1.1, 1.1) * s; _td.y += rand(-0.6, 1.0) * s; _td.z += rand(-1.1, 1.1) * s;
+      fx.smoke.emit(_tp.x + rand(-0.16, 0.16) * s, _tp.y + rand(-0.16, 0.16) * s, _tp.z + rand(-0.16, 0.16) * s,
+        _td.x, _td.y, _td.z,
+        { life: rand(0.9, 1.7), size: size * rand(0.7, 1.15) * s, color: 0x6a5f55, color2: 0x1b1a20,
+          alpha: 0.55 * power, drag: 1.9, grow: 2.8 * s, spin: 1.1, fadeIn: 0.12 });
+    }
+    n++;
+  };
+  const A = mech.anchors || {};
+  // the CHIMNEYS: straight up, hard — this is the one that reads from a distance
+  for (const name of sf.anchors || []) {
+    const a = A[name];
+    if (a) puff(a, UP, 7.5 * power, 1.5);
+  }
+  // the BACK TANKS: the booster nozzles, also straight up (they sit under him,
+  // so a puff along their own axis would go into the floor)
+  for (const name of Object.keys(A)) {
+    if (name.startsWith('boost')) puff(A[name], UP, 6 * power, 1.2);
+  }
+  // the HAND TORCHES: out along the barrel, wherever the clip has swung it
+  for (const name of ['muzzleR', 'muzzleL']) {
+    const a = A[name];
+    if (!a) continue;
+    a.getWorldQuaternion(_tq);
+    _tdir.set(0, 0, 1).applyQuaternion(_tq);
+    puff(a, _tdir, 9 * power, 1.0);
+  }
+  return n;
+}

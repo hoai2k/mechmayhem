@@ -1843,6 +1843,242 @@ const TRITONE_TAUNT = {
   events: [{ t: 0.28, type: 'sfx', arg: 'roar' }],
 };
 
+// ---------- PER-MECH TAUNTS ----------
+// The shared `taunt` is a beckoning arm — right for a humanoid brawler and
+// meaningless on a crab, a wolf or a hologram. Each of these is compiled under
+// the name `taunt` (so every check keyed on the clip name still matches) and
+// hung off that mech's glbanim profile `clipOverrides`; the procedural build of
+// the same mech keeps the shared one.
+//
+// TWO THINGS TO REMEMBER WHEN EDITING THESE. Clip values on the LEGS, TORSO and
+// HEAD are ADDITIVE over the mech's restPose (Animator.restBias) while the arms
+// are ABSOLUTE — so `torso: [-30, 0, 0]` on saurion means "thirty degrees back
+// from the hunch he stands in", not "thirty degrees back from vertical". And
+// `hipsPos` is in the model's own scale units, so the same number is a bigger
+// hop on a bigger body, which is what you want.
+//
+// All of them carry `cancelOnMove` (compile() reads it): a taunt is a flourish,
+// and the instant a real input arrives the body is the player's again.
+
+// KONGA — the silverback. Chest OUT (torso back, not forward, which is the
+// whole read), then the fists come up and beat it, alternating, finishing on a
+// two-handed double beat. The arms stay wide of the chest plate at the strike
+// — a gorilla's forearms cross in front of the sternum, and driving these ones
+// to the centreline pushes them through it.
+const KONGA_TAUNT = {
+  dur: 1.9, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    // THE FIST HAS TO ARRIVE AT THE CHEST, and on this ape that is a matter of
+    // shoulder YAW, not pitch. His arms are the longest on the roster (roster
+    // armLen 1.64), so the pitch-and-roll a biped beats its chest with swings
+    // these hands clean over his own head — the first pass had him drumming the
+    // sky. Measured on the model (chest bone at y=4.62 of an 8.68 body): the
+    // BEAT pose lands the fist at 4.66, a third of a body width inboard, and
+    // the COCK pose drops it to 3.69 and twice as far out, so each strike is a
+    // real travel of about a metre in and up.
+    { t: 0.24, ease: 'outBack', pose: { torso: [-17, 0, 0], head: [-8, 0, 0], hipsPos: [0, 0.07, 0],
+      shoulderL: [-30, -30, -22], shoulderR: [-30, 30, 22], elbowL: [-95, 0, 0], elbowR: [-95, 0, 0] } },
+    { t: 0.42, ease: 'inQuad', pose: { shoulderL: [-14, 40, -4], elbowL: [-160, 0, 0] } },       // L beat
+    { t: 0.58, ease: 'outQuad', pose: { shoulderL: [-30, -30, -22], elbowL: [-95, 0, 0], shoulderR: [-14, -40, 4], elbowR: [-160, 0, 0] } },
+    { t: 0.74, ease: 'inQuad', pose: { shoulderL: [-14, 40, -4], elbowL: [-160, 0, 0], shoulderR: [-30, 30, 22], elbowR: [-95, 0, 0] } },
+    { t: 0.90, ease: 'outQuad', pose: { shoulderL: [-30, -30, -22], elbowL: [-95, 0, 0], shoulderR: [-14, -40, 4], elbowR: [-160, 0, 0] } },
+    // both fists together, the punctuation
+    { t: 1.08, ease: 'inQuad', pose: { torso: [-21, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.10, 0],
+      shoulderL: [-16, 42, -4], shoulderR: [-16, -42, 4], elbowL: [-164, 0, 0], elbowR: [-164, 0, 0] } },
+    // the release OPENS rather than flings: the wide cock pose held here read
+    // as a wing on the way back to rest
+    { t: 1.34, ease: 'outQuad', pose: { torso: [-14, 0, 0], shoulderL: [-20, -20, -12], shoulderR: [-20, 20, 12], elbowL: [-104, 0, 0], elbowR: [-104, 0, 0] } },
+    { t: 1.9, ease: 'inOutQuad', pose: REST_FULL },
+  ],
+  events: [{ t: 0.42, type: 'sfx', arg: 'taunt' }, { t: 0.74, type: 'sfx', arg: 'hit' },
+    { t: 1.08, type: 'sfx', arg: 'hitHeavy' }, { t: 1.10, type: 'shake', arg: 0.2 }],
+};
+
+// CRANKY — claws up, and a little side-to-side hop. The lateral travel is
+// `hipsPos` rather than a leg pass: four of his six legs are the hex gait's and
+// two are the game's, and a dance that keyed either would be arguing with the
+// gait about where a foot goes. The shell leans INTO each hop (hipsRot roll —
+// his profile damps torso yaw/roll during a non-looping clip to keep a crab
+// from boxing, and roll on the HIPS is the one that survives it).
+const CRANKY_TAUNT = {
+  dur: 2.1, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.26, ease: 'outBack', pose: { shoulderL: [-52, 0, -46], shoulderR: [-52, 0, 46],
+      elbowL: [-54, 0, 0], elbowR: [-54, 0, 0], hipsPos: [0, 0.14, 0] } },
+    { t: 0.46, ease: 'outQuad', pose: { hipsPos: [-0.26, 0.34, 0], hipsRot: [0, 0, 8] } },
+    { t: 0.64, ease: 'inQuad', pose: { hipsPos: [-0.30, 0.02, 0], hipsRot: [0, 0, 5] } },
+    { t: 0.84, ease: 'outQuad', pose: { hipsPos: [0.26, 0.34, 0], hipsRot: [0, 0, -8] } },
+    { t: 1.02, ease: 'inQuad', pose: { hipsPos: [0.30, 0.02, 0], hipsRot: [0, 0, -5] } },
+    { t: 1.22, ease: 'outQuad', pose: { hipsPos: [-0.26, 0.34, 0], hipsRot: [0, 0, 8] } },
+    { t: 1.40, ease: 'inQuad', pose: { hipsPos: [-0.30, 0.02, 0], hipsRot: [0, 0, 5] } },
+    { t: 1.60, ease: 'outQuad', pose: { hipsPos: [0.26, 0.34, 0], hipsRot: [0, 0, -8] } },
+    { t: 1.78, ease: 'inQuad', pose: { hipsPos: [0.30, 0.02, 0], hipsRot: [0, 0, -5] } },
+    { t: 2.1, ease: 'inOutQuad', pose: REST_FULL },
+  ],
+  // the claws snap open on the way up, then a beat per landing
+  events: [{ t: 0.26, type: 'sfx', arg: 'taunt' }, { t: 0.64, type: 'sfx', arg: 'block' },
+    { t: 1.02, type: 'sfx', arg: 'block' }, { t: 1.40, type: 'sfx', arg: 'block' },
+    { t: 1.78, type: 'sfx', arg: 'block' }],
+};
+
+// FENRIR — muzzle to the sky and HOWL. Head and torso are additive over the
+// digitigrade rest, so these are degrees off his own carriage. The TAIL is not
+// keyed here: it is gait data (applyTailGait) and a clip track would replace
+// its droop and its measured straightening along with the wag. The whip is a
+// post-pass on the fenrir profile instead, ADDED to whatever the gait left.
+const FENRIR_TAUNT = {
+  dur: 2.0, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.32, ease: 'outCubic', pose: { torso: [-26, 0, 0], head: [-72, 0, 0], hipsPos: [0, 0.08, 0] } },
+    { t: 0.6, ease: 'inOutQuad', pose: { head: [-84, 0, 0], torso: [-30, 0, 0] } },
+    { t: 1.35, ease: 'inOutQuad', pose: { head: [-80, 0, 0], torso: [-30, 0, 0] } },
+    { t: 1.65, ease: 'inOutQuad', pose: { head: [-34, 0, 0], torso: [-12, 0, 0] } },
+    { t: 2.0, ease: 'inOutQuad', pose: REST_FULL },
+  ],
+  events: [{ t: 0.42, type: 'sfx', arg: 'howl' }],
+};
+
+// FROGGER — arms and cannons thrown out into an X, then a deep bounce: all the
+// way down onto folded knees and all the way back up onto straight ones. The
+// legs are additive over a restPose that already stands him in a 55° crouch,
+// so the DOWN keys add fold and the UP keys subtract it.
+const FROGGER_TAUNT = {
+  dur: 2.0, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.24, ease: 'outBack', pose: { shoulderL: [-8, 0, -84], shoulderR: [-8, 0, 84],
+      elbowL: [-6, 0, 0], elbowR: [-6, 0, 0], torso: [-6, 0, 0], head: [-6, 0, 0],
+      hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0] } },
+    { t: 0.50, ease: 'inQuad', pose: { hipsPos: [0, -0.52, 0], thighL: [-26, 0, -8], thighR: [-26, 0, 8], kneeL: [46, 0, 0], kneeR: [46, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0], torso: [8, 0, 0], shoulderL: [4, 0, -78], shoulderR: [4, 0, 78] } },
+    { t: 0.78, ease: 'outQuad', pose: { hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0], torso: [-6, 0, 0], shoulderL: [-14, 0, -88], shoulderR: [-14, 0, 88] } },
+    { t: 1.06, ease: 'inQuad', pose: { hipsPos: [0, -0.52, 0], thighL: [-26, 0, -8], thighR: [-26, 0, 8], kneeL: [46, 0, 0], kneeR: [46, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0], torso: [8, 0, 0], shoulderL: [4, 0, -78], shoulderR: [4, 0, 78] } },
+    { t: 1.34, ease: 'outQuad', pose: { hipsPos: [0, 0.34, 0], thighL: [24, 0, 0], thighR: [24, 0, 0], kneeL: [-40, 0, 0], kneeR: [-40, 0, 0], ankleL: [16, 0, 0], ankleR: [16, 0, 0], torso: [-6, 0, 0], shoulderL: [-14, 0, -88], shoulderR: [-14, 0, 88] } },
+    { t: 1.62, ease: 'inQuad', pose: { hipsPos: [0, -0.34, 0], thighL: [-16, 0, -6], thighR: [-16, 0, 6], kneeL: [30, 0, 0], kneeR: [30, 0, 0], ankleL: [-12, 0, 0], ankleR: [-12, 0, 0], torso: [4, 0, 0], shoulderL: [0, 0, -70], shoulderR: [0, 0, 70] } },
+    { t: 2.0, ease: 'inOutQuad', pose: REST_FULL },
+  ],
+  events: [{ t: 0.24, type: 'sfx', arg: 'taunt' }, { t: 0.50, type: 'sfx', arg: 'land' },
+    { t: 1.06, type: 'sfx', arg: 'land' }, { t: 1.62, type: 'sfx', arg: 'land' }],
+};
+
+// JERRY — he goes TWITCHY. The point is that nothing moves together: every key
+// jerks a different part by a small amount on its own beat, with `linear` and
+// `outQuad` eases so each one arrives as a snap rather than a swing. Small is
+// the whole design — a big amplitude on this splayed crustacean rig reads as
+// broken skinning, not as a nervous system.
+const JERRY_TAUNT = {
+  dur: 1.7, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.10, ease: 'linear', pose: { head: [-9, 13, 0], torso: [0, 5, -3], shoulderR: [-36, 0, 18] } },
+    { t: 0.18, ease: 'linear', pose: { head: [2, -6, 4], elbowL: [34, 0, 0] } },
+    { t: 0.26, ease: 'linear', pose: { torso: [4, -7, 3], shoulderL: [-40, 0, -22], hipsPos: [0.05, 0, 0] } },
+    { t: 0.34, ease: 'linear', pose: { head: [-11, -14, -3], shoulderR: [-24, 0, 9], elbowR: [12, 0, 0] } },
+    { t: 0.44, ease: 'outQuad', pose: { torso: [-3, 9, 2], elbowL: [14, 0, 0], hipsPos: [-0.06, 0.03, 0] } },
+    { t: 0.52, ease: 'linear', pose: { head: [5, 10, -5], shoulderL: [-22, 0, -8] } },
+    { t: 0.62, ease: 'linear', pose: { torso: [2, -4, -4], shoulderR: [-42, 0, 22], elbowR: [30, 0, 0], hipsPos: [0.04, 0, 0] } },
+    { t: 0.72, ease: 'linear', pose: { head: [-8, 16, 2], elbowL: [30, 0, 0] } },
+    { t: 0.84, ease: 'outQuad', pose: { torso: [3, 6, 4], shoulderL: [-38, 0, -20], hipsPos: [0, 0.04, 0] } },
+    { t: 0.94, ease: 'linear', pose: { head: [-2, -12, -4], shoulderR: [-26, 0, 10], elbowR: [16, 0, 0] } },
+    { t: 1.04, ease: 'linear', pose: { torso: [-2, -6, 3], elbowL: [26, 0, 0], hipsPos: [-0.05, 0, 0] } },
+    { t: 1.16, ease: 'linear', pose: { head: [-10, 8, 5], shoulderL: [-34, 0, -16], shoulderR: [-38, 0, 20] } },
+    { t: 1.28, ease: 'outQuad', pose: { torso: [1, 3, -2], head: [-4, -5, -2], elbowR: [24, 0, 0], hipsPos: [0.03, 0.02, 0] } },
+    { t: 1.7, ease: 'inOutQuad', pose: REST_FULL },
+  ],
+  events: [{ t: 0.10, type: 'sfx', arg: 'servo' }, { t: 0.44, type: 'sfx', arg: 'servo' },
+    { t: 0.84, type: 'sfx', arg: 'servo' }, { t: 1.16, type: 'sfx', arg: 'servo' }],
+};
+
+// NULLBOT — a menacing JITTER, held rather than played through: he squares up,
+// leans in, and shivers on the spot. The hologram break-up that goes with it is
+// not in the clip at all — it is a render effect (Fighter.glitchTaunt), because
+// what flickers is the material, not the pose.
+const NULLBOT_TAUNT = {
+  dur: 1.8, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.16, ease: 'outQuad', pose: { torso: [8, 0, 0], head: [-14, 0, 0], hipsPos: [0, -0.06, 0],
+      shoulderL: [-30, 0, -26], shoulderR: [-30, 0, 26], elbowL: [-74, 0, 0], elbowR: [-74, 0, 0] } },
+    { t: 0.26, ease: 'linear', pose: { torso: [10, 4, -3], head: [-12, -7, 3], shoulderR: [-34, 0, 30] } },
+    { t: 0.34, ease: 'linear', pose: { torso: [7, -5, 3], head: [-16, 6, -3], shoulderL: [-34, 0, -30] } },
+    { t: 0.44, ease: 'linear', pose: { torso: [11, 3, -2], head: [-11, -4, 2], elbowR: [-84, 0, 0] } },
+    { t: 0.54, ease: 'linear', pose: { torso: [8, -4, 2], head: [-17, 5, -2], elbowL: [-84, 0, 0] } },
+    { t: 0.66, ease: 'linear', pose: { torso: [12, 5, -3], head: [-10, -8, 3], shoulderL: [-26, 0, -22], shoulderR: [-38, 0, 32] } },
+    { t: 0.78, ease: 'linear', pose: { torso: [7, -3, 2], head: [-18, 4, -2], shoulderL: [-38, 0, -32], shoulderR: [-26, 0, 22] } },
+    { t: 0.92, ease: 'linear', pose: { torso: [10, 4, -3], head: [-12, -6, 3], elbowL: [-70, 0, 0], elbowR: [-88, 0, 0] } },
+    { t: 1.04, ease: 'linear', pose: { torso: [8, -5, 2], head: [-16, 7, -3], elbowL: [-88, 0, 0], elbowR: [-70, 0, 0] } },
+    { t: 1.18, ease: 'linear', pose: { torso: [11, 2, -2], head: [-11, -3, 2], shoulderL: [-32, 0, -28], shoulderR: [-32, 0, 28] } },
+    { t: 1.30, ease: 'linear', pose: { torso: [8, -3, 2], head: [-16, 4, -2] } },
+    { t: 1.44, ease: 'outQuad', pose: { torso: [9, 0, 0], head: [-13, 0, 0], shoulderL: [-30, 0, -26], shoulderR: [-30, 0, 26], elbowL: [-78, 0, 0], elbowR: [-78, 0, 0] } },
+    { t: 1.8, ease: 'inOutQuad', pose: REST_FULL },
+  ],
+  events: [{ t: 0.16, type: 'sfx', arg: 'zap' }, { t: 0.54, type: 'sfx', arg: 'zap' },
+    { t: 1.04, type: 'sfx', arg: 'zap' }, { t: 1.44, type: 'sfx', arg: 'zap' }],
+};
+
+// RHINO — the heavyweight warming up: knees driven high and stamped back down,
+// with both fists cocked in a punch wind-up the whole way through. Alternating
+// legs, so the body rocks between them; his profile only reinterprets `shoot`,
+// so nothing here is fighting a hook.
+const RHINO_TAUNT = {
+  dur: 2.2, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    // fists up and cocked back — held for the whole taunt
+    { t: 0.22, ease: 'outBack', pose: { torso: [-6, 0, 0], head: [-6, 0, 0],
+      shoulderL: [-34, 22, -30], shoulderR: [-34, -22, 30], elbowL: [-116, 0, 0], elbowR: [-116, 0, 0] } },
+    // right knee up…
+    { t: 0.46, ease: 'outQuad', pose: { hipsPos: [0, 0.10, 0], hipsRot: [0, 0, -5], torso: [-8, 0, 3],
+      thighR: [-74, 0, 4], kneeR: [86, 0, 0], ankleR: [22, 0, 0], thighL: [4, 0, 0], kneeL: [-6, 0, 0] } },
+    // …and STAMPED down
+    { t: 0.64, ease: 'inQuad', pose: { hipsPos: [0, -0.12, 0], hipsRot: [0, 0, 0], torso: [-4, 0, 0],
+      thighR: [8, 0, 0], kneeR: [-4, 0, 0], ankleR: [0, 0, 0], thighL: [0, 0, 0], kneeL: [0, 0, 0] } },
+    { t: 0.90, ease: 'outQuad', pose: { hipsPos: [0, 0.10, 0], hipsRot: [0, 0, 5], torso: [-8, 0, -3],
+      thighL: [-74, 0, -4], kneeL: [86, 0, 0], ankleL: [22, 0, 0], thighR: [4, 0, 0], kneeR: [-6, 0, 0] } },
+    { t: 1.08, ease: 'inQuad', pose: { hipsPos: [0, -0.12, 0], hipsRot: [0, 0, 0], torso: [-4, 0, 0],
+      thighL: [8, 0, 0], kneeL: [-4, 0, 0], ankleL: [0, 0, 0], thighR: [0, 0, 0], kneeR: [0, 0, 0] } },
+    { t: 1.34, ease: 'outQuad', pose: { hipsPos: [0, 0.10, 0], hipsRot: [0, 0, -5], torso: [-8, 0, 3],
+      thighR: [-74, 0, 4], kneeR: [86, 0, 0], ankleR: [22, 0, 0], thighL: [4, 0, 0], kneeL: [-6, 0, 0] } },
+    { t: 1.52, ease: 'inQuad', pose: { hipsPos: [0, -0.12, 0], hipsRot: [0, 0, 0], torso: [-4, 0, 0],
+      thighR: [8, 0, 0], kneeR: [-4, 0, 0], ankleR: [0, 0, 0] } },
+    // squares back up over the cocked fists before letting go
+    { t: 1.80, ease: 'outQuad', pose: { torso: [-10, 0, 0], head: [-8, 0, 0], hipsPos: [0, 0.04, 0],
+      shoulderL: [-40, 24, -34], shoulderR: [-40, -24, 34], elbowL: [-124, 0, 0], elbowR: [-124, 0, 0] } },
+    { t: 2.2, ease: 'inOutQuad', pose: REST_FULL },
+  ],
+  events: [{ t: 0.22, type: 'sfx', arg: 'taunt' },
+    { t: 0.64, type: 'sfx', arg: 'slam' }, { t: 0.66, type: 'shake', arg: 0.22 },
+    { t: 1.08, type: 'sfx', arg: 'slam' }, { t: 1.10, type: 'shake', arg: 0.22 },
+    { t: 1.52, type: 'sfx', arg: 'slam' }, { t: 1.54, type: 'shake', arg: 0.22 }],
+};
+
+// SAURION — he STOPS, and stands up out of the hunt crouch: spine near vertical,
+// legs straightened under him, neck stretched, head snapping this way and that
+// as something registers. Every number here is additive over the raptor's own
+// restPose, which is why the torso key is a big negative — his rest IS a 27°
+// forward pitch, and −30 stands him just past upright.
+const SAURION_TAUNT = {
+  dur: 2.3, cancelOnMove: true,
+  keys: [
+    { t: 0, pose: {} },
+    { t: 0.30, ease: 'outCubic', pose: { torso: [-30, 0, 0], head: [-16, 0, 0], hipsPos: [0, 0.26, 0],
+      thighL: [22, 0, 6], thighR: [18, 0, -6], kneeL: [-44, 0, 0], kneeR: [-38, 0, 0], ankleL: [20, 0, 0], ankleR: [17, 0, 0],
+      shoulderL: [-16, 0, -14], shoulderR: [-16, 0, 14], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0] } },
+    // the scan: sharp turns of the skull, each held a beat — a bird's look, not a sweep
+    { t: 0.56, ease: 'outQuad', pose: { head: [-18, -38, 5], torso: [-30, -6, 0] } },
+    { t: 0.76, ease: 'linear', pose: { head: [-18, -38, 5] } },
+    { t: 0.98, ease: 'outQuad', pose: { head: [-16, 32, -5], torso: [-30, 5, 0] } },
+    { t: 1.18, ease: 'linear', pose: { head: [-16, 32, -5] } },
+    { t: 1.42, ease: 'outQuad', pose: { head: [-22, -18, -6], torso: [-30, -3, 0] } },
+    { t: 1.62, ease: 'linear', pose: { head: [-22, -18, -6] } },
+    { t: 1.82, ease: 'outQuad', pose: { head: [-14, 12, 4], torso: [-30, 2, 0] } },
+    { t: 2.3, ease: 'inOutQuad', pose: REST_FULL },
+  ],
+  events: [{ t: 0.30, type: 'sfx', arg: 'taunt' }, { t: 0.98, type: 'sfx', arg: 'howl' }],
+};
+
 export const GLB_CLIP_VARIANTS = {
   tritoneChargeGlb: compile('chargeLean', TRITONE_CHARGE),
   tritoneSlamGlb: compile('heavy', TRITONE_SLAM),
@@ -1868,6 +2104,14 @@ export const GLB_CLIP_VARIANTS = {
   // purpose (any yaw moves the pods), so both compile from the same raw
   jerryShootGlb: compile('shoot', JERRY_SHOOT_GLB),
   jerryShootLGlb: compile('shootL', JERRY_SHOOT_GLB),
+  kongaTaunt: compile('taunt', KONGA_TAUNT),
+  crankyTaunt: compile('taunt', CRANKY_TAUNT),
+  fenrirTaunt: compile('taunt', FENRIR_TAUNT),
+  froggerTaunt: compile('taunt', FROGGER_TAUNT),
+  jerryTaunt: compile('taunt', JERRY_TAUNT),
+  nullbotTaunt: compile('taunt', NULLBOT_TAUNT),
+  rhinoTaunt: compile('taunt', RHINO_TAUNT),
+  saurionTaunt: compile('taunt', SAURION_TAUNT),
   wraithLasersGlb: compile('wraithLasers', {
     dur: 1.45,
     keys: [

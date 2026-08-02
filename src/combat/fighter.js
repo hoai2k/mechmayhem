@@ -6,7 +6,7 @@ import { buildMech } from '../mechs/factory.js';
 import { Animator, LEG_BACK_OFF } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
-import { stackState, burnStacks, stackBlast } from '../mechs/stackfx.js';
+import { stackState, burnStacks, stackBlast, stackToot } from '../mechs/stackfx.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
@@ -3375,8 +3375,54 @@ export class Fighter {
     // INFERNO: his shoulder chimneys BURN — flickering flames and a smoke
     // trail where the model used to carry two sculpted tongues of fire
     if (this.def.stackFx && this.alive) this.updateStackFlames(dt);
+    // NULLBOT: his taunt breaks the RENDER up, not the pose
+    if (this.def.holoTaunt) this.holoTaunt(dt);
     // corruption stacks keep flickering on whoever carries them
     this.updateGlitch(dt);
+  }
+
+  // ---- HOLOGRAM BREAK-UP (roster `holoTaunt` — NULLBOT) -------------------
+  //
+  // What flickers is the MATERIAL, not the pose, which is why this is here and
+  // not in the clip: a keyframe can jitter a limb (and his taunt clip does),
+  // but nothing in a pose can make the body stop being drawn.
+  //
+  // IT IS A STUTTER, NOT A FADE. A smooth pulse reads as a power-down; a bad
+  // connection is a signal that is either there or it isn't, for an
+  // unpredictable length of time. So each dropout picks its own duration and
+  // its own depth, and the visible half is snapped back to fully solid rather
+  // than eased — the ugliness is the point. Every dropout coughs a little
+  // visual noise off the frame and a buzz, throttled so a long taunt is not a
+  // wall of sound.
+  holoTaunt(dt) {
+    const act = this.animator?.action;
+    const on = this.alive && act && !act.fadingOut && act.clip.name === 'taunt';
+    if (!on) {
+      if (this._holoOn) { this._holoOn = false; this.setOpacity(1); }
+      return;
+    }
+    this._holoOn = true;
+    this._holoT = (this._holoT ?? 0) - dt;
+    if (this._holoT > 0) return;
+    const gone = Math.random() < 0.45;
+    this._holoT = gone ? rand(0.03, 0.1) : rand(0.05, 0.19);
+    this.setOpacity(gone ? rand(0.1, 0.32) : 1);
+    if (!gone) return;
+    const fx = this.world.effects;
+    if (fx?.glows) {
+      // noise: flecks torn off the silhouette at the moment it drops out
+      for (let i = 0; i < 3; i++) {
+        fx.glows.emit(
+          this.pos.x + rand(-0.9, 0.9) * this.scale,
+          this.pos.y + Math.random() * this.height,
+          this.pos.z + rand(-0.9, 0.9) * this.scale,
+          rand(-1.5, 1.5), rand(-1, 2.5), rand(-1.5, 1.5),
+          { life: rand(0.06, 0.16), size: rand(0.5, 1.6) * this.scale,
+            color: Math.random() < 0.5 ? 0x8a2be2 : 0x22e0d0, alpha: 0.85, grow: -1 });
+      }
+    }
+    this._holoBuzz = (this._holoBuzz ?? 0) - 1;
+    if (this._holoBuzz <= 0) { this._holoBuzz = 2; this.world.audio?.play('neonZap'); }
   }
 
   // ---- BOOSTER FLAME (the hover jets' exhaust) ----------------------------
@@ -3827,6 +3873,12 @@ export class Fighter {
     const sf = this.def.stackFx;
     const fx = this.world.effects;
     if (!fx) return;
+    // THE TAUNT VENTS INSTEAD OF BURNING. Inferno's boast is the machine
+    // blowing soot — chimneys, back tanks and both hand torches — so the
+    // burners are held OFF for the length of the clip and a handful of puffs go
+    // out on their own schedule (stackfx.js stackToot). His movement is
+    // untouched: this mech keeps the shared taunt pose, only the fire changes.
+    if (this.tauntVenting(dt, sf, fx)) return;
     this._stackFx = this._stackFx || stackState(sf);
     // how hard he is working: ground speed against his own top speed
     const run = clamp01(Math.hypot(this.vel.x, this.vel.z) / Math.max(1e-3, this.moveSpeed() * 1.15));
@@ -3838,6 +3890,24 @@ export class Fighter {
       this._stackDashed = true;
       stackBlast(this.mech, sf, { fx, scale: this.scale, smoke });
     } else if (this.state !== 'dash') this._stackDashed = false;
+  }
+
+  // Is he TAUNTING, and if so blow the puffs. Returns true while the burners
+  // should stay dark. The schedule is in clip time rather than on a timer, so
+  // the puffs land on the same beats however the clip is being played back.
+  tauntVenting(dt, sf, fx) {
+    const act = this.animator?.action;
+    if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._tootN = 0; return false; }
+    const TOOTS = [0.12, 0.42, 0.72, 1.02];
+    const want = TOOTS.filter((t) => act.t >= t).length;
+    if (want > (this._tootN || 0)) {
+      this._tootN = want;
+      this.group.updateWorldMatrix(true, true);
+      stackToot(this.mech, sf, { fx, scale: this.scale, smoke: !this.world.sandbox,
+        power: want === 1 ? 1.15 : 0.9 });
+      this.world.audio?.play('whoosh');
+    }
+    return true;
   }
 
   // HOW FAR BEHIND HIM HE IS TRYING TO GO, 0..1 and damped.
