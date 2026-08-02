@@ -195,6 +195,14 @@ export const ROSTER = [
     id: 'tempest', name: 'TEMPEST', title: 'The Voltage Virtuoso', icon: '⚡', seed: 77,
     blurb: 'A weather-control unit that discovered showmanship. Every battle is a concert, every lightning bolt a chord. The crowd goes wild; the crowd is usually on fire.',
     quotes: { win: '"⚡ ENCORE? No? Suit yourselves. I was ELECTRIC."', intro: '"Lights up! The show starts NOW."' },
+    // THE STATIC CRAWL of his taunt: the hot points an arc may jump between
+    // (Fighter.arcTaunt). Two shoulder stacks, the crest on his head, the
+    // crystal in his abdomen and both wrist bands — each arc picks a random
+    // PAIR, so the charge finds a different path every time.
+    arcTaunt: { color: 0x9fe4ff, nodes: [
+      { a: 'stackL' }, { a: 'stackR' }, { j: 'head', up: 0.5 },
+      { j: 'torso', up: -0.35 }, { j: 'handL' }, { j: 'handR' },
+    ] },
     colors: { primary: 0x2a3560, accent: 0x1e2740, glow: 0x3fd8ff, stripes: false },
     skin: {
       primary: { base: 0x2a3560, base2: 0x222b50, metal: 0x767c86, wear: 0.3, grime: 0.22, panelDepth: 4, roughPaint: 0.44, metalPaint: 0.4, normalStrength: 1.1 },
@@ -322,6 +330,9 @@ export const ROSTER = [
     id: 'wraith', name: 'WRAITH', title: 'The Hollow Echo', icon: '🎯', seed: 110,
     blurb: 'Officially, this unit was scrapped years ago. Officially, nobody is picking off mechs from 800 meters. Officially, you are perfectly safe.',
     quotes: { win: '"...you were dead before the round began."', intro: '"*static* ...target acquired."' },
+    // HE LOOMS when he taunts: 1.6x for the length of the clip, and back down
+    // the moment it ends or a hit interrupts it (Fighter.growTaunt).
+    tauntGrow: 1.6,
     colors: { primary: 0x232228, accent: 0x1a191e, glow: 0xff2030, stripes: false },
     skin: {
       primary: { base: 0x232228, base2: 0x1c1b21, metal: 0x5e626a, wear: 0.42, grime: 0.42, panelDepth: 4, roughPaint: 0.68, metalPaint: 0.15, normalStrength: 1.15 },
@@ -401,6 +412,10 @@ export const ROSTER = [
     id: 'glacier', name: 'GLACIER', title: 'The Cold Shoulder', icon: '❄️', seed: 132,
     blurb: 'Guardian of a polar research station, promoted to war machine by boredom. Devastating in combat, insufferable at parties — every joke is about ice, and he thinks they all land.',
     quotes: { win: '"Ice to beat you. ...I\'m contractually obligated to say that."', intro: '"Chill out. No? Fine — I\'ll handle it."' },
+    // HIS TAUNT FREEZES HIM SOLID — the model is swapped for a single block of
+    // ice his own size, steaming, until the clip ends or he is hit
+    // (Fighter.iceTaunt).
+    tauntIce: true,
     colors: { primary: 0x9fb2c2, accent: 0x4c5560, glow: 0x7ce0ff, stripes: false },
     skin: {
       primary: { base: 0x9fb2c2, base2: 0xd0dce6, metal: 0x7e838c, wear: 0.5, grime: 0.28, panelDepth: 4, roughPaint: 0.5, metalPaint: 0.3, normalStrength: 1.2 },

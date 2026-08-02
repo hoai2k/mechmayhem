@@ -192,6 +192,7 @@ const PLUNGE_DOWN_WEIGHT = 1.0;
 const GLITCH_OVERLOAD = 10;
 const GLITCH_STUN_TIME = 3;
 const _glitchTint = new THREE.Color();
+const _arcA = new THREE.Vector3(), _arcB = new THREE.Vector3();
 // where a corruption spot may pin itself: joint + local Y band (in scale
 // units) roughly covering that part's visible geometry
 const GLITCH_SPOT_JOINTS = [
@@ -3377,6 +3378,13 @@ export class Fighter {
     if (this.def.stackFx && this.alive) this.updateStackFlames(dt);
     // NULLBOT: his taunt breaks the RENDER up, not the pose
     if (this.def.holoTaunt) this.holoTaunt(dt);
+    // …and three more taunts that are effects rather than poses. Each one is
+    // driven off the clip NAME and releases the moment it stops playing, which
+    // is what makes "a hit interrupts it" free: a hit swaps the taunt for the
+    // flinch clip (see takeHit), so the next frame these simply undo.
+    if (this.def.arcTaunt) this.arcTaunt(dt);
+    if (this.def.tauntGrow) this.growTaunt(dt);
+    if (this.def.tauntIce) this.iceTaunt(dt);
     // corruption stacks keep flickering on whoever carries them
     this.updateGlitch(dt);
   }
@@ -3423,6 +3431,190 @@ export class Fighter {
     }
     this._holoBuzz = (this._holoBuzz ?? 0) - 1;
     if (this._holoBuzz <= 0) { this._holoBuzz = 2; this.world.audio?.play('neonZap'); }
+  }
+
+  // Is the taunt clip actually playing right now? Every taunt EFFECT below
+  // hangs off this and nothing else, which is the whole interrupt story: a hit
+  // plays hitFlinch over the top, this goes false, and each effect unwinds on
+  // its own next frame. No hit hook, no cancel list to keep in step.
+  taunting() {
+    const act = this.animator?.action;
+    return !!(this.alive && act && !act.fadingOut && act.clip.name === 'taunt');
+  }
+
+  // ---- STATIC CRAWL (roster `arcTaunt` — TEMPEST) -------------------------
+  //
+  // Arcs jumping between the hot points on his own body: the two shoulder
+  // stacks, the crest on his head, the crystal in his abdomen and both wrist
+  // bands. Each arc picks a random PAIR, so what you see is the charge finding
+  // a different path every time rather than a fixed light show — about fifteen
+  // of them across the clip.
+  //
+  // The endpoints are resolved every spawn, not cached: the arms are moving
+  // through this, and an arc drawn to where a wrist was is an arc hanging in
+  // the air beside him.
+  arcTaunt(dt) {
+    if (!this.taunting()) { this._arcT = 0; return; }
+    const fx = this.world.effects;
+    if (!fx?.lightning) return;
+    const nodes = this.def.arcTaunt.nodes || [];
+    if (nodes.length < 2) return;
+    this._arcT = (this._arcT ?? 0) - dt;
+    if (this._arcT > 0) return;
+    this._arcT = rand(0.09, 0.18);
+    this.group.updateWorldMatrix(true, true);
+    let i = (Math.random() * nodes.length) | 0;
+    let j = (Math.random() * (nodes.length - 1)) | 0;
+    if (j >= i) j++;                          // a distinct second point
+    const a = this.arcNode(nodes[i], _arcA), b = this.arcNode(nodes[j], _arcB);
+    if (!a || !b) return;
+    const col = this.def.arcTaunt.color ?? 0x8fd8ff;
+    fx.lightning.spawn(a, b, { color: col, dur: rand(0.09, 0.2),
+      jag: rand(0.25, 0.6) * this.scale, thick: rand(0.04, 0.08) * this.scale });
+    fx.glows.emit(b.x, b.y, b.z, 0, 0, 0,
+      { life: 0.14, size: rand(0.6, 1.2) * this.scale, color: col, alpha: 0.7, grow: -1 });
+    if (Math.random() < 0.4) this.world.audio?.play('zap');
+  }
+
+  // One arc endpoint: `{a:'stackL'}` is an anchor, `{j:'handR'}` a joint or
+  // bone, and `up` lifts it along the mech's own scale (the crest sits above
+  // the head bone, the crystal below the torso one).
+  arcNode(spec, out) {
+    const node = spec.a ? this.mech.anchors?.[spec.a]
+      : (this.mech.boneMap?.[spec.j] || this.mech.joints?.[spec.j]);
+    if (!node) return null;
+    node.getWorldPosition(out);
+    if (spec.up) out.y += spec.up * this.scale;
+    return out;
+  }
+
+  // ---- LOOMING (roster `tauntGrow` — WRAITH) ------------------------------
+  //
+  // He simply gets bigger while he taunts, and small again after. Same levers
+  // colossus' COLOSSAL FORM pulls (specials.js): the render group, the combat
+  // radius/height that go with it, and — the one that is easy to forget —
+  // Animator.sizeMul, without which the walk keeps its small-body cadence and
+  // the feet skate at the new size.
+  //
+  // The BASE values are captured on the first frame of the first taunt rather
+  // than at construction: a mech may already be scaled by something else, and
+  // capturing then means the ramp always returns to whatever it grew from.
+  growTaunt(dt) {
+    const want = this.taunting() ? 1 : 0;
+    const k = this._growK ?? 0;
+    if (k === 0 && want === 0) return;
+    // in over ~0.45s, out over ~0.3s — a loom should arrive slower than it goes
+    const rate = want > k ? 2.2 : 3.4;
+    const nk = clamp01(k + (want - k) * Math.min(1, dt * rate * 2));
+    this._growK = Math.abs(nk - want) < 0.002 ? want : nk;
+    if (!this._growBase) {
+      this._growBase = { s: this.scale, h: this.baseHeight, hr: this.baseHitRadius, r: this.radius,
+        g: this.group.scale.x };
+    }
+    const B = this._growBase;
+    const g = 1 + (this.def.tauntGrow - 1) * this._growK;
+    this.group.scale.setScalar(B.g * g);
+    this.scale = B.s * g;
+    this.baseHeight = B.h * g;
+    this.baseHitRadius = B.hr * g;
+    this.radius = B.r * g;
+    if (this.animator) this.animator.sizeMul = g;
+    if (this._growK === 0) { this._growBase = null; if (this.animator) this.animator.sizeMul = 1; }
+  }
+
+  // ---- SOLID ICE (roster `tauntIce` — GLACIER) ----------------------------
+  //
+  // He freezes into a single block the size of his own body: the model is
+  // switched off and a rectangular prism switched on in its place, with frost
+  // steaming off it as it takes him and a real burst when it lets go —
+  // whichever way it ends, the clip finishing or a fist arriving.
+  //
+  // The block is a child of his group, so it rides his position; his POSE is
+  // still running underneath it, unseen, which is why the clip leaves the body
+  // where it started rather than mid-flourish.
+  iceTaunt(dt) {
+    const on = this.taunting();
+    if (!on && !this._iceOn) return;
+    if (on && !this._iceOn) {
+      this._iceOn = true;
+      const b = this.iceBlock();
+      b.visible = true;
+      this.hideModel(true);
+      for (let i = 0; i < 10; i++) this.frostPuff(0.9);
+      this.world.audio?.play('freeze');
+    } else if (!on && this._iceOn) {
+      this._iceOn = false;
+      if (this._ice) this._ice.visible = false;
+      this.hideModel(false);
+      for (let i = 0; i < 22; i++) this.frostPuff(1.6);
+      this.world.effects?.rings?.spawn(this.pos, { from: 0.5, to: 5 * this.scale, dur: 0.45, color: 0xbfe8ff, y: 0.4 });
+      this.world.audio?.play('shatter');
+    }
+    if (this._iceOn) {
+      // a slow shimmer while it stands, and the odd wisp off the top
+      this._iceT = (this._iceT ?? 0) + dt;
+      if (this._ice) this._ice.material.opacity = 0.74 + 0.06 * Math.sin(this._iceT * 5.3);
+      if (Math.random() < dt * 7) this.frostPuff(0.5);
+    }
+  }
+
+  // The prism itself, built once and kept.
+  //
+  // SIZED OFF HIS MEASURED BODY, not off a Box3 of the group: that box takes in
+  // every anchor, marker and effect helper parented to him — and it does not
+  // skip invisible ones — so it measured 7 x 9 x 9 on a mech who is 7 tall and
+  // about 4 wide, a cube with the mech rattling around inside it. baseHeight is
+  // the body's own height and the hit radius is measured off its geometry, so
+  // the block is the shape he is.
+  iceBlock() {
+    if (this._ice) return this._ice;
+    const h = this.baseHeight;
+    const w = Math.max(this.baseHitRadius * 1.25, h * 0.22) * 2;
+    const geo = new THREE.BoxGeometry(w, h, w * 0.8);
+    // A PLAIN transparent standard material, deliberately: MeshPhysicalMaterial's
+    // `transmission` is the physically-right way to write glass and it renders
+    // through a separate pass this scene does not run — the first version was
+    // correct and completely invisible, a mech that simply vanished.
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x8ec6e2, roughness: 0.12, metalness: 0.1,
+      transparent: true, opacity: 0.62, emissive: 0x1b4d6b, emissiveIntensity: 0.45,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = h / 2;          // the group's origin is at his feet
+    m.castShadow = true;
+    this.group.add(m);
+    this._ice = m;
+    return m;
+  }
+
+  // Hide the BODY without hiding what is standing in for it. `this.group` IS
+  // `this.mech.group` (aliased in the constructor), so switching the mech off
+  // takes the ice block with it — the first version made glacier vanish
+  // outright. Every child except the block is switched instead, and each one's
+  // previous state is remembered so anything already hidden for its own
+  // reasons stays hidden when he comes back.
+  hideModel(hide) {
+    if (hide) {
+      this._hidWas = [];
+      for (const c of this.group.children) {
+        if (c === this._ice) continue;
+        this._hidWas.push([c, c.visible]);
+        c.visible = false;
+      }
+    } else {
+      for (const [c, v] of this._hidWas || []) c.visible = v;
+      this._hidWas = null;
+    }
+  }
+
+  frostPuff(power) {
+    const fx = this.world.effects;
+    if (!fx) return;
+    const h = this.baseHeight;
+    _arcA.set(this.pos.x + rand(-1, 1) * this.scale,
+      this.pos.y + Math.random() * h * 0.9,
+      this.pos.z + rand(-1, 1) * this.scale);
+    fx.steamVent(_arcA, { x: rand(-0.5, 0.5), y: rand(0.2, 1) * power, z: rand(-0.5, 0.5) });
   }
 
   // ---- BOOSTER FLAME (the hover jets' exhaust) ----------------------------
