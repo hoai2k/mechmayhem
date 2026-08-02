@@ -1,10 +1,10 @@
 // SURFACE WALKING — the body that walks on everything.
 //
-// A mech whose roster def carries a `climb` block (JERRY, who paid for it with
-// his hover jets) does not walk on the FLOOR, he walks on the WORLD: up a
-// facade, over its lip, across the roof, down the far side, over the crates on
-// the way, without a single mode change or a single scripted move. fighter.js
-// owns four call sites and no logic.
+// A mech whose roster def carries a `climb` block (today only JERRY) does not
+// walk on the FLOOR, he walks on the WORLD: up a facade, over its lip, across
+// the roof, down the far side, over the crates on the way, without a single
+// mode change or a single scripted move. fighter.js owns four call sites and
+// no logic.
 //
 // ---------------------------------------------------------------------------
 // WHY THE PREVIOUS VERSION FELT WRONG, because the shape of the fix follows
@@ -575,6 +575,22 @@ export function applyClimbPose(f) {
 //           rule IS the sideways gait and the backward gait: moving right,
 //           the right-side limbs lead because their homes do; backing up, the
 //           roles reverse because the travel did. No direction is special.
+//   FRONT vs BACK  a limb whose root is AHEAD of the body along the travel is
+//           reaching: its home is led by `step.lead` seconds of velocity and
+//           splayed wider the faster he goes, so it is already out at the new
+//           ground when the body arrives. One BEHIND is following: almost no
+//           lead (`step.leadBack`), it simply plants where the body carried
+//           it. Front/back is measured against travel every frame, so it
+//           swaps by itself when he reverses. And when a step is due, the
+//           pair carrying the most urgent limb goes first, with the thumb on
+//           the scale for the front ones — the near limb reaches for the new
+//           ground and the trailing pair follows it.
+//   NOT FLICKERING  three things keep the cadence honest, because a stepper
+//           that re-steps on noise reads as vibrating legs: the home is
+//           DAMPED (`homeRate`) rather than taken raw off a field that jumps
+//           block to block, a fresh plant is HELD for `dwell` seconds before
+//           it may move again, and the stride length (`len`) is long enough
+//           that a step covers ground instead of shuffling.
 //   AIR     a limb whose home is beyond FULL EXTENSION (l1+l2, measured live
 //           off the bones) plants nowhere: it swings free toward its hang
 //           point, gently — reaching, which is the honest read for a limb
@@ -611,13 +627,30 @@ const SPLAY_LADDER = [1, 0.6, 0.28, 0];
 const _splay = new THREE.Vector3();
 const _tipT = new THREE.Vector3();
 const _homeT = new THREE.Vector3();
+const _travel = new THREE.Vector3();
+// Below this much travel along the surface he is STANDING, and the limbs stop
+// anticipating anything: homes sit under the body and a step is a comfort
+// shift rather than a stride.
+const MOVE_EPS = 1.2;
+// How many limbs must stay on the surface at all times. Two is enough — he is
+// a spider, not a tripod, and holding out for three is what makes a limb whose
+// plant has gone stale sit there vibrating instead of stepping.
+const MIN_SUPPORT = 2;
+const _order = [0, 1, 2, 3];
+// start priority: in-turn beats out-of-turn, urgent beats patient, and within
+// that the limb furthest off its home goes first
+function startRank(st, i, goGroup) {
+  const s = st[i];
+  if (!s.ok || !s.want || s.sw >= 0) return -1;
+  return (LIMBS[i].group === goGroup ? 100 : 0) + (s.urgent ? 50 : 0) + Math.min(s.urge, 40);
+}
 
 export function conformClimbLimbs(f, dt) {
   const S = C.step;
   // who owns the limbs this frame?
-  const spd = Math.hypot(f.vel.x, f.vel.z);
+  const groundSpd = Math.hypot(f.vel.x, f.vel.z);
   const scuttle = !f.climb && f.grounded && f.alive && f.state === 'normal' &&
-    !f.isAI && f.lockTarget?.alive && spd > 2 &&
+    !f.isAI && f.lockTarget?.alive && groundSpd > 2 &&
     Math.abs(angleDiff(f.yaw, Math.atan2(f.vel.x, f.vel.z))) > C.scuttleDrift;
   const want = (f.climb || scuttle) ? 1 : 0;
   f._stepAct = f._stepAct === undefined ? 0
@@ -629,6 +662,13 @@ export function conformClimbLimbs(f, dt) {
     plant: new THREE.Vector3(), has: false, n: new THREE.Vector3(0, 1, 0),
     sw: -1, from: new THREE.Vector3(), to: new THREE.Vector3(), tn: new THREE.Vector3(0, 1, 0),
     air: true,
+    // the SMOOTHED home (the pre-filter that keeps a seam in the geometry
+    // from reading as a step), the hang point when there is no home at all,
+    // and the root position — all read in the survey pass and used in the
+    // step pass, which is why they live here rather than in scratch
+    home: new THREE.Vector3(), homeHas: false, hang: new THREE.Vector3(),
+    rootP: new THREE.Vector3(),
+    hold: 0, reach: 1, err: 0, ok: false, want: false, urgent: false, urge: 0, go: false,
   })));
 
   const mech = f.mech;
@@ -638,39 +678,74 @@ export function conformClimbLimbs(f, dt) {
   const up = f.climbUp || UP;
   const sole = f.animator?.footDepth || 0.32 * f.scale;
 
-  // which diagonal pairs are mid-swing (computed first: the alternation gate)
-  const swinging = [false, false];
-  for (let i = 0; i < 4; i++) if (st[i].sw >= 0) swinging[LIMBS[i].group] = true;
+  // WHERE HE IS GOING, along the surface. Front and back limbs are decided
+  // against this and nothing else, so one rule covers walking forwards, up,
+  // sideways and backwards — reverse and the front limbs become the back
+  // ones because the travel flipped, not because a case says so.
+  _travel.copy(f.vel).addScaledVector(up, -f.vel.dot(up));
+  const travelLen = _travel.length();
+  const moving = travelLen > MOVE_EPS;
+  if (moving) _travel.multiplyScalar(1 / travelLen); else _travel.set(0, 0, 0);
+  const spd = f.vel.length();
 
+  // ---- pass 1: SURVEY. Where does each limb want to be, and how badly? ----
   for (let i = 0; i < 4; i++) {
     const L = LIMBS[i], s0 = st[i];
     const root = node(L.root), mid = node(L.mid), end = node(L.end);
+    s0.ok = false;
+    s0.want = false;
+    s0.urgent = false;
+    s0.hold = Math.max(0, s0.hold - dt);
     if (!root || !mid || !end) continue;
     root.getWorldPosition(_root);
     mid.getWorldPosition(_mid);
     end.getWorldPosition(_end);
+    s0.rootP.copy(_root);
     // FULL EXTENSION, measured live off this rig's own bones
     const reach = (_root.distanceTo(_mid) + _mid.distanceTo(_end)) * 0.96;
+    s0.reach = reach;
     const stand = L.foot ? sole * 0.35 : 0.08;
+
+    // FRONT OR BACK: is this limb's root ahead of the body along the travel?
+    const front = moving && _a.subVectors(_root, f.pos).dot(_travel) > 0;
 
     // the limb's NORMAL SPOT: OUT along its splay, down along the body's
     // down, led by the travel. The search is a LADDER, outermost rung first —
     // a limb PREFERS to extend and plant wide (stability through spread; the
     // symmetric splay is also what evens the extensions out around the body),
     // and only walks the ladder inward when the outer rungs have no
-    // reachable surface, which is the pole-hug case. The travel lead is
-    // CLAMPED to a fraction of reach — unclamped, ground pace pushed every
-    // home past full extension and the whole stepper read airborne.
+    // reachable surface, which is the pole-hug case.
+    //
+    // THE LEAD IS THE ANTICIPATION, and it is what makes a front limb a front
+    // limb: it aims at where the body will be `S.lead` seconds from now and
+    // STRETCHES wider the faster he is going, so it is already out there when
+    // the body arrives. A back limb takes almost none of it (`S.leadBack`) —
+    // it just plants where it has been carried. Both are CLAMPED to a
+    // fraction of reach; unclamped, ground pace pushed every home past full
+    // extension and the whole stepper read airborne.
     _splay.copy(L.splay).applyQuaternion(f.group.quaternion);
-    _want.copy(f.vel).multiplyScalar(S.lead);
+    _want.copy(f.vel).multiplyScalar(moving ? (front ? S.lead : S.leadBack) : 0);
+    const ldCap = reach * (front ? 0.62 : 0.2);
     const ldLen = _want.length();
-    if (ldLen > reach * 0.35) _want.multiplyScalar((reach * 0.35) / ldLen);
+    if (ldLen > ldCap) _want.multiplyScalar(ldCap / ldLen);
+    const spread = S.spread *
+      (1 + (front ? S.stretch : 0) * clamp01(spd / S.stretchAt));
     let homeOk = false;
     for (const rung of SPLAY_LADDER) {
       _homeT.copy(_root)
-        .addScaledVector(_splay, reach * S.spread * rung)
+        .addScaledVector(_splay, reach * spread * rung)
         .addScaledVector(up, -reach * S.hang)
         .add(_want);
+      // THE PROBE POINT MUST BE REACHABLE. Splay, drop and lead are three
+      // offsets that can all point the same way — a wide stance plus a big
+      // anticipation on a fast body put the probe past full extension, every
+      // rung failed, and the limb read AIRBORNE while standing over perfectly
+      // good ground (measured: both legs `A` through a full-speed backpedal).
+      // Shortening the composed offset keeps the direction and asks the
+      // question where the limb can actually answer it.
+      _b.subVectors(_homeT, _root);
+      const off = _b.length();
+      if (off > reach * 0.95) _homeT.copy(_root).addScaledVector(_b, (reach * 0.95) / off);
       const d = nearestSurface(f, _homeT.x, _homeT.y, _homeT.z, reach * 1.25);
       if (d === Infinity) continue;
       _tgt.copy(_limbCp).addScaledVector(_limbN, stand);
@@ -680,47 +755,123 @@ export function conformClimbLimbs(f, dt) {
         break;
       }
     }
+    s0.hang.copy(_homeT);   // the last rung tried: where a limb with nothing
+                            // in range reaches toward
+    if (!homeOk) { s0.homeHas = false; continue; }
+    s0.ok = true;
+    // the home is DAMPED, not taken raw: the field it comes from steps from
+    // block to block, and a target that jumps is a step that fires for no
+    // reason the eye can see.
+    if (!s0.homeHas) { s0.home.copy(_tgt); s0.homeHas = true; }
+    else s0.home.lerp(_tgt, 1 - Math.exp(-S.homeRate * dt));
+
+    if (s0.sw >= 0) continue;             // already swinging: nothing to want
+    if (!s0.has) {
+      // no plant yet — it wants one badly, but it still WAITS ITS TURN. This
+      // was an emergency once, and since a limb loses its plant whenever its
+      // home goes briefly out of range, that let all four swing at once: the
+      // vibrating legs.
+      s0.want = true; s0.err = Infinity; s0.urge = 90;
+      continue;
+    }
+    s0.err = s0.plant.distanceTo(s0.home);
+    // a limb pinned past what it can reach must come up NOW, gate or no gate
+    // THE ONLY EMERGENCY is a plant the limb can no longer physically reach.
+    // An err threshold used to sit here too, and since err grows at body
+    // speed it fired constantly on a moving mech — an "emergency" every third
+    // of a second is not an emergency, it is the cadence, and it bypassed the
+    // pair gate every time.
+    s0.urgent = s0.plant.distanceTo(_root) > reach;
+    const thr = moving ? (front ? S.len : S.lenBack) : S.settle;
+    s0.want = s0.urgent || (s0.err > reach * thr && s0.hold <= 0);
+    // WHO GOES FIRST: the limb furthest off its home, with a thumb on the
+    // scale for the FRONT ones — walking somewhere, the near limb reaches for
+    // the new ground and the trailing pair follows it.
+    s0.urge = s0.err / reach + (front ? 0.6 : 0);
+  }
+
+  // ---- WHO LIFTS THIS FRAME ------------------------------------------------
+  // Two rules, and the second one is the hard floor.
+  //
+  // THE RHYTHM: diagonal pairs alternate, so one pair may start while the
+  // other is planted. The pair that goes is the one carrying the limb furthest
+  // off its home, with the thumb on the scale for the FRONT limbs — walking
+  // somewhere, the near limb reaches for the new ground and the trailing pair
+  // follows it.
+  //
+  // THE SUPPORT FLOOR: TWO LIMBS STAY DOWN. That is the whole safety rule —
+  // a limb may only lift if at least two others remain planted, and a limb
+  // that has no plant to give up may always lift because it is holding
+  // nothing. A limb whose plant has gone past what it can physically reach
+  // (`urgent`) may jump the pair queue, but not this floor: it drags until
+  // there is support to spare.
+  const swinging = [false, false];
+  let planted = 0;
+  for (let i = 0; i < 4; i++) {
+    if (st[i].sw >= 0) swinging[LIMBS[i].group] = true;
+    else if (st[i].has) planted++;
+  }
+  let goGroup = -1, best = -1;
+  for (let i = 0; i < 4; i++) {
+    const s0 = st[i], g = LIMBS[i].group;
+    if (!s0.want || (swinging[1 - g] && !s0.urgent)) continue;
+    if (s0.urge > best) { best = s0.urge; goGroup = g; }
+  }
+  // most deserving first, so the limb that needs the ground gets the support
+  // budget rather than whichever one the loop reached first
+  for (let i = 0; i < 4; i++) _order[i] = i;
+  for (let i = 1; i < 4; i++) {          // insertion sort: 4 items, no garbage
+    const v = _order[i], k = startRank(st, v, goGroup);
+    let j = i - 1;
+    while (j >= 0 && startRank(st, _order[j], goGroup) < k) { _order[j + 1] = _order[j]; j--; }
+    _order[j + 1] = v;
+  }
+  for (let n = 0; n < 4; n++) {
+    const i = _order[n], s0 = st[i];
+    s0.go = false;
+    if (!s0.ok || !s0.want || s0.sw >= 0) continue;
+    if (LIMBS[i].group !== goGroup && !s0.urgent) continue;
+    if (s0.has) {                        // giving up a plant costs support
+      if (planted - 1 < MIN_SUPPORT) continue;
+      planted--;
+    }
+    s0.go = true;
+  }
+
+  // ---- pass 2: STEP, and write the limbs ----
+  for (let i = 0; i < 4; i++) {
+    const L = LIMBS[i], s0 = st[i];
+    const root = node(L.root), mid = node(L.mid), end = node(L.end);
+    if (!root || !mid || !end) continue;
+    end.getWorldPosition(_end);
+    const reach = s0.reach;
 
     let target = null, w = 0;
-    if (!homeOk) {
+    if (!s0.ok) {
       // nothing in range of full extension: the limb hangs/reaches, gently —
       // the animation keeps most of it
       s0.has = false;
       s0.sw = -1;
       s0.air = true;
-      target = _homeT;
+      target = s0.hang;
       w = act * S.airHold;
     } else {
       s0.air = false;
-      if (!s0.has && s0.sw < 0) {
-        // first contact: swing to the home rather than teleporting onto it
+      if (s0.go) {
         s0.sw = 0;
         s0.from.copy(_end);
-        s0.to.copy(_tgt);
-        swinging[L.group] = true;
-      } else if (s0.has && s0.sw < 0) {
-        const err = s0.plant.distanceTo(_tgt);
-        const stretched = s0.plant.distanceTo(_root) > reach;
-        // step when a stride behind the home and the OTHER pair is planted —
-        // or immediately when near full stretch, gate or no gate (a limb must
-        // never be left pinned beyond what it can reach)
-        if ((err > reach * S.len && !swinging[1 - L.group]) ||
-            stretched || err > reach * 0.85) {
-          s0.sw = 0;
-          s0.from.copy(_end);
-          s0.to.copy(_tgt);
-          swinging[L.group] = true;
-        }
+        s0.to.copy(s0.home);
       }
       if (s0.sw >= 0) {
-        s0.to.copy(_tgt);                 // chase the live home while swinging
-        // a fast body needs a fast cadence: swings shorten with speed, so the
-        // stride keeps up instead of every step firing the stretch emergency
-        const swT = S.time * clamp(10 / Math.max(f.vel.length(), 10), 0.45, 1);
+        s0.to.copy(s0.home);              // chase the live home while swinging
+        // a fast body needs a slightly faster cadence, but only slightly —
+        // shortening the swing hard is what read as flickering legs
+        const swT = S.time * clamp(14 / Math.max(spd, 14), 0.6, 1);
         s0.sw += dt / swT;
         if (s0.sw >= 1) {
           s0.sw = -1;
           s0.has = true;
+          s0.hold = S.dwell;
           s0.plant.copy(s0.to);
           s0.n.copy(s0.tn);
           target = s0.plant;

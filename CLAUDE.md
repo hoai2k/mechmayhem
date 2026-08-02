@@ -793,6 +793,34 @@ audio). Progress history: `TASKS.md`.
   `scuttleDrift` rad of strafe/backpedal: the crab scuttle. Plain running on
   open ground stays the animator's. Debug it with the `limbs=` column in
   `tools/climbprobe.mjs` (P/S/A per limb, every sample).
+  FRONT LIMBS ANTICIPATE, BACK LIMBS FOLLOW, and which is which is MEASURED —
+  is this limb's root ahead of the body along the travel? — so one rule covers
+  forwards, up, sideways and backwards and the roles swap by themselves when he
+  reverses. A front limb's home is led by `step.lead` seconds of velocity and
+  splayed wider with speed (`step.stretch`), so it is already out at the new
+  ground when the body arrives; a back limb takes almost none of that
+  (`step.leadBack`) and simply plants where it has been carried — which is why
+  it also gets a much longer leash before it must step (`step.lenBack` vs
+  `step.len`): landing already behind, on the front limb's threshold it would
+  re-step within two frames. The whole composed offset (splay + drop + lead) is
+  CLAMPED into full extension before the surface probe, or the three add up on
+  a fast body and every rung fails over perfectly good ground.
+  TWO LIMBS STAY DOWN is the whole safety rule (`MIN_SUPPORT`): a limb may lift
+  only if two others remain planted, and one with no plant to give up may
+  always lift because it is holding nothing. A limb whose plant has gone past
+  what it can physically reach may jump the pair queue but NOT that floor — it
+  drags until there is support to spare.
+  WHAT FLICKERING LEGS WERE: the first version re-stepped on noise. Three
+  things fixed it and all three matter — the home is DAMPED (`homeRate`)
+  instead of taken raw off a field that steps block to block, a fresh plant is
+  HELD (`dwell`) before it may move again, and the stride is long enough
+  (`len`) that a step covers ground. The fourth was a misdiagnosis worth
+  remembering: "plant too far from home" counted as an EMERGENCY that bypassed
+  the pair gate, and since that error grows at body speed it fired several
+  times a second — an emergency that frequent is not an emergency, it is the
+  cadence. The only emergency is a plant the limb can no longer reach.
+  Measured on the wall: at most two limbs swinging, usually one, and `PPPP`
+  rock steady at a standstill.
   BODY STABILITY is two dampings and a throttle: `normRate` pre-filters the
   field normal before the body follows it at `tiltRate` (a block seam becomes a
   lean, not a flicker), and while the frame is still TURNING toward the

@@ -12,7 +12,48 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE TUCK BECOMES BLOCK'S ALONE, JERRY FLIES, AND FLIGHT GROWS A
+- **Latest:** THE STEPPER STOPS FLICKERING: LONGER STRIDES, FRONT LIMBS
+  ANTICIPATE, TWO LIMBS STAY DOWN. Owner: "Jerry's legs are moving a bit too
+  fast (looks like flickering) when climbing... reach them a bit further and
+  when moving in a direction first move the closest foot (aiming for the
+  anticipated location based on the direction/speed of movement) and stretch
+  each limb longer in anticipation... If the robot stops moving, the feet can
+  shift locations to find a more comfortable position relative to the body, but
+  while moving the front legs should anticipate the next location and the back
+  legs should just follow based on where the body moves" — plus, on the support
+  rule: "the emergency would only be if a single limb had a plant. He should be
+  okay with only 2 feet planted at a time while climbing."
+  FRONT vs BACK is measured against the travel direction (is this limb's root
+  ahead of the body?), so the same rule covers forwards, up, sideways and
+  backwards and the roles swap by themselves on a reverse. Front limbs take
+  `step.lead` (0.13 -> 0.26s) of velocity and splay wider with speed
+  (`step.stretch`); back limbs take `leadBack` 0.04 and get a much longer leash
+  before they must step (`lenBack` 0.90 vs `len` 0.48 -> 0.62 x reach), because
+  landing already behind means the front limb's threshold re-steps them within
+  two frames.
+  WHO GOES FIRST: the survey/step split is now two passes, so the pair carrying
+  the limb furthest off its home starts, with the thumb on the scale for the
+  FRONT ones.
+  THE SUPPORT FLOOR replaces the old per-limb emergency: a limb lifts only if
+  two others stay planted, and one with no plant to give up may always lift. A
+  plant past full extension may jump the pair queue but not the floor.
+  ANTI-FLICKER: the home is damped (`homeRate`), a fresh plant is held
+  (`dwell`), and — the misdiagnosis worth remembering — "plant far from home"
+  used to count as an emergency that bypassed the pair gate, and since that
+  error grows at body speed it fired several times a second. An emergency that
+  frequent is the cadence, not an emergency.
+  Also: the composed probe offset (splay + drop + lead) is clamped into full
+  extension, or all three add up on a fast body and every ladder rung fails
+  over good ground (measured: both legs reading AIRBORNE through a full-speed
+  backpedal).
+  Measured (climbprobe): on the wall at most two limbs swinging, usually one,
+  two-to-three always planted; `PPPP` with tip errors 0.08-0.67 at a standstill;
+  worst per-frame body rotation and unexplained movement unchanged; rendered
+  split-screen pass clean. KNOWN ROUGH EDGE, unchanged by this pass: the
+  open-ground crab scuttle still reads AIRBORNE on a limb pair at full speed
+  (the arms on a strafe, the legs on a backpedal) — that is flat ground, not a
+  structure, and it predates this work.
+- **Previous:** THE TUCK BECOMES BLOCK'S ALONE, JERRY FLIES, AND FLIGHT GROWS A
   BOOSTER FLAME ON ANCHORS. Owner: "let's not have A button do the
   descending-from-flying shield/flip anymore, let's just let the block button do
   it, so the action is more optional and less error prone. Also, let's have
