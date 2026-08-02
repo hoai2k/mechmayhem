@@ -211,7 +211,9 @@
           -0.416,
           0.121
         ]
-      }
+      },
+      "boostL": {"bone":"stackL","offset":[-0.174,-1.041,0.01]},
+      "boostR": {"bone":"stackR","offset":[-0.174,-0.944,0.072]}
     },
     "url": "models/mech_titanus.glb",
     "modelScale": 9.04432,
@@ -652,7 +654,9 @@
           0.8093,
           0.3776
         ]
-      }
+      },
+      "boostL": {"bone":"ankleL","offset":[-0.543,0.078,-0.152]},
+      "boostR": {"bone":"ankleR","offset":[-0.394,0.031,-0.387]}
     },
     "url": "models/mech_tempest.glb",
     "modelScale": 7.18053,
@@ -1072,7 +1076,9 @@
           0,
           0
         ]
-      }
+      },
+      "boostL": {"bone":"torso","offset":[-0.482,0.202,0.292]},
+      "boostR": {"bone":"torso","offset":[-0.527,0.173,-0.326]}
     },
     "url": "models/mech_viper.glb",
     "modelScale": 6.2312,
@@ -1174,7 +1180,9 @@
           0,
           0
         ]
-      }
+      },
+      "boostL": {"bone":"ankleL","offset":[-0.072,-0.137,-0.168]},
+      "boostR": {"bone":"ankleR","offset":[-0.04,-0.143,0.088]}
     },
     "alt": {
       "profileKey": "wraith_alt",
@@ -2925,7 +2933,9 @@
           0,
           0
         ]
-      }
+      },
+      "boostL": {"bone":"torso","offset":[-1.152,0.169,0.538]},
+      "boostR": {"bone":"torso","offset":[-1.118,0.093,-0.501]}
     },
     "url": "models/mech_vulcan.glb",
     "modelScale": 7.72826,
