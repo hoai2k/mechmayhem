@@ -768,6 +768,16 @@ function buildGlbMech(def, entry, gltf) {
     // (a raptor skull, a hand bone), which is meaningless as an aim vector —
     // so it falls back to today's straight-ahead behaviour until authored.
     anchor.userData.aimRot = !!r;
+    // A HULL MOUNT AIMS IN YAW ONLY (`"aimFlat": true`). The deflection exists
+    // so a barrel modelled splayed actually fires down its own line — which is
+    // right in every axis for a gun the mech HOLDS, and wrong in the vertical
+    // for one bolted to the chassis: the body's own forward lean tips the
+    // barrel with it, and the shot obeys. Measured on frogger, whose gunk guns
+    // are hull mounts: a 20-degree run lean fired the glob 19.9 degrees DOWN,
+    // into the pavement in front of him, while fireRanged's vertical assist had
+    // already put the aim on the enemy's height. With this set, the barrel's
+    // horizontal splay still steers the shot and its pitch is left to the aim.
+    anchor.userData.aimFlat = !!spec?.aimFlat;
     return anchor;
   }
   mech.anchors.muzzleR = installMuzzle('R');

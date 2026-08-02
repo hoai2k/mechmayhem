@@ -707,6 +707,15 @@ function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
   anchor.getWorldQuaternion(_bQ);
   _bFwd.set(0, 0, 1).applyQuaternion(_bQ);
   if (_bFwd.lengthSq() < 1e-9) return out;
+  // A HULL-MOUNTED barrel (`aimFlat` — see gltf.js applyRot) contributes its
+  // horizontal SPLAY and nothing else. Flattening the barrel vector is the
+  // whole implementation: the rotation from one horizontal vector to another is
+  // a pure yaw, so the aim keeps the pitch fireRanged worked out and stops
+  // inheriting whatever the body is leaning at.
+  if (anchor.userData.aimFlat) {
+    _bFwd.y = 0;
+    if (_bFwd.lengthSq() < 1e-9) return out;
+  }
   _bFace.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
   return out.setFromUnitVectors(_bFace, _bFwd.normalize());
 }

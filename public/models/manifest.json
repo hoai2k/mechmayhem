@@ -2769,7 +2769,8 @@
           -158.27,
           0,
           -170
-        ]
+        ],
+        "aimFlat": true
       },
       "L": {
         "bone": "bone_37",
@@ -2782,7 +2783,8 @@
           -84.25,
           -17,
           175.75
-        ]
+        ],
+        "aimFlat": true
       },
       "boostL": {"bone":"ankleL","offset":[-0.119,0.484,-0.533]},
       "boostR": {"bone":"ankleR","offset":[0.037,0.405,-0.469]}

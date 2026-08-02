@@ -1588,14 +1588,34 @@ const JERRY_SHOOT_GLB = {
 };
 
 const FROGGER_SHOOT_GLB = {
+  // THE CANNONS DO THE AIMING, SO THE CLIP MUST NOT — jerry's rule, and frogger
+  // needs it for the same reason: his gunk guns are HULL mounts (the manifest
+  // pins muzzleR to a head-block bone and muzzleL to a hull bone), and
+  // world.js fires each shot down its own barrel's live +Z (barrelDeflect). So
+  // every degree the clip YAWS the torso or the head is a degree the shot flies
+  // wide, faithfully.
+  //
+  // It used to yaw the torso -10 and the head +7, mirrored on the off side —
+  // which alternated the whole hull left-right-left as he fired and threw the
+  // globs 5-7 degrees either side of the target, shot about shot. Measured on
+  // the barrels: 0.0 deg of yaw at rest, -4.4 to -7.0 through the clip. It is a
+  // PITCH-ONLY recoil now: the body sinks and rocks back over the shot, the
+  // barrels stay on the line, and the measured yaw is 0.0 all the way through.
+  // AND THE RECOIL COMES AFTER THE SHOT, not under it. The rock-back used to
+  // peak right where the `fire` event sits, so the glob left a barrel already
+  // pitched 6.5 degrees up — a shot that sails over an enemy's head at a dozen
+  // units. The body is held level through the fire frame (measured 0.9 deg, the
+  // barrel's own rest angle) and rocks afterwards, which is also the way round
+  // a recoil actually reads.
   dur: 0.5, upper: true,
   keys: [
-    { t: 0, pose: { torso: [3, -10, -2], head: [0, 7, 0] } },
-    { t: 0.12, ease: 'outBack', pose: { torso: [-6, -5, -1], head: [-6, 4, 0], hipsPos: [0, -0.08, 0] } },
-    { t: 0.3, ease: 'outQuad', pose: { torso: [5, -8, -2], head: [1, 6, 0], hipsPos: [0, -0.02, 0] } },
+    { t: 0, pose: { torso: [0, 0, 0], head: [0, 0, 0] } },
+    { t: 0.08, ease: 'linear', pose: { torso: [0, 0, 0], head: [0, 0, 0] } },
+    { t: 0.2, ease: 'outBack', pose: { torso: [-8, 0, 0], head: [-6, 0, 0], hipsPos: [0, -0.09, 0] } },
+    { t: 0.36, ease: 'outQuad', pose: { torso: [6, 0, 0], head: [2, 0, 0], hipsPos: [0, -0.02, 0] } },
     { t: 0.5, ease: 'inOutQuad', pose: { torso: [0, 0, 0], head: [0, 0, 0], hipsPos: [0, 0, 0] } },
   ],
-  events: [{ t: 0.1, type: 'fire' }],
+  events: [{ t: 0.06, type: 'fire' }],
 };
 
 // inferno for the GLB: the shared `shootLoop` folds both elbows in tight, and

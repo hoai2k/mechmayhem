@@ -1317,6 +1317,30 @@ audio). Progress history: `TASKS.md`.
   -> 2.0 and no better, because rotating the head can only raise the jaw to
   where the NECK is, and on these clips the neck is under the floor too. You
   cannot fix a buried body from the buried body's own joints.)
+- A HULL-MOUNTED BARREL AIMS IN YAW ONLY (`"aimFlat": true` on a manifest
+  muzzle spec; `gltf.js applyRot` -> `world.js barrelDeflect`). The deflection
+  exists so a barrel modelled splayed actually fires down its own line, and that
+  is right in every axis for a gun the mech HOLDS — the hand aims it. It is
+  wrong in the VERTICAL for one bolted to the chassis, because the body's own
+  forward lean tips the barrel and the shot obeys, while `fireRanged`'s vertical
+  assist has already put the aim on the target's height. Measured on FROGGER,
+  whose gunk guns are hull mounts: a 20-degree run lean fired the glob 19.9
+  degrees DOWN — into the pavement in front of him, which is what "he drops it
+  on the ground" is as a number. With `aimFlat` the barrel vector is flattened
+  before the rotation is built, so what is left is a pure yaw: the splay still
+  steers the shot, the pitch is the aim's. Live-fight measured -14 to -20.8
+  degrees of shot pitch before, -0.1 to -3.9 after (against a -0.8 to -7.4
+  requirement). NOTE jerry (`strutMidR/L`) and cranky (`head`) measure the same
+  way and are NOT flagged — same fix available if they are ever reported.
+  …AND THE CLIP MUST NOT AIM EITHER, which is the same rule jerry's pods
+  already documented: frogger's shoot clip yawed the torso -10 and the head +7
+  (mirrored on the off side), which alternated the whole hull left-right-left as
+  he fired and threw the globs 5-7 degrees either side of the target, shot about
+  shot — barrels measured 0.0 degrees of yaw at rest and -4.4 to -7.0 through
+  the clip. It is a PITCH-ONLY recoil now (0.0 all the way through), and the
+  recoil comes AFTER the shot rather than under it: the rock-back used to peak
+  exactly where the `fire` event sits, so the glob left a barrel already pitched
+  6.5 degrees up.
 - TAUNTS ARE PER-MECH (`*_TAUNT` raws in animations.js, compiled into
   `GLB_CLIP_VARIANTS` under the name `taunt` and hung off each mech's glbanim
   `clipOverrides`). The shared taunt is a beckoning arm — right for a humanoid
