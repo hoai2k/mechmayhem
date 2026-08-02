@@ -696,14 +696,14 @@ export const ROSTER = [
       accent: { base: 0xa8532c, base2: 0x8a4224, metal: 0x8a8f96, wear: 0.78, grime: 0.62, panelDepth: 4, roughPaint: 0.6, metalPaint: 0.44, normalStrength: 1.25 },
     },
     // LONG arms, SHORT legs — the proportion that makes a knuckle-walk read.
-    body: { scale: 1.24, torsoW: 1.24, torsoH: 1.0, headSize: 0.95, armLen: 1.35, legLen: 0.78, hipW: 1.12, bulk: 1.16 },
+    body: { scale: 1.24, torsoW: 1.24, torsoH: 1.0, headSize: 0.95, armLen: 1.64, legLen: 0.86, hipW: 1.12, bulk: 1.16 },
     // rest is the four-point stance: arms reaching forward-down onto the
     // knuckles, back legs folded under the hips
-    restPose: { shoulderL: [-34, 0, -10], shoulderR: [-34, 0, 10], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0], thighL: [-14, 0, -8], thighR: [-14, 0, 8], kneeL: [34, 0, 0], kneeR: [34, 0, 0], ankleL: [-18, 0, 0], ankleR: [-18, 0, 0] },
+    restPose: { shoulderL: [-8, 0, -7], shoulderR: [-8, 0, 7], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0], thighL: [-12, 0, -8], thighR: [-12, 0, 8], kneeL: [30, 0, 0], kneeR: [30, 0, 0], ankleL: [-16, 0, 0], ankleR: [-16, 0, 0] },
     stats: { hp: 1200, speed: 9.2, jump: 13, weight: 0.88, armor: 0.15, blockMult: 0.08 },
     ui: { power: 10, speed: 5, defense: 7 },
     // guard is a hunched shoulder-wall with the head tucked behind the arms
-    combatPose: { hipsPos: [0, -0.14, 0], hipsRot: [10, 0, 0], torso: [18, 0, 0], head: [-16, 0, 0], shoulderL: [-40, 8, -16], shoulderR: [-40, -8, 16], elbowL: [-40, 0, 0], elbowR: [-40, 0, 0], thighL: [-12, 0, -8], thighR: [-4, 0, 8], kneeL: [26, 0, 0], kneeR: [18, 0, 0] },
+    combatPose: { hipsPos: [0, -0.10, 0], hipsRot: [8, 0, 0], torso: [14, 0, 0], head: [-14, 0, 0], shoulderL: [-10, 5, -10], shoulderR: [-10, -5, 10], elbowL: [-18, 0, 0], elbowR: [-18, 0, 0], thighL: [-10, 0, -8], thighR: [-3, 0, 8], kneeL: [22, 0, 0], kneeR: [15, 0, 0] },
     gait: 'knuckle',
     lightClips: ['bigPunch1', 'bigPunch2', 'light3'],
     heavyClip: 'kongaSlam',
@@ -737,11 +737,11 @@ export const ROSTER = [
     // long, wide and low — a gun platform, not a torso on legs
     body: { scale: 1.3, torsoW: 1.35, torsoH: 0.92, headSize: 1.18, armLen: 0.98, legLen: 0.94, hipW: 1.32, bulk: 1.24 },
     // columnar stance: all four legs nearly straight under the body
-    restPose: { shoulderL: [-6, 0, -6], shoulderR: [-6, 0, 6], elbowL: [-8, 0, 0], elbowR: [-8, 0, 0], thighL: [-6, 0, -6], thighR: [-6, 0, 6], kneeL: [14, 0, 0], kneeR: [14, 0, 0], ankleL: [-8, 0, 0], ankleR: [-8, 0, 0] },
+    restPose: { shoulderL: [2, 0, -3], shoulderR: [2, 0, 3], elbowL: [0, 0, 0], elbowR: [0, 0, 0], thighL: [-2, 0, -5], thighR: [-2, 0, 5], kneeL: [4, 0, 0], kneeR: [4, 0, 0], ankleL: [-2, 0, 0], ankleR: [-2, 0, 0] },
     stats: { hp: 1320, speed: 8.4, jump: 9, weight: 1.0, armor: 0.22, blockMult: 0.06 },
     ui: { power: 9, speed: 4, defense: 9 },
     // guard is a braced head-down wall of frill and horn
-    combatPose: { hipsPos: [0, -0.12, 0], hipsRot: [-4, 0, 0], torso: [-6, 0, 0], head: [-14, 0, 0], shoulderL: [-4, 0, -10], shoulderR: [-4, 0, 10], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0], thighL: [-8, 0, -8], thighR: [-2, 0, 8], kneeL: [16, 0, 0], kneeR: [10, 0, 0] },
+    combatPose: { hipsPos: [0, -0.06, 0], hipsRot: [-3, 0, 0], torso: [-4, 0, 0], head: [-12, 0, 0], shoulderL: [-2, 0, -5], shoulderR: [-2, 0, 5], elbowL: [-4, 0, 0], elbowR: [-4, 0, 0], thighL: [-5, 0, -6], thighR: [-1, 0, 6], kneeL: [12, 0, 0], kneeR: [7, 0, 0] },
     gait: 'trike',
     lightClips: ['tritoneGore', 'tritoneGoreL', 'tritoneGore'],
     heavyClip: 'tritoneToss',

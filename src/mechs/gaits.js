@@ -814,9 +814,9 @@ export const GAITS = {
     // `handGround` levels the loaded fist the way footFlat levels a sole —
     // a knuckle-walker rolls over the BACK of the fingers, so this is high.
     arms: {
-      swing: 0.62, swingRun: 0.72, lift: 0, elbow: 0.20, elbowRun: 0.12,
-      elbowPump: 0, tuck: -0.10, cross: 0,
-      carry: -0.46, foldClear: 0.44, handGround: 0.85, handClear: 0.34,
+      swing: 0.34, swingRun: 0.30, lift: 0, elbow: 0.12, elbowRun: 0.06,
+      elbowPump: 0, tuck: -0.06, cross: 0,
+      carry: -0.10, foldClear: 0.46, handGround: 0.85, handClear: 0.34,
       // 0 lands each fist with the foot on its OWN side; π swaps to the
       // diagonal couplet. A gorilla walks the diagonal, so: π.
       phase: Math.PI,
@@ -838,38 +838,38 @@ export const GAITS = {
   //   • the head is enormous, so `bodyPitch` stays small — nodding that frill
   //     through a big arc would swing his whole mass around.
   trike: {
-    base: 'quad',
+    base: 'standard',
     name: 'Ceratopsian',
-    note: 'Heavy four-legged gun platform: columnar legs, rigid weight-bearing spine, a rolling walk that lengthens into a thunderous trot.',
+    note: 'Heavy four-legged gun platform: columnar legs on a rigid weight-bearing spine, a slow rolling walk that lengthens into a thunderous trot.',
+    // NOT a gallop. `quad` is fenrir's wolf bound — hinds folding up under the
+    // belly, spine arching, a flight phase — and every one of those is wrong
+    // for six tonnes on four pillars (it also drove the front feet through the
+    // floor). A ceratopsian keeps three feet down and swings the fourth: that
+    // is just the standard cycle, slowed, shortened and widened, run on all
+    // four limbs via the foreleg dials below.
     legs: {
-      swing: 0.34, swingRun: 0.38, reach: 0.30, extend: -0.30,
+      swing: 0.30, swingRun: 0.34, reach: 0.26, extend: 0.30,
       adduct: 0.16, adductRun: 0.10, adductTrail: 0.14,
-      stanceBend: 0.20, stanceBendRun: 0.18,
-      kneeLift: 0.34, kneeLiftRun: 0.40, kneePhase: 1.0, phase: 0,
+      stanceBend: 0.16, stanceBendRun: 0.14,
+      kneeLift: 0.30, kneeLiftRun: 0.36, kneePhase: 1.0, phase: 0,
       cadence: 0.70, cadenceCap: 11,
     },
-    runLegs: {
-      swing: 0.38, swingRun: 0.42, reach: 0.26, extend: -0.42,
-      adduct: 0.14, adductRun: 0.08, adductTrail: 0.10,
-      stanceBend: 0.20, stanceBendRun: 0.18,
-      kneeLift: 0.38, kneeLiftRun: 0.44, kneePhase: 1.0,
-      cadence: 0.70, cadenceCap: 11,
+    ankle: { roll: 0.20, tilt: -0.05, push: 0.30, pushRun: 0.36, level: 0.55, hang: 0 },
+    // THE FRONT LEGS ARE THE ARM JOINTS. Inheriting the humanoid `arms` block
+    // swings them like arms — big pendulum, elbow pump — so they get the
+    // foreleg dials instead: a short stride, the wrist doing ankle work
+    // (`handGround` keeps the planted foot flat), and `phase: π` putting each
+    // front foot on the DIAGONAL back foot's beat, which is how a quadruped
+    // actually walks.
+    arms: {
+      swing: 0.24, swingRun: 0.24, lift: 0, elbow: 0.06, elbowRun: 0.03,
+      elbowPump: 0, tuck: 0, cross: 0,
+      carry: 0, foldClear: 0.30, handGround: 0.9, handClear: 0.22,
+      phase: Math.PI,
     },
-    ankle: { roll: 0.22, tilt: -0.05, push: 0.34, pushRun: 0.42, level: 0.5, hang: 0 },
-    runAnkle: { push: 0.30, pushRun: 0.36 },
     // heavy armored tail: hangs low, sways slowly, lags well behind the body
     tail: { droop: 0.30, straight: 0.55, sway: 0.06, swayRun: 0.07, lag: 1.5, lift: 0.03, idle: 0.7 },
-    body: { bob: 0.13, pitch: 0.05, yaw: 0.05, roll: 0.09, lean: 0.16, twist: 0.05, head: -0.10 },
-    runBody: { bob: 0.15, pitch: 0.06, yaw: 0.05, roll: 0.10, lean: 0.22, twist: 0.05, head: -0.12 },
-    quad: {
-      onset: 0.18, blend: 0.55, snap: 0.55, stride: 0.72, lag: 0.18,
-      bodyPitch: 0.16, bodyArch: 0.04, drop: 0.16, heave: 0.05,
-      frontReach: 0.72, frontSwing: 0.40, frontRake: 0.18, frontFold: 0.42,
-      hindReach: 0.20, hindExtend: 0,
-      hindSwing: 0.62, hindCarry: -0.12,
-      hindFold: -0.44, hindKneeCarry: 0.34,
-      hockSnap: 0.30, hockCarry: -0.12,
-    },
+    body: { bob: 0.12, pitch: 0.04, yaw: 0.05, roll: 0.10, lean: 0.14, twist: 0.04, head: -0.08 },
   },
 };
 
