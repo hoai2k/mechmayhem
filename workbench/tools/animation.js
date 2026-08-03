@@ -173,7 +173,15 @@ export async function runAnimationWorkbench(config, params) {
     // physics: it accumulates (mech floats up) and jerks pos.y during animation
     // (the reported twitch + a spurious airborne/landing "circle").
     if (!f?.mech?.isGLB || !f.mech.visualFloorLift) return;
-    const g = f.group;
+    // MEASURE THE THING YOU LIFT. `visualFloorLift` moves the MODEL container,
+    // and this used to scan the whole fighter GROUP — which also carries the FX
+    // combat parents to it. Blocking adds a guard-bubble sphere hanging 0.8
+    // below the feet; the clamp read that as the mech sinking, lifted the model
+    // 0.8 to compensate, and the sphere (a sibling, not inside the container)
+    // never moved — so `need` stayed 0.8 for ever and the mech was left
+    // permanently floating, chimney flames and all, long after the block ended.
+    // Reported as "the chimney fires changed position after a block".
+    const g = f.mech.visual || f.group;
     // Reset the model to its base first, so minY is the UN-lifted penetration
     // (combat's groundClamp resets the container some frames, so we can't trust
     // an accumulated offset — measure absolute each frame). `need` is then the
@@ -184,6 +192,9 @@ export async function runAnimationWorkbench(config, params) {
     g.traverse((o) => {
       if (o.isSkinnedMesh) o.skeleton.update();
       if (!o.isMesh && !o.isSkinnedMesh) return;
+      // …and only what is actually DRAWN. The same bubble stays parented and
+      // merely switches off, so an invisible mesh must not hold the clamp up.
+      if (!o.visible || (o.parent && !o.parent.visible)) return;
       const pos = o.geometry?.attributes?.position;
       if (!pos) return;
       const stride = Math.max(1, Math.floor(pos.count / 1500));

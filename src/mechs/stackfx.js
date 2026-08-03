@@ -53,6 +53,7 @@ import { fireTintOf } from './colorscheme.js';
 
 const _v = new THREE.Vector3();
 const _arc = new THREE.Vector3();
+const _fd = new THREE.Vector3(), _fq = new THREE.Quaternion();
 
 /** Per-stack oscillator + emission accumulators. One per mech that burns. */
 export function stackState(sf) {
@@ -108,6 +109,17 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
     const isTorch = sf.torches ? sf.torches.includes(sf.anchors[i]) : false;
     const hK = (isTorch ? (sf.torchH ?? sf.flameH ?? 1) : (sf.flameH ?? 1));
     const sizeK = isTorch ? (sf.torchSize ?? 1) : 1;
+    // …AND WHICH WAY IT POINTS. A chimney vents UP in world space and must keep
+    // doing that whatever the spine is doing; a hand torch is a barrel, so it
+    // burns down its own +Z — the same axis the flamethrower fires along
+    // (world.js barrelDeflect) — and swings with the arm. So the direction is a
+    // property of the KIND of burner, not of the frame.
+    const anchorObj = mech.anchors?.[sf.anchors[i]];
+    const aimed = isTorch && !!anchorObj;
+    if (aimed) {
+      anchorObj.getWorldQuaternion(_fq);
+      _fd.set(0, 0, 1).applyQuaternion(_fq).normalize();
+    } else _fd.set(0, 1, 0);
     k.t += dt;
     // flicker: two detuned sines plus a little noise, offset per side
     const fl = 0.62 + 0.3 * Math.sin(k.t * 11 + k.phase) + 0.18 * Math.sin(k.t * 27.3 + k.phase * 2)
@@ -139,10 +151,18 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
       // HEIGHT IS THE LAUNCH SPEED AND THE BUOYANCY TOGETHER — halve one and
       // the column only leans, halve both and it is half as tall.
       const up = (2.6 + 4.5 * burn) * s * hK;
-      fx.flames.emit(p.x + rand(-0.12, 0.12) * s, p.y + 0.05 * s, p.z + rand(-0.12, 0.12) * s,
-        rand(-0.5, 0.5) * s, up, rand(-0.5, 0.5) * s,
+      fx.flames.emit(p.x + _fd.x * 0.05 * s + rand(-0.12, 0.12) * s * sizeK,
+        p.y + _fd.y * 0.05 * s + (aimed ? 0 : 0.05 * s),
+        p.z + _fd.z * 0.05 * s + rand(-0.12, 0.12) * s * sizeK,
+        _fd.x * up + rand(-0.5, 0.5) * s * sizeK,
+        _fd.y * up, _fd.z * up + rand(-0.5, 0.5) * s * sizeK,
         { life: rand(0.2, 0.36), size: (0.95 + 1.05 * burn) * s * sizeK, color: G ? G[3] : 0xffe9a8, color2: G ? G[1] : 0xff5c12,
-          alpha: 0.92, cell: -1, spin: 1.4, drag: 2.6, grow: 1.6 * s * sizeK, gravity: -3.2 * s * hK, fadeIn: 0.12, hue });
+          alpha: 0.92, cell: -1, spin: 1.4, drag: 2.6, grow: 1.6 * s * sizeK,
+          // an AIMED burner keeps only a little buoyancy: a pilot light that
+          // curls straight up the instant it leaves the barrel is not pointing
+          // anywhere, and pointing is the whole difference between a torch and
+          // a chimney
+          gravity: -3.2 * s * hK * (aimed ? 0.3 : 1), fadeIn: 0.12, hue });
       // the light the flame throws, so the chimney lip catches it
       fx.glows.emit(p.x, p.y + 0.1 * s, p.z, 0, 1.2 * s, 0,
         { life: 0.16, size: (1.1 + 1.1 * burn) * s * sizeK, color: G ? G[2] : 0xff8a2a, alpha: 0.5 * burn, grow: -1.2 * s });

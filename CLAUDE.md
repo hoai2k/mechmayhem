@@ -536,7 +536,12 @@ audio). Progress history: `TASKS.md`.
   the small ones, `flameH`/`torchH` scale the flame's launch speed AND its
   buoyancy together — which is what actually sets a column's height (measured:
   median rise per particle 1.29 units at 1.0, 0.64 at 0.5, exactly half) — and
-  a torch is held DARK while that hand is throwing a jet (`Fighter.darkNozzles`
+  A TORCH BURNS DOWN ITS OWN BARREL, not upward: a chimney vents UP in world
+  space and must keep doing that whatever the spine does, while a hand torch
+  emits along the anchor's +Z (the same axis the flamethrower fires down) and
+  swings with the arm, keeping only a third of the buoyancy so it does not curl
+  vertical the moment it leaves the muzzle. Direction is a property of the KIND
+  of burner. A torch is also held DARK while that hand is throwing a jet (`Fighter.darkNozzles`
   off the channel clip's side), because a pilot light sitting inside its own
   flamethrower stream reads as a bug. His LIGHT COMBO finisher also sets you
   alight: roster `light.comboStatus` is applied by the LAST blow of the string

@@ -401,9 +401,12 @@ export const ROSTER = [
     stackFx: {
       anchors: ['stackL', 'stackR', 'muzzleR', 'muzzleL'],
       joints: ['shoulderL', 'shoulderR', 'handR', 'handL'], lift: 0.9,
-      // the torches burn the SAME SIZE as the chimneys — one number for both
-      torches: ['muzzleR', 'muzzleL'],
-      flameH: 0.5, torchH: 0.5,
+      // the torches are HALF the chimneys again — a pilot light on a barrel,
+      // not a second pair of stacks — and they burn down the barrel's own +Z
+      // rather than upward, so each one reads as a little flamethrower held in
+      // the hand and swings with the arm
+      torches: ['muzzleR', 'muzzleL'], torchSize: 0.5, torchH: 0.25,
+      flameH: 0.5,
       flameGap: 0.055, smokeGap: 0.14, smokeRun: 2.4,
     },
     // signature combat stance (additive over restPose; default carriage)

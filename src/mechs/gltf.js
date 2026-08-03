@@ -995,6 +995,11 @@ function buildGlbMech(def, entry, gltf) {
   // jerks pos.y during animation (twitch + spurious airborne/landing states).
   // dy is a root-local (= world) Y offset over the natural clamp base.
   mech.visualFloorLift = (dy) => { container.position.y = clampBaseY + (dy || 0); };
+  // …and WHAT that moves, for anything that has to measure the same subtree it
+  // lifts. A fighter's group carries more than the model — combat parents FX to
+  // it (the guard bubble, auras) — and a floor clamp that measures those and
+  // then lifts only the model is chasing a number it can never reach.
+  mech.visual = container;
 
   // Synchronous, CORRECT clone for combat spawns (SAURION's raptor pack).
   // GLB bodies are SkinnedMeshes: Object3D.clone(true) shares the skeleton, so
