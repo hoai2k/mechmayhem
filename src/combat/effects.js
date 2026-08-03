@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import {
   softCircleTexture, sparkTexture, smokeCellsTexture, flameAtlasTexture,
   dropletTexture, goopCellsTexture, iceTexture, ringTexture, streamNoiseTexture,
-  glitchCellsTexture, glitchNoiseTexture,
+  glitchCellsTexture, glitchNoiseTexture, batTexture,
 } from '../core/textures.js';
 
 // NULLBOT's corruption palette: hard neon channels + white, cycled at
@@ -163,6 +163,11 @@ class ParticlePool {
     this.rot0 = new Float32Array(cap);
     this.spin = new Float32Array(cap);
     this.cell = new Float32Array(cap);     // base cell; -1 = flipbook anim
+    // LOOPS PER SECOND through the atlas. `cell: -1` walks the frames once
+    // across the particle's whole life, which is right for a puff that
+    // dissipates and useless for a WING: a bat alive for two seconds has to
+    // flap a dozen times, not once. Nonzero `flap` overrides the ramp.
+    this.flap = new Float32Array(cap);
     this.fadeT = new Float32Array(cap);    // seconds of alpha ramp-in
     this.head = 0;
 
@@ -214,6 +219,7 @@ class ParticlePool {
     life = 1, size = 1, color = 0xffffff, color2 = null, alpha = 1,
     gravity = 0, drag = 0, grow = 0,
     cell = -2,        // -2 random cell, -1 flipbook anim over life, else fixed
+    flap = 0,         // atlas loops per second (overrides the -1 life ramp)
     spin = 0,         // radians/sec (sign randomized here when nonzero)
     rot = null,       // start angle; default random
     fadeIn = 0.1,     // fraction of life spent ramping alpha IN (no popping)
@@ -239,13 +245,14 @@ class ParticlePool {
     this.spin[i] = spin ? spin * (Math.random() < 0.5 ? -1 : 1) : 0;
     const frames = this.cols * this.rows;
     this.cell[i] = cell === -2 ? (Math.random() * frames) | 0 : cell;
+    this.flap[i] = flap;
     this.fadeT[i] = Math.max(0.001, fadeIn * life);
     this.misc[i * 3 + 2] = hue;
   }
 
   update(dt) {
     const { cap, pos, vel, life, life0, grav, drag, col, size, misc,
-      baseCol, endCol, baseAlpha, baseSize, grow, rot0, spin, cell, fadeT } = this;
+      baseCol, endCol, baseAlpha, baseSize, grow, rot0, spin, cell, flap, fadeT } = this;
     const frames = this.cols * this.rows;
     for (let i = 0; i < cap; i++) {
       if (life[i] <= 0) { col[i * 4 + 3] = 0; size[i] = 0; continue; }
@@ -267,9 +274,11 @@ class ParticlePool {
       col[i * 4 + 3] = baseAlpha[i] * f * Math.min(1, age / fadeT[i]);
       size[i] = baseSize[i] * (1 + grow[i] * m);
       misc[i * 3] = rot0[i] + spin[i] * age;
-      misc[i * 3 + 1] = cell[i] < 0
-        ? Math.min(frames - 1, (m * frames) | 0)  // flipbook rides the lifetime
-        : cell[i];
+      misc[i * 3 + 1] = flap[i] > 0
+        ? ((age * flap[i] * frames) | 0) % frames  // wings: loop, don't ramp
+        : (cell[i] < 0
+          ? Math.min(frames - 1, (m * frames) | 0) // flipbook rides the lifetime
+          : cell[i]);
     }
     this.points.geometry.attributes.position.needsUpdate = true;
     this.points.geometry.attributes.aColor.needsUpdate = true;
@@ -493,7 +502,11 @@ class LightningPool {
       this.items.push({ group, mat, core, segs, t: 0, dur: 0 });
     }
   }
-  spawn(from, to, { color = 0x9fdcff, dur = 0.22, jag = 1.2, thick = 0.16, branch = true } = {}) {
+  // `bow` bends the path: the waypoints are pushed along it by sin(pi*f), so
+  // the two ends stay pinned where they were asked for and the middle bulges a
+  // full `bow` out of the straight line. That is how an arc between two points
+  // on a body's back is made visible from the front.
+  spawn(from, to, { color = 0x9fdcff, dur = 0.22, jag = 1.2, thick = 0.16, branch = true, bow = null } = {}) {
     const it = this.items.find((i) => !i.group.visible) || this.items[0];
     it.group.visible = true;
     it.mat.color.set(color);
@@ -504,6 +517,7 @@ class LightningPool {
     for (let i = 0; i <= SEGS; i++) {
       const f = i / SEGS;
       const p = new THREE.Vector3().copy(from).addScaledVector(dir, f);
+      if (bow) p.addScaledVector(bow, Math.sin(Math.PI * f));
       if (i > 0 && i < SEGS) {
         p.x += rand(-jag, jag);
         p.y += rand(-jag * 0.5, jag * 0.5);
@@ -568,6 +582,11 @@ export class Effects {
     // digital corruption fragments (NULLBOT): hard square pixel clusters
     this.pixels = new ParticlePool(scene, glitchCellsTexture(), {
       cap: 600, cols: 2, rows: 2,
+    });
+    // WRAITH's ghost leaving: black bats, so NORMAL-blended (an additive black
+    // sprite is nothing at all) and flapping off a looping 2x2 wing atlas
+    this.bats = new ParticlePool(scene, batTexture(), {
+      cap: 120, blending: THREE.NormalBlending, cols: 2, rows: 2,
     });
     this.rings = new RingPool(scene);
     this.beams = new BeamPool(scene);
@@ -1082,6 +1101,29 @@ export class Effects {
     }
   }
 
+  // ---- THE GHOST LEAVING (WRAITH) ----
+  // A body-shaped column of bats that scatters outward and climbs away. The
+  // spawn volume is the BODY it is replacing — a cylinder of `radius` x
+  // `height` around `pos` — so what breaks up is recognisably the shape that
+  // was standing there, rather than a puff at his navel.
+  //
+  // They are given a NEGATIVE gravity rather than an upward velocity: a bat
+  // does not get thrown, it climbs, so the rise has to keep happening after
+  // the initial scatter has dragged out. `flap` is per-bat, so the swarm is
+  // never in unison.
+  batSwarm(pos, { n = 20, radius = 2.4, height = 7, scale = 1, color = 0x07070c } = {}) {
+    for (let i = 0; i < n; i++) {
+      const a = rand(Math.PI * 2), r = radius * Math.sqrt(Math.random());
+      const sp = rand(3.5, 9) * scale;
+      this.bats.emit(
+        pos.x + Math.cos(a) * r, pos.y + rand(0.15, 1) * height, pos.z + Math.sin(a) * r,
+        Math.cos(a) * sp, rand(1, 4.5) * scale, Math.sin(a) * sp,
+        { life: rand(1.3, 2.4), size: rand(0.8, 1.5) * scale, color,
+          alpha: 0.92, drag: rand(0.5, 1.1), gravity: -rand(2, 5) * scale,
+          cell: -1, flap: rand(4.5, 8), fadeIn: 0.04, rot: rand(-0.35, 0.35) });
+    }
+  }
+
   // ---- digital corruption (NULLBOT) ----
   // one flickering corruption fragment pinned near a surface: pops in
   // axis-aligned, barely drifts, dies in a frame or three — a body dressed
@@ -1202,6 +1244,7 @@ export class Effects {
     this.flames.update(dt);
     this.ice.update(dt);
     this.pixels.update(dt);
+    this.bats.update(dt);
     this.rings.update(dt);
     this.beams.update(dt);
     this.lightning.update(dt);

@@ -675,3 +675,57 @@ export function skyStarsTexture() {
     }
   });
 }
+
+// 2x2 flipbook of a BAT in silhouette, one cell per wing position: down,
+// mid-up, up, mid-down — so a particle looping the four cells flaps.
+//
+// Baked WHITE, like every other atlas here, because the fragment shader
+// multiplies the sampled texel by the particle's own colour: a sprite baked
+// black would be black whatever it was asked for, and these are asked for at
+// near-black on a NORMAL-blended pool (an additive black bat is invisible,
+// which is the trap this shape exists to avoid).
+//
+// The silhouette is what carries it at particle size — a body, two ears, and
+// a wing whose trailing edge is SCALLOPED into three fingers. Round the
+// scallops off and it reads as a bird.
+export function batTexture() {
+  return fxTexture('bat', 256, 256, (ctx) => {
+    const CELL = 128;
+    // how far each cell's wing tip sits above the shoulder, as a fraction of
+    // the half-cell — the flap
+    const LIFT = [-0.34, 0.16, 0.5, 0.16];
+    for (let c = 0; c < 4; c++) {
+      const cx = (c % 2) * CELL + CELL / 2, cy = ((c / 2) | 0) * CELL + CELL / 2;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.fillStyle = '#fff';
+      const lift = LIFT[c] * (CELL * 0.5);
+      // body: a small tapered lozenge, plus ears
+      ctx.beginPath();
+      ctx.ellipse(0, 2, CELL * 0.075, CELL * 0.135, 0, 0, Math.PI * 2);
+      ctx.fill();
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(s * CELL * 0.055, -CELL * 0.1);
+        ctx.lineTo(s * CELL * 0.085, -CELL * 0.215);
+        ctx.lineTo(s * CELL * 0.012, -CELL * 0.135);
+        ctx.closePath(); ctx.fill();
+      }
+      // wings: leading edge sweeps out to the tip, trailing edge comes back in
+      // three scallops through the elbow to the body
+      for (const s of [-1, 1]) {
+        const tipX = s * CELL * 0.46, tipY = -CELL * 0.02 - lift;
+        const elbX = s * CELL * 0.24, elbY = -CELL * 0.07 - lift * 0.62;
+        ctx.beginPath();
+        ctx.moveTo(s * CELL * 0.05, -CELL * 0.06);
+        ctx.quadraticCurveTo(elbX, elbY - CELL * 0.06, tipX, tipY);
+        ctx.quadraticCurveTo((tipX + elbX) * 0.5, tipY + CELL * 0.13, elbX, elbY + CELL * 0.045);
+        ctx.quadraticCurveTo((elbX + s * CELL * 0.12) * 0.5, elbY + CELL * 0.14,
+          s * CELL * 0.11, -CELL * 0.005 + lift * 0.1);
+        ctx.quadraticCurveTo(s * CELL * 0.09, CELL * 0.07, s * CELL * 0.045, CELL * 0.055);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+  });
+}

@@ -1451,7 +1451,7 @@ audio). Progress history: `TASKS.md`.
   [frames] [front|q|side|back]` — the clip as a filmstrip, stepped
   DETERMINISTICALLY at 1/60 from t=0 for every frame, which is the only way to
   read a one-shot under a renderer running 20x slow.
-  THREE THINGS BIT, IN ORDER. (1) A limb has to ARRIVE somewhere, and the angle
+  FOUR THINGS BIT, IN ORDER. (1) A limb has to ARRIVE somewhere, and the angle
   that gets it there is not always the obvious one: konga's chest beat is
   shoulder YAW, because his arms are the longest on the roster and the
   pitch-and-roll a biped beats its chest with swings those hands clean over his
@@ -1460,7 +1460,15 @@ audio). Progress history: `TASKS.md`.
   restPose (`Animator.restBias`) while ARMS are ABSOLUTE. (3) A clip track
   REPLACES what the gait wrote, so fenrir's tail whip is a `post` pass on his
   profile — keyed into the clip it would flatten the droop and the measured
-  straightening for the length of the howl.
+  straightening for the length of the howl. (4) WHERE A WEAPON'S TIP ENDS UP is
+  not where a joint is, and it must be MEASURED off the geometry: viper's blades
+  are fused to his forearms, and "arms behind the back with the tips touching"
+  was solved by sweeping shoulder pitch/yaw/roll x elbow and scoring the REAL
+  tip — the farthest skinned vertex the forearm/hand owns, taken into the hand
+  bone's local frame once and carried by the bone through every candidate.
+  Estimating it instead as "about a hand-length past the hand" was off by a
+  factor of two and picked a pose that crossed the blades in an X over his
+  shoulder blades.
   AND SOME TAUNTS ARE NOT POSES. Four are effects, each driven off
   `Fighter.taunting()` (is the clip named `taunt` playing) and nothing else,
   which is what makes "a hit interrupts it" free — a hit plays hitFlinch over
@@ -1471,9 +1479,26 @@ audio). Progress history: `TASKS.md`.
   RENDER (`holoTaunt`, roster `holoTaunt`) — a stutter, not a fade. TEMPEST
   crawls with static (`arcTaunt`, roster `arcTaunt.nodes` — each arc picks a
   random PAIR of hot points and endpoints are re-resolved every spawn, since the
-  arms are moving). WRAITH LOOMS (`growTaunt`, roster `tauntGrow: 1.6` — the
-  same levers colossus' ult pulls, `Animator.sizeMul` included) with a gale
-  blown through his cloak (`swayCloak`'s `wind`). GLACIER freezes SOLID
+  arms are moving; and every arc is BOWED out along his facing until the middle
+  of its path clears his chest — `arcTaunt.bow`, LightningPool's `bow` option —
+  because a straight line between the two shoulder stacks is a light show that
+  happens entirely on his back, where the camera never is. Measured: endpoints
+  at -0.6 and -2.2 along his facing, path midpoint +1.65). WRAITH LOOMS
+  (`growTaunt`, roster `tauntGrow: 1.6` — the same levers colossus' ult pulls,
+  `Animator.sizeMul` included) with a gale blown through his cloak
+  (`swayCloak`'s `wind`), half-transparent with cold wisps coming off him, and
+  the clip tips his whole spine FORWARD over you (the sign is measured — on his
+  rig positive torso pitch leans BACK) with the head counter-rotated so the hood
+  stays on your face. THERE IS NO WAY BACK DOWN: a symmetric ramp made the whole
+  thing a bellows, so the instant the taunt ends he is back at his own size on
+  the SAME frame and the GIANT is disposed of separately — `Effects.batSwarm`
+  breaks it into black bats that climb away (a body-shaped spawn volume, so what
+  comes apart is the shape that was standing there). The bats are a NORMAL-blended
+  pool — an additive black sprite is nothing at all — off a 2x2 wing-position
+  atlas (`batTexture`) looped by ParticlePool's `flap` (atlas loops per SECOND;
+  the old `cell: -1` walks the frames once over the particle's whole life, which
+  is right for a puff and useless for a wing). Size them off a picture: at 0.55
+  of body scale a bat is a fleck that reads as dust, 1.8 is legible. GLACIER freezes SOLID
   (`iceTaunt`, roster `tauntIce`): he CROSS-FADES into the block over half a
   second with the frost thickening as it takes him, and thaws in 0.16s with the
   whole cloud at once — freezing is something he does, thawing is something that
