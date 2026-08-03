@@ -1009,7 +1009,71 @@ export class Animator {
       }
     }
     if (this._limp > 0.001) this.limpTail(bones, this._limp);
-    else { this._limpDir = null; this._tailFloor = 0; }
+    else {
+      this._limpDir = null; this._tailFloor = 0;
+      if (this.mech.tailFloor && tail) this.tailFloorGuard(bones);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // A TAIL IS NOT A KICKSTAND, AWAKE EITHER (rig/manifest `tailFloor`).
+  //
+  // limpTail solves this for a body that is DOWN. The same thing happens to a
+  // body that is UP: tritone's taunt rears him onto his hind legs, the hips
+  // pitch back, and the tail — which hangs off the hips and is nine units long —
+  // sweeps down through the pavement. Nothing complains, because the geometry
+  // is allowed underground; what the player sees is the FLOOR GUARD
+  // (combat/floorguard.js) doing its job and servoing the whole animal upward,
+  // so the rear reads as him being levitated by his own tail.
+  //
+  // The rule is the one a person would state: NO SEGMENT MAY POINT BELOW THE
+  // FEET. Run root-to-tip, and where a segment's far end would land under the
+  // floor, re-aim that bone so the end sits exactly ON it, keeping the heading
+  // it already had — the same clamp limpTail uses, minus the gravity it damps
+  // toward, because this tail is not dead and everything above the floor is
+  // whatever the gait and the clip asked for. It is therefore free at rest: a
+  // tail already carried above the feet is not touched at all.
+  //
+  // THE FLOOR IS THE FEET, not y=0. Measured off the lower ankle, so it comes
+  // out right on a slope, on top of a building, and in mid-air (where y=0 would
+  // clamp a jumping mech's tail to the ground it left).
+  tailFloorGuard(bones) {
+    let seg = this._tfSeg;
+    if (!seg) {
+      seg = this._tfSeg = [];
+      const root = bones.tail0;
+      if (root) root.traverse((b) => {
+        const c = b.children.find((x) => x.isBone);
+        if (c) seg.push([b, c]);
+      });
+    }
+    if (!seg.length) return;
+    const B = this.mech.boneMap || {};
+    const a1 = B.ankleL || this.J.ankleL, a2 = B.ankleR || this.J.ankleR;
+    if (!a1 || !a2) return;
+    a1.getWorldPosition(_lp); const yA = _lp.y;
+    a2.getWorldPosition(_lp); const floorY = Math.min(yA, _lp.y);
+    seg[0][0].parent?.updateWorldMatrix(true, false);
+    for (const [b, c] of seg) {
+      b.updateWorldMatrix(false, false);
+      c.updateWorldMatrix(false, false);
+      b.getWorldPosition(_lp);
+      c.getWorldPosition(_lc);
+      const len = _lp.distanceTo(_lc) || 1e-5;
+      _ld.subVectors(_lc, _lp).divideScalar(len);
+      const minDy = (floorY - _lp.y) / len;          // the lowest it may point
+      if (_ld.y >= minDy || minDy > 1) continue;     // already clear (or the
+      // root itself is under the floor, which is a body problem, not a tail one)
+      const dy = clamp(minDy, -1, 1);
+      const hl = Math.hypot(_ld.x, _ld.z) || 1e-5;
+      const hs = Math.sqrt(Math.max(0, 1 - dy * dy));
+      _lg.set(_ld.x / hl * hs, dy, _ld.z / hl * hs);
+      b.parent.getWorldQuaternion(_lq).invert();
+      _lg.applyQuaternion(_lq);
+      _lr.copy(c.position).normalize();
+      b.quaternion.setFromUnitVectors(_lr, _lg);
+      b.updateWorldMatrix(false, false);
+    }
   }
 
   // ---------------------------------------------------------------------------

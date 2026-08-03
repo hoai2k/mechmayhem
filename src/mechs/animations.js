@@ -1856,31 +1856,55 @@ const TRITONE_LAND_REACH = {
 // third of his silhouette and swinging it about turned the rear into a shake.
 // He is additive over restPose, so leaving those joints unnamed leaves them
 // exactly in his carriage and lets the body carry them up and down.
+//
+// HIS BACK LEGS STAY ON THE GROUND, AND STRAIGHT, and that is what the thigh
+// keys are for. A thigh is a CHILD of the hips: pitch the hips back 48 degrees
+// to rear him and the hind legs are carried back 48 degrees with them, so the
+// feet leave the pavement and swing out behind him like a deckchair. Every key
+// below gives the thighs back EXACTLY the hips' own pitch (`+48` against
+// `hipsRot -48`), which leaves the hind legs standing where they stood while
+// the body rotates about them, with the knees and ankles at rest because a
+// straight leg is a leg with nothing added to it. The hips barely rise: a rear
+// gets its height from the body PITCHING about the hip joint, not from the hip
+// joint going up — his head climbs about 4 units on the pitch alone.
+//
+// AND THE TAIL GETS OUT OF THE WAY BY ITSELF. It is nine units long and hangs
+// off the same hips, so the same rotation drove it several units under the
+// pavement, where the floor guard (combat/floorguard.js) obediently servoed the
+// whole animal up into the air — the "propped up on his own tail" read. It is
+// not fixed here, because a keyed angle would be wrong the moment the timing
+// changed: `tailFloor` in his rig turns on animator.js' tailFloorGuard, which
+// re-aims any tail segment that would point below the FEET.
 const TRITONE_TAUNT = {
   dur: 2.4, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
     // gather — weight back onto the hinds before anything leaves the ground
     { t: 0.22, ease: 'outQuad', pose: { hipsPos: [0, -0.18, -0.2], hipsRot: [6, 0, 0],
-      thighL: [22, 0, 0], thighR: [22, 0, 0], kneeL: [26, 0, 0], kneeR: [26, 0, 0],
+      thighL: [16, 0, 0], thighR: [16, 0, 0], kneeL: [12, 0, 0], kneeR: [12, 0, 0],
       shoulderL: [16, 0, -4], shoulderR: [16, 0, 4], elbowL: [-14, 0, 0], elbowR: [-14, 0, 0] } },
-    // UP. The pitch is what sells it; the lift is what stops the forefeet
-    // scraping through the floor on the way.
-    { t: 0.62, ease: 'outCubic', pose: { hipsPos: [0, 1.5, 0.12], hipsRot: [-42, 0, 0],
-      thighL: [-14, 0, 0], thighR: [-14, 0, 0], kneeL: [10, 0, 0], kneeR: [10, 0, 0],
-      ankleL: [16, 0, 0], ankleR: [16, 0, 0],
+    // UP. The pitch is the whole rear; the thighs give it straight back so the
+    // hind feet stay planted underneath him.
+    { t: 0.62, ease: 'outCubic', pose: { hipsPos: [0, 0.02, 0.04], hipsRot: [-42, 0, 0],
+      thighL: [42, 0, 0], thighR: [42, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0],
+      ankleL: [0, 0, 0], ankleR: [0, 0, 0],
       shoulderL: [-58, 0, -12], shoulderR: [-58, 0, 12], elbowL: [-64, 0, 0], elbowR: [-64, 0, 0] } },
     // …higher still, and HELD: the pause at the top is the whole gesture
-    { t: 0.92, ease: 'outQuad', pose: { hipsPos: [0, 1.85, 0.16], hipsRot: [-48, 0, 0],
+    { t: 0.92, ease: 'outQuad', pose: { hipsPos: [0, 0.03, 0.05], hipsRot: [-56, 0, 0],
+      thighL: [56, 0, 0], thighR: [56, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0],
+      ankleL: [0, 0, 0], ankleR: [0, 0, 0],
       shoulderL: [-70, 0, -16], shoulderR: [-70, 0, 16], elbowL: [-52, 0, 0], elbowR: [-52, 0, 0] } },
-    { t: 1.42, ease: 'linear', pose: { hipsPos: [0, 1.82, 0.16], hipsRot: [-47, 0, 0],
+    { t: 1.42, ease: 'linear', pose: { hipsPos: [0, 0.03, 0.05], hipsRot: [-55, 0, 0],
+      thighL: [55, 0, 0], thighR: [55, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0],
+      ankleL: [0, 0, 0], ankleR: [0, 0, 0],
       shoulderL: [-68, 0, -16], shoulderR: [-68, 0, 16], elbowL: [-54, 0, 0], elbowR: [-54, 0, 0] } },
     // and DOWN, hard
     { t: 1.62, ease: 'inQuad', pose: { hipsPos: [0, -0.3, -0.1], hipsRot: [10, 0, 0],
-      thighL: [16, 0, 0], thighR: [16, 0, 0], kneeL: [20, 0, 0], kneeR: [20, 0, 0],
+      thighL: [-10, 0, 0], thighR: [-10, 0, 0], kneeL: [14, 0, 0], kneeR: [14, 0, 0],
       ankleL: [-6, 0, 0], ankleR: [-6, 0, 0],
       shoulderL: [10, 0, -2], shoulderR: [10, 0, 2], elbowL: [-6, 0, 0], elbowR: [-6, 0, 0] } },
-    { t: 1.82, ease: 'outQuad', pose: { hipsPos: [0, 0.06, 0], hipsRot: [-3, 0, 0] } },
+    { t: 1.82, ease: 'outQuad', pose: { hipsPos: [0, 0.06, 0], hipsRot: [-3, 0, 0],
+      thighL: [3, 0, 0], thighR: [3, 0, 0], kneeL: [4, 0, 0], kneeR: [4, 0, 0] } },
     { t: 2.4, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0],
       thighL: [0, 0, 0], thighR: [0, 0, 0], kneeL: [0, 0, 0], kneeR: [0, 0, 0],
       ankleL: [0, 0, 0], ankleR: [0, 0, 0],
@@ -2260,11 +2284,12 @@ const VIPER_ARMS = {
 // next seven seconds.
 export const VIPER_JIG = {
   lead: 0.34,    // getting the hands behind his back
-  beat: 0.5,     // one hop
-  beats: 14,     // 14 x 0.5 = the seven seconds asked for
+  beat: 0.167,   // one hop — a THIRD of the first pass' half-second
+  beats: 42,     // 42 x 0.167 = the seven seconds asked for
   out: 0.42,     // unwinding to rest
-  lift: 0.12,    // how far the hop takes the hips up
-  knee: 74,      // the raised knee, degrees forward of rest
+  lift: 0.16,    // how far the hop takes the hips up
+  knee: 98,      // the raised knee, degrees forward of rest
+  sfxEvery: 3,   // one footfall sound in three; forty-two is a machine gun
 };
 
 function viperJigKeys(J = VIPER_JIG) {
@@ -2294,8 +2319,9 @@ const VIPER_TAUNT = {
   dur: VIPER_JIG.lead + VIPER_JIG.beats * VIPER_JIG.beat + VIPER_JIG.out,
   cancelOnMove: true,
   keys: viperJigKeys(),
-  events: Array.from({ length: VIPER_JIG.beats }, (_, i) =>
-    ({ t: VIPER_JIG.lead + i * VIPER_JIG.beat + VIPER_JIG.beat * 0.56, type: 'sfx', arg: 'land' })),
+  events: Array.from({ length: VIPER_JIG.beats }, (_, i) => i)
+    .filter((i) => i % (VIPER_JIG.sfxEvery || 1) === 0)
+    .map((i) => ({ t: VIPER_JIG.lead + i * VIPER_JIG.beat + VIPER_JIG.beat * 0.56, type: 'sfx', arg: 'land' })),
 };
 
 // TITANUS — the capoeira GINGA, the rocking triangular base step: weight back
@@ -2304,7 +2330,7 @@ const VIPER_TAUNT = {
 // and the shoulders counter it, and the guard arm is always the one opposite
 // the back foot.
 const TITANUS_TAUNT = {
-  dur: 2.6, cancelOnMove: true,
+  dur: 3.3, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
     // settle into the base: knees soft, weight centred, hands up
@@ -2328,10 +2354,21 @@ const TITANUS_TAUNT = {
     { t: 2.02, ease: 'inOutQuad', pose: { hipsPos: [0.22, -0.3, -0.18], hipsRot: [0, 16, 0], torso: [8, -14, -6], head: [-6, 18, 0],
       thighL: [12, 0, -8], kneeL: [46, 0, 0], ankleL: [-20, 0, 0], thighR: [-30, 0, 8], kneeR: [24, 0, 0], ankleR: [-10, 0, 0],
       shoulderR: [-78, -18, 34], elbowR: [-112, 0, 0], shoulderL: [-14, 0, -16], elbowL: [-56, 0, 0] } },
-    { t: 2.6, ease: 'inOutQuad', pose: REST_FULL },
+    // …AND THE FOURTH. The ginga is a two-count step, so three sways left him
+    // stopped on the wrong foot with the dance visibly unfinished; the fourth
+    // takes him back through centre and onto the right side, which is where the
+    // step started, so he can stand up out of it.
+    { t: 2.36, ease: 'inOutQuad', pose: { hipsPos: [0, -0.26, 0], hipsRot: [0, 0, 0], torso: [6, 0, 0], head: [-6, 0, 0],
+      thighL: [-16, 0, -6], thighR: [-16, 0, 6], kneeL: [30, 0, 0], kneeR: [30, 0, 0], ankleL: [-14, 0, 0], ankleR: [-14, 0, 0],
+      shoulderL: [-40, 0, -22], shoulderR: [-40, 0, 22], elbowL: [-96, 0, 0], elbowR: [-96, 0, 0] } },
+    { t: 2.72, ease: 'inOutQuad', pose: { hipsPos: [-0.22, -0.3, -0.18], hipsRot: [0, -16, 0], torso: [8, 14, 6], head: [-6, -18, 0],
+      thighR: [12, 0, 8], kneeR: [46, 0, 0], ankleR: [-20, 0, 0], thighL: [-30, 0, -8], kneeL: [24, 0, 0], ankleL: [-10, 0, 0],
+      shoulderL: [-78, 18, -34], elbowL: [-112, 0, 0], shoulderR: [-14, 0, 16], elbowR: [-56, 0, 0] } },
+    { t: 3.3, ease: 'inOutQuad', pose: REST_FULL },
   ],
   events: [{ t: 0.26, type: 'sfx', arg: 'taunt' }, { t: 0.62, type: 'sfx', arg: 'servo' },
-    { t: 1.32, type: 'sfx', arg: 'servo' }, { t: 2.02, type: 'sfx', arg: 'servo' }],
+    { t: 1.32, type: 'sfx', arg: 'servo' }, { t: 2.02, type: 'sfx', arg: 'servo' },
+    { t: 2.72, type: 'sfx', arg: 'servo' }],
 };
 
 // VULCAN — arms straight out and the upper body SPUN, once each way. The turn
@@ -2365,31 +2402,38 @@ const VULCAN_TAUNT = {
 // draws himself up tall, then tips the whole spine FORWARD over you with the
 // arms reaching down around you and the hood still on your face.
 //
-// THE SIGN IS MEASURED, not guessed. On this rig positive torso pitch tips him
-// BACKWARD — with `torso: [25,0,0]` both hands travel from z +0.4 to z -0.2,
-// which is the top of the body going away from his own facing — so the forward
-// loom is NEGATIVE, and the head has to take a POSITIVE offset back out of it
-// or he spends the whole taunt studying the pavement.
+// WHICH WAY IS FORWARD (`tools/scratch/leansign.mjs`): POSITIVE torso pitch and
+// POSITIVE hipsRot both tip a mech FORWARD, onto its own facing, and the head
+// counters with a NEGATIVE value to lift the face back up. That is the rule on
+// every rig; there is no per-mech sign to look up.
+//
+// MEASURE A BONE ABOVE THE PIVOT. The first pass here measured his HANDS and
+// concluded the opposite — `torso: [25,0,0]` walked them from z +0.4 to z -0.2,
+// which looks exactly like the top of the body going backward. It isn't: a
+// rotation about the torso joint carries everything ABOVE it forward and
+// everything BELOW it back, and his hands hang at y 2.5 under a torso joint at
+// y 4.8. So the sign came out inverted and he leaned away from you for a whole
+// release. Read the HEAD (or the hood), never a hanging limb.
 const WRAITH_TAUNT = {
   dur: 2.9, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
-    // drawing himself UP — spine straight, arms opening, chin lifting
-    { t: 0.55, ease: 'outCubic', pose: { torso: [3, 0, 0], head: [-8, 0, 0], hipsPos: [0, 0.12, 0],
+    // drawing himself UP — spine arched back, arms opening, chin lifting
+    { t: 0.55, ease: 'outCubic', pose: { torso: [-5, 0, 0], head: [-8, 0, 0], hipsPos: [0, 0.12, 0],
       shoulderL: [-16, 0, -42], shoulderR: [-16, 0, 42], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
     // …and OVER you: the spine tips forward, the head counter-rotates to keep
     // the hood aimed at your face, the arms come down and around
-    { t: 1.45, ease: 'inOutCubic', pose: { torso: [-38, 0, 0], hipsRot: [-10, 0, 0], head: [26, 0, 0], hipsPos: [0, 0.06, 0.2],
+    { t: 1.45, ease: 'inOutCubic', pose: { torso: [38, 0, 0], hipsRot: [10, 0, 0], head: [-26, 0, 0], hipsPos: [0, 0.06, 0.2],
       shoulderL: [-42, -10, -56], shoulderR: [-42, 10, 56], elbowL: [-40, 0, 0], elbowR: [-40, 0, 0] } },
     // held, with a slow swell — a loom is a thing that keeps arriving
-    { t: 2.25, ease: 'inOutQuad', pose: { torso: [-44, 0, 0], hipsRot: [-13, 0, 0], head: [30, 0, 0], hipsPos: [0, 0.04, 0.26],
+    { t: 2.25, ease: 'inOutQuad', pose: { torso: [44, 0, 0], hipsRot: [13, 0, 0], head: [-30, 0, 0], hipsPos: [0, 0.04, 0.26],
       shoulderL: [-48, -14, -62], shoulderR: [-48, 14, 62], elbowL: [-34, 0, 0], elbowR: [-34, 0, 0] } },
     // IT DOES NOT UNWIND. Every other taunt here ends on REST_FULL; this one
     // holds the loom to the last frame, because the exit is not the body
     // relaxing — it is the giant being replaced by the mech, on one frame, with
     // the bats (growTaunt) carrying it away. A key easing him back to rest
     // would play a huge ghost standing up straight first.
-    { t: 2.9, ease: 'inOutQuad', pose: { torso: [-46, 0, 0], hipsRot: [-14, 0, 0], head: [31, 0, 0], hipsPos: [0, 0.03, 0.28],
+    { t: 2.9, ease: 'inOutQuad', pose: { torso: [46, 0, 0], hipsRot: [14, 0, 0], head: [-31, 0, 0], hipsPos: [0, 0.03, 0.28],
       shoulderL: [-50, -16, -64], shoulderR: [-50, 16, 64], elbowL: [-32, 0, 0], elbowR: [-32, 0, 0] } },
   ],
   events: [{ t: 0.1, type: 'sfx', arg: 'cloak' }, { t: 0.55, type: 'sfx', arg: 'powerup' }],
@@ -2536,47 +2580,57 @@ const GLACIER_TAUNT = {
   events: [{ t: 0.30, type: 'sfx', arg: 'freeze' }],
 };
 
-// COLOSSUS — the SLOW CLAP. Four claps, unhurried and getting no faster, with
-// the hands opening wide between each one so the pause is as visible as the
-// strike. His model's arms are the widest on the roster and the shared clap
-// (COLOSSUS_CLAP, his heavy) already solved where they may meet without going
-// through his own chest — these are its span and contact angles, softened.
-const COLOSSUS_TAUNT = {
-  // COLOSSUS — the SLOW CLAP. Four claps, unhurried and getting no faster, with
-  // the hands opening between each one so the pause is as visible as the strike.
-  //
-  // THE TWO POSES ARE THE OWNER'S, hand-set in the pose workbench, and the rest
-  // of the clip is those two repeated. What they fix is the READ: the first
-  // version reused the span and contact angles of his HEAVY's clap, which is a
-  // weapon — arms thrown wide and driven together on the horizontal — and a
-  // sarcastic clap is not a strike. These are asymmetric (one hand carried high
-  // and one low, meeting between them, and elbows folded across rather than
-  // out), so the hands come together UP AND DOWN in front of his chest. Small
-  // and unhurried; that is the whole joke.
-  //
-  // OPEN  = shoulderL [-15.12, 13.73, -14.67] · shoulderR [-79.75, -6.3, 11.95]
-  // CLAP  = elbowL [6.26, -36.86, 37.78] · elbowR [-57.83, -85.37, -15.7]
-  dur: 3.0, cancelOnMove: true,
-  keys: [
-    { t: 0, pose: {} },
-    { t: 0.34, ease: 'outQuad', pose: { torso: [-6, 0, 0], head: [-8, 0, 0],
-      shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
-    { t: 0.62, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
-      elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] } },
-    { t: 1.02, ease: 'outQuad', pose: { shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
-    { t: 1.30, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
-      elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] } },
-    { t: 1.70, ease: 'outQuad', pose: { shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
-    { t: 1.98, ease: 'inQuad', pose: { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
-      elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] } },
-    { t: 2.38, ease: 'outQuad', pose: { shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] } },
-    { t: 2.62, ease: 'inQuad', pose: { torso: [-3, 0, 0], head: [-4, 0, 0], shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
-      elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] } },
-    { t: 3.0, ease: 'inOutQuad', pose: REST_FULL },
-  ],
-  events: [{ t: 0.62, type: 'sfx', arg: 'block' }, { t: 1.30, type: 'sfx', arg: 'block' },
-    { t: 1.98, type: 'sfx', arg: 'block' }, { t: 2.62, type: 'sfx', arg: 'block' }],
+// COLOSSUS — the SLOW CLAP.
+//
+// THE TWO POSES ARE THE OWNER'S, hand-set in the pose workbench, and the rest of
+// the clip is those two repeated. What they fix is the READ: the first version
+// reused the span and contact angles of his HEAVY's clap, which is a weapon —
+// arms thrown wide and driven together on the horizontal — and a sarcastic clap
+// is not a strike. These are asymmetric (one hand carried high and one low,
+// meeting between them, and elbows folded across rather than out), so the hands
+// come together UP AND DOWN in front of his chest. Small and unhurried; that is
+// the whole joke.
+//
+// THE PAUSE IS THE CLAP. A slow clap is not four fast claps spaced out — the
+// hands MEET and then STAY met, half a second, long enough that you can see him
+// deciding whether to bother with the next one. So every contact is TWO keys
+// carrying the identical pose with `linear` between them (interpolating a pose
+// to itself is a hold), and the beat is generated from the table rather than
+// hand-typed eight times, so the pause is one number to move.
+export const COLOSSUS_SLOWCLAP = {
+  lead: 0.34,    // arms up into the open pose
+  close: 0.28,   // the hands coming together
+  hold: 0.5,     // …and STAYING together
+  open: 0.4,     // drawing them apart again
+  claps: 4,
+  out: 0.38,     // the last drop back to rest
 };
+
+const COLOSSUS_OPEN = { shoulderL: [-15.12, 13.73, -14.67], shoulderR: [-79.75, -6.3, 11.95],
+  elbowL: [-30, 0, 0], elbowR: [-30, 0, 0] };
+const COLOSSUS_SHUT = { shoulderL: [-44, 3, 30], shoulderR: [-44, -3, -30],
+  elbowL: [6.26, -36.86, 37.78], elbowR: [-57.83, -85.37, -15.7] };
+
+function colossusClapClip(C = COLOSSUS_SLOWCLAP) {
+  const keys = [{ t: 0, pose: {} },
+    { t: C.lead, ease: 'outQuad', pose: { torso: [-6, 0, 0], head: [-8, 0, 0], ...COLOSSUS_OPEN } }];
+  const events = [];
+  let t = C.lead;
+  for (let i = 0; i < C.claps; i++) {
+    t += C.close;
+    keys.push({ t, ease: 'inQuad', pose: { ...COLOSSUS_SHUT } });
+    events.push({ t, type: 'sfx', arg: 'block' });
+    t += C.hold;
+    keys.push({ t, ease: 'linear', pose: { ...COLOSSUS_SHUT } });   // the pause
+    if (i === C.claps - 1) break;
+    t += C.open;
+    keys.push({ t, ease: 'outQuad', pose: { ...COLOSSUS_OPEN } });
+  }
+  keys.push({ t: t + C.out, ease: 'inOutQuad', pose: REST_FULL });
+  return { dur: t + C.out, cancelOnMove: true, keys, events };
+}
+
+const COLOSSUS_TAUNT = colossusClapClip();
 
 export const GLB_CLIP_VARIANTS = {
   tritoneChargeGlb: compile('chargeLean', TRITONE_CHARGE),
