@@ -2322,34 +2322,70 @@ const VIPER_ARMS = {
 // does not read as a metronome. The arms are repeated on EVERY key, verbatim: a
 // clip track is sparse, so a pose named once and not again slides away over the
 // next seven seconds.
+// THE LEGS AND THE BODY RUN ON DIFFERENT CLOCKS, and that is the whole reason
+// this is generated rather than typed. Speeding the step up is a legs-only ask:
+// a hip bob keyed once per step goes up with it, and six bounces a second is a
+// mech vibrating, not a dancer. So `beat` is the STEP and `bob` is how many
+// steps one rise-and-fall of the hips spans — 3, which puts the body back on the
+// half-second it bounced at before the legs got quick. The hips are then sampled
+// off their own triangle at every key rather than keyed per step, so the two
+// rhythms cross without either one snapping to the other.
+//
+// HIS FEET COME DOWN UNDER HIM. A jig is danced on a narrow base: `adduct` rolls
+// both thighs toward the midline and the ankles take the same angle back out, so
+// the sole stays flat on the floor instead of landing on its edge. (The owner's
+// pose-workbench pass is where the idea and the rough size came from — theirs
+// carried a per-key yaw wobble too, which is a hand-set pose rather than a rule,
+// so what is kept here is the adduction.)
 export const VIPER_JIG = {
   lead: 0.34,    // getting the hands behind his back
-  beat: 0.167,   // one hop — a THIRD of the first pass' half-second
+  beat: 0.167,   // one STEP — a third of the first pass' half-second
   beats: 42,     // 42 x 0.167 = the seven seconds asked for
+  bob: 3,        // steps per body bounce: 3 x 0.167 = the original 0.5s
   out: 0.42,     // unwinding to rest
-  lift: 0.16,    // how far the hop takes the hips up
+  lift: 0.12,    // how far the bounce takes the hips up
+  drop: -0.05,   // …and down
   knee: 98,      // the raised knee, degrees forward of rest
+  adduct: 9,     // degrees of thigh roll toward the midline (feet closer in)
   sfxEvery: 3,   // one footfall sound in three; forty-two is a machine gun
 };
 
+// The body's own bounce, sampled at time `t`: a triangle with the ORIGINAL
+// period, peaking just after a step lands and bottoming a little past halfway.
+function viperBob(t, J) {
+  const P = J.beat * J.bob;
+  const up = 0.04, dn = 0.56;
+  let ph = (((t - J.lead) % P + P) % P) / P;
+  if (ph < up) ph += 1;
+  return ph < dn
+    ? J.lift + (J.drop - J.lift) * ((ph - up) / (dn - up))
+    : J.drop + (J.lift - J.drop) * ((ph - dn) / (1 + up - dn));
+}
+
 function viperJigKeys(J = VIPER_JIG) {
+  const A = J.adduct;
   const keys = [{ t: 0, pose: {} },
     { t: J.lead, ease: 'outQuad', pose: { torso: [-3, 0, 0], head: [-2, 0, 0], ...VIPER_ARMS } }];
   for (let i = 0; i < J.beats; i++) {
     const t = J.lead + i * J.beat;
-    const R = i % 2 === 0, s = R ? 'R' : 'L', o = R ? 'L' : 'R', sgn = R ? 1 : -1;
+    const R = i % 2 === 0, s = R ? 'R' : 'L', o = R ? 'L' : 'R';
+    // roll toward the midline: +z on the LEFT leg, -z on the right
+    const roll = (side) => (side === 'L' ? 1 : -1);
     const treble = i % 4 === 3;
+    const tUp = t + J.beat * 0.04, tDn = t + J.beat * 0.56;
     // up: the working leg's knee at its top (or thrown forward low, on a treble)
-    keys.push({ t: t + J.beat * 0.04, ease: 'outQuad', pose: { ...VIPER_ARMS,
-      hipsPos: [0, treble ? J.lift * 0.5 : J.lift, 0],
-      ['thigh' + s]: treble ? [-42, 0, 2 * sgn] : [-J.knee + 8, 0, 2 * sgn],
+    keys.push({ t: tUp, ease: 'outQuad', pose: { ...VIPER_ARMS,
+      hipsPos: [0, viperBob(tUp, J), 0],
+      ['thigh' + s]: treble ? [-42, 0, A * roll(s)] : [-J.knee + 8, 0, A * roll(s)],
       ['knee' + s]: treble ? [-16, 0, 0] : [J.knee + 10, 0, 0],
-      ['ankle' + s]: treble ? [34, 0, 0] : [28, 0, 0],
-      ['thigh' + o]: [7, 0, 0], ['knee' + o]: [-7, 0, 0], ['ankle' + o]: [0, 0, 0] } });
+      ['ankle' + s]: treble ? [34, 0, -A * roll(s)] : [28, 0, -A * roll(s)],
+      ['thigh' + o]: [7, 0, A * roll(o)], ['knee' + o]: [-7, 0, 0],
+      ['ankle' + o]: [0, 0, -A * roll(o)] } });
     // down: back under him, taking the weight
-    keys.push({ t: t + J.beat * 0.56, ease: 'inQuad', pose: { ...VIPER_ARMS,
-      hipsPos: [0, -0.05, 0],
-      ['thigh' + s]: [11, 0, 0], ['knee' + s]: [-9, 0, 0], ['ankle' + s]: [0, 0, 0] } });
+    keys.push({ t: tDn, ease: 'inQuad', pose: { ...VIPER_ARMS,
+      hipsPos: [0, viperBob(tDn, J), 0],
+      ['thigh' + s]: [11, 0, A * roll(s)], ['knee' + s]: [-9, 0, 0],
+      ['ankle' + s]: [0, 0, -A * roll(s)] } });
   }
   keys.push({ t: J.lead + J.beats * J.beat + J.out, ease: 'inOutQuad', pose: REST_FULL });
   return keys;
