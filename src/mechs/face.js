@@ -39,6 +39,16 @@ export const FACE_PRESETS = {
   // Gorilla: a heavy prognathous jaw on a low hinge, huge expressive brow ridge.
   // The brow is the readable half of a gorilla's face, so it gets a wide range.
   konga: {
+    // …EXCEPT THAT THIS JAW DOES NOT OPEN. `jawFixed` welds the performance to
+    // the head: the numbers below are kept because they are right for the
+    // face, but nothing writes them while the flag is on. His jaw ISLAND (the
+    // auto-mesher's, ~4.2k verts) owns the whole throat and lower muzzle, so
+    // rotating the bone 35° for a roar swings that mass down the chest and the
+    // face melts into streaks — measured on his chest-beat taunt at the roar
+    // peak. A SOLID FACE BEATS A MELTING ONE, which is the owner's call and
+    // the same one the feather bands answer. Take the flag off the day the jaw
+    // is rebound to just the mandible, and the roar comes back with it.
+    jawFixed: true,
     jawIdle: 0.04, jawSnarl: 0.20, jawRoar: 0.62, jawFlinch: 0.10, jawDead: 0.30,
     browIdle: 0, browSnarl: -0.30, browRoar: -0.16, browFlinch: -0.42,
     breath: 0.035, breathRate: 1.5,
@@ -153,7 +163,10 @@ export function driveFace(anim, dt, ctx, tgt, cfg) {
   const jawPart = anim.part('jaw');
   const browLPart = anim.part('browL');
   const browRPart = anim.part('browR');
-  if (jawPart) jawPart.rotation.x = prev.jaw;
+  // `jawFixed` keeps the jaw RIGID TO THE HEAD — the mouth never opens, so a
+  // jaw whose skin owns more than the mandible cannot drag the face with it.
+  // The rest of the performance (brows, head gesture, shake) is untouched.
+  if (jawPart && !cfg.jawFixed) jawPart.rotation.x = prev.jaw;
   if (browLPart) browLPart.rotation.x = prev.brow;
   if (browRPart) browRPart.rotation.x = prev.brow;
 
