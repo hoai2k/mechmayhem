@@ -193,7 +193,7 @@ const PLUNGE_DOWN_WEIGHT = 1.0;
 const GLITCH_OVERLOAD = 10;
 const GLITCH_STUN_TIME = 3;
 const _glitchTint = new THREE.Color();
-const _arcA = new THREE.Vector3(), _arcB = new THREE.Vector3();
+const _arcA = new THREE.Vector3(), _arcB = new THREE.Vector3(), _arcBow = new THREE.Vector3();
 // Slots held back for the next ~third of a second of hand vent before a
 // chimney chuff is allowed to spend any (see tauntVenting).
 const HAND_RESERVE = 110;
@@ -3497,7 +3497,20 @@ export class Fighter {
     const a = this.arcNode(nodes[i], _arcA), b = this.arcNode(nodes[j], _arcB);
     if (!a || !b) return;
     const col = this.def.arcTaunt.color ?? 0x8fd8ff;
-    fx.lightning.spawn(a, b, { color: col, dur: rand(0.09, 0.2),
+    // …AND IT ARCS ROUND THE FRONT. A straight line between two points on his
+    // BACK — the two shoulder stacks are the obvious pair — is a light show the
+    // player never sees, since the camera is in front of him. So every arc is
+    // BOWED out along his own facing until the middle of its path clears his
+    // chest: `need` is however much forward the midpoint is missing, so a pair
+    // already out front is left alone and a back-to-back pair swings all the
+    // way round. Measured off `yaw`, which is where the legs point, not the
+    // torso twist — the twist is small and the arc is a wide curve either way.
+    const bowOut = (this.def.arcTaunt.bow ?? 1.15) * this.scale;
+    const fx0 = Math.sin(this.yaw), fz0 = Math.cos(this.yaw);
+    const midD = ((a.x + b.x) * 0.5 - this.pos.x) * fx0 + ((a.z + b.z) * 0.5 - this.pos.z) * fz0;
+    const need = Math.max(0, bowOut - midD) + bowOut * 0.35;
+    _arcBow.set(fx0 * need, 0, fz0 * need);
+    fx.lightning.spawn(a, b, { color: col, dur: rand(0.09, 0.2), bow: _arcBow,
       jag: rand(0.25, 0.6) * this.scale, thick: rand(0.04, 0.08) * this.scale });
     fx.glows.emit(b.x, b.y, b.z, 0, 0, 0,
       { life: 0.14, size: rand(0.6, 1.2) * this.scale, color: col, alpha: 0.7, grow: -1 });
@@ -3518,11 +3531,21 @@ export class Fighter {
 
   // ---- LOOMING (roster `tauntGrow` — WRAITH) ------------------------------
   //
-  // He simply gets bigger while he taunts, and small again after. Same levers
-  // colossus' COLOSSAL FORM pulls (specials.js): the render group, the combat
-  // radius/height that go with it, and — the one that is easy to forget —
-  // Animator.sizeMul, without which the walk keeps its small-body cadence and
-  // the feet skate at the new size.
+  // He grows into a huge ghost while he taunts, and then the ghost LEAVES. Same
+  // levers colossus' COLOSSAL FORM pulls (specials.js): the render group, the
+  // combat radius/height that go with it, and — the one that is easy to forget
+  // — Animator.sizeMul, without which the walk keeps its small-body cadence and
+  // the feet skate at the new size. The forward LEAN is in the clip; this is
+  // only the size, the ghosting and the exit.
+  //
+  // THERE IS NO WAY BACK DOWN. A symmetric ramp made the whole thing a bellows
+  // — he inflated, he deflated, nothing happened. So the exit is not a shrink
+  // at all: the instant the taunt ends he is back at his own size in his own
+  // place, on the SAME frame, and the giant is disposed of separately — it
+  // comes apart into a column of bats that climb away. That reads as the
+  // apparition having been something other than his body, which is the point of
+  // a ghost, and it costs nothing in combat terms because the hitbox is back to
+  // normal immediately rather than over a third of a second.
   //
   // The BASE values are captured on the first frame of the first taunt rather
   // than at construction: a mech may already be scaled by something else, and
@@ -3531,15 +3554,35 @@ export class Fighter {
     const want = this.taunting() ? 1 : 0;
     const k = this._growK ?? 0;
     if (k === 0 && want === 0) return;
-    // in over ~0.45s, out over ~0.3s — a loom should arrive slower than it goes
-    const rate = want > k ? 2.2 : 3.4;
-    const nk = clamp01(k + (want - k) * Math.min(1, dt * rate * 2));
-    this._growK = Math.abs(nk - want) < 0.002 ? want : nk;
     if (!this._growBase) {
       this._growBase = { s: this.scale, h: this.baseHeight, hr: this.baseHitRadius, r: this.radius,
         g: this.group.scale.x };
     }
     const B = this._growBase;
+    if (want === 0) {
+      // the apparition comes apart where it stood — sized off the BIG body,
+      // which is why the swarm is emitted before anything is restored
+      const g = 1 + (this.def.tauntGrow - 1) * k;
+      this.world.effects?.batSwarm(this.pos, {
+        // SIZED OFF A PICTURE, not off a hunch: at 0.55 of body scale a bat is
+        // a dark fleck the eye reads as dust. 1.8 is where the silhouette —
+        // wings, ears, the flap — is legible at combat camera distance.
+        n: Math.round(16 + 14 * k), radius: this.radius * 1.15,
+        height: this.baseHeight, scale: B.s * g * 1.8,
+      });
+      this.world.effects?.rings?.spawn(this.pos,
+        { from: 0.4, to: this.radius * 2.6, dur: 0.45, color: 0x2a2438, y: 0.35 });
+      this.world.audio?.play('cloak');
+      this._growK = 0;
+      this.group.scale.setScalar(B.g);
+      this.scale = B.s; this.baseHeight = B.h; this.baseHitRadius = B.hr; this.radius = B.r;
+      this._growBase = null;
+      if (this.animator) this.animator.sizeMul = 1;
+      this.setOpacity(1);
+      return;
+    }
+    const nk = clamp01(k + (1 - k) * Math.min(1, dt * 2.2 * 2));
+    this._growK = 1 - nk < 0.002 ? 1 : nk;
     const g = 1 + (this.def.tauntGrow - 1) * this._growK;
     this.group.scale.setScalar(B.g * g);
     this.scale = B.s * g;
@@ -3547,7 +3590,24 @@ export class Fighter {
     this.baseHitRadius = B.hr * g;
     this.radius = B.r * g;
     if (this.animator) this.animator.sizeMul = g;
-    if (this._growK === 0) { this._growBase = null; if (this.animator) this.animator.sizeMul = 1; }
+    // …AND HE STOPS BEING QUITE SOLID. Half-transparent is what separates a
+    // ghost from a big robot; it never goes further than 0.55 because a body
+    // you cannot read is a body you cannot fight, and cold wisps drift off him
+    // the whole time so the fade reads as something leaving him rather than the
+    // renderer giving up.
+    this.setOpacity(1 - 0.45 * this._growK);
+    this._wispT = (this._wispT ?? 0) - dt;
+    if (this._wispT <= 0) {
+      this._wispT = 0.035;
+      const fx = this.world.effects;
+      const a = rand(Math.PI * 2), r = this.radius * rand(0.2, 1.05);
+      fx?.smoke?.emit(this.pos.x + Math.cos(a) * r,
+        this.pos.y + rand(0.1, 0.95) * this.baseHeight,
+        this.pos.z + Math.sin(a) * r,
+        Math.cos(a) * rand(0.2, 1.2), rand(1.4, 3.6), Math.sin(a) * rand(0.2, 1.2),
+        { life: rand(0.5, 1.1), size: rand(1.1, 2.4) * this.scale * 0.4,
+          color: 0x8ea0c8, color2: 0x2b3350, alpha: 0.3, grow: 1.4, drag: 1.1 });
+    }
   }
 
   // ---- SOLID ICE (roster `tauntIce` — GLACIER) ----------------------------
