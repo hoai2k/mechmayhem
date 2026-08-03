@@ -28,6 +28,13 @@
 //   tail0..tail2       the armoured tail — driven by the gait's own tail layer
 export const TRITONE_RIG = {
   skinSpan: 'child',
+  // A TAIL IS NOT A KICKSTAND (animator.js tailFloorGuard). His is nine units
+  // long and hangs off the hips, so any pose that pitches the hips back — the
+  // taunt's rear, above all — swings it several units under the pavement, and
+  // the floor guard then servos the whole animal upward to keep it out of the
+  // ground. With this on, the tail is re-aimed instead: no segment may point
+  // below the level of his feet.
+  tailFloor: true,
   bones: [
     // ---- spine ---- a rigid weight-bearing bridge, hips at the back
     { name: 'hips', parent: null, pos: [-0.060, 0.240, 0.000], bias: 1.0 },

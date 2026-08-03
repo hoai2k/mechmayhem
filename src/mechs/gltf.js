@@ -58,7 +58,7 @@ let manifestPromise = null;
 const KNOWN_ENTRY_KEYS = new Set([
   'url', 'bindPose', 'boneOverrides', 'heightScale', 'yawOffset',
   'emissiveBoost', 'stretch', 'bonePos', 'boneCorrections', 'noHeadMatch',
-  'skinOps', 'seamCuts', 'dropBones', 'dropGeo', 'limpChains', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
+  'skinOps', 'seamCuts', 'dropBones', 'dropGeo', 'limpChains', 'tailFloor', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
 ]);
 const _entryWarned = new Set(); // "<id>|<msg>" — each complaint fires once per entry
 // Fields of a manifest entry that decide where the bones end up, and
@@ -703,6 +703,10 @@ function buildGlbMech(def, entry, gltf) {
   // declares it, a manifest entry can declare it for a mech that has no custom
   // rig, and `tail0` is the default every tailed body already answers to.
   mech.limpChains = entry.limpChains || customRig?.limpChains || LIMP_ROOTS;
+  // A TAIL IS NOT A KICKSTAND (animator.js tailFloorGuard). Opt-in per rig,
+  // because it costs a per-segment solve every frame and only a body whose
+  // POSE can swing its tail under the pavement needs it — tritone rears.
+  mech.tailFloor = entry.tailFloor ?? customRig?.tailFloor ?? false;
   mech.adapter = adapter;
 
   // Muzzle (projectile-spawn) anchors — the SINGLE source of every ranged /

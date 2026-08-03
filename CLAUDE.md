@@ -1431,6 +1431,25 @@ audio). Progress history: `TASKS.md`.
   authored for a humanoid) and saurion (43%, an auto-rigged tail on
   `tripoSpine_0`; declaring it fixes his knockdown and makes his ragdoll worse,
   so it is not declared).
+- A TAIL IS NOT A KICKSTAND AWAKE EITHER (`Animator.tailFloorGuard`, rig or
+  manifest `tailFloor: true` — TRITONE). limpTail solves it for a body that is
+  DOWN; the same thing happens to one that is UP. Tritone's taunt rears him onto
+  his hind legs, and his tail is nine units long and hangs off the same hips, so
+  the rotation that lifts his head swept the tail metres under the pavement —
+  where nothing complains, because the FLOOR GUARD then does exactly its job and
+  servos the whole animal up into the air. Read as him being levitated by his
+  own tail. The rule is the plain one: NO SEGMENT MAY POINT BELOW THE FEET. Run
+  root to tip, and where a segment's far end would land under the floor the bone
+  is re-aimed so the end sits ON it, keeping the heading it had — limpTail's
+  floor clamp without the gravity it damps toward, since this tail is alive and
+  everything above the floor is whatever the gait and the clip asked for. So it
+  is free at rest and costs nothing on a tail already carried high. THE FLOOR IS
+  THE FEET, measured off the lower ankle rather than y=0, which comes out right
+  on a slope, on a rooftop and in mid-air. Judge it with `node
+  tools/scratch/rearprobe.mjs <mech> <clip>` (every tail bone's height against
+  the hind ankles, per frame): tritone's rear went from the tail three units
+  under the floor to never below his own feet, hind ankles planted within 0.07,
+  head still climbing 4.7 -> 10.8.
 - NOTHING SHOULD BE UNDER THE FLOOR, and `node tools/groundprobe.mjs <mech>`
   is how you know: it plays every clip the mech can actually play, CPU-skins
   the model at each sample and reports the LOWEST VERTEX against the ground,
@@ -1497,7 +1516,7 @@ audio). Progress history: `TASKS.md`.
   [frames] [front|q|side|back]` — the clip as a filmstrip, stepped
   DETERMINISTICALLY at 1/60 from t=0 for every frame, which is the only way to
   read a one-shot under a renderer running 20x slow.
-  FOUR THINGS BIT, IN ORDER. (1) A limb has to ARRIVE somewhere, and the angle
+  FIVE THINGS BIT, IN ORDER. (1) A limb has to ARRIVE somewhere, and the angle
   that gets it there is not always the obvious one: konga's chest beat is
   shoulder YAW, because his arms are the longest on the roster and the
   pitch-and-roll a biped beats its chest with swings those hands clean over his
@@ -1514,7 +1533,15 @@ audio). Progress history: `TASKS.md`.
   bone's local frame once and carried by the bone through every candidate.
   Estimating it instead as "about a hand-length past the hand" was off by a
   factor of two and picked a pose that crossed the blades in an X over his
-  shoulder blades.
+  shoulder blades. (5) FORWARD IS POSITIVE, on every rig, for both pitch levers:
+  `torso` and `hipsRot` positive tip a mech onto its own facing and the head
+  takes a NEGATIVE offset to lift the face back up (`node
+  tools/scratch/leansign.mjs <mech> [bone]` measures it). MEASURE A BONE ABOVE
+  THE PIVOT, though — wraith's loom shipped leaning AWAY from you for a release
+  because the probe read his HANDS, and a rotation about the torso joint carries
+  everything above it forward and everything below it back, so hands hanging at
+  y 2.5 under a torso joint at y 4.8 travel the wrong way and invert the sign.
+  Read the head or the hood, never a hanging limb.
   AND SOME TAUNTS ARE NOT POSES. Four are effects, each driven off
   `Fighter.taunting()` (is the clip named `taunt` playing) and nothing else,
   which is what makes "a hit interrupts it" free — a hit plays hitFlinch over
@@ -1533,9 +1560,8 @@ audio). Progress history: `TASKS.md`.
   (`growTaunt`, roster `tauntGrow: 1.6` — the same levers colossus' ult pulls,
   `Animator.sizeMul` included) with a gale blown through his cloak
   (`swayCloak`'s `wind`), half-transparent with cold wisps coming off him, and
-  the clip tips his whole spine FORWARD over you (the sign is measured — on his
-  rig positive torso pitch leans BACK) with the head counter-rotated so the hood
-  stays on your face. THERE IS NO WAY BACK DOWN: a symmetric ramp made the whole
+  the clip tips his whole spine FORWARD over you with the head counter-rotated
+  so the hood stays on your face. THERE IS NO WAY BACK DOWN: a symmetric ramp made the whole
   thing a bellows, so the instant the taunt ends he is back at his own size on
   the SAME frame and the GIANT is disposed of separately — `Effects.batSwarm`
   breaks it into black bats that climb away (a body-shaped spawn volume, so what
