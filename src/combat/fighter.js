@@ -4146,25 +4146,39 @@ export class Fighter {
     } else if (this.state !== 'dash') this._stackDashed = false;
   }
 
-  // WHICH BURNERS ARE HELD DARK this frame. A hand torch is also a flamethrower
-  // muzzle: while that hand is throwing a jet, the pilot light sits inside its
-  // own stream, which reads as a stray flame stuck to his wrist. The channel
-  // clip names the side (`shootLoopL` is the left torch, `shootLoop` the right)
-  // and `firing` covers the frames either side of it.
+  // WHICH BURNERS ARE HELD DARK this frame.
   //
+  // A PILOT LIGHT IS AN IDLE THING. Inferno's hand torches burn out of the same
+  // table as his chimneys, and they go out whenever those hands are busy —
+  // which is nearly everything a mech does with its arms:
+  //
+  //   · THROWING A JET. One hand at a time (roster channelClipL alternates
+  //     them), and only that one: the flamethrower leaves from the same point,
+  //     so a pilot light sitting inside its own stream reads as a bug.
+  //   · SWINGING, CASTING or GUARDING. `attack` covers the light and heavy
+  //     clips, `ult` the ultimate's own animation and `special` the napalm cast;
+  //     blocking is its own flag. The ULT's state lasts exactly as long as the
+  //     cast clip (movekit cast passes no stateT), so the FIRE TORNADO that
+  //     follows burns with the torches lit again, which is the interesting half.
+  //   · WALKING OR RUNNING. Gated on a fraction of his own top speed rather
+  //     than a raw number, so the idle sway cannot flicker them.
+  //
+  // The chimneys never go dark for any of this — they are chimneys.
   // Returns null when nothing is dark, so the common case allocates nothing.
   darkNozzles(sf) {
     if (!sf.torches?.length) return null;
     const act = this.animator?.action;
     const n = act && !act.fadingOut ? act.clip.name : '';
+    const busy = this.blocking || this.state === 'attack' || this.state === 'ult'
+      || this.state === 'special';
+    const moving = Math.hypot(this.vel.x, this.vel.z) > this.moveSpeed() * 0.18;
+    const set = this._darkSet || (this._darkSet = new Set());
+    set.clear();
+    if (busy || moving) { for (const t of sf.torches) set.add(t); return set; }
     const flaming = this.firing || n === 'shootLoop' || n === 'shootLoopL'
       || n === 'shoot' || n === 'shootL';
     if (!flaming) return null;
     const left = n.endsWith('L') || (!n && this._shotSide);
-    const set = this._darkSet || (this._darkSet = new Set());
-    set.clear();
-    // one hand fires at a time (roster channelClipL alternates them), so only
-    // that torch goes out — the other keeps its pilot light
     set.add(left ? 'muzzleL' : 'muzzleR');
     return set;
   }
