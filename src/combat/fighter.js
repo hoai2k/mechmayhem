@@ -7,6 +7,7 @@ import { Animator, LEG_BACK_OFF } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
 import { stackState, burnStacks, stackBlast, stackToot, stackHandSmoke, TOOT_COST } from '../mechs/stackfx.js';
+import { infernoVentPlan } from '../mechs/animations.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
@@ -4193,25 +4194,33 @@ export class Fighter {
     const act = this.animator?.action;
     if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._handAcc = 0; this._venting = false; this._tootN = 0; return false; }
     const smoke = !this.world.sandbox;
+    // THE RHYTHM IS THE CLIP'S OWN. Every window below comes off the same table
+    // the taunt's keyframes are generated from (animations.js INFERNO_VENT), so
+    // the arms are folded exactly while the smoke is leaving and relaxed
+    // exactly while it is not — tune the numbers there and both move together.
+    const plan = this._ventPlan || (this._ventPlan = infernoVentPlan());
     // THE HANDS ARE THE GUARANTEED PART and the chimneys are paid for out of
-    // what is left. Two vents with a breath between them (1s on, 0.5s off, 1s
-    // on); the rate is an ACCUMULATOR with a per-frame cap rather than one
-    // emission per frame, so it looks the same on a fast machine and a slow one.
+    // what is left. The rate is an ACCUMULATOR with a per-frame cap rather than
+    // one emission per frame, so it looks the same on a fast machine and a slow
+    // one.
     //
-    // The chimneys then CHUFF over the top on the train-toot beats — but only
-    // when the pool can actually pay for it. A smoke pool is a ring buffer 450
-    // deep: emitting past its end does not fail, it silently overwrites the
-    // oldest particles, so an over-ambitious chuff does not look like a big
-    // chuff, it looks like the hand vent losing its head. So the cost is
-    // checked against real headroom (Effects liveCount) with a reserve held
-    // back for the next third of a second of hand smoke, and a chuff that
-    // cannot be paid for in full is SKIPPED rather than thinned — half a chuff
-    // reads worse than none. Measured: the hand vents alone peak at 266 of 450,
-    // so in practice every beat fires and the fallback is the safety net it is
-    // meant to be.
-    const HAND = [[0.22, 1.22], [1.72, 2.72]];
-    const CHUFF = [0.24, 0.44, 1.02, 1.74, 1.94, 2.52];
-    const beats = CHUFF.filter((t) => act.t >= t).length;
+    // The chimneys CHUFF on the front of each puff — but only when the pool can
+    // actually pay for it. A smoke pool is a ring buffer 450 deep: emitting past
+    // its end does not fail, it silently overwrites the oldest particles, so an
+    // over-ambitious chuff does not look like a big chuff, it looks like the
+    // hand vent losing its head. So the cost is checked against real headroom
+    // (Effects liveCount) with a reserve held back for the next third of a
+    // second of hand smoke, and a chuff that cannot be paid for in full is
+    // SKIPPED rather than thinned — half a chuff reads worse than none.
+    // Measured: the hand vents alone peak at 266 of 450, so in practice every
+    // beat fires and the fallback is the safety net it is meant to be.
+    let beats = 0, venting = false;
+    for (const cy of plan.cycles) {
+      for (const [a, b] of cy.puffs) {
+        if (act.t >= a) beats++;
+        if (act.t >= a && act.t < b) venting = true;
+      }
+    }
     if (beats > (this._tootN || 0)) {
       this._tootN = beats;
       const pool = fx.smoke;
@@ -4225,7 +4234,6 @@ export class Fighter {
         this.world.audio?.play('whoosh');
       }
     }
-    const venting = HAND.some(([a, b]) => act.t >= a && act.t < b);
     if (venting) {
       this._venting = true;
       this._handAcc = (this._handAcc ?? 0) + dt;
