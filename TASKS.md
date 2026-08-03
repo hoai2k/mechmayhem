@@ -6427,8 +6427,50 @@ Three answers, all rendered at the same frame and camera:
     a seam. Shipped.
 
 What it costs, stated plainly: the skin audit reads a narrow band as stretch,
-so konga's severity total goes 282.8 → 340.0. ALL of that is the face seam —
-non-face findings total 113.8 before and 113.8 after, to the decimal. The
-audit is a proxy for "does this look wrong", and here it points the wrong way:
-a solid face is what the owner asked for and what a gorilla should have. Same
-reasoning the pods have shipped on since they were given 0.012.
+so konga's severity total goes ~283 → ~340. ALL of that is the face seam —
+non-face findings total 113.8 before and after, to the decimal, in every
+configuration measured. The audit is a proxy for "does this look wrong", and
+here it points the wrong way: a solid face is what the owner asked for and
+what a gorilla should have. Same reasoning the pods have shipped on since they
+were given 0.012.
+
+(POSTSCRIPT, same day — see the next entry: the head band went back to 0.028
+once the jaw stopped moving, which is where the ~340 goes back to ~285. And
+the audit total is noisy run to run, so those two figures are the shape of the
+answer, not the answer to a decimal.)
+
+## …AND THE JAW WAS THE THING MOVING (user request, 2026-08-02)
+
+The owner's read of the previous fix: "it looks like the jaw bone is moving
+separately from the head — can you keep the jaw fixed to the head?" Correct,
+and it is the cause rather than a symptom. `taunt` is in face.js's ROAR_CLIPS,
+so through the chest beat the face performance opens konga's jaw to `jawRoar`
+0.62 rad — 35° — on top of everything the clip does. His jaw ISLAND is the
+auto-mesher's, not a mandible: ~4.2k vertices covering the throat and the whole
+lower muzzle. Rotating that 35° swings the mass down his chest, and the face
+tears into vertical streaks — visible in a head close-up at the roar peak
+(t=0.9), and NOT fixable with any feather band, because no weighting saves
+geometry from a bone that shouldn't be carrying it.
+
+`jawFixed: true` on FACE_PRESETS.konga is the fix: `driveFace` skips the jaw
+write and the mouth never opens. Brows, head gesture, roar shake and the torso
+bellow all still run — the acting layer is untouched, it just performs with a
+closed mouth. The jaw numbers stay in the preset (they are right for the face)
+so the day the jaw is rebound to just the mandible, deleting one flag brings
+the roar back. Tritone is unaffected: his beak is a real beak and still opens.
+
+AND IT PAYS THE PREVIOUS ENTRY BACK. The 0.012 band on `head` was bought to
+stop the muzzle melting; with the jaw frozen, the melt is gone at the source,
+so `head` went back out to **0.028** — the neck is that border, and a hairline
+there is a seam, while the four genuinely-face bones (`crest`/`jaw`/`snout`/
+`brow*`) stay at 0.012. Rendered at the same frame, 0.028 reads no softer than
+0.012 in the muzzle and better at the throat; 0.045 (no head band at all) is
+visibly waxy. Severity ~285 against ~340 at 0.012.
+
+CAVEAT LEARNED THE HARD WAY, now in CLAUDE.md: `tools/skindebug.mjs`'s total
+is NOT deterministic. It samples clips as they play, so a slow SwiftShader run
+catches fewer frames — three runs of the identical manifest gave 286.0 / 305.8
+/ 313.2, with the top finding sampled over 25 frames one run and 11 the next.
+±10% is noise. The stable part is the non-face 113.8, which held to the decimal
+across every configuration in both entries, and that is what says these changes
+touched the face and nothing else.

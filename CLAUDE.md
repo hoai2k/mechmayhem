@@ -61,7 +61,12 @@ audio). Progress history: `TASKS.md`.
   re-reads `models/manifest.json` and drops the cached GLBs (skinOps are baked
   into the shared geometry once), so a save from the skin workbench next door is
   picked up and re-scanned without losing your place. Headless twin:
-  `node tools/skindebug.mjs <mech> [--json out.json]`. The maths lives in
+  `node tools/skindebug.mjs <mech> [--json out.json]`. ITS TOTAL IS NOT
+  DETERMINISTIC: clips are sampled AS THEY PLAY, so a slow renderer catches
+  fewer frames (measured on konga, three runs of the identical manifest: 286.0
+  / 305.8 / 313.2, top finding sampled over 25 frames one run and 11 the next).
+  Read a ±10% difference as noise, take the big moves as signal, and settle a
+  close call with a picture (`tools/pose.mjs`) rather than another run. The maths lives in
   `workbench/tools/stretchscan.js`; the narrower CLI probes
   (`tools/skinstretch.mjs`, `tools/cliptear.mjs`, `tools/stretchaudit.mjs`)
   still answer their own questions.
@@ -746,16 +751,20 @@ audio). Progress history: `TASKS.md`.
   travel THROUGH that geometry), so konga's missile pods keep the crisp seam a
   bolted-on launcher should have while the ape around them is soft.
   A FACE IS A ROBOT PART TOO, for this purpose. The same table names konga's
-  `head`/`crest`/`jaw`/`snout`/`brow*` at 0.012, because a band wide enough to
-  swell his shoulder into his chest also reaches his MUZZLE — and a muzzle that
-  takes a minority weight off the torso melts every time he leans (measured on
-  his chest-beat taunt: the snout dragged into a smooth droop with no mouth
-  line). A FACE THAT MOVES AS ONE SOLID PIECE IS RIGHT; a face that smears is
-  never right, whatever it costs. And it does cost: the skin audit reads a
-  narrow band as stretch, so the total goes 282.8 → 340.0 — ALL OF IT at the
-  face seam (non-face severity is 113.8 either way, to the decimal). Full
-  `rigid` on those bones was tried and is worse: crisp, but it opens a visible
-  gap under the chin.
+  `crest`/`jaw`/`snout`/`brow*` at 0.012 and `head` at 0.028, because a band
+  wide enough to swell his shoulder into his chest also reaches his MUZZLE —
+  and a muzzle that takes a minority weight off the torso goes waxy every time
+  he leans. A FACE THAT MOVES AS ONE SOLID PIECE IS RIGHT; a face that smears
+  is never right. The head is the one that wants a little width (~285 total
+  against ~340 at 0.012, and it reads no softer), since its border is the NECK
+  and a hairline there is a seam. Full `rigid` on those bones was
+  tried and is worse: crisp, but it opens a visible gap under the chin.
+  AND THE OTHER HALF OF THAT FIX IS NOT SKINNING AT ALL: konga's `jawFixed`
+  (face.js) stops the jaw ROTATING. His jaw island owns the throat and the
+  whole lower muzzle, so a 35° roar swung that mass down his chest whatever
+  the weights blended like — no band can fix a bone that is moving geometry it
+  does not own. Judge the two together; a band swept while the jaw still opens
+  measures the jaw.
   BAND WIDTH IS MEASURED, NOT GUESSED. Too narrow leaves the tear, too wide
   PINCHES (the LBS candy wrapper), so it has an optimum: konga's skin-audit
   severity total ran 1851 rigid → 483 at 0.03 → 288 at 0.04 → **280 at 0.045**
