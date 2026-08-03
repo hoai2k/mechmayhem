@@ -6,7 +6,7 @@ import { buildMech } from '../mechs/factory.js';
 import { Animator, LEG_BACK_OFF } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
-import { stackState, burnStacks, stackBlast, stackHandSmoke } from '../mechs/stackfx.js';
+import { stackState, burnStacks, stackBlast, stackToot, stackHandSmoke, TOOT_COST } from '../mechs/stackfx.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
@@ -193,6 +193,9 @@ const GLITCH_OVERLOAD = 10;
 const GLITCH_STUN_TIME = 3;
 const _glitchTint = new THREE.Color();
 const _arcA = new THREE.Vector3(), _arcB = new THREE.Vector3();
+// Slots held back for the next ~third of a second of hand vent before a
+// chimney chuff is allowed to spend any (see tauntVenting).
+const HAND_RESERVE = 110;
 const _iceBox = new THREE.Box3(), _iceB2 = new THREE.Box3();
 const _iceSize = new THREE.Vector3(), _iceMid = new THREE.Vector3();
 // where a corruption spot may pin itself: joint + local Y band (in scale
@@ -4188,22 +4191,43 @@ export class Fighter {
   // the puffs land on the same beats however the clip is being played back.
   tauntVenting(dt, sf, fx) {
     const act = this.animator?.action;
-    if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._handAcc = 0; this._venting = false; return false; }
+    if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._handAcc = 0; this._venting = false; this._tootN = 0; return false; }
     const smoke = !this.world.sandbox;
-    // EVERYTHING OUT OF THE HANDS. The chimneys and the back tanks are held
-    // completely dark for the taunt — no flame, no chuff, nothing — and their
-    // whole share of a 450-deep smoke pool goes into the two hand vents
-    // instead. One big gesture beats three medium ones fighting each other for
-    // particles, and it is also why the arms are folded across his chest: it
-    // puts both jets where the camera already is.
+    // THE HANDS ARE THE GUARANTEED PART and the chimneys are paid for out of
+    // what is left. Two vents with a breath between them (1s on, 0.5s off, 1s
+    // on); the rate is an ACCUMULATOR with a per-frame cap rather than one
+    // emission per frame, so it looks the same on a fast machine and a slow one.
     //
-    // Two vents with a breath between them (1s on, 0.5s off, 1s on). The rate
-    // is an ACCUMULATOR with a per-frame cap rather than one emission per
-    // frame, so it looks the same on a fast machine and a slow one.
+    // The chimneys then CHUFF over the top on the train-toot beats — but only
+    // when the pool can actually pay for it. A smoke pool is a ring buffer 450
+    // deep: emitting past its end does not fail, it silently overwrites the
+    // oldest particles, so an over-ambitious chuff does not look like a big
+    // chuff, it looks like the hand vent losing its head. So the cost is
+    // checked against real headroom (Effects liveCount) with a reserve held
+    // back for the next third of a second of hand smoke, and a chuff that
+    // cannot be paid for in full is SKIPPED rather than thinned — half a chuff
+    // reads worse than none. Measured: the hand vents alone peak at 266 of 450,
+    // so in practice every beat fires and the fallback is the safety net it is
+    // meant to be.
     const HAND = [[0.22, 1.22], [1.72, 2.72]];
+    const CHUFF = [0.24, 0.44, 1.02, 1.74, 1.94, 2.52];
+    const beats = CHUFF.filter((t) => act.t >= t).length;
+    if (beats > (this._tootN || 0)) {
+      this._tootN = beats;
+      const pool = fx.smoke;
+      const stacks = sf.anchors.filter((a) => !sf.torches?.includes(a));
+      const cost = stacks.length * TOOT_COST;
+      const free = pool ? pool.cap - pool.liveCount() : 0;
+      if (!smoke || free >= cost + HAND_RESERVE) {
+        this.group.updateWorldMatrix(true, true);
+        stackToot(this.mech, sf, { fx, scale: this.scale, smoke, only: stacks,
+          power: beats % 2 === 0 ? 1.15 : 0.85 });
+        this.world.audio?.play('whoosh');
+      }
+    }
     const venting = HAND.some(([a, b]) => act.t >= a && act.t < b);
     if (venting) {
-      if (!this._venting) { this._venting = true; this.world.audio?.play('whoosh'); }
+      this._venting = true;
       this._handAcc = (this._handAcc ?? 0) + dt;
       let ticks = 0;
       while (this._handAcc >= 0.06 && ticks < 4) { this._handAcc -= 0.06; ticks++; }

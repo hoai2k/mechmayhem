@@ -190,6 +190,18 @@ class ParticlePool {
     scene.add(this.points);
   }
 
+  // HOW MANY SLOTS ARE STILL BURNING. The pool is a RING BUFFER — `emit` takes
+  // the next slot whether or not the particle in it has finished — so there is
+  // no running count to read, and this is a scan. It is only for callers that
+  // want to SPEND the headroom they have (inferno's taunt asks before adding a
+  // chimney chuff to a hand vent that is already pouring): call it once per
+  // decision, not once per particle.
+  liveCount() {
+    let n = 0;
+    for (let i = 0; i < this.cap; i++) if (this.life[i] > 0) n++;
+    return n;
+  }
+
   // sprite-override intake: swap the texture (and atlas layout) in place
   setTexture(tex, cols = this.cols, rows = this.rows) {
     this.cols = cols;

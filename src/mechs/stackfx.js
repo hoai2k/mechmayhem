@@ -342,7 +342,7 @@ const _tp = new THREE.Vector3(), _td = new THREE.Vector3();
 const _tq = new THREE.Quaternion(), _tdir = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 
-export function stackToot(mech, sf, { fx, scale = 1, smoke = true, power = 1 } = {}) {
+export function stackToot(mech, sf, { fx, scale = 1, smoke = true, power = 1, only = null } = {}) {
   if (!smoke || !fx?.smoke) return 0;
   const s = scale;
   let n = 0;
@@ -385,19 +385,26 @@ export function stackToot(mech, sf, { fx, scale = 1, smoke = true, power = 1 } =
     n++;
   };
   const A = mech.anchors || {};
+  // `only` narrows the nozzles this round uses — the taunt fires the CHIMNEYS
+  // alone, because the hands are already streaming and the two together have to
+  // fit in one particle pool.
+  const wants = (name) => !only || only.includes(name);
   // THE CHIMNEYS ARE THE WHISTLE — biggest and hardest of the three, straight
   // up, because they are the pair a player is looking at
   for (const name of sf.anchors || []) {
     const a = A[name];
-    if (a) puff(a, UP, 26 * power, 2.4);
+    if (a && wants(name)) puff(a, UP, 26 * power, 2.4);
   }
   // the BACK TANKS: the booster nozzles, also straight up (they sit under him,
   // so a puff along their own axis would go into the floor)
   for (const name of Object.keys(A)) {
-    if (name.startsWith('boost')) puff(A[name], UP, 15 * power, 1.3);
+    if (name.startsWith('boost') && wants(name)) puff(A[name], UP, 15 * power, 1.3);
   }
   return n;
 }
+
+/** What one nozzle's chuff costs the pool — see Fighter.tauntVenting. */
+export const TOOT_COST = 13;
 
 /**
  * ONE TICK of the HAND TORCHES' smoke — called every frame while a vent window
