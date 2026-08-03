@@ -31,6 +31,7 @@
 // reads as a glitch. Attack expressions ride the CLIP'S OWN PHASE (like cranky's
 // pincer gape), so the mouth opens on the wind-up and is widest at the hit
 // instead of drifting on a timer of its own.
+import * as THREE from 'three';
 import { lerp, clamp01 } from '../core/utils.js';
 import { PRONE_CLIPS } from './animations.js';
 
@@ -50,7 +51,13 @@ export const FACE_PRESETS = {
     // is rebound to just the mandible, and the roar comes back with it.
     jawFixed: true,
     jawIdle: 0.04, jawSnarl: 0.20, jawRoar: 0.62, jawFlinch: 0.10, jawDead: 0.30,
-    browIdle: 0, browSnarl: -0.30, browRoar: -0.16, browFlinch: -0.42,
+    // A BROW RIDGE IS BONE. It is the readable half of the face, but what
+    // reads is a FURROW, not a shrug: the owner's note is that these were
+    // moving far too much. Measured with tools/browprobe.mjs, the old
+    // -0.30/-0.42 swung the ridge 7% of body height — three quarters of the
+    // eye's own height — where 2-3% is a scowl you believe. Cut to roughly a
+    // third; the idle effort term rides browSnarl, so it follows.
+    browIdle: 0, browSnarl: -0.11, browRoar: -0.06, browFlinch: -0.15,
     breath: 0.035, breathRate: 1.5,
     headRoarBack: -0.34, headSnarlDown: 0.16, headFlinch: 0.30,
     shakeAmp: 0.09, shakeRate: 26,
@@ -167,8 +174,31 @@ export function driveFace(anim, dt, ctx, tgt, cfg) {
   // jaw whose skin owns more than the mandible cannot drag the face with it.
   // The rest of the performance (brows, head gesture, shake) is untouched.
   if (jawPart && !cfg.jawFixed) jawPart.rotation.x = prev.jaw;
-  if (browLPart) browLPart.rotation.x = prev.brow;
-  if (browRPart) browRPart.rotation.x = prev.brow;
+  // A BROW HAS ONE HINGE, AND IT IS MEASURED, NOT NAMED. `rotation.x` was the
+  // whole of this once, which is right on the game's own joints (built facing
+  // +z with left at -x, so local x IS the lateral hinge) and WRONG on a custom
+  // rig authored in the raw GLB's bind space, where local x points FORWARD and
+  // the same line ROLLS the ridge instead of pitching it. On konga that put
+  // half the travel sideways — the brows visibly swinging left and right in
+  // victory, intro and every strike (tools/browprobe.mjs: 7.1% of body height
+  // lateral against 7.5% lift). So the axis comes from the two brows
+  // themselves: the vector from the right brow to the left one is the head's
+  // lateral axis on ANY rig, in whatever frame that rig was authored in, and
+  // rotating about it is a raise/lower by construction. Cached per animator —
+  // bind positions never change — and applied in the PARENT's frame over each
+  // brow's rest rotation, so nothing else the rig authored is thrown away.
+  if (browLPart && browRPart) {
+    let h = anim._browHinge;
+    if (!h) {
+      const axis = new THREE.Vector3().subVectors(browRPart.position, browLPart.position);
+      if (axis.lengthSq() < 1e-9) axis.set(1, 0, 0); else axis.normalize();
+      h = anim._browHinge = { axis, q: new THREE.Quaternion(),
+        restL: browLPart.quaternion.clone(), restR: browRPart.quaternion.clone() };
+    }
+    h.q.setFromAxisAngle(h.axis, prev.brow);
+    browLPart.quaternion.copy(h.q).multiply(h.restL);
+    browRPart.quaternion.copy(h.q).multiply(h.restR);
+  }
 
   // HEAD GESTURE — always available, on both routes. Additive into tgt so the
   // clip's own head keys still lead.

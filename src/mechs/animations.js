@@ -1939,10 +1939,14 @@ const KONGA_TAUNT = {
     // both fists together, the punctuation
     { t: 1.08, ease: 'inQuad', pose: { torso: [-21, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.10, 0],
       shoulderL: [-16, 42, -4], shoulderR: [-16, -42, 4],
-      elbowL: [-121.27, -4.87, -67.06], elbowR: [-103.32, 41.94, 46.32] } },
+      elbowL: [-1.79, -37.32, 88.94], elbowR: [-103.32, 41.94, 46.32] } },
     // the release OPENS rather than flings: the wide cock pose held here read
-    // as a wing on the way back to rest
-    { t: 1.34, ease: 'outQuad', pose: { torso: [-14, 0, 0], shoulderL: [-20, -20, -12], shoulderR: [-20, 20, 12], elbowL: [-104, 0, 0], elbowR: [-104, 0, 0] } },
+    // as a wing on the way back to rest. The owner's second pass (pose
+    // workbench, 2026-08-03) turned the punctuation over too — the double beat
+    // lands the LEFT forearm rolled across the chest instead of folded under
+    // it, and the right arm comes out of the release unfolded and open rather
+    // than still cocked at -104.
+    { t: 1.34, ease: 'outQuad', pose: { torso: [-14, 0, 0], shoulderL: [-20, -20, -12], shoulderR: [-20, 20, 12], elbowL: [-104, 0, 0], elbowR: [-11.97, -2.94, -41.07] } },
     { t: 1.9, ease: 'inOutQuad', pose: REST_FULL },
   ],
   events: [{ t: 0.42, type: 'sfx', arg: 'taunt' }, { t: 0.74, type: 'sfx', arg: 'hit' },
