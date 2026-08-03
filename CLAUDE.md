@@ -732,9 +732,11 @@ audio). Progress history: `TASKS.md`.
   anchor stays on the same PHYSICAL bone (`tools/anchorkeep.mjs`' rule — the
   rest-pose anchor transforms came back bit-identical). What it buys is
   measured as RETARGET FIT, the distance between each virtual joint and the
-  bone it drives: saurion 3.25 body-heights summed over the 12 joints -> 1.15,
-  every joint better, his knees 0.27 -> 0.05. Hurtbox contain/bloat unmoved
-  (78% / 1.16x). The SKIN AUDIT moved the other way — 830 -> ~960 severity,
+  bone it drives (`node tools/retargetfit.mjs <mech>`): saurion 3.64
+  body-heights summed over the 12 limb joints -> 1.80, every joint better, his
+  knees 0.28 -> 0.09 — read against a correctly-mapped mech rather than against
+  zero, since the residue is the model's own proportions (tempest: 1.34).
+  Hurtbox contain/bloat unmoved (78% / 1.16x). The SKIN AUDIT moved the other way — 830 -> ~960 severity,
   reproducible over three runs — but read the findings, not the total: rows 2-8
   are the same places at the same severities with their labels corrected
   (`bone_43` was reported as `elbowR`, it is the left elbow), and the whole
