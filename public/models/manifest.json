@@ -2478,10 +2478,7 @@
         {"purgePair":["bone_42","bone_40"]}
       ]
     },
-    "dropBones": [
-      "stackL",
-      "stackR"
-    ]
+    "dropBones": ["stackL","stackR","nozzleL","nozzleR"]
   },
   "cranky": {
     "url": "models/mech_cranky.glb",

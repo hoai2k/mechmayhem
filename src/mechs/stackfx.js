@@ -82,7 +82,7 @@ function stackAt(mech, sf, i, s, out) {
  *         does the menus' BurnerFx (effects.js), which has no smoke pool
  *   run   0..1, how hard the mech is moving: more flame, much more smoke
  */
-export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = true }) {
+export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = true, skip = null }) {
   const s = scale;
   // …and in his own paint. A repainted mech's chimneys burn the same colour the
   // rest of his fire does (colorscheme.js schemeFire); null is ordinary fire, so
@@ -92,9 +92,22 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
   const wantSmoke = smoke && !!fx.smoke;
   const spark = sf.kind === 'spark';
   for (let i = 0; i < sf.anchors.length; i++) {
+    // A NOZZLE CAN BE HELD DARK. Inferno's HAND TORCHES burn out of the same
+    // table as his chimneys, and they must go out while that hand is actually
+    // throwing a flame — the jet leaves from the same point, and a pilot light
+    // sitting inside it just reads as a bug. Fighter.updateStackFlames names the
+    // side; the accumulators still tick (below) so relighting is not a burst.
+    const dark = skip ? skip.has(sf.anchors[i]) : false;
     if (!stackAt(mech, sf, i, s, _v)) continue;
     const p = _v;              // nothing else touches it before this stack ends
     const k = st[i];
+    // HOW TALL THIS ONE BURNS. `flameH` scales the launch speed and the
+    // buoyancy together, which is what actually sets the height of the column;
+    // `sf.torches` names the anchors that burn at `torchH` instead, so one mech
+    // can have big chimneys and small hand pilots off one table.
+    const isTorch = sf.torches ? sf.torches.includes(sf.anchors[i]) : false;
+    const hK = (isTorch ? (sf.torchH ?? sf.flameH ?? 1) : (sf.flameH ?? 1));
+    const sizeK = isTorch ? (sf.torchSize ?? 1) : 1;
     k.t += dt;
     // flicker: two detuned sines plus a little noise, offset per side
     const fl = 0.62 + 0.3 * Math.sin(k.t * 11 + k.phase) + 0.18 * Math.sin(k.t * 27.3 + k.phase * 2)
@@ -114,15 +127,25 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
 
     if (spark) { sparkStack(sf, p, k, s, burn, run, fx, sparkPalette(sf, mech.def), tick); continue; }
 
+    if (dark) {
+      // burn the clocks down without emitting, so it relights where it left off
+      k.flame = Math.max(0, k.flame - dt);
+      k.ember = Math.max(0, k.ember - dt);
+      k.smoke = Math.max(0, k.smoke - dt);
+      continue;
+    }
+
     tick('flame', (sf.flameGap ?? 0.055) / (0.75 + 1.5 * burn), () => {
-      const up = (2.6 + 4.5 * burn) * s;
+      // HEIGHT IS THE LAUNCH SPEED AND THE BUOYANCY TOGETHER — halve one and
+      // the column only leans, halve both and it is half as tall.
+      const up = (2.6 + 4.5 * burn) * s * hK;
       fx.flames.emit(p.x + rand(-0.12, 0.12) * s, p.y + 0.05 * s, p.z + rand(-0.12, 0.12) * s,
         rand(-0.5, 0.5) * s, up, rand(-0.5, 0.5) * s,
-        { life: rand(0.2, 0.36), size: (0.95 + 1.05 * burn) * s, color: G ? G[3] : 0xffe9a8, color2: G ? G[1] : 0xff5c12,
-          alpha: 0.92, cell: -1, spin: 1.4, drag: 2.6, grow: 1.6 * s, gravity: -3.2 * s, fadeIn: 0.12, hue });
+        { life: rand(0.2, 0.36), size: (0.95 + 1.05 * burn) * s * sizeK, color: G ? G[3] : 0xffe9a8, color2: G ? G[1] : 0xff5c12,
+          alpha: 0.92, cell: -1, spin: 1.4, drag: 2.6, grow: 1.6 * s * sizeK, gravity: -3.2 * s * hK, fadeIn: 0.12, hue });
       // the light the flame throws, so the chimney lip catches it
       fx.glows.emit(p.x, p.y + 0.1 * s, p.z, 0, 1.2 * s, 0,
-        { life: 0.16, size: (1.1 + 1.1 * burn) * s, color: G ? G[2] : 0xff8a2a, alpha: 0.5 * burn, grow: -1.2 * s });
+        { life: 0.16, size: (1.1 + 1.1 * burn) * s * sizeK, color: G ? G[2] : 0xff8a2a, alpha: 0.5 * burn, grow: -1.2 * s });
     });
 
     tick('ember', rand(0.12, 0.4) / (0.5 + run), () => {
@@ -134,7 +157,7 @@ export function burnStacks(mech, sf, st, dt, { fx, scale = 1, run = 0, smoke = t
 
     // SMOKE — the trail. Emitted with no horizontal velocity of its own, so it
     // hangs where it was made and he walks out from under it.
-    if (wantSmoke) {
+    if (wantSmoke && !isTorch) {
       tick('smoke', (sf.smokeGap ?? 0.17) / (1 + (sf.smokeRun ?? 2.4) * run), () => {
         fx.smoke.emit(p.x + rand(-0.25, 0.25) * s, p.y + rand(0.7, 1.3) * s, p.z + rand(-0.25, 0.25) * s,
           rand(-0.5, 0.5) * s, rand(3, 5) * s, rand(-0.5, 0.5) * s,
@@ -379,16 +402,16 @@ export function stackHandSmoke(mech, sf, { fx, scale = 1, smoke = true, power = 
     a.getWorldPosition(_tp);
     a.getWorldQuaternion(_tq);
     _tdir.set(0, 0, 1).applyQuaternion(_tq);
-    // FOUR down the jet…
-    for (let i = 0; i < 4; i++) {
+    // SEVEN down the jet…
+    for (let i = 0; i < 7; i++) {
       _td.copy(_tdir).multiplyScalar(22 * power * rand(0.85, 1.15) * s);
       _td.x += rand(-1.1, 1.1) * s; _td.y += rand(-0.9, 0.9) * s; _td.z += rand(-1.1, 1.1) * s;
       fx.smoke.emit(_tp.x + rand(-0.18, 0.18) * s, _tp.y + rand(-0.18, 0.18) * s, _tp.z + rand(-0.18, 0.18) * s,
         _td.x, _td.y, _td.z,
         // LIVES ARE SHORT for the jet bodies, deliberately: the smoke pool is
-        // 450 deep and shared with everything else on screen, so twice the
-        // particles have to clear in about half the time or a full vent starves
-        // the chimneys it is supposed to accompany.
+        // 450 deep and shared with everything else on screen. Measured at this
+        // rate the vent holds about 300 alive at its peak, which leaves room
+        // for whatever else is burning in the arena.
         { life: rand(0.6, 1.1), size: rand(0.6, 1.1) * s, color: 0x2e2a28, color2: 0x08080a,
           alpha: 0.6 * power, drag: 3.2, grow: 3.4 * s, spin: 1.1, fadeIn: 0.05 });
     }
@@ -401,7 +424,7 @@ export function stackHandSmoke(mech, sf, { fx, scale = 1, smoke = true, power = 
         { life: rand(1.2, 2.0), size: rand(1.1, 1.9) * s, color: 0x353130, color2: 0x0b0b0d,
           alpha: 0.45 * power, drag: 1.2, grow: 4.2 * s, spin: 0.5, fadeIn: 0.25 });
     }
-    n += 6;
+    n += 9;
   }
   return n;
 }

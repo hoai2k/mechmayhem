@@ -529,6 +529,19 @@ audio). Progress history: `TASKS.md`.
   name), and the roster's `stackFx` block feeds `src/mechs/stackfx.js` —
   flickering tongues, embers, and a smoke column emitted with no horizontal
   speed of its own, so he walks out from under it and it reads as a TRAIL.
+  FOUR BURNERS, NOT TWO: the same `dropBones` treatment takes the sculpted
+  flame tongues off his HAND TORCHES (`nozzleL`/`nozzleR` — the bones stay, so
+  the muzzle anchors riding them are untouched) and the stackFx block burns
+  `muzzleR`/`muzzleL` alongside the chimneys. `torches` names which anchors are
+  the small ones, `flameH`/`torchH` scale the flame's launch speed AND its
+  buoyancy together — which is what actually sets a column's height (measured:
+  median rise per particle 1.29 units at 1.0, 0.64 at 0.5, exactly half) — and
+  a torch is held DARK while that hand is throwing a jet (`Fighter.darkNozzles`
+  off the channel clip's side), because a pilot light sitting inside its own
+  flamethrower stream reads as a bug. His LIGHT COMBO finisher also sets you
+  alight: roster `light.comboStatus` is applied by the LAST blow of the string
+  only (fighter.js doLight), so it rewards landing the whole combo rather than
+  a single poke.
   THE BURNER IS NOT A COMBAT THING, which is why the emission lives in
   stackfx.js and not in fighter.js: it takes a plain `mech` plus the pools to
   emit into, so the MENUS burn too — mech select and the title line-up are

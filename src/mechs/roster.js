@@ -392,14 +392,29 @@ export const ROSTER = [
     // the procedural body, which has no chimneys (lifted `lift` above the
     // shoulder). Gaps are SECONDS BETWEEN particles at a standstill; `smokeRun`
     // is how much more smoke a full sprint makes.
+    // THE BURNERS. Four now, not two: the shoulder chimneys and both HAND
+    // TORCHES, whose sculpted flame tongues the manifest drops exactly as it
+    // drops the chimneys' (dropBones nozzleL/nozzleR — the bones stay, so the
+    // muzzle anchors that ride them are untouched). `torches` names which of
+    // the anchors burn small, and `flameH` halves the height of the column the
+    // chimneys throw.
     stackFx: {
-      anchors: ['stackL', 'stackR'], joints: ['shoulderL', 'shoulderR'], lift: 0.9,
+      anchors: ['stackL', 'stackR', 'muzzleR', 'muzzleL'],
+      joints: ['shoulderL', 'shoulderR', 'handR', 'handL'], lift: 0.9,
+      // the torches burn the SAME SIZE as the chimneys — one number for both
+      torches: ['muzzleR', 'muzzleL'],
+      flameH: 0.5, torchH: 0.5,
       flameGap: 0.055, smokeGap: 0.14, smokeRun: 2.4,
     },
     // signature combat stance (additive over restPose; default carriage)
     combatPose: { hipsPos: [0, -0.12, 0], torso: [8, 0, 0], head: [-6, 0, 0], shoulderL: [-44, 10, -12], shoulderR: [-44, -10, 12], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0], thighL: [-12, 0, -8], thighR: [0, 0, 8], kneeL: [18, 0, 0], kneeR: [10, 0, 0] },
     moves: {
-      light: { dmg: [36, 38, 54], knock: [5, 5, 12], range: 3.3 },
+      // …and the FINISHER SETS YOU ALIGHT. Only the last blow of the string
+      // carries it (fighter.js doLight reads `comboStatus` on the final index),
+      // so it is a reward for landing the whole combo rather than something a
+      // single poke hands out — 18 damage over 3s, about a third of the punch
+      // that delivered it.
+      light: { dmg: [36, 38, 54], knock: [5, 5, 12], range: 3.3, comboStatus: { burn: 6, burnT: 3 } },
       heavy: { dmg: 86, knock: 20, range: 3.7, launch: 8 },
       // reach 12 -> 16 and the cone tightened (see the flame handler in
       // world.js): a longer, narrower jet rather than a short wide wash

@@ -6,7 +6,7 @@ import { buildMech } from '../mechs/factory.js';
 import { Animator, LEG_BACK_OFF } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
-import { stackState, burnStacks, stackBlast, stackToot, stackHandSmoke } from '../mechs/stackfx.js';
+import { stackState, burnStacks, stackBlast, stackHandSmoke } from '../mechs/stackfx.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
@@ -604,7 +604,11 @@ export class Fighter {
         knock: mv.knock[idx % mv.knock.length],
         range: mv.range * this.scale,
         launch: idx === names.length - 1 ? 10 : 0,
-        status: mv.status || null,
+        // A COMBO FINISHER MAY DO MORE THAN DAMAGE. `light.status` is applied by
+        // every blow in the cycle; `light.comboStatus` only by the LAST one, so
+        // it is a reward for landing the whole string rather than something a
+        // single poke hands out. INFERNO's fists set you alight.
+        status: (idx === names.length - 1 && mv.comboStatus) || mv.status || null,
       }),
     });
     this.setState('attack', dur * 0.82);
@@ -4133,7 +4137,8 @@ export class Fighter {
     const run = clamp01(Math.hypot(this.vel.x, this.vel.z) / Math.max(1e-3, this.moveSpeed() * 1.15));
     const smoke = !this.world.sandbox;
     this.group.updateWorldMatrix(true, true);
-    burnStacks(this.mech, sf, this._stackFx, dt, { fx, scale: this.scale, run, smoke });
+    burnStacks(this.mech, sf, this._stackFx, dt,
+      { fx, scale: this.scale, run, smoke, skip: this.darkNozzles(sf) });
     // a dash punches the burners: one gout per dash, not one per frame
     if (this.state === 'dash' && !this._stackDashed) {
       this._stackDashed = true;
@@ -4141,35 +4146,50 @@ export class Fighter {
     } else if (this.state !== 'dash') this._stackDashed = false;
   }
 
+  // WHICH BURNERS ARE HELD DARK this frame. A hand torch is also a flamethrower
+  // muzzle: while that hand is throwing a jet, the pilot light sits inside its
+  // own stream, which reads as a stray flame stuck to his wrist. The channel
+  // clip names the side (`shootLoopL` is the left torch, `shootLoop` the right)
+  // and `firing` covers the frames either side of it.
+  //
+  // Returns null when nothing is dark, so the common case allocates nothing.
+  darkNozzles(sf) {
+    if (!sf.torches?.length) return null;
+    const act = this.animator?.action;
+    const n = act && !act.fadingOut ? act.clip.name : '';
+    const flaming = this.firing || n === 'shootLoop' || n === 'shootLoopL'
+      || n === 'shoot' || n === 'shootL';
+    if (!flaming) return null;
+    const left = n.endsWith('L') || (!n && this._shotSide);
+    const set = this._darkSet || (this._darkSet = new Set());
+    set.clear();
+    // one hand fires at a time (roster channelClipL alternates them), so only
+    // that torch goes out — the other keeps its pilot light
+    set.add(left ? 'muzzleL' : 'muzzleR');
+    return set;
+  }
+
   // Is he TAUNTING, and if so blow the puffs. Returns true while the burners
   // should stay dark. The schedule is in clip time rather than on a timer, so
   // the puffs land on the same beats however the clip is being played back.
   tauntVenting(dt, sf, fx) {
     const act = this.animator?.action;
-    if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._tootN = 0; this._handAcc = 0; return false; }
+    if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._handAcc = 0; this._venting = false; return false; }
     const smoke = !this.world.sandbox;
-    // TOOT TOOT — pairs, not a metronome. Two close together and then a gap is
-    // what a train whistle is, and it is what makes this read as a deliberate
-    // noise he is making rather than an engine idling. The second of each pair
-    // is the harder one. CHIMNEYS AND TANKS ONLY: these are chuffs, one shove
-    // of soot each.
-    const TOOTS = [0.22, 0.40, 1.00, 1.18, 1.78, 1.96, 2.50, 2.68];
-    const want = TOOTS.filter((t) => act.t >= t).length;
-    if (want > (this._tootN || 0)) {
-      this._tootN = want;
-      this.group.updateWorldMatrix(true, true);
-      stackToot(this.mech, sf, { fx, scale: this.scale, smoke,
-        power: want % 2 === 0 ? 1.15 : 0.85 });
-      this.world.audio?.play('whoosh');
-    }
-    // THE HANDS STREAM instead — a valve held open rather than a beat. Two long
-    // vents with a breath between them (1s on, 0.5s off, 1s on), which is what
-    // a vent looks like and what eight little coughs did not. The rate is an
-    // ACCUMULATOR rather than one-per-frame: the smoke pool is 450 deep and this
-    // must not empty it on a fast machine while doing nothing on a slow one.
+    // EVERYTHING OUT OF THE HANDS. The chimneys and the back tanks are held
+    // completely dark for the taunt — no flame, no chuff, nothing — and their
+    // whole share of a 450-deep smoke pool goes into the two hand vents
+    // instead. One big gesture beats three medium ones fighting each other for
+    // particles, and it is also why the arms are folded across his chest: it
+    // puts both jets where the camera already is.
+    //
+    // Two vents with a breath between them (1s on, 0.5s off, 1s on). The rate
+    // is an ACCUMULATOR with a per-frame cap rather than one emission per
+    // frame, so it looks the same on a fast machine and a slow one.
     const HAND = [[0.22, 1.22], [1.72, 2.72]];
     const venting = HAND.some(([a, b]) => act.t >= a && act.t < b);
     if (venting) {
+      if (!this._venting) { this._venting = true; this.world.audio?.play('whoosh'); }
       this._handAcc = (this._handAcc ?? 0) + dt;
       let ticks = 0;
       while (this._handAcc >= 0.06 && ticks < 4) { this._handAcc -= 0.06; ticks++; }
@@ -4177,7 +4197,7 @@ export class Fighter {
         this.group.updateWorldMatrix(true, true);
         for (let i = 0; i < ticks; i++) stackHandSmoke(this.mech, sf, { fx, scale: this.scale, smoke });
       }
-    } else this._handAcc = 0;
+    } else { this._handAcc = 0; this._venting = false; }
     return true;
   }
 
