@@ -26,6 +26,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
+import { addGizmo } from '../ui/gizmo.js';
 import { setupMobileChrome, barField, isMobileLayout } from '../ui/mobile.js';
 import { describeAction, ACTIONS } from '../adapters/actionchars.js';
 
@@ -66,7 +67,11 @@ export async function runAnimationWorkbench(config, params) {
   // moving. Joint posing lives in ?debug=pose.
   const anchorGizmo = new TransformControls(camera, renderer.domElement);
   anchorGizmo.setSpace('local'); anchorGizmo.setMode('translate'); anchorGizmo.setSize(0.55);
-  scene.add(anchorGizmo.getHelper ? anchorGizmo.getHelper() : anchorGizmo);
+  // No shift-hide here: nothing in this tool is picked in the VIEWPORT — an
+  // anchor is chosen from a button in the panel, where Shift already means
+  // "give me the rotate handle" — so there is nothing behind the gizmo to
+  // click through, and hiding it would only flicker.
+  addGizmo(scene, anchorGizmo, { shiftHide: false });
   anchorGizmo.addEventListener('dragging-changed', (e) => {
     orbit.enabled = !e.value;
     // one drag = one undo step, taken AFTER the drop so the auto-bind

@@ -87,6 +87,31 @@ audio). Progress history: `TASKS.md`.
   desktop has, unchanged, dismissed with Done/scrim/Esc — so nothing is removed
   on mobile, only put away. Desktop is byte-identical: `setupMobileChrome`
   returns `{active:false}` and does nothing at all unless the layout test passes.
+- HOLD SHIFT AND THE TRANSFORM HANDLES GET OUT OF THE WAY (`workbench/ui/gizmo.js`,
+  `addGizmo(scene, gizmo)` — the pose, rig and level editors). A gizmo sits
+  exactly on top of the thing it transforms and its rings reach a good fraction
+  of the viewport out from there, so the bone you want NEXT is often behind one:
+  the handle eats the click and the only ways through are deselect, orbit, or
+  give up. Shift makes it not there — and lets go of it, still attached to the
+  same object in the same mode. THREE FLAGS, ALL OF THEM: `visible` (off
+  screen), `enabled` (TransformControls' own pointerdown listener hit-tests
+  PICKER meshes that are invisible by construction, so hiding alone leaves an
+  invisible gizmo swallowing the drag) and `axis = null` (every tool guards its
+  pick with `if (gizmo.axis) return` — that guard is what stops letting go of a
+  rotate ring from re-picking, and a stale hover axis would block the pick with
+  nothing on screen to explain why). `attach` is WRAPPED, because attach() sets
+  `visible = true` itself and a shift-click pick IS an attach — otherwise the
+  gizmo pops back up on the joint you just took. Restoring reads `!!gizmo.object`,
+  which is exactly what attach/detach would have left. It never hides mid-drag,
+  ignores Shift typed into a panel field, defers the restore while the pointer
+  is down (the level editor's shift-drag marquee would otherwise flash it back
+  halfway through) and drops the state on blur, because a keyup that arrives
+  while the window is unfocused is a modifier stuck down forever. THE JOINT DOTS
+  STAY — they are the pick targets, not the obstruction. The ANIMATION
+  workbench's anchor gizmo opts out (`{shiftHide: false}`): nothing there is
+  picked in the viewport, so there is nothing behind it to click through, and
+  Shift already means "give me the rotate handle" on its anchor buttons. Six
+  behaviours, five of them invisible: `node tools/gizmohide.mjs` asserts them.
 - Every workbench side panel (skin/models/pose/collider/rigedit + the level
   editor's two) is RESIZABLE: drag its outer edge, double-click the handle to
   reset, width remembered per tool (`src/dev/panelui.js`, which also styles

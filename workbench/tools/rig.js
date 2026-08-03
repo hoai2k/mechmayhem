@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { setupDevPanel } from '../ui/panel.js';
+import { addGizmo } from '../ui/gizmo.js';
 import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js';
 import { subjectSelect, gotoSubject } from '../ui/subjectpick.js';
 
@@ -160,7 +161,9 @@ export async function runRigWorkbench(config, params) {
 
   const gizmo = new TransformControls(camera, renderer.domElement);
   gizmo.setMode('translate'); gizmo.setSpace('world'); gizmo.setSize(0.8);
-  scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
+  // Shift takes the handles off screen, so a bone standing behind them can be
+  // clicked without deselecting first (ui/gizmo.js).
+  addGizmo(scene, gizmo);
   gizmo.addEventListener('dragging-changed', (e) => {
     orbit.enabled = !e.value;
     if (e.value) {
@@ -1272,6 +1275,7 @@ export async function runRigWorkbench(config, params) {
   const help = el('div', 'margin-top:8px;color:#69788c;font-size:10.5px;line-height:1.5');
   help.innerHTML = 'Orbit: drag empty space · Zoom: wheel<br>Red/orange = claws (arms) · blue/cyan = legs · gray = struts.<br>'
     + 'Drag a bone into the geometry it should drive, then Color view to check ownership.<br>'
+    + 'Hold <b>Shift</b> to hide the move/rotate handles and click the bone standing behind them.<br>'
     + 'Undo/redo: Ctrl+Z / Ctrl+Shift+Z · Solo a bone’s subtree: select + S, or right-click a bone (hides the other dots + connections so only those joints are pickable; the robot render is untouched).';
   panel.appendChild(help);
 
@@ -1352,7 +1356,7 @@ export async function runRigWorkbench(config, params) {
   engine.onRender = () => orbit.update();
   engine.start();
   window.__rigedit = { get rig() { return rigObj; }, byName: () => byName,
-    solo: toggleSolo, undo, redo, select: selectBone,
+    solo: toggleSolo, undo, redo, select: selectBone, gizmo,
     // test hook: a DRAG, exactly as the gizmo delivers one — the bone's local
     // offset moves (that is all TransformControls writes) and then the editor's
     // own move/commit path runs. Under the T pose that is the whole feature:
