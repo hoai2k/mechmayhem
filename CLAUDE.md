@@ -707,6 +707,42 @@ audio). Progress history: `TASKS.md`.
   the offsets preview must be ON before a rotate drag (a turn is measured from
   the pose, so an unseen offset would be silently replaced rather than added to).
   Both are enforced in code; keep them that way.
+- A MIRRORED MAPPING IS THE ONE RIG ERROR THAT LOOKS ALMOST RIGHT
+  (`node tools/rigmirror.mjs [<mech> …]`). A manifest's `boneOverrides` names
+  which GLB bone each of the 15 game joints drives, and nothing downstream
+  checks that `shoulderL` is the LEFT shoulder — an auto-rig's names are opaque
+  (`bone_28`), the mapping is proposed spatially by `tools/rigmap.mjs` and then
+  hand-fixed. SAURION shipped with every one of his twelve limb joints on the
+  wrong side, and it hid because almost nothing complains: the walk cycle is
+  symmetric, his claw/kick clips come in mirrored pairs (`saurionClawL` IS
+  `mirrorRaw(SAURION_CLAW_R_GLB)`), and the ANCHORS had been compensated by
+  hand — muzzle "R" hung off `handL`, `boostL` off `shoulderR` — so the guns
+  fired from the right barrels for the wrong reason. The tell is the pose
+  workbench: drag `shoulderL`, watch the right arm move.
+  THE CHECK NEEDS NO RENDERER, which is why it is cheap enough to run on the
+  whole roster: a bone's bind world position comes off the glTF node hierarchy,
+  the manifest's `yawOffset` is the container rotation into the GAME FRAME
+  (faces +z, LEFT at -x), so rotate and read the sign of x. Every `*L` must
+  land at -x. It reports the facing too (rear-most vs front-most bone), since a
+  `yawOffset` a half-turn out flips every side and looks like the same bug —
+  saurion's tail tip at z -0.47 against his snout at +0.40 is what says his 300
+  is right and the mapping was wrong.
+  THE FIX IS TO SWAP THE NAMES, NOT THE GEOMETRY: exchange the L/R bone names
+  in `boneOverrides` AND the joint names in `muzzles` with them, so every
+  anchor stays on the same PHYSICAL bone (`tools/anchorkeep.mjs`' rule — the
+  rest-pose anchor transforms came back bit-identical). What it buys is
+  measured as RETARGET FIT, the distance between each virtual joint and the
+  bone it drives: saurion 3.25 body-heights summed over the 12 joints -> 1.15,
+  every joint better, his knees 0.27 -> 0.05. Hurtbox contain/bloat unmoved
+  (78% / 1.16x). The SKIN AUDIT moved the other way — 830 -> ~960 severity,
+  reproducible over three runs — but read the findings, not the total: rows 2-8
+  are the same places at the same severities with their labels corrected
+  (`bone_43` was reported as `elbowR`, it is the left elbow), and the whole
+  delta is one 11k-vertex neck/shoulder island of the auto-rig's welded shell
+  flipping from a 137 stretch to a 196 pinch. Left as found.
+  STILL MIRRORED, left as found: AEGIS (all 12) and NOVA (4 of 12) — both
+  `hidden: true` work-in-progress mechs, which is why `rigmirror` exits 1 on a
+  clean tree today.
 - BONE ROTATION: a rig file carries POSITIONS ONLY, and adding a rest rotation to
   one would change nothing — `applyCustomRig` rebinds the skin at rest
   (`rebindRest`) and `RigAdapter` captures a rest offset per bone
