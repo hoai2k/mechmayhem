@@ -106,6 +106,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { setupDevPanel } from '../ui/panel.js';
+import { addGizmo } from '../ui/gizmo.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { altChoice, altCheckbox } from '../ui/variantpick.js';
 
@@ -163,8 +164,9 @@ export async function runPoseWorkbench(config, params) {
 
   const gizmo = new TransformControls(camera, renderer.domElement);
   gizmo.setSpace('local'); gizmo.setMode('rotate'); gizmo.setSize(1.05);
-  // r166 hands you the controls object itself; newer three wants getHelper().
-  scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
+  // …and holding Shift takes the handles off screen so you can click the joint
+  // behind them (ui/gizmo.js).
+  addGizmo(scene, gizmo);
   let dragging = false;      // gizmo has the pointer
   let swallowClick = false;  // the click that ended a gizmo drag is not a pick
   gizmo.addEventListener('dragging-changed', (e) => {
@@ -1659,6 +1661,7 @@ export async function runPoseWorkbench(config, params) {
   help.innerHTML = 'Click a joint dot (or the body part) to select it, then drag the gizmo.<br>' +
     'Orbit: drag empty space · Zoom: wheel · <b>R</b> rotate · <b>T</b> translate · ' +
     '<b>G</b> local/world · <b>Esc</b> deselect · ' +
+    'hold <b>Shift</b> to hide the handles and click the joint behind them · ' +
     '<b>Ctrl/⌘+Z</b> undo · <b>Ctrl/⌘+Shift+Z</b> / <b>Ctrl+Y</b> redo.';
   panel.appendChild(help);
 

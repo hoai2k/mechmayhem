@@ -38,6 +38,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { setupDevPanel } from '../ui/panel.js';
+import { addGizmo } from '../ui/gizmo.js';
 
 const WRAP = 1.35;                 // arena wrapHalf = bounds * 1.35
 const LS_PREFIX = 'rw_level:';     // saved-slot keys
@@ -121,7 +122,10 @@ export async function runLevelWorkbench(config, params) {
   const gizmo = new TransformControls(camera, renderer.domElement);
   gizmo.setSpace('local');
   gizmo.setSize(0.85);
-  scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
+  // Shift already means "add to the selection" and "drag a marquee" here, and
+  // both of those were losing to the rotate ring parked over the selection —
+  // so Shift takes the handles off screen too (ui/gizmo.js).
+  addGizmo(scene, gizmo);
   gizmo.addEventListener('dragging-changed', (e) => {
     orbit.enabled = !e.value;
     if (e.value) { dragSnapshot = serialize(); pivotStart.copy(pivot.position); pivotYaw0 = pivot.rotation.y; captureSelStart(); }
@@ -897,6 +901,7 @@ export async function runLevelWorkbench(config, params) {
     engine,                                   // tools/arenabake.mjs builds arenas with it
     get level() { return JSON.parse(serialize()); },
     items: () => items,
+    gizmo,
     selection: () => sel.map((s) => s.def),
     open: (id, seed) => openArena(id, seed ?? bakeSeed),
   };
@@ -1261,6 +1266,7 @@ export async function runLevelWorkbench(config, params) {
       <b>Select</b> — click an object · shift-click to add · shift-drag empty ground to marquee a block · Ctrl+A everything.<br>
       <b>Move</b> — just drag it. The whole selection travels. <b>Alt-drag</b> leaves a copy behind.<br>
       <b>Turn</b> — <b>R</b> (or ⟳ on the floating toolbar) puts the gizmo in rotate mode, turning the selection about its own centre. <b>[</b> / <b>]</b> nudge 15°.<br>
+      Holding <b>Shift</b> also takes the rotate ring off screen, so it cannot eat a shift-click or the start of a marquee.<br>
       <b>Nudge</b> arrow keys · <b>Frame</b> F · <b>Duplicate</b> Ctrl+D · <b>Delete</b> Del · <b>Undo</b> Ctrl+Z · <b>Save</b> Ctrl+S.<br><br>
       <b>Add</b> — ＋ ADD opens the palette; pick a thing, then click the ground. Keep clicking to place more, Esc stops.<br><br>
       <b>Tiling</b> — the arena wraps, so the faint copies around your tile show how it repeats in game. The bright cyan square is the wrap edge.<br><br>
