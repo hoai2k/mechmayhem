@@ -2120,29 +2120,65 @@ const RHINO_TAUNT = {
     { t: 1.52, type: 'sfx', arg: 'slam' }, { t: 1.54, type: 'shake', arg: 0.22 }],
 };
 
-// SAURION — he STOPS, and stands up out of the hunt crouch: spine near vertical,
-// legs straightened under him, neck stretched, head snapping this way and that
-// as something registers. Every number here is additive over the raptor's own
-// restPose, which is why the torso key is a big negative — his rest IS a 27°
-// forward pitch, and −30 stands him just past upright.
+// SAURION — SOMETHING REGISTERS. He STOPS, stands up out of the hunt crouch and
+// snatches both claws up under his chin, freezes there, takes a sniff of the
+// air, then turns his skull a full 90° to one side, all the way across to the
+// other, back to centre, sniffs again and relaxes. It is a LISTENING animal
+// rather than a jeering one, which is the point: the old version scanned in
+// four small bird-flicks, and small flicks read as a nervous tic where a hard
+// slow look reads as a predator working out where you are.
+// THE ALERT is the owner's pose, dragged in the pose workbench and pasted
+// here: both claws snatched up under the chin, the right one curled, the skull
+// cocked over. Arms are ABSOLUTE, so these land the same whatever the spine is
+// doing; the head is additive over restPose, so [2.2, 4.32, 6.94] is a small
+// cock off his own resting carriage and doubles as the CENTRE the scan swings
+// either side of.
+const SAURION_ALERT = {
+  shoulderR: [-91.74, -8.84, 16.74], shoulderL: [-79.6, 9.41, -3.18],
+  elbowR: [-80.97, 11.21, -38.58], elbowL: [-86.44, -0.01, 28.22],
+  handR: [35.16, 18.79, 1.76],
+};
+const SAURION_ALERT_HEAD = [2.2, 4.32, 6.94];
+// WHICH WAY IS LEFT, and which way is UP — measured on his own snout rather
+// than guessed (tripoHead_4 in the mech's own frame, where -x is his left):
+// head yaw −90 takes the snout to x −1.12, +90 to +0.83, so NEGATIVE YAW IS
+// HIS LEFT; head pitch −20 lifts the snout 4.81 -> 5.06, so NEGATIVE PITCH IS
+// NOSE UP, which is what a sniff is.
+const SAURION_SNIFF = [SAURION_ALERT_HEAD[0] - 26, SAURION_ALERT_HEAD[1], SAURION_ALERT_HEAD[2]];
 const SAURION_TAUNT = {
-  dur: 2.3, cancelOnMove: true,
+  dur: 3.0, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
-    { t: 0.30, ease: 'outCubic', pose: { torso: [-30, 0, 0], head: [-16, 0, 0], hipsPos: [0, 0.26, 0],
+    // HE HEARS SOMETHING. The stand-up out of the hunt crouch is the same one
+    // this taunt always had — additive over restPose, which is why the torso
+    // key is a big negative: his rest IS a 27° forward pitch, and −30 stands
+    // him just past upright — but the arms are the owner's alert now, and they
+    // arrive on an outBack so the snatch overshoots and settles.
+    { t: 0.20, ease: 'outBack', pose: { torso: [-30, 0, 0], head: SAURION_ALERT_HEAD, hipsPos: [0, 0.26, 0],
       thighL: [22, 0, 6], thighR: [18, 0, -6], kneeL: [-44, 0, 0], kneeR: [-38, 0, 0], ankleL: [20, 0, 0], ankleR: [17, 0, 0],
-      shoulderL: [-16, 0, -14], shoulderR: [-16, 0, 14], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0] } },
-    // the scan: sharp turns of the skull, each held a beat — a bird's look, not a sweep
-    { t: 0.56, ease: 'outQuad', pose: { head: [-18, -38, 5], torso: [-30, -6, 0] } },
-    { t: 0.76, ease: 'linear', pose: { head: [-18, -38, 5] } },
-    { t: 0.98, ease: 'outQuad', pose: { head: [-16, 32, -5], torso: [-30, 5, 0] } },
-    { t: 1.18, ease: 'linear', pose: { head: [-16, 32, -5] } },
-    { t: 1.42, ease: 'outQuad', pose: { head: [-22, -18, -6], torso: [-30, -3, 0] } },
-    { t: 1.62, ease: 'linear', pose: { head: [-22, -18, -6] } },
-    { t: 1.82, ease: 'outQuad', pose: { head: [-14, 12, 4], torso: [-30, 2, 0] } },
-    { t: 2.3, ease: 'inOutQuad', pose: REST_FULL },
+      ...SAURION_ALERT } },
+    { t: 0.34, ease: 'linear', pose: { head: SAURION_ALERT_HEAD } },   // the freeze: a held beat
+    // …and takes a sniff of it. Nose up and straight back down — quick, because
+    // a slow one is a stretch and a fast one is a scent.
+    { t: 0.48, ease: 'outQuad', pose: { head: SAURION_SNIFF } },
+    { t: 0.64, ease: 'inQuad', pose: { head: SAURION_ALERT_HEAD } },
+    // THE SCAN, a full 90° each way. The torso yaws a little with it — the neck
+    // is one bone on this rig, so the last few degrees of a hard look have to
+    // come from the shoulders or the skull tears away from the chest.
+    { t: 0.94, ease: 'outQuad', pose: { head: [-2, -90, 0], torso: [-30, -5, 0] } },
+    { t: 1.16, ease: 'linear', pose: { head: [-2, -90, 0] } },
+    // all the way across — the long sweep, and the only slow move in the clip
+    { t: 1.60, ease: 'inOutQuad', pose: { head: [-2, 90, 0], torso: [-30, 5, 0] } },
+    { t: 1.82, ease: 'linear', pose: { head: [-2, 90, 0] } },
+    { t: 2.12, ease: 'inOutQuad', pose: { head: SAURION_ALERT_HEAD, torso: [-30, 0, 0] } },
+    // one more sniff, and the arms restated so the tuck is HELD to here rather
+    // than drifting out of it across the whole scan (a joint a key is silent
+    // about is interpolated to the next key that names it — the relax)
+    { t: 2.28, ease: 'outQuad', pose: { head: SAURION_SNIFF } },
+    { t: 2.44, ease: 'inQuad', pose: { head: SAURION_ALERT_HEAD, ...SAURION_ALERT } },
+    { t: 3.0, ease: 'inOutQuad', pose: REST_FULL },
   ],
-  events: [{ t: 0.30, type: 'sfx', arg: 'taunt' }, { t: 0.98, type: 'sfx', arg: 'howl' }],
+  events: [{ t: 0.20, type: 'sfx', arg: 'taunt' }, { t: 2.12, type: 'sfx', arg: 'howl' }],
 };
 
 // TEMPEST — the chest OPENS and both arms go wide and back: hug-the-world, if
