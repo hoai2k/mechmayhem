@@ -2117,22 +2117,22 @@
       "hips": "tripo0_Left_Limb_0",
       "torso": "tripo0_Left_Limb_2",
       "head": "tripoHead_1",
-      "thighL": "bone_6",
-      "kneeL": "bone_7",
-      "ankleL": "bone_9",
-      "thighR": "bone_16",
-      "kneeR": "bone_17",
-      "ankleR": "bone_19",
-      "shoulderL": "bone_28",
-      "elbowL": "bone_30",
-      "handL": "bone_31",
-      "shoulderR": "bone_41",
-      "elbowR": "bone_43",
-      "handR": "bone_44"
+      "thighL": "bone_16",
+      "kneeL": "bone_17",
+      "ankleL": "bone_19",
+      "thighR": "bone_6",
+      "kneeR": "bone_7",
+      "ankleR": "bone_9",
+      "shoulderL": "bone_41",
+      "elbowL": "bone_43",
+      "handL": "bone_44",
+      "shoulderR": "bone_28",
+      "elbowR": "bone_30",
+      "handR": "bone_31"
     },
     "muzzles": {
       "R": {
-        "bone": "handL",
+        "bone": "handR",
         "offset": [
           0.06,
           0.489,
@@ -2145,7 +2145,7 @@
         ]
       },
       "L": {
-        "bone": "elbowR",
+        "bone": "elbowL",
         "offset": [
           0.021,
           1.374,
@@ -2157,8 +2157,8 @@
           -88.94
         ]
       },
-      "boostL": {"bone":"shoulderR","offset":[0.643,0.458,0.422]},
-      "boostR": {"bone":"shoulderL","offset":[-0.656,0.474,-0.272]}
+      "boostL": {"bone":"shoulderL","offset":[0.643,0.458,0.422]},
+      "boostR": {"bone":"shoulderR","offset":[-0.656,0.474,-0.272]}
     },
     "skinOps": [
       {"sel":{"comp":61},"to":"bone_43"},
