@@ -2278,23 +2278,28 @@ const WRAITH_TAUNT = {
 // the one that is all effect (stackToot in stackfx.js: the burners go dark and
 // he blows soot out of every nozzle in a toot-toot rhythm), so the pose exists
 // to give the venting a body to happen on: planted, arms folded, chin up, doing
-// nothing about you at all. The elbows fold deep and the shoulders come IN and
-// slightly forward, which is what puts each forearm across the opposite ribs
-// rather than leaving them stacked out in front of him.
+// nothing about you at all.
+//
+// THE FOREARMS RUN SIDEWAYS, NOT UPWARD, and that is a shoulder YAW rather than
+// the pitch-and-fold a person would guess at. Measured on the model (hand
+// against elbow): the first pass' deep fold left each forearm tilted 31 degrees
+// UP with the fists stacked in front of his chin; these numbers put the tilt at
+// -1.9 degrees, 69% of the forearm's length running laterally, and each hand a
+// little past the far side of his centreline. That is arms crossed.
 const INFERNO_TAUNT = {
   dur: 3.2, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
     { t: 0.34, ease: 'outBack', pose: { torso: [-6, 0, 0], head: [-10, 0, 0], hipsPos: [0, 0.04, 0],
-      shoulderL: [-46, 26, 26], shoulderR: [-46, -26, -26], elbowL: [-128, 0, 0], elbowR: [-128, 0, 0],
+      shoulderL: [-10, 52, 66], shoulderR: [-10, -52, -66], elbowL: [-108, 0, 0], elbowR: [-108, 0, 0],
       handL: [0, 0, -14], handR: [0, 0, 14] } },
     // the barest breathing through the vents, so he is not a statue for 3s
     { t: 1.0, ease: 'inOutQuad', pose: { torso: [-8, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.07, 0],
-      shoulderL: [-49, 28, 28], shoulderR: [-49, -28, -28], elbowL: [-132, 0, 0], elbowR: [-132, 0, 0] } },
+      shoulderL: [-13, 54, 68], shoulderR: [-13, -54, -68], elbowL: [-112, 0, 0], elbowR: [-112, 0, 0] } },
     { t: 1.7, ease: 'inOutQuad', pose: { torso: [-5, 0, 0], head: [-9, 0, 0], hipsPos: [0, 0.02, 0],
-      shoulderL: [-44, 25, 25], shoulderR: [-44, -25, -25], elbowL: [-126, 0, 0], elbowR: [-126, 0, 0] } },
+      shoulderL: [-8, 50, 64], shoulderR: [-8, -50, -64], elbowL: [-105, 0, 0], elbowR: [-105, 0, 0] } },
     { t: 2.4, ease: 'inOutQuad', pose: { torso: [-8, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.07, 0],
-      shoulderL: [-49, 28, 28], shoulderR: [-49, -28, -28], elbowL: [-132, 0, 0], elbowR: [-132, 0, 0] } },
+      shoulderL: [-13, 54, 68], shoulderR: [-13, -54, -68], elbowL: [-112, 0, 0], elbowR: [-112, 0, 0] } },
     { t: 3.2, ease: 'inOutQuad', pose: REST_FULL },
   ],
   events: [{ t: 0.34, type: 'sfx', arg: 'taunt' }],
@@ -2303,33 +2308,39 @@ const INFERNO_TAUNT = {
 const GLACIER_TAUNT = {
   // GLACIER — he freezes himself SOLID. For most of this clip he is not on
   // screen at all: he cross-fades into a single block of ice (Fighter.iceTaunt,
-  // roster `tauntIce`) and back out of it.
+  // roster `tauntIce`), and at the end the block is simply GONE, in one frame,
+  // in a burst of frost.
   //
-  // SO THE POSE IS THE PART YOU CAN SEE — him pulling in. Arms clamped to the
-  // ribs, elbows folded across the chest, knees drawn together, head down: a
-  // body making itself small, which is what has to be true by the time the ice
-  // takes him, because the block is a rectangular prism and anything still
-  // reaching is sticking out of it as it fades in. He holds it while frozen
-  // (the fade is on the RENDER, the animator keeps running underneath) so he
-  // comes back out of the ice in the pose he went into it in.
+  // SO THE POSE IS THE PART YOU CAN SEE, AND IT IS A BODY COMING TO A STOP.
+  // Arms DOWN at his sides — the elbows barely bent, nothing raised, nothing
+  // held out — knees drawn together, head level: a column, because that is what
+  // the ice has to be able to be. The keys are spaced so the motion decelerates
+  // (0.3s to most of the way, another 0.5s to the rest of it) and then he is
+  // dead still for the two seconds the block stands, which is the difference
+  // between a frozen mech and a mech holding a pose.
+  //
+  // He holds it while frozen — the fade is on the RENDER, the animator keeps
+  // running underneath — so he comes back out in the pose he went in.
   dur: 2.6, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
-    // brace, then draw everything in
-    { t: 0.22, ease: 'outQuad', pose: { torso: [8, 0, 0], head: [4, 0, 0], hipsPos: [0, -0.1, 0],
-      shoulderL: [-14, 0, -18], shoulderR: [-14, 0, 18], elbowL: [-70, 0, 0], elbowR: [-70, 0, 0] } },
-    { t: 0.62, ease: 'inOutQuad', pose: { torso: [14, 0, 0], head: [10, 0, 0], hipsPos: [0, -0.22, 0],
-      shoulderL: [-26, 10, -2], shoulderR: [-26, -10, 2], elbowL: [-118, 0, 0], elbowR: [-118, 0, 0],
-      handL: [0, 0, -18], handR: [0, 0, 18],
-      thighL: [-8, 0, 7], thighR: [-8, 0, -7], kneeL: [22, 0, 0], kneeR: [22, 0, 0], ankleL: [-12, 0, 0], ankleR: [-12, 0, 0] } },
-    // …and stays there, inside the block
-    { t: 2.24, ease: 'linear', pose: { torso: [14, 0, 0], head: [10, 0, 0], hipsPos: [0, -0.22, 0],
-      shoulderL: [-26, 10, -2], shoulderR: [-26, -10, 2], elbowL: [-118, 0, 0], elbowR: [-118, 0, 0],
-      handL: [0, 0, -18], handR: [0, 0, 18],
-      thighL: [-8, 0, 7], thighR: [-8, 0, -7], kneeL: [22, 0, 0], kneeR: [22, 0, 0], ankleL: [-12, 0, 0], ankleR: [-12, 0, 0] } },
+    // most of the way there, fast
+    { t: 0.30, ease: 'outQuad', pose: { torso: [4, 0, 0], head: [2, 0, 0], hipsPos: [0, -0.14, 0],
+      shoulderL: [-2, 4, 4], shoulderR: [-2, -4, -4], elbowL: [-16, 0, 0], elbowR: [-16, 0, 0],
+      thighL: [-4, 0, 5], thighR: [-4, 0, -5], kneeL: [10, 0, 0], kneeR: [10, 0, 0] } },
+    // …and the last of it slowly, so he SETTLES rather than arriving
+    { t: 0.80, ease: 'outCubic', pose: { torso: [6, 0, 0], head: [3, 0, 0], hipsPos: [0, -0.2, 0],
+      shoulderL: [0, 6, 2], shoulderR: [0, -6, -2], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0],
+      handL: [0, 0, -6], handR: [0, 0, 6],
+      thighL: [-5, 0, 7], thighR: [-5, 0, -7], kneeL: [13, 0, 0], kneeR: [13, 0, 0], ankleL: [-8, 0, 0], ankleR: [-8, 0, 0] } },
+    // frozen: not one joint moves
+    { t: 2.30, ease: 'linear', pose: { torso: [6, 0, 0], head: [3, 0, 0], hipsPos: [0, -0.2, 0],
+      shoulderL: [0, 6, 2], shoulderR: [0, -6, -2], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0],
+      handL: [0, 0, -6], handR: [0, 0, 6],
+      thighL: [-5, 0, 7], thighR: [-5, 0, -7], kneeL: [13, 0, 0], kneeR: [13, 0, 0], ankleL: [-8, 0, 0], ankleR: [-8, 0, 0] } },
     { t: 2.6, ease: 'outBack', pose: REST_FULL },
   ],
-  events: [{ t: 0.22, type: 'sfx', arg: 'freeze' }],
+  events: [{ t: 0.30, type: 'sfx', arg: 'freeze' }],
 };
 
 // COLOSSUS — the SLOW CLAP. Four claps, unhurried and getting no faster, with

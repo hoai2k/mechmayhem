@@ -303,42 +303,55 @@ export function stackToot(mech, sf, { fx, scale = 1, smoke = true, power = 1 } =
   if (!smoke || !fx?.smoke) return 0;
   const s = scale;
   let n = 0;
-  // A TOOT IS A STREAM, NOT A CLOUD. Each nozzle fires a short tight column —
-  // several particles along the SAME axis with a little jitter, launched hard
-  // and left to slow down (high drag), so it shoots out and then billows where
-  // it stops. The first version gave every particle its own wide random cone at
-  // a third of this speed, which rose off him like a bonfire instead of leaving
-  // like exhaust.
+  // A STEAM-TRAIN PUFF HAS TWO HALVES, and the second is what makes it read as
+  // a locomotive rather than a smoke machine. First the CHUFF: a tight column
+  // fired hard down one axis with heavy drag, so it shoots out and then piles up
+  // where it runs out of speed. Then the BILLOW: a few big slow bodies of smoke
+  // launched at a fraction of that, which is the plume relaxing and drifting up
+  // behind the blast. One emission, one gesture.
+  //
+  // (The first version was all cone and no column — every particle its own wide
+  // random direction at a third of this speed, which rose off him like a bonfire
+  // instead of leaving like exhaust.)
   const puff = (node, dir, speed, size) => {
     node.getWorldPosition(_tp);
-    for (let i = 0; i < 7; i++) {
-      const along = i / 6;                       // down the column, front to back
-      _td.copy(dir).multiplyScalar(speed * (1 - 0.45 * along) * rand(0.9, 1.1) * s);
-      _td.x += rand(-0.5, 0.5) * s; _td.y += rand(-0.4, 0.4) * s; _td.z += rand(-0.5, 0.5) * s;
+    for (let i = 0; i < 9; i++) {
+      const along = i / 8;                       // down the column, front to back
+      _td.copy(dir).multiplyScalar(speed * (1 - 0.5 * along) * rand(0.9, 1.1) * s);
+      _td.x += rand(-0.6, 0.6) * s; _td.y += rand(-0.5, 0.5) * s; _td.z += rand(-0.6, 0.6) * s;
       fx.smoke.emit(
-        _tp.x + dir.x * along * 0.5 * s + rand(-0.12, 0.12) * s,
-        _tp.y + dir.y * along * 0.5 * s + rand(-0.12, 0.12) * s,
-        _tp.z + dir.z * along * 0.5 * s + rand(-0.12, 0.12) * s,
+        _tp.x + dir.x * along * 0.6 * s + rand(-0.14, 0.14) * s,
+        _tp.y + dir.y * along * 0.6 * s + rand(-0.14, 0.14) * s,
+        _tp.z + dir.z * along * 0.6 * s + rand(-0.14, 0.14) * s,
         _td.x, _td.y, _td.z,
-        // SOOT, not steam: a coal-black core with a barely-grey edge. It was
-        // 0x6a5f55/0x1b1a20 before, which read as dust off a building.
-        { life: rand(0.8, 1.5), size: size * (0.55 + 0.75 * along) * rand(0.85, 1.15) * s,
+        // SOOT, not steam: a coal-black core with a barely-grey edge
+        { life: rand(0.9, 1.7), size: size * (0.5 + 0.9 * along) * rand(0.85, 1.15) * s,
           color: 0x2e2a28, color2: 0x08080a,
-          alpha: (0.62 + 0.2 * (1 - along)) * power, drag: 3.4, grow: 3.4 * s,
-          spin: 1.2, fadeIn: 0.05 });
+          alpha: (0.66 + 0.2 * (1 - along)) * power, drag: 3.6, grow: 3.8 * s,
+          spin: 1.2, fadeIn: 0.04 });
+    }
+    // …and the plume settling in behind it
+    for (let i = 0; i < 4; i++) {
+      _td.copy(dir).multiplyScalar(speed * 0.16 * rand(0.7, 1.3) * s);
+      _td.x += rand(-0.8, 0.8) * s; _td.y += rand(-0.2, 0.9) * s; _td.z += rand(-0.8, 0.8) * s;
+      fx.smoke.emit(_tp.x + rand(-0.3, 0.3) * s, _tp.y + rand(-0.2, 0.4) * s, _tp.z + rand(-0.3, 0.3) * s,
+        _td.x, _td.y, _td.z,
+        { life: rand(2.2, 3.4), size: size * rand(1.5, 2.3) * s, color: 0x353130, color2: 0x0b0b0d,
+          alpha: 0.5 * power, drag: 1.1, grow: 4.6 * s, spin: 0.5, fadeIn: 0.3 });
     }
     n++;
   };
   const A = mech.anchors || {};
-  // the CHIMNEYS: straight up, hard — this is the one that reads from a distance
+  // THE CHIMNEYS ARE THE WHISTLE — biggest and hardest of the three, straight
+  // up, because they are the pair a player is looking at
   for (const name of sf.anchors || []) {
     const a = A[name];
-    if (a) puff(a, UP, 17 * power, 1.5);
+    if (a) puff(a, UP, 26 * power, 2.4);
   }
   // the BACK TANKS: the booster nozzles, also straight up (they sit under him,
   // so a puff along their own axis would go into the floor)
   for (const name of Object.keys(A)) {
-    if (name.startsWith('boost')) puff(A[name], UP, 14 * power, 1.25);
+    if (name.startsWith('boost')) puff(A[name], UP, 15 * power, 1.3);
   }
   // the HAND TORCHES: out along the barrel, wherever the clip has swung it
   for (const name of ['muzzleR', 'muzzleL']) {
@@ -346,7 +359,10 @@ export function stackToot(mech, sf, { fx, scale = 1, smoke = true, power = 1 } =
     if (!a) continue;
     a.getWorldQuaternion(_tq);
     _tdir.set(0, 0, 1).applyQuaternion(_tq);
-    puff(a, _tdir, 19 * power, 1.0);
+    // …and quietly, since the taunt clip folds his arms and those barrels end up
+    // pointing at his own feet: enough to say the whole machine is venting,
+    // not enough to lay a fog bank on the pavement
+    puff(a, _tdir, 11 * power, 0.75);
   }
   return n;
 }

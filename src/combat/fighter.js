@@ -3418,21 +3418,35 @@ export class Fighter {
     this._holoOn = true;
     this._holoT = (this._holoT ?? 0) - dt;
     if (this._holoT > 0) return;
+    // GONE MEANS GONE. It used to drop to 0.1-0.32, a ghost you could still
+    // read, which is a signal DEGRADING; a lost packet is a signal ABSENT. The
+    // body goes fully to 0 and comes fully back, and the only thing on screen
+    // in between is the static that tore off him on the way out.
     const gone = Math.random() < 0.45;
-    this._holoT = gone ? rand(0.03, 0.1) : rand(0.05, 0.19);
-    this.setOpacity(gone ? rand(0.1, 0.32) : 1);
+    this._holoT = gone ? rand(0.04, 0.13) : rand(0.05, 0.19);
+    this.setOpacity(gone ? 0 : 1);
     if (!gone) return;
     const fx = this.world.effects;
     if (fx?.glows) {
-      // noise: flecks torn off the silhouette at the moment it drops out
-      for (let i = 0; i < 3; i++) {
+      // STATIC, not a sprinkle: a dozen flecks scattered through the volume he
+      // just vacated, so the shape is still faintly legible as noise for the
+      // frame or two he is missing
+      for (let i = 0; i < 12; i++) {
         fx.glows.emit(
-          this.pos.x + rand(-0.9, 0.9) * this.scale,
+          this.pos.x + rand(-1.1, 1.1) * this.scale,
           this.pos.y + Math.random() * this.height,
-          this.pos.z + rand(-0.9, 0.9) * this.scale,
-          rand(-1.5, 1.5), rand(-1, 2.5), rand(-1.5, 1.5),
-          { life: rand(0.06, 0.16), size: rand(0.5, 1.6) * this.scale,
-            color: Math.random() < 0.5 ? 0x8a2be2 : 0x22e0d0, alpha: 0.85, grow: -1 });
+          this.pos.z + rand(-1.1, 1.1) * this.scale,
+          rand(-2.5, 2.5), rand(-1.5, 3), rand(-2.5, 2.5),
+          { life: rand(0.05, 0.17), size: rand(0.35, 1.5) * this.scale,
+            color: Math.random() < 0.5 ? 0x8a2be2 : 0x22e0d0, alpha: 0.9, grow: -1.4 });
+      }
+      // …and a flat scan-line band across him, the tear a dropped frame leaves
+      const y = this.pos.y + Math.random() * this.height;
+      for (let i = 0; i < 7; i++) {
+        fx.glows.emit(this.pos.x + rand(-1.5, 1.5) * this.scale, y,
+          this.pos.z + rand(-1.5, 1.5) * this.scale, 0, 0, 0,
+          { life: rand(0.04, 0.1), size: rand(0.8, 1.9) * this.scale,
+            color: 0xd8f4ff, alpha: 0.55, grow: -2 });
       }
     }
     this._holoBuzz = (this._holoBuzz ?? 0) - 1;
@@ -3549,16 +3563,19 @@ export class Fighter {
     const act = this.animator?.action;
     let k = this._iceK ?? 0;
     if (on) {
-      const ICE_IN = 0.5, ICE_DELAY = 0.34;
+      // starts as he settles, and is FULLY solid well before he has to hold it
+      const ICE_IN = 0.55, ICE_DELAY = 0.38;
       k = clamp01(((act.t || 0) - ICE_DELAY) / ICE_IN);
       if (k > 0 && !this._iceOn) { this._iceOn = true; this.world.audio?.play('freeze'); }
     } else if (k > 0) {
-      k = Math.max(0, k - dt / 0.16);           // thaw: a snap, not a fade
-      if (k === 0 && this._iceOn) {
+      // IT DOES NOT MELT, IT GOES. One frame there, next frame a cloud of frost
+      // where it was — a fade out would read as the ice becoming thin, and this
+      // is ice being replaced by a mech, which is instantaneous or it is nothing.
+      k = 0;
+      if (this._iceOn) {
         this._iceOn = false;
-        // …and the whole cloud at once, which is the tell that he is back
-        for (let i = 0; i < 30; i++) this.frostPuff(1.8);
-        this.world.effects?.rings?.spawn(this.pos, { from: 0.5, to: 6 * this.scale, dur: 0.4, color: 0xbfe8ff, y: 0.4 });
+        for (let i = 0; i < 46; i++) this.frostPuff(2.2);
+        this.world.effects?.rings?.spawn(this.pos, { from: 0.5, to: 7 * this.scale, dur: 0.4, color: 0xbfe8ff, y: 0.4 });
         this.world.audio?.play('shatter');
       }
     }
@@ -3567,14 +3584,19 @@ export class Fighter {
     const ice = k > 0 ? this.iceBlock() : this._ice;
     if (ice) {
       ice.visible = k > 0.02;
-      // the shimmer rides on top of the fade so a settled block still lives
+      // SOLID once it has him: 0.96 at the top, not the 0.72 it fades through —
+      // a block you can still read a mech through is a mech behind glass, and
+      // what he turns into is a block of ice. The shimmer rides on top so a
+      // settled block still lives.
       this._iceT = (this._iceT ?? 0) + dt;
-      ice.material.opacity = k * (0.72 + 0.06 * Math.sin(this._iceT * 5.3));
+      ice.material.opacity = Math.min(1, k * k * (0.96 + 0.04 * Math.sin(this._iceT * 5.3)));
     }
     // the BODY dissolves out under it. setOpacity(1) also clears `transparent`,
     // so the mech ends up exactly as it started rather than left in the
     // transparent queue for the rest of the round.
-    this.setOpacity(k >= 0.995 ? 0 : 1 - k);
+    // the BODY dissolves out AHEAD of the ice arriving (gone by k=0.8), so there
+    // is no window where a solid-looking block still has a mech showing through
+    this.setOpacity(k <= 0 ? 1 : Math.max(0, 1 - k / 0.8));
     // frost THICKENS as it takes him, rather than arriving in one puff
     if (k > 0 && k < 1) {
       this._frostAcc = (this._frostAcc ?? 0) + dt * (4 + 26 * k);
