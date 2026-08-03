@@ -7,7 +7,7 @@ import { Animator, LEG_BACK_OFF } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
 import { stackState, burnStacks, stackBlast, stackToot, stackHandSmoke, TOOT_COST } from '../mechs/stackfx.js';
-import { infernoVentPlan } from '../mechs/animations.js';
+import { infernoVentPlan, GLACIER_FREEZE } from '../mechs/animations.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
@@ -3424,6 +3424,30 @@ export class Fighter {
       return;
     }
     this._holoOn = true;
+    // THE SIGNAL GETS WORSE THE LONGER IT RUNS. `k` is how far through the clip
+    // he is, and the noise is scaled by it: the taunt opens as a bad connection
+    // and ends as one falling over, so the ramp does the escalating rather than
+    // a bigger constant. It goes back to normal on its own at the end, because
+    // the whole effect is gated on the clip playing — there is nothing to
+    // unwind.
+    const k = clamp01((act.t || 0) / Math.max(0.001, act.clip.dur));
+    const noise = 1 + 1.6 * k;
+    // …AND THERE IS STATIC EVEN WHILE HE IS THERE. The flecks used to exist only
+    // in the frames he was missing, which put all of the noise in the gaps; a
+    // failing hologram crawls the whole time. This is the steady part, thin at
+    // the start and a swarm by the end.
+    const fxs = this.world.effects;
+    this._holoCrawl = (this._holoCrawl ?? 0) + dt * 30 * noise;
+    while (this._holoCrawl >= 1 && fxs?.glows) {
+      this._holoCrawl -= 1;
+      fxs.glows.emit(
+        this.pos.x + rand(-1.2, 1.2) * this.scale,
+        this.pos.y + Math.random() * this.height,
+        this.pos.z + rand(-1.2, 1.2) * this.scale,
+        rand(-1.5, 1.5), rand(-1, 2), rand(-1.5, 1.5),
+        { life: rand(0.05, 0.16), size: rand(0.25, 0.9) * this.scale,
+          color: Math.random() < 0.5 ? 0x8a2be2 : 0x22e0d0, alpha: 0.7, grow: -1.6 });
+    }
     this._holoT = (this._holoT ?? 0) - dt;
     if (this._holoT > 0) return;
     // GONE MEANS GONE. It used to drop to 0.1-0.32, a ghost you could still
@@ -3439,7 +3463,7 @@ export class Fighter {
       // STATIC, not a sprinkle: a dozen flecks scattered through the volume he
       // just vacated, so the shape is still faintly legible as noise for the
       // frame or two he is missing
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < Math.round(12 * noise); i++) {
         fx.glows.emit(
           this.pos.x + rand(-1.1, 1.1) * this.scale,
           this.pos.y + Math.random() * this.height,
@@ -3450,7 +3474,7 @@ export class Fighter {
       }
       // …and a flat scan-line band across him, the tear a dropped frame leaves
       const y = this.pos.y + Math.random() * this.height;
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < Math.round(7 * noise); i++) {
         fx.glows.emit(this.pos.x + rand(-1.5, 1.5) * this.scale, y,
           this.pos.z + rand(-1.5, 1.5) * this.scale, 0, 0, 0,
           { life: rand(0.04, 0.1), size: rand(0.8, 1.9) * this.scale,
@@ -3626,11 +3650,24 @@ export class Fighter {
   // The block is a child of his group, so it rides his position; his POSE is
   // still running underneath it, unseen, which is why the clip holds him folded
   // rather than letting him unwind inside the ice.
+  //
+  // THE ICE GOES BEFORE THE TAUNT DOES. It used to vanish when the clip ended,
+  // which put the thaw and the first frame of him moving again on the same
+  // instant — so what you saw was the block turning into a mech mid-stride,
+  // with the burst of frost reading as something he did rather than something
+  // that happened to him. `GLACIER_STILL` seconds before the end the block is
+  // gone and he is BACK, standing exactly as he froze, and only then does the
+  // clip unwind him. Standing there for a second in the fog is the beat.
   iceTaunt(dt) {
     const on = this.taunting();
     const act = this.animator?.action;
     let k = this._iceK ?? 0;
-    if (on) {
+    // WHEN the ice goes is the CLIP's business, not this function's: it has to
+    // land where the clip still has a held pose to show, so both read the one
+    // schedule (GLACIER_FREEZE — `still` seconds of him standing there frozen,
+    // then `relax` seconds of unwinding).
+    const ends = on && (act.t || 0) >= (act.clip.dur - GLACIER_FREEZE.still - GLACIER_FREEZE.relax);
+    if (on && !ends) {
       // starts as he settles, and is FULLY solid well before he has to hold it
       const ICE_IN = 0.55, ICE_DELAY = 0.38;
       k = clamp01(((act.t || 0) - ICE_DELAY) / ICE_IN);
@@ -3642,7 +3679,11 @@ export class Fighter {
       k = 0;
       if (this._iceOn) {
         this._iceOn = false;
-        for (let i = 0; i < 46; i++) this.frostPuff(2.2);
+        // THE FOG IS THE SIZE OF THE BLOCK. Puffed from a sphere round his
+        // navel it left the top and the corners clear, so a tall prism
+        // disappeared out of a low cloud; `frostBurst` fills the prism's own
+        // volume instead, which is the shape the eye was just looking at.
+        this.frostBurst(90, 2.6);
         this.world.effects?.rings?.spawn(this.pos, { from: 0.5, to: 7 * this.scale, dur: 0.4, color: 0xbfe8ff, y: 0.4 });
         this.world.audio?.play('shatter');
       }
@@ -3740,6 +3781,33 @@ export class Fighter {
       this.pos.y + Math.random() * h * 0.9,
       this.pos.z + rand(-1, 1) * this.scale);
     fx.steamVent(_arcA, { x: rand(-0.5, 0.5), y: rand(0.2, 1) * power, z: rand(-0.5, 0.5) });
+  }
+
+  // The whole BLOCK, gone to fog: seeded through the prism's own bounding box
+  // rather than a ball at his waist, so the cloud that replaces it has its
+  // corners and its full height. Falls back to the body's own extent if there is
+  // no block (nothing else calls it that way today, but a missing `_ice` should
+  // not mean a missing burst). The outward speed is measured from the CENTRE,
+  // so the fog opens the way the ice would have come apart.
+  frostBurst(n = 90, power = 2.6) {
+    const fx = this.world.effects;
+    if (!fx) return;
+    const ice = this._ice;
+    const g = ice?.geometry?.parameters;
+    const w = (g?.width ?? this.baseHitRadius * 2) * 0.5;
+    const d = (g?.depth ?? this.baseHitRadius * 2) * 0.5;
+    const h = g?.height ?? this.baseHeight;
+    const cx = this.pos.x + (ice?.position.x ?? 0);
+    const cz = this.pos.z + (ice?.position.z ?? 0);
+    for (let i = 0; i < n; i++) {
+      const ox = rand(-w, w), oz = rand(-d, d), oy = Math.random() * h;
+      _arcA.set(cx + ox, this.pos.y + oy, cz + oz);
+      fx.steamVent(_arcA, {
+        x: (ox / (w || 1)) * rand(0.3, 1) * power,
+        y: rand(0.2, 1) * power,
+        z: (oz / (d || 1)) * rand(0.3, 1) * power,
+      });
+    }
   }
 
   // ---- BOOSTER FLAME (the hover jets' exhaust) ----------------------------

@@ -1574,7 +1574,17 @@ audio). Progress history: `TASKS.md`.
   (`iceTaunt`, roster `tauntIce`): he CROSS-FADES into the block over half a
   second with the frost thickening as it takes him, and thaws in 0.16s with the
   whole cloud at once — freezing is something he does, thawing is something that
-  happens to him, a fist included. THREE TRAPS IN THAT ONE, all the same shape —
+  happens to him, a fist included. THE ICE GOES BEFORE THE TAUNT DOES: it used
+  to vanish as the clip ended, which put the thaw and his first moving frame on
+  the same instant and read as the block turning into a mech mid-stride. The
+  schedule is `GLACIER_FREEZE` in animations.js — `still` seconds standing
+  there frozen in the fog, then `relax` seconds unwinding — and BOTH the clip
+  and iceTaunt read it, because the block vanishing and the pose on screen when
+  it does are one event (measured: block gone at 2.30s, joint movement 0.00 for
+  the whole second after, unwinding from 3.30). The burst is `frostBurst`,
+  seeded through the PRISM's own bounding box rather than a ball at his waist —
+  a sphere round his navel left the top and corners clear, so a tall block
+  disappeared out of a low cloud. THREE TRAPS IN THAT ONE, all the same shape —
   the thing standing in for the body lives INSIDE the body's own group.
   `fighter.group` IS `mech.group` (aliased in the constructor), so hiding the
   mech takes the block with it; `setOpacity` walks that same group, so fading
