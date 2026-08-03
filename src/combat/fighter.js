@@ -6,7 +6,7 @@ import { buildMech } from '../mechs/factory.js';
 import { Animator, LEG_BACK_OFF } from '../mechs/animator.js';
 import { CLIPS, LIGHT_ARM, SMASH_MIRRORS } from '../mechs/animations.js';
 import { buildBoneShell } from '../mechs/glbshell.js';
-import { stackState, burnStacks, stackBlast, stackToot } from '../mechs/stackfx.js';
+import { stackState, burnStacks, stackBlast, stackToot, stackHandSmoke } from '../mechs/stackfx.js';
 import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
@@ -4146,20 +4146,38 @@ export class Fighter {
   // the puffs land on the same beats however the clip is being played back.
   tauntVenting(dt, sf, fx) {
     const act = this.animator?.action;
-    if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._tootN = 0; return false; }
+    if (!act || act.fadingOut || act.clip.name !== 'taunt') { this._tootN = 0; this._handAcc = 0; return false; }
+    const smoke = !this.world.sandbox;
     // TOOT TOOT — pairs, not a metronome. Two close together and then a gap is
     // what a train whistle is, and it is what makes this read as a deliberate
     // noise he is making rather than an engine idling. The second of each pair
-    // is the harder one.
+    // is the harder one. CHIMNEYS AND TANKS ONLY: these are chuffs, one shove
+    // of soot each.
     const TOOTS = [0.22, 0.40, 1.00, 1.18, 1.78, 1.96, 2.50, 2.68];
     const want = TOOTS.filter((t) => act.t >= t).length;
     if (want > (this._tootN || 0)) {
       this._tootN = want;
       this.group.updateWorldMatrix(true, true);
-      stackToot(this.mech, sf, { fx, scale: this.scale, smoke: !this.world.sandbox,
+      stackToot(this.mech, sf, { fx, scale: this.scale, smoke,
         power: want % 2 === 0 ? 1.15 : 0.85 });
       this.world.audio?.play('whoosh');
     }
+    // THE HANDS STREAM instead — a valve held open rather than a beat. Two long
+    // vents with a breath between them (1s on, 0.5s off, 1s on), which is what
+    // a vent looks like and what eight little coughs did not. The rate is an
+    // ACCUMULATOR rather than one-per-frame: the smoke pool is 450 deep and this
+    // must not empty it on a fast machine while doing nothing on a slow one.
+    const HAND = [[0.22, 1.22], [1.72, 2.72]];
+    const venting = HAND.some(([a, b]) => act.t >= a && act.t < b);
+    if (venting) {
+      this._handAcc = (this._handAcc ?? 0) + dt;
+      let ticks = 0;
+      while (this._handAcc >= 0.06 && ticks < 4) { this._handAcc -= 0.06; ticks++; }
+      if (ticks) {
+        this.group.updateWorldMatrix(true, true);
+        for (let i = 0; i < ticks; i++) stackHandSmoke(this.mech, sf, { fx, scale: this.scale, smoke });
+      }
+    } else this._handAcc = 0;
     return true;
   }
 

@@ -353,16 +353,55 @@ export function stackToot(mech, sf, { fx, scale = 1, smoke = true, power = 1 } =
   for (const name of Object.keys(A)) {
     if (name.startsWith('boost')) puff(A[name], UP, 15 * power, 1.3);
   }
-  // the HAND TORCHES: out along the barrel, wherever the clip has swung it
+  return n;
+}
+
+/**
+ * ONE TICK of the HAND TORCHES' smoke — called every frame while a vent window
+ * is open (Fighter.tauntVenting), rather than once per beat.
+ *
+ * The chimneys CHUFF and the hands STREAM, and they are different things: a
+ * chuff is one shove of soot that then billows, a stream is smoke pouring for
+ * as long as the valve is held. Doing the hands as beats gave eight little
+ * coughs; doing them as a stream gives two long jets with a breath between,
+ * which is what a vent actually looks like.
+ *
+ * `dt` in, particles out — the caller owns the schedule and the accumulator.
+ */
+export function stackHandSmoke(mech, sf, { fx, scale = 1, smoke = true, power = 1 } = {}) {
+  if (!smoke || !fx?.smoke) return 0;
+  const s = scale;
+  const A = mech.anchors || {};
+  let n = 0;
   for (const name of ['muzzleR', 'muzzleL']) {
     const a = A[name];
     if (!a) continue;
+    a.getWorldPosition(_tp);
     a.getWorldQuaternion(_tq);
     _tdir.set(0, 0, 1).applyQuaternion(_tq);
-    // …and quietly, since the taunt clip folds his arms and those barrels end up
-    // pointing at his own feet: enough to say the whole machine is venting,
-    // not enough to lay a fog bank on the pavement
-    puff(a, _tdir, 11 * power, 0.75);
+    // FOUR down the jet…
+    for (let i = 0; i < 4; i++) {
+      _td.copy(_tdir).multiplyScalar(22 * power * rand(0.85, 1.15) * s);
+      _td.x += rand(-1.1, 1.1) * s; _td.y += rand(-0.9, 0.9) * s; _td.z += rand(-1.1, 1.1) * s;
+      fx.smoke.emit(_tp.x + rand(-0.18, 0.18) * s, _tp.y + rand(-0.18, 0.18) * s, _tp.z + rand(-0.18, 0.18) * s,
+        _td.x, _td.y, _td.z,
+        // LIVES ARE SHORT for the jet bodies, deliberately: the smoke pool is
+        // 450 deep and shared with everything else on screen, so twice the
+        // particles have to clear in about half the time or a full vent starves
+        // the chimneys it is supposed to accompany.
+        { life: rand(0.6, 1.1), size: rand(0.6, 1.1) * s, color: 0x2e2a28, color2: 0x08080a,
+          alpha: 0.6 * power, drag: 3.2, grow: 3.4 * s, spin: 1.1, fadeIn: 0.05 });
+    }
+    // …and two slow bodies behind them, so the jet leaves a plume, not a line
+    for (let i = 0; i < 2; i++) {
+      _td.copy(_tdir).multiplyScalar(4 * power * rand(0.6, 1.4) * s);
+      _td.x += rand(-0.7, 0.7) * s; _td.y += rand(0, 1.1) * s; _td.z += rand(-0.7, 0.7) * s;
+      fx.smoke.emit(_tp.x + rand(-0.2, 0.2) * s, _tp.y + rand(-0.15, 0.3) * s, _tp.z + rand(-0.2, 0.2) * s,
+        _td.x, _td.y, _td.z,
+        { life: rand(1.2, 2.0), size: rand(1.1, 1.9) * s, color: 0x353130, color2: 0x0b0b0d,
+          alpha: 0.45 * power, drag: 1.2, grow: 4.2 * s, spin: 0.5, fadeIn: 0.25 });
+    }
+    n += 6;
   }
   return n;
 }
