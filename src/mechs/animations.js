@@ -2287,19 +2287,31 @@ const WRAITH_TAUNT = {
 // -1.9 degrees, 69% of the forearm's length running laterally, and each hand a
 // little past the far side of his centreline. That is arms crossed.
 const INFERNO_TAUNT = {
+  // INFERNO — arms folded while the machine vents. His taunt is the one that is
+  // all effect (stackToot in stackfx.js: the burners go dark and he blows soot
+  // out of every nozzle in a steam-train rhythm), so the pose exists to give the
+  // venting a body to happen on: planted, arms folded, chin up, doing nothing
+  // about you at all.
+  //
+  // THE ARM POSE IS THE OWNER'S, set by hand in the pose workbench, and it is
+  // REPEATED VERBATIM on every held key rather than named once. A clip track is
+  // sparse — it interpolates between the keys that NAME a joint — so an arm
+  // named at 0.34 and then not again until the rest key at 3.2 does not HOLD,
+  // it drifts back to rest across the whole taunt. The breathing is carried by
+  // the torso, head and hips alone, which is also why the arms do not wander:
+  // they are the same four numbers four times.
+  //
+  // (Do not tidy the right shoulder's euler. 120.9 / -82.35 / 166.68 looks like
+  // a mistake next to the left arm's numbers and is the same orientation
+  // reached the other way round the gimbal — it is what the gizmo produced, and
+  // "simplifying" it moves the arm.)
   dur: 3.2, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
-    { t: 0.34, ease: 'outBack', pose: { torso: [-6, 0, 0], head: [-10, 0, 0], hipsPos: [0, 0.04, 0],
-      shoulderL: [-10, 52, 66], shoulderR: [-10, -52, -66], elbowL: [-108, 0, 0], elbowR: [-108, 0, 0],
-      handL: [0, 0, -14], handR: [0, 0, 14] } },
-    // the barest breathing through the vents, so he is not a statue for 3s
-    { t: 1.0, ease: 'inOutQuad', pose: { torso: [-8, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.07, 0],
-      shoulderL: [-13, 54, 68], shoulderR: [-13, -54, -68], elbowL: [-112, 0, 0], elbowR: [-112, 0, 0] } },
-    { t: 1.7, ease: 'inOutQuad', pose: { torso: [-5, 0, 0], head: [-9, 0, 0], hipsPos: [0, 0.02, 0],
-      shoulderL: [-8, 50, 64], shoulderR: [-8, -50, -64], elbowL: [-105, 0, 0], elbowR: [-105, 0, 0] } },
-    { t: 2.4, ease: 'inOutQuad', pose: { torso: [-8, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.07, 0],
-      shoulderL: [-13, 54, 68], shoulderR: [-13, -54, -68], elbowL: [-112, 0, 0], elbowR: [-112, 0, 0] } },
+    { t: 0.34, ease: 'outBack', pose: { torso: [-6, 0, 0], head: [-10, 0, 0], hipsPos: [0, 0.04, 0], shoulderL: [-69.15, 73.87, 25.75], elbowL: [-73.52, 1.68, 0.44], shoulderR: [120.9, -82.35, 166.68], elbowR: [-51.84, -13.94, -0.93] } },
+    { t: 1.0, ease: 'inOutQuad', pose: { torso: [-8, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.07, 0], shoulderL: [-69.15, 73.87, 25.75], elbowL: [-73.52, 1.68, 0.44], shoulderR: [120.9, -82.35, 166.68], elbowR: [-51.84, -13.94, -0.93] } },
+    { t: 1.7, ease: 'inOutQuad', pose: { torso: [-5, 0, 0], head: [-9, 0, 0], hipsPos: [0, 0.02, 0], shoulderL: [-69.15, 73.87, 25.75], elbowL: [-73.52, 1.68, 0.44], shoulderR: [120.9, -82.35, 166.68], elbowR: [-51.84, -13.94, -0.93] } },
+    { t: 2.4, ease: 'inOutQuad', pose: { torso: [-8, 0, 0], head: [-12, 0, 0], hipsPos: [0, 0.07, 0], shoulderL: [-69.15, 73.87, 25.75], elbowL: [-73.52, 1.68, 0.44], shoulderR: [120.9, -82.35, 166.68], elbowR: [-51.84, -13.94, -0.93] } },
     { t: 3.2, ease: 'inOutQuad', pose: REST_FULL },
   ],
   events: [{ t: 0.34, type: 'sfx', arg: 'taunt' }],
