@@ -867,6 +867,27 @@ audio). Progress history: `TASKS.md`.
   each vertex's bone colours BY WEIGHT instead of showing its dominant bone
   flat — the only view a gradient shows up in at all — and comes on with the
   panel.
+- A BROW HAS ONE HINGE, AND IT IS MEASURED (`face.js`, `node
+  tools/browprobe.mjs <mech>`). The facial performance used to write
+  `brow.rotation.x`, which is the lateral hinge on the GAME's own joints (built
+  facing +z with left at -x) and the FORWARD axis on a custom rig authored in
+  the raw GLB's bind space (+x forward) — so the same line pitched the ridge on
+  the procedural body and ROLLED it on the GLB. Measured on konga, the ridge was
+  travelling 7.1% of body height SIDEWAYS against 7.5% of lift: the brows
+  visibly swinging left and right in victory, intro and every strike. The axis
+  now comes from the two brows themselves — the vector from the right brow to
+  the left one is the head's lateral axis on ANY rig, in whatever frame that rig
+  was authored in — and the turn is applied in the parent's frame over each
+  brow's own rest rotation. Lateral travel is 0.00 on every clip, both mechs,
+  and the procedural route is unchanged by construction (there the two brows
+  differ only in x, so the derived axis IS x). `browprobe` is the check: it
+  plays every clip the mech can play and reports where the RIDGE goes — the
+  corners of the geometry that bone dominates, in the head's own frame — split
+  into lift / side / fwd. `side` must stay a rounding error.
+  AND A BROW RIDGE IS BONE: it furrows, it does not shrug. konga's range was cut
+  to about a third (`browSnarl` -0.30 → -0.11, `browFlinch` -0.42 → -0.15,
+  `browRoar` -0.16 → -0.06), which takes the worst lift from 7.5% of body height
+  to 2.1% — a scowl you believe rather than a face pulling itself about.
 - SKIN WORKBENCH **Debug output ▶** downloads ONE self-contained HTML file for
   handing a deformation problem to someone else: two screenshots of the current
   frame (shaded + bone colours), the full tool state (mech, build, selected
