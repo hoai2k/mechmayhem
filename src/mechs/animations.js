@@ -2123,88 +2123,119 @@ const JERRY_TAUNT = {
 // +70 is a joint bending backwards, which no clip on the roster does anywhere
 // else. Legs and torso are additive over rest and are kept smaller — a mech
 // whose knees invert falls over rather than glitching.
-const NULLBOT_TAUNT = {
-  dur: 1.8, cancelOnMove: true,
-  keys: [
-    { t: 0, pose: {} },
-    { t: 0.1, ease: 'linear', pose: { torso: [10, 0, 0], head: [-16, 0, 0], hipsPos: [0, -0.06, 0],
-      shoulderL: [-34, 0, -30], shoulderR: [-34, 0, 30], elbowL: [-78, 0, 0], elbowR: [-78, 0, 0] } },
-    // the head goes round further than a neck goes
-    { t: 0.2, ease: 'linear', pose: { head: [-24, 118, 22], torso: [14, -26, 16],
-      shoulderR: [-116, 54, 74], elbowR: [42, 0, 0], handR: [0, 0, 60] } },
-    { t: 0.27, ease: 'linear', pose: { head: [30, -104, -26], torso: [2, 30, -20],
-      shoulderL: [-128, -60, -86], elbowL: [56, 0, 0], shoulderR: [-20, 0, 16], elbowR: [-70, 0, 0] } },
-    { t: 0.36, ease: 'linear', pose: { head: [-38, 20, 0], torso: [18, 0, 4],
-      shoulderL: [26, 40, -8], elbowL: [-150, 0, 0], shoulderR: [24, -40, 8], elbowR: [-150, 0, 0],
-      hipsPos: [0.12, -0.1, 0], hipsRot: [0, 14, 0] } },
-    { t: 0.46, ease: 'linear', pose: { head: [12, -76, 30], torso: [6, -22, -18],
-      shoulderL: [-96, 0, -120], elbowL: [-10, 0, 0], shoulderR: [-96, 0, 120], elbowR: [-10, 0, 0],
-      hipsPos: [-0.1, 0.04, 0], hipsRot: [0, -12, 0] } },
-    { t: 0.56, ease: 'linear', pose: { head: [-30, 132, -18], torso: [16, 24, 22],
-      shoulderR: [58, -70, 40], elbowR: [64, 0, 0], shoulderL: [-40, 0, -22], elbowL: [-84, 0, 0] } },
-    { t: 0.66, ease: 'linear', pose: { head: [24, 0, 40], torso: [0, -30, -8],
-      shoulderL: [70, 62, -34], elbowL: [58, 0, 0], shoulderR: [-132, 0, 96], elbowR: [-26, 0, 0],
-      hipsPos: [0.08, -0.14, 0] } },
-    { t: 0.78, ease: 'linear', pose: { head: [-44, -60, 12], torso: [22, 12, 26],
-      shoulderL: [-150, 0, -40], elbowL: [-4, 0, 0], shoulderR: [-150, 0, 40], elbowR: [-4, 0, 0],
-      hipsPos: [0, 0.06, 0], hipsRot: [0, 8, 0] } },
-    { t: 0.88, ease: 'linear', pose: { head: [8, 96, -34], torso: [-6, -18, 14],
-      shoulderL: [10, -50, -70], elbowL: [-166, 0, 0], shoulderR: [-72, 34, 20], elbowR: [30, 0, 0] } },
-    { t: 1.0, ease: 'linear', pose: { head: [-20, -30, 26], torso: [20, 26, -22],
-      shoulderL: [-110, 0, -96], elbowL: [48, 0, 0], shoulderR: [-14, 0, 12], elbowR: [-120, 0, 0],
-      hipsPos: [-0.14, -0.06, 0], hipsRot: [0, -16, 0] } },
-    { t: 1.12, ease: 'linear', pose: { head: [34, 14, -40], torso: [4, -8, 18],
-      shoulderL: [-30, 0, -26], elbowL: [-90, 0, 0], shoulderR: [66, 58, 30], elbowR: [52, 0, 0] } },
-    { t: 1.24, ease: 'linear', pose: { head: [-26, -120, 8], torso: [18, -28, -14],
-      shoulderL: [-140, 44, -60], elbowL: [-16, 0, 0], shoulderR: [-140, -44, 60], elbowR: [-16, 0, 0],
-      hipsPos: [0.1, 0.02, 0] } },
-    { t: 1.36, ease: 'linear', pose: { head: [16, 62, 34], torso: [8, 20, 24],
-      shoulderL: [40, 0, -14], elbowL: [40, 0, 0], shoulderR: [-88, 0, 62], elbowR: [-60, 0, 0] } },
-    // …and it snaps back to something almost normal, which is the punchline
-    { t: 1.48, ease: 'linear', pose: { head: [-14, 0, 0], torso: [10, 0, 0], hipsPos: [0, -0.04, 0], hipsRot: [0, 0, 0],
-      shoulderL: [-32, 0, -28], shoulderR: [-32, 0, 28], elbowL: [-80, 0, 0], elbowR: [-80, 0, 0],
-      handL: [0, 0, 0], handR: [0, 0, 0] } },
-    { t: 1.8, ease: 'inOutQuad', pose: REST_FULL },
-  ],
-  events: [{ t: 0.2, type: 'sfx', arg: 'zap' }, { t: 0.56, type: 'sfx', arg: 'zap' },
-    { t: 1.0, type: 'sfx', arg: 'zap' }, { t: 1.36, type: 'sfx', arg: 'zap' }],
+// THE GLITCH POSES ARE A LIST, played through twice — the same corrupt frames
+// in the same order, which is right for a thing repeating a broken loop rather
+// than improvising, and doubles the length without inventing twelve more poses
+// that would each need judging. `cycles` is the dial.
+const NULLBOT_GLITCH = [
+  // the head goes round further than a neck goes
+  { head: [-24, 118, 22], torso: [14, -26, 16],
+    shoulderR: [-116, 54, 74], elbowR: [42, 0, 0], handR: [0, 0, 60] },
+  { head: [30, -104, -26], torso: [2, 30, -20],
+    shoulderL: [-128, -60, -86], elbowL: [56, 0, 0], shoulderR: [-20, 0, 16], elbowR: [-70, 0, 0] },
+  { head: [-38, 20, 0], torso: [18, 0, 4],
+    shoulderL: [26, 40, -8], elbowL: [-150, 0, 0], shoulderR: [24, -40, 8], elbowR: [-150, 0, 0],
+    hipsPos: [0.12, -0.1, 0], hipsRot: [0, 14, 0] },
+  { head: [12, -76, 30], torso: [6, -22, -18],
+    shoulderL: [-96, 0, -120], elbowL: [-10, 0, 0], shoulderR: [-96, 0, 120], elbowR: [-10, 0, 0],
+    hipsPos: [-0.1, 0.04, 0], hipsRot: [0, -12, 0] },
+  { head: [-30, 132, -18], torso: [16, 24, 22],
+    shoulderR: [58, -70, 40], elbowR: [64, 0, 0], shoulderL: [-40, 0, -22], elbowL: [-84, 0, 0] },
+  { head: [24, 0, 40], torso: [0, -30, -8],
+    shoulderL: [70, 62, -34], elbowL: [58, 0, 0], shoulderR: [-132, 0, 96], elbowR: [-26, 0, 0],
+    hipsPos: [0.08, -0.14, 0] },
+  { head: [-44, -60, 12], torso: [22, 12, 26],
+    shoulderL: [-150, 0, -40], elbowL: [-4, 0, 0], shoulderR: [-150, 0, 40], elbowR: [-4, 0, 0],
+    hipsPos: [0, 0.06, 0], hipsRot: [0, 8, 0] },
+  { head: [8, 96, -34], torso: [-6, -18, 14],
+    shoulderL: [10, -50, -70], elbowL: [-166, 0, 0], shoulderR: [-72, 34, 20], elbowR: [30, 0, 0] },
+  { head: [-20, -30, 26], torso: [20, 26, -22],
+    shoulderL: [-110, 0, -96], elbowL: [48, 0, 0], shoulderR: [-14, 0, 12], elbowR: [-120, 0, 0],
+    hipsPos: [-0.14, -0.06, 0], hipsRot: [0, -16, 0] },
+  { head: [34, 14, -40], torso: [4, -8, 18],
+    shoulderL: [-30, 0, -26], elbowL: [-90, 0, 0], shoulderR: [66, 58, 30], elbowR: [52, 0, 0] },
+  { head: [-26, -120, 8], torso: [18, -28, -14],
+    shoulderL: [-140, 44, -60], elbowL: [-16, 0, 0], shoulderR: [-140, -44, 60], elbowR: [-16, 0, 0],
+    hipsPos: [0.1, 0.02, 0] },
+  { head: [16, 62, 34], torso: [8, 20, 24],
+    shoulderL: [40, 0, -14], elbowL: [40, 0, 0], shoulderR: [-88, 0, 62], elbowR: [-60, 0, 0] },
+];
+
+export const NULLBOT_JITTER = {
+  lead: 0.1,     // squaring up before the signal goes
+  beat: 0.104,   // one corrupt frame
+  cycles: 2,     // times through the list
+  snap: 0.12,    // …and back to something almost normal, which is the punchline
+  out: 0.32,
+  zapEvery: 4,   // one buzz in four beats
 };
+
+function nullbotJitterClip(J = NULLBOT_JITTER) {
+  const keys = [{ t: 0, pose: {} }];
+  const events = [];
+  let t = J.lead;
+  keys.push({ t, ease: 'linear', pose: { torso: [10, 0, 0], head: [-16, 0, 0], hipsPos: [0, -0.06, 0],
+    shoulderL: [-34, 0, -30], shoulderR: [-34, 0, 30], elbowL: [-78, 0, 0], elbowR: [-78, 0, 0] } });
+  const n = NULLBOT_GLITCH.length * J.cycles;
+  for (let i = 0; i < n; i++) {
+    t = +(t + J.beat).toFixed(3);
+    keys.push({ t, ease: 'linear', pose: { ...NULLBOT_GLITCH[i % NULLBOT_GLITCH.length] } });
+    if (i % J.zapEvery === 1) events.push({ t, type: 'sfx', arg: 'zap' });
+  }
+  t = +(t + J.snap).toFixed(3);
+  keys.push({ t, ease: 'linear', pose: { head: [-14, 0, 0], torso: [10, 0, 0], hipsPos: [0, -0.04, 0], hipsRot: [0, 0, 0],
+    shoulderL: [-32, 0, -28], shoulderR: [-32, 0, 28], elbowL: [-80, 0, 0], elbowR: [-80, 0, 0],
+    handL: [0, 0, 0], handR: [0, 0, 0] } });
+  t = +(t + J.out).toFixed(3);
+  keys.push({ t, ease: 'inOutQuad', pose: REST_FULL });
+  return { dur: t, cancelOnMove: true, keys, events };
+}
+
+const NULLBOT_TAUNT = nullbotJitterClip();
 
 // RHINO — the heavyweight warming up: knees driven high and stamped back down,
 // with both fists cocked in a punch wind-up the whole way through. Alternating
 // legs, so the body rocks between them; his profile only reinterprets `shoot`,
 // so nothing here is fighting a hook.
-const RHINO_TAUNT = {
-  dur: 2.2, cancelOnMove: true,
-  keys: [
-    { t: 0, pose: {} },
-    // fists up and cocked back — held for the whole taunt
-    { t: 0.22, ease: 'outBack', pose: { torso: [-6, 0, 0], head: [-6, 0, 0],
-      shoulderL: [-34, 22, -30], shoulderR: [-34, -22, 30], elbowL: [-116, 0, 0], elbowR: [-116, 0, 0] } },
-    // right knee up…
-    { t: 0.46, ease: 'outQuad', pose: { hipsPos: [0, 0.10, 0], hipsRot: [0, 0, -5], torso: [-8, 0, 3],
-      thighR: [-74, 0, 4], kneeR: [86, 0, 0], ankleR: [22, 0, 0], thighL: [4, 0, 0], kneeL: [-6, 0, 0] } },
-    // …and STAMPED down
-    { t: 0.64, ease: 'inQuad', pose: { hipsPos: [0, -0.12, 0], hipsRot: [0, 0, 0], torso: [-4, 0, 0],
-      thighR: [8, 0, 0], kneeR: [-4, 0, 0], ankleR: [0, 0, 0], thighL: [0, 0, 0], kneeL: [0, 0, 0] } },
-    { t: 0.90, ease: 'outQuad', pose: { hipsPos: [0, 0.10, 0], hipsRot: [0, 0, 5], torso: [-8, 0, -3],
-      thighL: [-74, 0, -4], kneeL: [86, 0, 0], ankleL: [22, 0, 0], thighR: [4, 0, 0], kneeR: [-6, 0, 0] } },
-    { t: 1.08, ease: 'inQuad', pose: { hipsPos: [0, -0.12, 0], hipsRot: [0, 0, 0], torso: [-4, 0, 0],
-      thighL: [8, 0, 0], kneeL: [-4, 0, 0], ankleL: [0, 0, 0], thighR: [0, 0, 0], kneeR: [0, 0, 0] } },
-    { t: 1.34, ease: 'outQuad', pose: { hipsPos: [0, 0.10, 0], hipsRot: [0, 0, -5], torso: [-8, 0, 3],
-      thighR: [-74, 0, 4], kneeR: [86, 0, 0], ankleR: [22, 0, 0], thighL: [4, 0, 0], kneeL: [-6, 0, 0] } },
-    { t: 1.52, ease: 'inQuad', pose: { hipsPos: [0, -0.12, 0], hipsRot: [0, 0, 0], torso: [-4, 0, 0],
-      thighR: [8, 0, 0], kneeR: [-4, 0, 0], ankleR: [0, 0, 0] } },
-    // squares back up over the cocked fists before letting go
-    { t: 1.80, ease: 'outQuad', pose: { torso: [-10, 0, 0], head: [-8, 0, 0], hipsPos: [0, 0.04, 0],
-      shoulderL: [-40, 24, -34], shoulderR: [-40, -24, 34], elbowL: [-124, 0, 0], elbowR: [-124, 0, 0] } },
-    { t: 2.2, ease: 'inOutQuad', pose: REST_FULL },
-  ],
-  events: [{ t: 0.22, type: 'sfx', arg: 'taunt' },
-    { t: 0.64, type: 'sfx', arg: 'slam' }, { t: 0.66, type: 'shake', arg: 0.22 },
-    { t: 1.08, type: 'sfx', arg: 'slam' }, { t: 1.10, type: 'shake', arg: 0.22 },
-    { t: 1.52, type: 'sfx', arg: 'slam' }, { t: 1.54, type: 'shake', arg: 0.22 }],
+// THE STAMPS ARE GENERATED, so `steps` is one number. Six of them now: three
+// read as clearing his throat, six as a man settling in to work.
+export const RHINO_STOMP = {
+  lead: 0.22,    // fists up and cocked back
+  rise: 0.24,    // knee driven up
+  drop: 0.18,    // …and STAMPED down
+  steps: 6,
+  square: 0.28,  // squaring back up over the fists before letting go
+  out: 0.4,
 };
+
+function rhinoStompClip(S = RHINO_STOMP) {
+  const keys = [{ t: 0, pose: {} }];
+  // fists up and cocked back — held for the whole taunt
+  const events = [{ t: S.lead, type: 'sfx', arg: 'taunt' }];
+  keys.push({ t: S.lead, ease: 'outBack', pose: { torso: [-6, 0, 0], head: [-6, 0, 0],
+    shoulderL: [-34, 22, -30], shoulderR: [-34, -22, 30], elbowL: [-116, 0, 0], elbowR: [-116, 0, 0] } });
+  let t = S.lead;
+  for (let i = 0; i < S.steps; i++) {
+    const R = i % 2 === 0, s = R ? 'R' : 'L', o = R ? 'L' : 'R', sgn = R ? 1 : -1;
+    t = +(t + S.rise).toFixed(3);
+    keys.push({ t, ease: 'outQuad', pose: { hipsPos: [0, 0.10, 0], hipsRot: [0, 0, -5 * sgn], torso: [-8, 0, 3 * sgn],
+      ['thigh' + s]: [-74, 0, 4 * sgn], ['knee' + s]: [86, 0, 0], ['ankle' + s]: [22, 0, 0],
+      ['thigh' + o]: [4, 0, 0], ['knee' + o]: [-6, 0, 0] } });
+    t = +(t + S.drop).toFixed(3);
+    keys.push({ t, ease: 'inQuad', pose: { hipsPos: [0, -0.12, 0], hipsRot: [0, 0, 0], torso: [-4, 0, 0],
+      ['thigh' + s]: [8, 0, 0], ['knee' + s]: [-4, 0, 0], ['ankle' + s]: [0, 0, 0],
+      ['thigh' + o]: [0, 0, 0], ['knee' + o]: [0, 0, 0] } });
+    events.push({ t, type: 'sfx', arg: 'slam' }, { t: +(t + 0.02).toFixed(3), type: 'shake', arg: 0.22 });
+  }
+  t = +(t + S.square).toFixed(3);
+  keys.push({ t, ease: 'outQuad', pose: { torso: [-10, 0, 0], head: [-8, 0, 0], hipsPos: [0, 0.04, 0],
+    shoulderL: [-40, 24, -34], shoulderR: [-40, -24, 34], elbowL: [-124, 0, 0], elbowR: [-124, 0, 0] } });
+  t = +(t + S.out).toFixed(3);
+  keys.push({ t, ease: 'inOutQuad', pose: REST_FULL });
+  return { dur: t, cancelOnMove: true, keys, events };
+}
+
+const RHINO_TAUNT = rhinoStompClip();
 
 // SAURION — SOMETHING REGISTERS. He STOPS, stands up out of the hunt crouch and
 // snatches both claws up under his chin, freezes there, takes a sniff of the
@@ -2670,6 +2701,22 @@ const INFERNO_TAUNT = (() => {
   };
 })();
 
+// HOW LONG HE STANDS THERE AFTER THE ICE GOES. Read by BOTH the clip below and
+// Fighter.iceTaunt, which is the point: the block vanishing and the pose that
+// is on screen when it does are one event, and two hand-kept schedules for it
+// is one of them silently wrong the moment either moves.
+export const GLACIER_FREEZE = {
+  still: 1.0,    // frozen solid, in the fog, before anything moves
+  relax: 0.45,   // …and unwinding out of it
+};
+const GLACIER_ICE_OUT = 2.30;          // when the block goes
+const GLACIER_FROZEN = {
+  torso: [6, 0, 0], head: [3, 0, 0], hipsPos: [0, -0.2, 0],
+  shoulderL: [0, 6, 2], shoulderR: [0, -6, -2], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0],
+  handL: [0, 0, -6], handR: [0, 0, 6],
+  thighL: [-5, 0, 7], thighR: [-5, 0, -7], kneeL: [13, 0, 0], kneeR: [13, 0, 0],
+  ankleL: [-8, 0, 0], ankleR: [-8, 0, 0],
+};
 const GLACIER_TAUNT = {
   // GLACIER — he freezes himself SOLID. For most of this clip he is not on
   // screen at all: he cross-fades into a single block of ice (Fighter.iceTaunt,
@@ -2686,7 +2733,7 @@ const GLACIER_TAUNT = {
   //
   // He holds it while frozen — the fade is on the RENDER, the animator keeps
   // running underneath — so he comes back out in the pose he went in.
-  dur: 2.6, cancelOnMove: true,
+  dur: GLACIER_ICE_OUT + GLACIER_FREEZE.still + GLACIER_FREEZE.relax, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
     // most of the way there, fast
@@ -2698,12 +2745,15 @@ const GLACIER_TAUNT = {
       shoulderL: [0, 6, 2], shoulderR: [0, -6, -2], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0],
       handL: [0, 0, -6], handR: [0, 0, 6],
       thighL: [-5, 0, 7], thighR: [-5, 0, -7], kneeL: [13, 0, 0], kneeR: [13, 0, 0], ankleL: [-8, 0, 0], ankleR: [-8, 0, 0] } },
-    // frozen: not one joint moves
-    { t: 2.30, ease: 'linear', pose: { torso: [6, 0, 0], head: [3, 0, 0], hipsPos: [0, -0.2, 0],
-      shoulderL: [0, 6, 2], shoulderR: [0, -6, -2], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0],
-      handL: [0, 0, -6], handR: [0, 0, 6],
-      thighL: [-5, 0, 7], thighR: [-5, 0, -7], kneeL: [13, 0, 0], kneeR: [13, 0, 0], ankleL: [-8, 0, 0], ankleR: [-8, 0, 0] } },
-    { t: 2.6, ease: 'outBack', pose: REST_FULL },
+    // frozen: not one joint moves. TWO of these — the block goes at the first
+    // (GLACIER_FREEZE.still + .relax before the end, which Fighter.iceTaunt
+    // reads off the same table) and he is still standing in it, in the fog, for
+    // a whole second before the second one lets him unwind. He used to come
+    // back and move on the same instant, which read as the ice turning into a
+    // mech mid-stride instead of something thawing out.
+    { t: GLACIER_ICE_OUT, ease: 'linear', pose: { ...GLACIER_FROZEN } },
+    { t: GLACIER_ICE_OUT + GLACIER_FREEZE.still, ease: 'linear', pose: { ...GLACIER_FROZEN } },
+    { t: GLACIER_ICE_OUT + GLACIER_FREEZE.still + GLACIER_FREEZE.relax, ease: 'outBack', pose: REST_FULL },
   ],
   events: [{ t: 0.30, type: 'sfx', arg: 'freeze' }],
 };
