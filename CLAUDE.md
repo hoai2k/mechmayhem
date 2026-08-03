@@ -541,7 +541,15 @@ audio). Progress history: `TASKS.md`.
   emits along the anchor's +Z (the same axis the flamethrower fires down) and
   swings with the arm, keeping only a third of the buoyancy so it does not curl
   vertical the moment it leaves the muzzle. Direction is a property of the KIND
-  of burner. A torch is also held DARK while that hand is throwing a jet (`Fighter.darkNozzles`
+  of burner. HIS TAUNT'S RHYTHM IS ONE TABLE (`INFERNO_VENT` in animations.js,
+  resolved by `infernoVentPlan`): lead / puff / gap / hold / relax / cross /
+  cycles / out, in seconds. The clip's KEYFRAMES ARE GENERATED from it and
+  Fighter.tauntVenting reads the same plan for its emission windows, so the arms
+  are folded exactly while the smoke is leaving and relaxed exactly while it is
+  not — they were two hand-written schedules once, which is two places to edit
+  and one of them silently wrong the moment they disagree. Change a number there
+  and the pose and the smoke move together; the clip's DURATION falls out of it
+  too (4.89s at the shipped values). A torch is also held DARK while that hand is throwing a jet (`Fighter.darkNozzles`
   off the channel clip's side), because a pilot light sitting inside its own
   flamethrower stream reads as a bug. His LIGHT COMBO finisher also sets you
   alight: roster `light.comboStatus` is applied by the LAST blow of the string
