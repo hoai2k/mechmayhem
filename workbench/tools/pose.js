@@ -124,6 +124,17 @@ export async function runPoseWorkbench(config, params) {
   const startId = params.get('mech') || params.get('id');
   const JOINT_ORDER = config.rig.joints;
   const compileClip = config.anim.compile;
+  // THE JOINT YOU DRAG IS NOT ALWAYS THE TRACK YOU WRITE. A clip channel need
+  // not map 1:1 onto a joint — ROBOTWORLD's `mirrorArms` GLB profiles play the
+  // right-arm tracks on the LEFT arm (wraith carries his rifle in the left
+  // hand), yaw and roll negated, and that swap happens at PLAYBACK. So the pose
+  // on screen is already mirrored, and a drag measured off the joints has to be
+  // put back through the same mapping before it is stored — otherwise dragging
+  // his left hand writes the track that moves his right one, which is exactly
+  // what it used to do. `sign` is a component-wise flip, so it applies to a
+  // DELTA as happily as to an absolute value.
+  const trackOf = (j) => config.anim.trackFor?.(j, mech, curId) || { name: j, sign: [1, 1, 1] };
+  const toTrack = (j, v) => { const s = trackOf(j).sign; return [v[0] * s[0], v[1] * s[1], v[2] * s[2]]; };
   const measureHeadTop = config.geometry.headTop;
   const ease = config.ease;
   const engine = config.stage.engine();
@@ -659,14 +670,17 @@ export async function runPoseWorkbench(config, params) {
   // new entry starts where the motion already was. For one the clip never
   // touches: what is on screen, so the key reproduces what you posed.
   function authoredBase(j, t) {
+    const tj = trackOf(j).name;
     const key = editClip.keys[curKeyIdx];
-    if (key.pose[j]) return key.pose[j];
-    const track = liveClip?.tracks?.[j];
+    if (key.pose[tj]) return key.pose[tj];
+    const track = liveClip?.tracks?.[tj];
     if (track) {
       const v = sampleLiveTrack(track, t);
       return j === 'hipsPos' ? v.map((n) => rnd(n, 3)) : v.map((n) => rnd(n * R2D));
     }
-    return loadedPose?.[j] || [0, 0, 0];
+    // nothing authored anywhere: the base is what the joint is doing NOW, taken
+    // into track space so the delta below adds in the same space
+    return toTrack(j, loadedPose?.[j] || [0, 0, 0]);
   }
   function sampleLiveTrack(track, t) {
     if (t <= track[0].t) return track[0].v;
@@ -693,7 +707,9 @@ export async function runPoseWorkbench(config, params) {
       if (!to.some((v, i) => Math.abs(v - from[i]) > eps(j))) continue;
       const base = authoredBase(j, key.t);
       const d = j === 'hipsPos' ? 3 : 2;
-      key.pose[j] = [0, 1, 2].map((i) => rnd(base[i] + (to[i] - from[i]), d));
+      // the drag, measured in JOINT space, put into TRACK space before it lands
+      const dv = toTrack(j, [to[0] - from[0], to[1] - from[1], to[2] - from[2]]);
+      key.pose[trackOf(j).name] = [0, 1, 2].map((i) => rnd(base[i] + dv[i], d));
       n++;
     }
     if (!n) return;

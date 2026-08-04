@@ -785,6 +785,21 @@ audio). Progress history: `TASKS.md`.
   BONES, which is what that tool does: the retarget drives bone ORIENTATION from
   the game's clean humanoid, but bone POSITIONS are the rig's own, so the virtual
   joints can read 10° inboard while the rendered legs are 15° out.
+- THE JOINT YOU DRAG IS NOT ALWAYS THE TRACK YOU WRITE (`config.anim.trackFor`,
+  the pose workbench). A clip channel need not map 1:1 onto a joint: a GLB
+  profile may carry `mirrorArms` — WRAITH does, because the rifle is in the
+  model's LEFT hand — and then the arm tracks are SWAPPED at playback with yaw
+  and roll negated (animator.js). The pose on screen is therefore already
+  mirrored, and a drag measured off the joints has to go back through the same
+  mapping before it is stored. It did not: dragging wraith's left hand wrote the
+  `handL` track, which plays on his RIGHT hand, so the other arm moved. Measured
+  both ways — on wraith a clip track `handL` swings joint handR by -60 where the
+  key said +60, on titanus it swings handL by +60 — and `trackFor` returns
+  exactly that: `{name:'handR', sign:[1,-1,-1]}` for wraith, the identity for
+  everyone else. `sign` is component-wise, so it applies to a DELTA as happily
+  as to an absolute value, which is what commitEdit needs. Leave the hook out of
+  an adapter and the mapping is the identity, which is what an ordinary rig
+  wants.
 - NO WORKBENCH WRITES TO THE REPO. Every tool EXPORTS its edit as text you can
   read — `?edit=skin` **Export ops ▶** (a manifest patch), `?edit=rig` **Export
   rig ▶** (the bones array) and **Copy offsets ▶** (a `boneCorrections` patch) —
