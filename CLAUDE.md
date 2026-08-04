@@ -1358,7 +1358,7 @@ audio). Progress history: `TASKS.md`.
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).
   `?debug=3d` is the old opt-in flag and still means GLBs.
-- A PROP'S COLLIDER IS ITS OWN SHELL (`Arena._propShell`, `propBody.shell`).
+- A PROP'S COLLIDER IS ITS OWN SHELL (`src/arena/propshell.js`, `propBody.shell`).
   Every standing prop is measured as ONE VERTICAL CYLINDER off its ground band,
   which is right for a smokestack and a lie for anything that is not round. THE
   GEAR is the worked example: a thin brass disc standing on edge, six units
@@ -1373,7 +1373,39 @@ audio). Progress history: `TASKS.md`.
   what the climber's field reads (`collectSolids`), so what you touch is what
   you see. THE CYLINDER STAYS and is still the broad phase: the damage radius,
   "am I inside a prop", the AI's avoidance and the ghost clones all want one
-  cheap round number, and none of them are about contact.
+  cheap round number, and none of them are about contact. (Projectiles keep it
+  too — `propAt` is a round test and close enough to be convincing.)
+  IT IS EVERY ARENA — the shell is derived in `_regProp`, which every placement
+  in every theme goes through — and WHICH COLLIDER A PROP GETS IS MEASURED
+  rather than assumed: "boxes are more accurate" is only true of a prop that is
+  not round, and boxing a smokestack makes its corners worse. Both candidates
+  are scored at placement by their PHANTOM SKIN — points sampled over the
+  collider's own surface, each measured to the nearest point ON THE MODEL, which
+  is literally how far a body held against it sits off the thing it looks like
+  it is touching — and the better one is kept. 62 of the 67 solid props take the
+  shell; tireMound, lavaPool, vineColumn, junkPile and holoGlobe keep their
+  cylinder because they are round.
+  MEASURE AGAINST THE VERTICES, NOT THE MESH BOXES, or the metric grades the
+  shell against the boxes it was built from and reads 0.00 by construction —
+  which says a ROCK (an irregular blob with a corner of air in its box) is
+  perfectly fitted, right up until a body stands on that box's flat top a metre
+  above the stone. The cloud is decimated to ~320 points so both candidates cost
+  the same bounded handful of clamps once per placed prop.
+  `node tools/propshell.mjs` is the audit: every prop the twelve arenas place,
+  ranked by how far its collider floats off its own model, with the choice the
+  game makes beside it. Mean phantom skin over the whole set: 1.59 -> 0.69
+  units. It is also how the AURORA was caught — five transparent curtains hung
+  36-50 units up with no ground band at all, so the cylinder rule fell back to
+  the whole 130-unit ring, capped the radius at 7 and gave the frozen arena an
+  invisible pillar in the middle of it. It is `noCollide` now: it is light, not
+  scenery.
+  WHAT IS LEFT is the irregular ones — a rock, a crystal, a jungle canopy carry
+  1-3 units of slack whichever collider they take, because neither a box nor a
+  cylinder is that shape. That is the slack the climber's contact rule exists to
+  catch (see NOTHING TO HOLD IS NOT A PLACE TO BE). The dozen props that name
+  their own multi-part colliders (`userData.bodies` — gates, arches, cave
+  mouths) are hand-placed and get no derived shell; the audit measures and lists
+  them anyway, so a bad one is visible.
 - ARENA PROP COST: props are an object-count problem, not a triangle one (they
   were ~45-80% of a frame's draw calls for 3% of its triangles, because each is
   a pile of small meshes and the toroidal wrap clones the lot into 8 neighbour
