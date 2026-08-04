@@ -12,6 +12,24 @@ is an explicit placement list layered over a base theme.
 e.g. `?battle=neon&level=sample-arena&p1=titanus&p2=viper` plays
 `sample-arena.json`. Add `&auto=1&diff=ace` to spectate an AI match.
 
+## …or make one THE arena
+
+A level listed in `src/arena/authored.js` (`theme id -> level basename`) is
+what the GAME plays when that arena is picked off the select screen — the same
+hand-built city every match, instead of a fresh roll of the theme's recipe. A
+theme with no entry there has no authored version and stays procedural, which
+is most of them.
+
+```js
+export const AUTHORED_ARENAS = { neon: 'neon-district' };
+```
+
+SETTINGS → **PROCEDURAL ARENAS** (off by default) ignores that table entirely
+and generates every arena, which is how the generated cities stay reachable
+once an arena has been authored. `?procedural=1` is the same thing for one
+session, and it works on `?battle=` too — a bare `?battle=neon` otherwise plays
+whatever the menus would play, so a soak or a screenshot tests the real arena.
+
 ## Make one
 
 1. Open `?edit=level`.

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Engine } from '../core/engine.js';
 import { Input } from './input.js';
 import { THEMES_BY_ID, themePropNames } from '../arena/themes.js';
+import { resolveArenaTheme } from '../arena/authored.js';
 import { ROSTER_BY_ID, playableRoster } from '../mechs/roster.js';
 import { applyColorScheme, SCHEME_COUNT } from '../mechs/colorscheme.js';
 import { Fighter } from '../combat/fighter.js';
@@ -14,7 +15,7 @@ import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsS
 import { installKnobs, warnUnknownParams } from '../core/knobs.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
-  CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY,
+  CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY, setProceduralArenas,
   setRobotSpeed, SPEED_MIN, SPEED_MAX, SPEED_STEP,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
@@ -202,6 +203,14 @@ export async function bootGame() {
       // workbenches (?showcase, ?rigedit, ?battle=...) always show them
       label: () => t(CONFIG.showAllRobots ? 'settings.showAllRobots.on' : 'settings.showAllRobots.off'),
       fn: () => setShowAllRobots(!CONFIG.showAllRobots),
+    },
+    {
+      // ON: every arena is rolled from its theme recipe, as they all were
+      // before any were authored. OFF: an arena listed in arena/authored.js
+      // plays its hand-built level, everything else is generated regardless.
+      label: () => t(CONFIG.proceduralArenas
+        ? 'settings.proceduralArenas.on' : 'settings.proceduralArenas.off'),
+      fn: () => setProceduralArenas(!CONFIG.proceduralArenas),
     },
     // controller-reachable page reload (via LB/RB → settings → this item)
     { label: () => t('settings.reload'), fn: () => window.location.reload() },
@@ -475,7 +484,10 @@ export async function bootGame() {
     resetScene();
     S.mode = 'battle';
 
-    const theme = THEMES_BY_ID[S.themeId];
+    // An arena with a hand-built level plays it; everything else is generated
+    // from its recipe. Resolved BEFORE the prop warm-up below, since it is the
+    // authored level that says which props this city actually places.
+    const theme = await resolveArenaTheme(THEMES_BY_ID[S.themeId]);
     // Warm the prop GLBs THIS arena places — one to three models, not the
     // whole set, so the wait is short and nothing downloads for an arena the
     // player never picked. Never a hard gate: the procedural props always

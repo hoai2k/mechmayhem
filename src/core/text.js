@@ -128,6 +128,10 @@ export const MESSAGES = {
   'settings.reverseCamY.off': 'REVERSE CAMERA Y: OFF',
   'settings.showAllRobots.on': 'SHOW ALL ROBOTS: ON',
   'settings.showAllRobots.off': 'SHOW ALL ROBOTS: OFF',
+  // ON = every arena is generated fresh each match. OFF (the default) = an
+  // arena with a hand-built version plays it; the rest are generated anyway.
+  'settings.proceduralArenas.on': 'PROCEDURAL ARENAS: ON',
+  'settings.proceduralArenas.off': 'PROCEDURAL ARENAS: OFF',
   'settings.reload': 'RELOAD PAGE',
   'settings.split.side': 'SPLIT: SIDE BY SIDE',
   'settings.split.stacked': 'SPLIT: STACKED',

@@ -132,7 +132,7 @@ function readTunes() {
 export const KNOWN_PARAMS = [
   // core/config.js — the settings and feature flags
   'textures', 'finishers', 'debug', 'showall', 'menufloor', 'neonbuzz',
-  'postfx', 'music', 'prefetch', 'props', 'speed', 'round', 'tune',
+  'postfx', 'music', 'prefetch', 'props', 'speed', 'round', 'tune', 'procedural',
   // screens and harnesses
   'battle', 'showcase', 'rigedit', 'rigtest', 'edit', 'level', 'load',
   'glbview', 'bake', 'menupose', 'poster', 'finisherdemo', 'ultfx', 'geyser',
