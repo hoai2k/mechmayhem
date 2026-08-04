@@ -530,10 +530,18 @@ export const ROSTER = [
       // BALANCE: 3.6 -> 4.6 and 3.9 -> 4.7. `range` is NOT the reach — it sets
       // the swing capsule's radius and how far past the fist it extends
       // (Fighter.strikeVolume); the hit is the swept LIMB against the victim's
-      // hurtbox, so what a body can touch is decided by its ARMS. Cranky's
-      // authored range is already above titanus' and konga's and he still
-      // reaches far less far than either, because his pincers sit out to the
-      // sides of a wide shell instead of punching forward. Measured
+      // hurtbox, so the roster number is an ALLOWANCE ADDED TO THE MODEL, not a
+      // description of it — the game's reach is always the limb plus padding,
+      // never less than the limb, and how much padding each mech gets was never
+      // checked against how far its arms actually go. Cranky's number is
+      // already above titanus' and konga's and he still reaches far less far
+      // than either. Measured forward extension of the striking limb itself
+      // (tools/scratch/fistreach.mjs): konga 4.43, titanus 3.17, cranky 2.67 —
+      // his pincers sit out to the sides of a wide shell instead of punching
+      // forward. Titanus ALSO steps 1.0-1.5 into his own swing where cranky and
+      // konga step nothing, so the end-to-end number below bundles limb,
+      // allowance, step-in and the victim's own capsules; do not read it as
+      // limb length alone. Measured
       // (tools/scratch/meleereach.mjs, victim pinned dead ahead, last distance
       // that still connects): cranky light 6.5 against titanus 9.0 and konga
       // 10.25 — titanus' JAB out-reaches cranky's HEAVY (7.75). That is the

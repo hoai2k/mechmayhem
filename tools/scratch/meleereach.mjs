@@ -38,12 +38,16 @@ const res = await p.evaluate(() => {
       e.pos.set(0, 0, d); e.vel.set(0, 0, 0);   // pinned: measuring GEOMETRY
       w.update(1 / 60);
     }
-    return hp0 - e.hp > 0.5;
+    return { hit: hp0 - e.hp > 0.5, drive: +(f.pos.z - 0).toFixed(2) };
   };
   const sweep = (kind) => {
-    let last = 0;
-    for (let d = 2; d <= 12; d += 0.25) if (probe(kind, d)) last = d;
-    return last;
+    let last = 0, drive = 0;
+    for (let d = 2; d <= 12; d += 0.25) {
+      const r = probe(kind, d);
+      if (r.hit) last = d;
+      drive = Math.max(drive, r.drive);   // how far the SWING carried him in
+    }
+    return { last, drive };
   };
   return {
     id: f.def.id, scale: +f.scale.toFixed(2), radius: +f.radius.toFixed(2),
@@ -55,5 +59,5 @@ const res = await p.evaluate(() => {
 await b.close();
 const gap = (r) => +(r - res.radius - res.foeRadius).toFixed(2);
 console.log(`${res.id}: scale ${res.scale}, own radius ${res.radius}, victim radius ${res.foeRadius}`);
-console.log(`  roster light.range ${res.lightRange} -> connects out to ${res.light}  (clear air past the two bodies: ${gap(res.light)})`);
-console.log(`  roster heavy.range ${res.heavyRange} -> connects out to ${res.heavy}  (clear air: ${gap(res.heavy)})`);
+console.log(`  light: range ${res.lightRange} -> connects out to ${res.light.last}  (the swing itself carried him ${res.light.drive} forward)`);
+console.log(`  heavy: range ${res.heavyRange} -> connects out to ${res.heavy.last}  (carried ${res.heavy.drive} forward)`);
