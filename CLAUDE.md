@@ -1423,6 +1423,54 @@ audio). Progress history: `TASKS.md`.
   in twin viewports with one shared camera, with triangle/texture/VRAM/file
   deltas and a size check; the mesh merge is judged by flipping `?props=raw`
   on a battle URL, since it changes draw calls and not pixels.
+- A PROP'S MODEL MUST FACE THE WAY THE PROP DOES (`node tools/propyaw.mjs
+  [--apply]`, `ry` in `public/models/props/manifest.json`). A placed prop is a
+  PROCEDURAL build whose visuals are swapped for an imported GLB
+  (`propGlbSwap`), and everything around that swap is authored in the
+  procedural prop's frame: the yaw you set in the arena editor, the multi-body
+  colliders in `userData.bodies` (remapped by the two footprints' extents, so a
+  turned model stretches the wrong axis), and the recipe a bake records. TWELVE
+  OF THE TWENTY MODELS sat a quarter turn from the prop they replace — the
+  owner's torii gates were set facing down the street and the game stood them
+  across it. It is MEASURED rather than eyeballed: each footprint is a point
+  cloud in XZ, the principal axis of its covariance says which way the long
+  axis points (mod 180, since an axis has no head or tail), and the THIRD
+  MOMENT along it says which end is heavy — which is what tells a trawler's bow
+  from its stern, where a bounding box is symmetric and cannot. Nothing is
+  proposed for a prop with no long axis to align (`elong < 1.25` — a fuel tank
+  has no orientation to get wrong), and a quarter turn that still leaves the
+  axes disagreeing by more than 20°, or a half turn resting on the skew alone,
+  is REPORTED for a human rather than written (gantryCrane, icebreakerShip
+  today). Judge a change with `tools/propshell.mjs` — the collider fit is
+  derived from the same footprint (mean phantom skin stayed 0.69).
+- THE ARENA EDITOR BUILDS THE PROP THE GAME BUILDS, GLB included
+  (`config.arena.prop` runs `propGlbSwap`, `config.arena.preloadProps` fetches
+  the models, and `ensurePropModels` in the level tool rebuilds the proxies
+  when they land). It used to draw the procedural stand-in, which differs from
+  what ships in shape, in size (the shuttle's model is twice the procedural
+  one) and — until the models were straightened above — in which way it faces.
+  Fetching is best-effort and nothing waits on it: the procedural build is on
+  screen immediately and is exactly what the game falls back to for a model
+  that fails to load.
+- ONE POINTER, ONE OWNER (`workbench/tools/level.js`, asserted by `node
+  tools/editorpointer.mjs`). The editor and OrbitControls share one mouse.
+  OrbitControls is constructed first, so on a plain listener it saw every press
+  FIRST, took pointer capture and began a rotate; the editor then set
+  `orbit.enabled = false` to drag the object instead — which does not END the
+  gesture the controls had already begun, it only stops them updating it. A
+  drag that then ended abnormally — a `pointercancel` (a trackpad deciding the
+  press was a scroll), a release outside the window, a window losing focus —
+  left the controls holding a press that was never handed back, and the camera
+  stopped answering the mouse FOR THE REST OF THE SESSION while
+  `orbit.enabled` still read true. Every interrupted drag made it worse, which
+  is what "over time I lose the ability to move around" was.
+  THE DECISION IS MADE BEFORE THE CONTROLS SEE THE PRESS: the editor's
+  pointerdown listener runs in the CAPTURE phase and, when the drag is the
+  editor's, stops the event there — so the controls never start a gesture at
+  all and there is nothing to leak. The drag is also pointer-CAPTURED, and
+  `pointercancel` / `lostpointercapture` / window blur all end it, with a
+  cancelled drag PUT BACK rather than committed (the browser taking the pointer
+  is not the user dropping the object, and it is not a click either).
 - AN ARENA IS A RECIPE UNTIL SOMEBODY AUTHORS IT (`src/arena/authored.js`).
   themes.js says what a place is MADE OF and every match rolls a new city from
   it with a fresh seed — which is why an arena the owner laid out by hand was,

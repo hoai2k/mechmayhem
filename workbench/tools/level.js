@@ -450,6 +450,26 @@ export async function runLevelWorkbench(config, params) {
     return it;
   }
 
+  // Fetch the imported models this level's props use, then rebuild the props
+  // that got one so the editor shows the model the game will place. Tracked so
+  // a level swap mid-fetch cannot rebuild the props of the level you left, and
+  // so each model is only ever asked for once per session.
+  let propModelToken = 0;
+  const propModelsAsked = new Set();
+  function ensurePropModels(objects) {
+    if (!AR.preloadProps) return;
+    const want = [...new Set(objects.filter((o) => o.k === 'prop').map((o) => o.name))]
+      .filter((n) => !propModelsAsked.has(n));
+    if (!want.length) return;
+    want.forEach((n) => propModelsAsked.add(n));
+    const token = ++propModelToken;
+    AR.preloadProps(want).then(() => {
+      if (token !== propModelToken) return;             // a different level is loaded now
+      const named = new Set(want);
+      for (const it of items) if (it.def.k === 'prop' && named.has(it.def.name)) rebuildProxy(it);
+    }).catch(() => { /* no model: the procedural build stands, as in game */ });
+  }
+
   function rebuildProxy(it) {
     // preserve which item; swap the 3D object after a shape/param change
     worldGroup.remove(it.obj3d); disposeObj(it.obj3d);
@@ -635,6 +655,19 @@ export async function runLevelWorkbench(config, params) {
     if (!sel.length) return;
     applyMove(0, 0, pivot.rotation.y - pivotYaw0, pivotStart);
   }
+  // A DRAG THE BROWSER TOOK AWAY is put back where it started. The pre-drag
+  // state is already on the undo stack (pushUndo runs the moment a move
+  // begins), so restoring it is that entry, popped rather than left behind —
+  // the user did not perform an edit, so there is nothing to undo afterwards.
+  function cancelDrag() {
+    dragSnapshot = null;
+    if (undoStack.length) loadLevelData(JSON.parse(undoStack.pop()), true);
+    setHint('Drag cancelled — the browser took the pointer.');
+  }
+  function clearMarquee() {
+    if (marqueeEl) { marqueeEl.remove(); marqueeEl = null; }
+  }
+
   function commitDrag() {
     if (dragSnapshot) { undoStack.push(dragSnapshot); redoStack.length = 0; trimUndo(); dragSnapshot = null; }
     // ghosts are cheap clones but not free — resettle them once, at the end of
@@ -692,6 +725,7 @@ export async function runLevelWorkbench(config, params) {
     } else { // prop
       def = { k: 'prop', name: p.name, x: snap(world.x), z: snap(world.z), ry: 0, s: 1, opts: {} };
       if (p.color) def.opts.color = SWATCHES[0];
+      ensurePropModels([def]);   // first one of its kind: fetch its model too
     }
     select([addItem(def)]);
   }
@@ -700,25 +734,44 @@ export async function runLevelWorkbench(config, params) {
   // Left-drag on an object MOVES it (that is the whole redesign); left-drag on
   // empty ground is left to OrbitControls, and shift-drag on empty ground draws
   // a marquee.
+  // ONE POINTER, ONE OWNER. This listener runs in the CAPTURE phase, ahead of
+  // OrbitControls' own — which is the whole point. OrbitControls was
+  // constructed first, so on a plain listener it saw every press first, took
+  // pointer capture and started a rotate; we then set `orbit.enabled = false`
+  // mid-gesture to move the object, which does not end the gesture it had
+  // already begun — it only stops it being updated. Its pointer bookkeeping was
+  // then left holding a press that would never be handed back cleanly, and a
+  // drag that ended abnormally (a pointercancel from the trackpad, a release
+  // off-window) left it stuck for good: the camera stopped answering the mouse
+  // while `orbit.enabled` still read true, and every further interrupted drag
+  // made it worse. That is the "I slowly lose the ability to move around".
+  //
+  // So the decision is made BEFORE OrbitControls sees the press: if this drag
+  // belongs to the editor, the event is stopped here and the controls never
+  // start a gesture at all. Nothing to leak, by construction.
   let down = null;          // { x, y, item, ground, mode }
   renderer.domElement.addEventListener('pointerdown', (e) => {
     // the gizmo owns the pointer whenever it is hovered or held
     if (e.button !== 0 || gizmo.dragging || gizmo.axis) return;
     const it = paletteSel ? null : pickItem(e);
     const g = groundHit(e);
-    down = { x: e.clientX, y: e.clientY, item: it, ground: g, moved: false, mode: null, alt: e.altKey, shift: e.shiftKey };
+    down = { x: e.clientX, y: e.clientY, item: it, ground: g, moved: false, mode: null, alt: e.altKey, shift: e.shiftKey, id: e.pointerId };
     if (it && !e.shiftKey) {
       // dragging something not in the selection selects it first, so a drag is
       // never a surprise operation on an old selection
       if (!sel.includes(it)) select([it]);
       down.mode = 'move';
-      orbit.enabled = false;
     } else if (!it && e.shiftKey) {
       down.mode = 'marquee';
-      orbit.enabled = false;
       marqueeStart = { x: e.clientX, y: e.clientY };
     }
-  });
+    if (!down.mode) return;                 // camera drag: leave it to the controls
+    e.stopPropagation();                    // ...this one is ours, and only ours
+    orbit.enabled = false;
+    // and OUR gesture is captured, so its end is guaranteed to arrive even if
+    // the release happens outside the window
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* fine */ }
+  }, true);
 
   renderer.domElement.addEventListener('pointermove', (e) => {
     if (down && !down.moved && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) {
@@ -747,10 +800,21 @@ export async function runLevelWorkbench(config, params) {
     }
   });
 
-  window.addEventListener('pointerup', (e) => {
+  function endPointer(e, cancelled) {
     if (!down) return;
     const d = down; down = null;
+    try { renderer.domElement.releasePointerCapture(d.id); } catch { /* already gone */ }
     orbit.enabled = !gizmo.dragging;
+    // A CANCELLED DRAG IS NOT A CLICK. The browser takes the pointer away
+    // mid-gesture (a trackpad deciding the press was a scroll, a pen leaving
+    // range, a window losing focus); finishing the move as if the user had
+    // released would drop the object wherever it had got to, and treating it
+    // as a click would change the selection they never meant to change.
+    if (cancelled) {
+      if (d.moved && d.mode === 'move') { cancelDrag(); setHint(''); }
+      if (d.mode === 'marquee') clearMarquee();
+      return;
+    }
     if (d.mode === 'marquee') { endMarquee(e, d); return; }
     if (d.moved) {
       if (d.mode === 'move') { commitDrag(); setHint(''); }
@@ -760,6 +824,17 @@ export async function runLevelWorkbench(config, params) {
     if (paletteSel) { placeFromPalette(paletteSel); return; }
     if (d.item) { d.shift ? toggleSel(d.item) : select([d.item]); }
     else if (!d.shift) select([]);
+  }
+  window.addEventListener('pointerup', (e) => endPointer(e, false));
+  // every way a press can end WITHOUT a pointerup — each one used to leave the
+  // camera disabled for the rest of the session
+  window.addEventListener('pointercancel', (e) => endPointer(e, true));
+  renderer.domElement.addEventListener('lostpointercapture', (e) => endPointer(e, true));
+  // last resort: a window that loses focus mid-drag never hears the release at
+  // all, and the camera must not be the thing that pays for it
+  window.addEventListener('blur', () => {
+    if (down) endPointer(null, true);
+    else if (!gizmo.dragging) orbit.enabled = true;
   });
 
   // ---- marquee -------------------------------------------------------
@@ -771,7 +846,7 @@ export async function runLevelWorkbench(config, params) {
     marqueeEl.style.height = Math.abs(e.clientY - marqueeStart.y) + 'px';
   }
   function endMarquee(e, d) {
-    if (marqueeEl) { marqueeEl.remove(); marqueeEl = null; }
+    clearMarquee();
     if (!d.moved) return;
     const r = renderer.domElement.getBoundingClientRect();
     const x0 = Math.min(marqueeStart.x, e.clientX) - r.left, x1 = Math.max(marqueeStart.x, e.clientX) - r.left;
@@ -857,6 +932,11 @@ export async function runLevelWorkbench(config, params) {
       objects: [], spawns: [],
     };
     rebuildEnv();
+    // WHAT THE GAME WILL BUILD, not a stand-in for it: a prop's visuals are
+    // the imported model wherever one exists, so fetch this level's models and
+    // rebuild the proxies once they land. Nothing waits on it — the procedural
+    // build is on screen immediately and is what the game falls back to anyway.
+    ensurePropModels(data.objects || []);
     for (const d of (data.objects || [])) addItem(d, { silent: true });
     if (data.viaduct) addItem({ ...data.viaduct, k: 'viaduct' }, { silent: true });
     for (const s of (data.spawns || [])) addItem({ k: 'spawn', ...s }, { silent: true });
@@ -927,6 +1007,10 @@ export async function runLevelWorkbench(config, params) {
     gizmo,
     selection: () => sel.map((s) => s.def),
     open: (id, seed) => openArena(id, seed ?? bakeSeed),
+    // camera state, so a probe can ask whether the view is still drivable
+    camera,
+    orbitEnabled: () => orbit.enabled,
+    orbit,
   };
   return engine;
 
