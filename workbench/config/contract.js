@@ -71,6 +71,14 @@
  *   clips()           -> every clip name
  *   clipsFor(id)      -> the clips THIS subject can play, [{ name, role }]
  *   clip(name)        -> the clip data
+ *   trackFor(joint, model, id) OPTIONAL — which clip TRACK drives this joint on
+ *     this model, as { name, sign:[x,y,z] }. A game may not map clip channels
+ *     1:1 onto joints: ROBOTWORLD's `mirrorArms` profiles play the right-arm
+ *     tracks on the left arm (a weapon in the other hand), with yaw and roll
+ *     negated. Any tool that edits clip data by DRAGGING A JOINT has to go
+ *     through this, or it measures a delta in joint space and writes it into a
+ *     track that drives a different limb. Leave it out and the mapping is the
+ *     identity, which is what every ordinary rig wants.
  *   compile(clip)     -> runtime form
  *   animator(model)   -> an animator for a built model
  *   poses(id)         -> named starting poses

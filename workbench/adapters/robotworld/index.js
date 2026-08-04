@@ -31,7 +31,7 @@ import {
   buildMannequin, buildReferenceMannequin, canonicalDims, mannequinLabels, mannequinRig,
   BONE_TINTS, MANNEQUIN_ID, MANNEQUIN_DEF,
 } from '../../../src/mechs/mannequin.js';
-import { profileFor } from '../../../src/mechs/glbanim.js';
+import { profileFor, ARM_JOINTS, mirrorJointName } from '../../../src/mechs/glbanim.js';
 import {
   buildGlbForTool, fetchRawManifest, loadRawGlbScene, applyEntryDrops, skinnedBox, measureHeadTop, setAssetBase,
   clearGlbCache,
@@ -246,6 +246,18 @@ const CONFIG = defineWorkbenchConfig({
     compile: compileClip,
     animator: (model, id) => model.premadeAnimator || new Animator(model, defOf(id)),
     profile: (id) => profileFor(id),
+    // WHICH TRACK DRIVES THIS JOINT. Normally the one with the same name — but
+    // a GLB profile may carry `mirrorArms` (WRAITH: the rifle is in the model's
+    // LEFT hand, so the right-arm clip tracks play on the arm that holds it),
+    // and then the arm tracks are SWAPPED at playback with yaw and roll negated
+    // (animator.js). Any tool that edits clip data by dragging a JOINT has to
+    // know, or it writes what you dragged into the track that moves the other
+    // arm — which is exactly what the pose workbench did.
+    trackFor: (joint, model, id) => {
+      const prof = model?.animProfile || profileFor(id);
+      if (!prof?.mirrorArms || !ARM_JOINTS.includes(joint)) return { name: joint, sign: [1, 1, 1] };
+      return { name: mirrorJointName(joint), sign: [1, -1, -1] };
+    },
     // a mech's authored rest stance (digitigrade legs etc.)
     restPose: (id) => defOf(id)?.restPose || null,
 
