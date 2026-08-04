@@ -925,7 +925,13 @@ export const ROSTER = [
       accent: { base: 0xa8532c, base2: 0x8a4224, metal: 0x8a8f96, wear: 0.72, grime: 0.6, panelDepth: 4, roughPaint: 0.62, metalPaint: 0.4, normalStrength: 1.25 },
     },
     // long, wide and low — a gun platform, not a torso on legs
-    body: { scale: 1.3, torsoW: 1.35, torsoH: 0.92, headSize: 1.18, armLen: 0.98, legLen: 0.94, hipW: 1.32, bulk: 1.24 },
+    // SIZE: 12% smaller than he was (scale 1.3 -> 1.144). Two knobs move
+    // together or he desyncs — `body.scale` is the GAMEPLAY body (Fighter reads
+    // it for scale/radius/hitRadius, and mech.dims for height) while the GLB's
+    // rendered size is `modelScale x heightScale` in the manifest, frozen and
+    // independent of dims. Change one and the model no longer matches the
+    // hitbox; the manifest's heightScale went 0.825 -> 0.726 with this.
+    body: { scale: 1.144, torsoW: 1.35, torsoH: 0.92, headSize: 1.18, armLen: 0.98, legLen: 0.94, hipW: 1.32, bulk: 1.24 },
     // columnar stance: all four legs nearly straight under the body
     restPose: { shoulderL: [2, 0, -3], shoulderR: [2, 0, 3], elbowL: [0, 0, 0], elbowR: [0, 0, 0], thighL: [-2, 0, -5], thighR: [-2, 0, 5], kneeL: [4, 0, 0], kneeR: [4, 0, 0], ankleL: [-2, 0, 0], ankleR: [-2, 0, 0] },
     stats: { hp: 1320, speed: 8.4, jump: 9, weight: 1.0, armor: 0.22, blockMult: 0.06 },

@@ -2822,6 +2822,73 @@ export const GLB_CLIP_VARIANTS = {
   nullbotTaunt: compile('taunt', NULLBOT_TAUNT),
   rhinoTaunt: compile('taunt', RHINO_TAUNT),
   saurionTaunt: compile('taunt', SAURION_TAUNT),
+  // SAURION's guard, the owner's, set in the pose workbench. A PER-MECH variant
+  // rather than an edit to CLIPS.block, because that clip is the whole roster's
+  // guard and these angles are his: the shared one crosses two humanoid
+  // forearms in front of the chest, and a raptor's arms are short, held high
+  // and tucked, so it needs the shoulders further back and the elbows folded
+  // harder to put anything between him and you. `upper`/`hold` come from the
+  // shared clip's flags and must stay — a guard is held, and it owns the arms
+  // only so he can still walk under it.
+  // THE GUARD IS PER-MECH from here on, for the same reason saurion's is: the
+  // shared CLIPS.block crosses two humanoid forearms in front of the chest, and
+  // these four bodies are not that. All of them keep the shared clip's
+  // `upper`/`hold` flags — a guard is HELD, and it owns the upper body only so
+  // the mech can still walk under it.
+  //
+  // NOTE what `upper: true` means for authoring (animator.js): the clip's
+  // tracks are filtered to UPPER_JOINTS — torso, head, shoulders, elbows, hands
+  // — plus hipsPos/hipsRot. A leg key in a block clip is SILENTLY DROPPED, so
+  // the legs stay with the locomotion layer and a guarding mech can still walk.
+  // Jerry's export arrived with thighR/kneeR on it; they are left out here
+  // because the animator would ignore them and a key that does nothing is worse
+  // in the file than absent.
+  tritoneBlockGlb: compile('block', {
+    dur: 0.22, upper: true, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [8, 0, 0],
+        shoulderL: [16.69, 30.1, -27.25], elbowL: [-15.77, -14.89, 44.16],
+        shoulderR: [25.97, -28.1, 30.72], elbowR: [-16.45, 15.53, -31.8] } },
+    ],
+  }),
+  froggerBlockGlb: compile('block', {
+    dur: 0.22, upper: true, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [8, 0, 0],
+        shoulderL: [-96.28, 35.49, 2.35], elbowL: [-27.47, 13.75, 12.52],
+        shoulderR: [-70, -30, 10], elbowR: [-50.7, 1.85, -22.87] } },
+    ],
+  }),
+  jerryBlockGlb: compile('block', {
+    dur: 0.22, upper: true, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [8, 0, 0],
+        shoulderL: [-96.25, 18.27, -9.01], elbowL: [-0.07, 5.55, 57.81],
+        shoulderR: [-92.98, -35.11, 16.49], elbowR: [24.35, -4.17, -71.22] } },
+    ],
+  }),
+  kongaBlockGlb: compile('block', {
+    dur: 0.22, upper: true, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [8, 0, 0],
+        shoulderL: [-16.36, 6.02, -17.54], elbowL: [-105, 0, 0],
+        shoulderR: [-19.46, -27.98, 47.07], elbowR: [-105, 0, 0] } },
+    ],
+  }),
+  saurionBlockGlb: compile('block', {
+    dur: 0.22, upper: true, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [15.29, 2.29, 5.41],
+        shoulderL: [-91.84, 13.08, -29.43], elbowL: [-115.93, 4.95, 0.27],
+        shoulderR: [-98.46, -13.22, 42.27], elbowR: [-105, 0, 0],
+        handR: [-72.72, -42.83, -38.81] } },
+    ],
+  }),
   wraithLasersGlb: compile('wraithLasers', {
     dur: 1.45,
     keys: [

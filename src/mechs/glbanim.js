@@ -328,7 +328,7 @@ export const GLB_ANIM = {
   // KONGA — cyborg silverback, direct map. His only reinterpretation is the
   // TAUNT: a beckoning hand means nothing on an ape, and a chest beat means
   // everything.
-  konga: { clipOverrides: { taunt: GLB_CLIP_VARIANTS.kongaTaunt } },
+  konga: { clipOverrides: { taunt: GLB_CLIP_VARIANTS.kongaTaunt, block: GLB_CLIP_VARIANTS.kongaBlockGlb } },
   nova: {},      // slender caster — direct map (halo is procedural-only)
   // RHINO — hand-mounted cannons (manifest muzzles ride the handR/handL BONES,
   // each with an authored `rot` = that barrel's own aim axis). This GLB's bind
@@ -645,6 +645,7 @@ export const GLB_ANIM = {
       saurionKick1: GLB_CLIP_VARIANTS.saurionKick1Glb,
       saurionKick2: GLB_CLIP_VARIANTS.saurionKick2Glb,
       taunt: GLB_CLIP_VARIANTS.saurionTaunt,
+      block: GLB_CLIP_VARIANTS.saurionBlockGlb,
     },
   },
   // FROGGER — four-arm; the lower arms are procedural-only joints. His gunk
@@ -656,6 +657,7 @@ export const GLB_ANIM = {
       shoot: GLB_CLIP_VARIANTS.froggerShootGlb,
       shootL: GLB_CLIP_VARIANTS.froggerShootLGlb,
       taunt: GLB_CLIP_VARIANTS.froggerTaunt,
+      block: GLB_CLIP_VARIANTS.froggerBlockGlb,
     },
   },
   // JERRY — the CANNON PODS aim the Bilge Spit. His two pods are modelled
@@ -679,6 +681,7 @@ export const GLB_ANIM = {
       shoot: GLB_CLIP_VARIANTS.jerryShootGlb,
       shootL: GLB_CLIP_VARIANTS.jerryShootLGlb,
       taunt: GLB_CLIP_VARIANTS.jerryTaunt,
+      block: GLB_CLIP_VARIANTS.jerryBlockGlb,
     },
     post(anim, dt, ctx, tgt) {
       // (The light-clip torso damping that used to live here is gone: the
@@ -715,6 +718,7 @@ export const GLB_ANIM = {
       land: GLB_CLIP_VARIANTS.tritoneLandGlb,
       landReach: GLB_CLIP_VARIANTS.tritoneLandReachGlb,
       taunt: GLB_CLIP_VARIANTS.tritoneTauntGlb,
+      block: GLB_CLIP_VARIANTS.tritoneBlockGlb,
     },
   },
   // NULLBOT — humanoid, direct map (the glitch strobe is material-only). His
