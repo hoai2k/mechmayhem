@@ -187,6 +187,12 @@
  *   prop(name, opts)  -> a stand-in for one placed thing
  *   sharedMaterials() -> materials the editor must never dispose
  *   levels.list() / levels.load(name) -> authored level files
+ *   authoredLevel(id) -> the level file this arena SHIPS AS, or null when the
+ *                        game generates it. An arena that has been authored is
+ *                        opened from that file rather than baked from a seed:
+ *                        the tool must edit what the game plays, or a save
+ *                        silently reverts somebody's hand-built city to a
+ *                        procedural roll of it.
  *   fighters()        -> who can be dropped into a playtest
  *   playtest(level, {p1,p2}) -> hand the level to the game; returns the url
  *

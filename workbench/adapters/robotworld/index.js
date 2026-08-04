@@ -49,6 +49,7 @@ import { THEMES, THEMES_BY_ID, themePropNames } from '../../../src/arena/themes.
 import { Arena } from '../../../src/arena/arena.js';
 import { emptyLevel, LEVEL_VERSION, PLAYTEST_KEY } from '../../../src/arena/level.js';
 import { levelFromArena } from '../../../src/arena/bake.js';
+import { AUTHORED_ARENAS } from '../../../src/arena/authored.js';
 import { ARENA_PALETTE, ARENA_PALETTE_BY_ID, ARENA_SWATCHES } from './arenapalette.js';
 import { Engine } from '../../../src/core/engine.js';
 import { World } from '../../../src/game/world.js';
@@ -505,6 +506,14 @@ const CONFIG = defineWorkbenchConfig({
     // materials shared by every prop of a kind: an editor that disposes its
     // proxies must not dispose these or it breaks the next prop built
     sharedMaterials: () => new Set(Object.values(PROP_MATS)),
+
+    // WHICH ARENAS ARE HAND-BUILT RATHER THAN GENERATED (src/arena/authored.js
+    // is the game's own registry — derived, never a second copy). The editor
+    // opens these from their file instead of baking a seed, so it edits what
+    // the game plays. Deliberately NOT gated on CONFIG.proceduralArenas: that
+    // setting says which arena a MATCH builds, and a level file stays the thing
+    // this tool edits either way.
+    authoredLevel: (id) => AUTHORED_ARENAS[id] || null,
 
     // authored level FILES, relative to the workbench page one directory down
     levels: {
