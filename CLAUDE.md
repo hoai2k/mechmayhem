@@ -1041,6 +1041,32 @@ audio). Progress history: `TASKS.md`.
   Note the wall STANDOFF for a committed body is its own RADIUS, not the
   hairline the sample uses — the two rules fought and left the body 0.6 units
   inside the building for a whole climb.
+  NOTHING TO HOLD IS NOT A PLACE TO BE, and it is the rule the rest of the
+  walker is servos around: a surfaced body is TOUCHING what it is on — its own
+  shell against a surface, or a hand or foot planted on one — and a body clear
+  of everything for `TUNING.climb.holdGrace` simply LETS GO, because falling is
+  honest and hovering never is. Hanging off a single grip counts, which is the
+  whole point of an ape. THE NUMBER IS MEASURED BOTH WAYS (`bodyClearance`,
+  reported as `f._climbClear`): climbing a facade konga's shell sits 0.005 of
+  body height off the face and the two moments that legitimately break contact
+  — hauling over a roof lip, and the frame between letting go of one grip and
+  taking the next — peak at 0.09 for at most 0.18s; the hover beside a GEAR sat
+  at 0.17-0.23 for as long as it was allowed to. `holdClear` is 0.16, above
+  anything a real climb does and below the float.
+  …AND A FLOOR YOU ARE NOT OVER IS NOT A FLOOR. `groundSupport`'s search box is
+  deliberately wider than the body, so a step counts before he is on it and he
+  rises over a kerb instead of stopping at its face — but applied to a top he is
+  already LEVEL with, that says "there is ground here" about something he is
+  standing BESIDE, and the walker then holds him at its height with nothing
+  underneath. A top at or below his feet now has to be under him, with a heel's
+  worth of overhang allowed (`holdRadius`, 0.6 of his radius); a top ABOVE his
+  feet keeps the generous rule, because that one is the step.
+  Judge both with `node tools/propgap.mjs [--arena foundry] [--prop gear]
+  [--isolate] [--trace] [--shot out.png]`, which walks a mech into a prop and
+  measures the distance from his body and from each hand and foot to the prop's
+  own MESHES — what the player sees him touching — beside the same distance to
+  its collider. `--isolate` deletes every other prop and building nearby, so a
+  hover cannot be explained by something else in reach.
   FLAT GROUND IS NOT CLIMBING, and that line keeps the feature cheap: the
   walker only takes over when something NOT flat is genuinely underfoot
   (`flatCos`), and gives the body back once it is upright again over flat
@@ -1332,6 +1358,22 @@ audio). Progress history: `TASKS.md`.
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).
   `?debug=3d` is the old opt-in flag and still means GLBs.
+- A PROP'S COLLIDER IS ITS OWN SHELL (`Arena._propShell`, `propBody.shell`).
+  Every standing prop is measured as ONE VERTICAL CYLINDER off its ground band,
+  which is right for a smokestack and a lie for anything that is not round. THE
+  GEAR is the worked example: a thin brass disc standing on edge, six units
+  across and one deep, whose cylinder is a solid pillar as wide as the disc and
+  as tall as the top of it. A mech walking at it stopped three units short of a
+  face he could see, and a SURFACE WALKER climbed the pillar — konga ended up
+  hanging in the air beside a gear with all four limbs reaching and nothing to
+  hold. So a prop also carries the world boxes of its OWN MESHES, merged
+  greedily (cheapest union first) down to at most six: 13 meshes on a gear
+  become 3 boxes that still say "disc", where their single union would say
+  "block". That is what the fighter is pushed out of (`collideFighter`) and
+  what the climber's field reads (`collectSolids`), so what you touch is what
+  you see. THE CYLINDER STAYS and is still the broad phase: the damage radius,
+  "am I inside a prop", the AI's avoidance and the ghost clones all want one
+  cheap round number, and none of them are about contact.
 - ARENA PROP COST: props are an object-count problem, not a triangle one (they
   were ~45-80% of a frame's draw calls for 3% of its triangles, because each is
   a pile of small meshes and the toroidal wrap clones the lot into 8 neighbour
