@@ -108,7 +108,10 @@ const _boxes = [];   // pooled {x0,y0,z0,x1,y1,z1}
 let _nBoxes = 0;
 const _cyls = [];    // pooled {x,z,r,h}
 let _nCyls = 0;
-const MAX_BOXES = 96, MAX_CYLS = 24;
+// Room kept at the end of the box list for prop shells: the chunk loop stops
+// short of the cap so a body standing on a prop next to a building still has
+// the prop in its field.
+const MAX_BOXES = 128, MAX_CYLS = 24, PROP_BOX_ROOM = 24;
 
 function pushBox(x0, y0, z0, x1, y1, z1) {
   const b = _boxes[_nBoxes] || (_boxes[_nBoxes] = {});
@@ -136,7 +139,10 @@ function collectSolids(f, reach) {
             Math.abs(pz - c.z) > c.d / 2 + reach) continue;
         pushBox(c.x - c.w / 2, c.y - c.h / 2, c.z - c.d / 2,
           c.x + c.w / 2, c.y + c.h / 2, c.z + c.d / 2);
-        if (_nBoxes >= MAX_BOXES) return;
+        // full: stop taking chunks, but do NOT return — the props below are
+        // what a body standing on one is holding, and a facade's worth of
+        // chunks must not push them out of the list
+        if (_nBoxes >= MAX_BOXES - PROP_BOX_ROOM) break;
       }
     }
     // settled rubble is standable to the ordinary collider, so it is walkable
@@ -147,7 +153,7 @@ function collectSolids(f, reach) {
           Math.abs(pz - it.pz) > it.d / 2 + reach) continue;
       pushBox(it.px - it.w / 2, it.py - it.h / 2, it.pz - it.d / 2,
         it.px + it.w / 2, it.py + it.h / 2, it.pz + it.d / 2);
-      if (_nBoxes >= MAX_BOXES) return;
+      if (_nBoxes >= MAX_BOXES - PROP_BOX_ROOM) break;   // leave room for the props
     }
   }
   const w = f.world;
@@ -156,6 +162,23 @@ function collectSolids(f, reach) {
     const dx = w ? w.wrapDelta(px - p.x) : px - p.x;
     const dz = w ? w.wrapDelta(pz - p.z) : pz - p.z;
     if (Math.hypot(dx, dz) > p.r + reach || py > p.h + reach || py < -reach) continue;
+    // A PROP'S SHELL IS ITS OWN MESHES (arena._propShell), and where it has one
+    // that is what he climbs — a gear is a thin disc on edge, and its cylinder
+    // is a pillar as wide as the disc and as tall as its top. Climbing the
+    // pillar put him in the air beside a gear he could see and never touch.
+    // The boxes are world-space, so they ride the same wrap offset the broad
+    // phase just measured.
+    if (p.shell) {
+      const ox = px - dx - p.x, oz = pz - dz - p.z;
+      for (const b of p.shell) {
+        if (Math.abs(px - (b[0] + b[3]) / 2 - ox) > (b[3] - b[0]) / 2 + reach ||
+            Math.abs(py - (b[1] + b[4]) / 2) > (b[4] - b[1]) / 2 + reach ||
+            Math.abs(pz - (b[2] + b[5]) / 2 - oz) > (b[5] - b[2]) / 2 + reach) continue;
+        pushBox(b[0] + ox, b[1], b[2] + oz, b[3] + ox, b[4], b[5] + oz);
+        if (_nBoxes >= MAX_BOXES) return;
+      }
+      continue;
+    }
     const c = _cyls[_nCyls] || (_cyls[_nCyls] = {});
     c.x = px - dx; c.z = pz - dz; c.r = p.r; c.h = p.h;   // the image next to us
     _nCyls++;
@@ -299,7 +322,8 @@ function nearestSurface(f, px, py, pz, range) {
 // Returns the HIGHEST such top in range, or null. The search box is his own
 // radius wide, so a step he is walking into counts before he is over it —
 // which is what lets him rise onto it instead of stopping dead at its face.
-function groundSupport(f, radius, stepUp, stepDown) {
+// `holdRadius` is the tighter rule for a top he is ALREADY AT: see `consider`.
+function groundSupport(f, radius, stepUp, stepDown, holdRadius = radius) {
   const px = f.pos.x, py = f.pos.y, pz = f.pos.z;
   let best = null;
   // A TOP INSIDE A BUILDING IS NOT A FLOOR. A building is a grid of chunks,
@@ -326,6 +350,19 @@ function groundSupport(f, radius, stepUp, stepDown) {
   const consider = (top, cx, cz) => {
     if (top > py + stepUp || top < py - stepDown) return;
     if (best !== null && top <= best) return;
+    // A FLOOR YOU ARE NOT OVER IS NOT A FLOOR. The search box is deliberately
+    // wider than the body — a step has to count before he is on it, or he
+    // stops dead at the kerb instead of rising over it — but that affordance
+    // is about a top AHEAD and ABOVE his feet. Applied to a top he is already
+    // level with, it says "there is ground here" about something he is
+    // standing BESIDE, and the walker then holds him at its height with
+    // nothing underneath: measured on a GEAR (a thin disc on edge, six units
+    // across and one deep) konga floated 1.4 units off it with all four limbs
+    // airborne, which is the reported hover. So a top at or below his feet has
+    // to be under him, with only a heel's worth of overhang allowed.
+    const lim = top > py + 0.05 ? radius : holdRadius;
+    const ox = px - cx, oz = pz - cz;
+    if (ox * ox + oz * oz > lim * lim) return;
     if (!clearAt(cx, top, cz)) return;
     best = top;
   };
@@ -417,6 +454,42 @@ function pushBodyOut(f, up) {
     }
   }
   return moved;
+}
+
+// HOW CLEAR OF EVERYTHING IS THE BODY? The distance from its own shell — the
+// same sphere stack pushBodyOut holds out of geometry — to the nearest solid.
+// Zero while he is against a wall, and the number that catches a body being
+// held in mid-air by a rule that thinks it has found ground.
+// ...and the same question of the HANDS AND FEET. `_steps` says which limbs
+// are PLANTED, which is the strongest answer, but a limb mid-swing or one
+// resting on a surface it has not committed to is still contact a player can
+// see — so the tips are measured directly. (Bone matrices are last frame's:
+// the limbs are posed after the walker runs, and a frame of lag on a contact
+// test is invisible.)
+function limbClearance(f) {
+  const mech = f.mech;
+  if (!mech) return Infinity;
+  const bones = mech.boneMap || null;
+  let best = Infinity;
+  for (const L of LIMBS) {
+    const end = (bones && bones[L.end]) || mech.joints?.[L.end];
+    if (!end) continue;
+    end.getWorldPosition(_end);
+    const d = nearestSurface(f, _end.x, _end.y, _end.z, f.height);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+function bodyClearance(f, up) {
+  const r = f.radius * 0.9;
+  let best = Infinity;
+  for (const k of BODY_PROBES) {
+    _p.copy(f.pos).addScaledVector(up, f.height * k);
+    const d = nearestSurface(f, _p.x, _p.y, _p.z, f.height);
+    if (d < best) best = d;
+  }
+  return best === Infinity ? Infinity : best - r;
 }
 
 // ===========================================================================
@@ -580,7 +653,7 @@ export function climbStep(f, dt, mv) {
   // over two seconds).
   const wasStanding = f._climbStanding !== false;
   const support = groundSupport(f, f.radius * 1.15, stepUp,
-    wasStanding ? stepDown : f.height * 0.2);
+    wasStanding ? stepDown : f.height * 0.2, f.radius * 0.6);
   // ...AND WHETHER STANDING ON IT IS STILL GETTING HIM ANYWHERE. Ground under
   // his feet is not on its own a reason to stay upright: at the foot of a
   // tower there is pavement under him for as long as he cares to stand there,
@@ -722,6 +795,38 @@ export function climbStep(f, dt, mv) {
   // which is the same converging-servo shape used everywhere else here.
   pushBodyOut(f, up);
   pushBodyOut(f, up);
+
+  // ---- 3d. NOTHING TO HOLD IS NOT A PLACE TO BE ------------------------
+  // Everything above is a servo, and a servo will happily hold a body at a
+  // height nothing supports: walk konga up a GEAR — a thin disc standing on
+  // edge — and at the rim the surface pull, the step-up and the field all
+  // agree he is fine, while on screen he hangs a metre off it with every limb
+  // reaching and nothing to hold (measured: shell clearance 1.1-1.5 units
+  // against 0.3 for the same body climbing a facade, all four limbs airborne).
+  //
+  // So state the rule the design already claims and enforce it: a surfaced
+  // body is TOUCHING something — its own shell against a surface, or a hand or
+  // foot planted on one. Hanging off a single grip counts, which is the whole
+  // point of an ape. Clear of everything for `holdGrace`, and he simply lets
+  // go: falling is honest, hovering never is. `_climbRelease` goes with it so
+  // the thing he could not hold does not catch him again on the way down.
+  const gripped = !!f._steps?.some((s) => s.has && !s.air && s.sw < 0);
+  // reported on the fighter so a probe can read the same numbers the rule does
+  f._climbGrip = gripped;
+  f._climbTipClear = limbClearance(f);
+  f._climbClear = bodyClearance(f, up);
+  const touching = gripped
+    || f._climbTipClear <= C.holdTip * f.height
+    || f._climbClear <= C.holdClear * f.height;
+  if (!touching) {
+    f._climbFloat = (f._climbFloat || 0) + dt;
+    if (f._climbFloat > C.holdGrace) {
+      f._climbFloat = 0;
+      release(f, false);
+      f._climbRelease = true;
+      return false;
+    }
+  } else f._climbFloat = 0;
 
   // ---- 3c. HOW MUCH OF THAT ACTUALLY HAPPENED. The intended step was
   // `_dir * dt`; what he got is whatever survived the surface pull, the
