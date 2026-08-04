@@ -526,6 +526,17 @@ export const ROSTER = [
     // against the shell (fighter.js turn-lead; glbanim pins the pose side)
     rigidShell: true,
     channelClip: 'shootLow', // hose cannons fire from the hip, never raised
+    // HE STEPS INTO THE CLAP. `clawSnap` is a symmetric pincer clap — the arms
+    // go WIDE and smash together on the centreline, so its travel is lateral
+    // and it reaches nowhere forward at all (measured limb extension 2.58,
+    // against titanus' 3.50). Titanus closes that gap by walking into his own
+    // swing: his punchHold release fires a `_chargeLunge` that carries him
+    // 1.0-1.5 units through the blow, which cranky, having no charge mechanic,
+    // never got. `heavyDrive` is the same thing as plain data — a forward push
+    // over a window of the clip, the mechanism aegis' lance lunge and saurion's
+    // bite already use. The window brackets the hit at 0.32, so he arrives WITH
+    // the claws rather than after them.
+    heavyDrive: { t0: 0.10, t1: 0.36, speed: 7 },
     moves: {
       // BALANCE: 3.6 -> 4.6 and 3.9 -> 4.7. `range` is NOT the reach — it sets
       // the swing capsule's radius and how far past the fist it extends
