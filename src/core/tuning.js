@@ -137,6 +137,29 @@ export const TUNING = {
     normRate: 11,
     turnSlow: 1.0,
     turnFloor: 0.3,
+    // NOTHING TO HOLD IS NOT A PLACE TO BE. A surfaced body must be TOUCHING
+    // what it is standing on — either its own shell is against something or a
+    // hand or foot is planted on it. `holdClear` is how far the shell may sit
+    // off the nearest solid before that stops being true (a fraction of body
+    // height; measured on konga, climbing a facade holds ~0.035 and the hover
+    // beside a gear's rim reached 0.17), and `holdGrace` is how long a body is
+    // allowed to be clear of everything before it lets go — long enough that
+    // crossing a lip or a seam is never mistaken for it.
+    // MEASURED, both ways (tools/propgap.mjs, and a facade ascent frame by
+    // frame): climbing a building konga's shell sits 0.005 of body height off
+    // the face, and the two moments that legitimately break contact — hauling
+    // over a roof lip, and the frame after a grip is let go — peak at 0.09.
+    // The hover beside a gear's rim sat at 0.17-0.23 for as long as it was
+    // allowed to. So the line goes at 0.13: above anything a real climb does,
+    // below the float.
+    // …and the line goes ABOVE anything a real climb does. Measured frame by
+    // frame on a facade ascent, the untouched stretches at 0.16 of height last
+    // 0.08-0.18s (letting go of one grip and taking the next); the hover beside
+    // a gear held 0.17-0.23 for as long as it was allowed to. So 0.16 with a
+    // 0.35s grace fires on the second and never on the first.
+    holdClear: 0.16,
+    holdTip: 0.05,
+    holdGrace: 0.35,
     // THE SPIDER STEP (conformClimbLimbs): the limb stepping system that owns
     // his hands and feet on structures — and the crab scuttle on open ground
     // under target lock past `scuttleDrift` rad of strafe/backpedal.
