@@ -16,7 +16,7 @@ const p = await b.newPage({ viewport: { width: 320, height: 240 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await p.goto(`http://localhost:5173/?battle=${arena}&p1=${mech}&p2=${foe}&auto=1&diff=ace`,
   { waitUntil: 'networkidle' });
-await p.waitForFunction(() => window.__ais?.length >= 2 && window.__fighters?.length >= 2, { timeout: 60000 });
+await p.waitForFunction(() => window.__ais?.length >= 2 && window.__fighters?.length >= 2, null, { timeout: 150000 });
 await p.waitForTimeout(6000);
 
 const out = await p.evaluate(({ N }) => {
