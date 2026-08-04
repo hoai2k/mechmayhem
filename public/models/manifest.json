@@ -3078,7 +3078,7 @@
     "modelScale": 24.71821,
     "bindPose": "native",
     "yawOffset": 270,
-    "heightScale": 0.825,
+    "heightScale": 0.726,
     "muzzles": {
       "R": {
         "bone": "barrelR",
