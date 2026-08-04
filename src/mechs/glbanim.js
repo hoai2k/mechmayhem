@@ -405,7 +405,13 @@ export const GLB_ANIM = {
   wraith: {
     mirrorArms: true,
     build: wraithBuild,
-    clipOverrides: { wraithLasers: GLB_CLIP_VARIANTS.wraithLasersGlb, taunt: GLB_CLIP_VARIANTS.wraithTaunt },
+    //   • the GUARD is his own too: the shared block stands the rifle on end
+    //     beside his head, so `block` brings it down across him instead.
+    clipOverrides: {
+      wraithLasers: GLB_CLIP_VARIANTS.wraithLasersGlb,
+      taunt: GLB_CLIP_VARIANTS.wraithTaunt,
+      block: GLB_CLIP_VARIANTS.wraithBlockGlb,
+    },
     post(anim, dt, ctx, tgt) {
       levelBarrel(anim, tgt);
       // THE TAUNT BLOWS A GALE THROUGH THE CLOAK. He stands still to do it, and

@@ -2889,6 +2889,28 @@ export const GLB_CLIP_VARIANTS = {
         handR: [-72.72, -42.83, -38.81] } },
     ],
   }),
+  // WRAITH's is per-mech for a different reason from the four above: his body IS
+  // a humanoid, but his hands are not empty. The shared pose stood his RIFLE
+  // straight up on end beside his head, which guards nothing and reads as a
+  // salute; the owner's drops that shoulder ~12° and rolls the wrist 56°, so the
+  // weapon comes DOWN ACROSS his chest and the receiver is what the blow lands
+  // on. A rifle held as a bar, which is what you do with one.
+  // THESE NUMBERS ARE TRACK SPACE, NOT JOINT SPACE, and on this mech the two
+  // differ: his profile carries `mirrorArms`, so the right-arm tracks are what
+  // actually drive the LEFT arm — the one holding the gun — with yaw and roll
+  // negated on the way (animator.js, and `config.anim.trackFor` is the same
+  // mapping for the pose workbench). That is why the gun arm is authored on
+  // `shoulderR`/`handR`, and why reading these as "his right arm" is wrong.
+  wraithBlockGlb: compile('block', {
+    dur: 0.22, upper: true, hold: true,
+    keys: [
+      { t: 0, pose: {} },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [8, 0, 0],
+        shoulderL: [-57.64, 27.22, -11.26], elbowL: [-105, 0, 0],
+        shoulderR: [-70, -30, 10], elbowR: [-105, 0, 0],
+        handR: [-4.1, 5.92, -56.07] } },
+    ],
+  }),
   wraithLasersGlb: compile('wraithLasers', {
     dur: 1.45,
     keys: [
