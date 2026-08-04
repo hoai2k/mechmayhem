@@ -137,7 +137,16 @@ export const ROSTER = [
     heavyDrive: { t0: 0.34, t1: 0.74, speed: 30, hold: true },
     bladeTrail: { anchors: ['bladeL', 'bladeR'], color: 0x5aff2e },
     moves: {
-      light: { dmg: [26, 28, 40], knock: [3, 4, 9], range: 3.2 },
+      // BALANCE: 94 -> 106. Viper and wraith shared the roster's lowest light
+      // combo AND the only two zero-armour stat lines, which put their melee
+      // exchange rate against the field at 0.49 — a quarter below the next
+      // lowest (tempest, 0.64) and a QUARTER of titanus' 1.91. The design
+      // answer to a thin trade is speed, and it only pays against a brick too
+      // slow to close: measured, viper walks cranky (5.4 speed) 4-0 and loses
+      // to titanus (7.2) 0-4 at an 80% HP margin. This narrows the trade
+      // without touching what makes her a glass cannon — still the lowest
+      // combo on the roster, still no armour.
+      light: { dmg: [30, 32, 44], knock: [3, 4, 9], range: 3.2 },
       heavy: { dmg: 70, knock: 15, range: 3.6, launch: 8 },
       ranged: { name: 'Fang Throw', type: 'blade', dmg: 32, speed: 55, cooldown: 0.8 },
       special: { id: 'bladeCyclone', name: 'Blade Cyclone', cooldown: 6, dmg: 20 },
@@ -356,7 +365,10 @@ export const ROSTER = [
       { joint: 'cloakR', rot: [0, 0, 2.2], t0: 0.3, t1: 1.1, ramp: 0.34 },
     ],
     moves: {
-      light: { dmg: [26, 28, 40], knock: [3, 4, 9], range: 3.0 },
+      // BALANCE: 94 -> 106, the same trade-rate fix as viper's above (they
+      // shared the number and both carry zero armour). His reach stays the
+      // shortest on the roster at 3.0.
+      light: { dmg: [30, 32, 44], knock: [3, 4, 9], range: 3.0 },
       heavy: { dmg: 68, knock: 15, range: 3.4, launch: 7 },
       ranged: { name: 'Night Swarm', type: 'bats', dmg: 26, count: 3, speed: 24, cooldown: 1.5, ammo: 12 },
       special: { id: 'ghostWalk', name: 'Ghost Protocol', cooldown: 9, dmg: 60, speed: 17, duration: 5 },
@@ -482,6 +494,19 @@ export const ROSTER = [
     },
     body: { scale: 1.3, torsoW: 1.5, torsoH: 0.85, headSize: 0.6, armLen: 1.18, legLen: 0.85, hipW: 1.32, bulk: 1.25 },
     restPose: { shoulderL: [8, 0, -26], shoulderR: [8, 0, 26], elbowL: [-38, 0, 0], elbowR: [-38, 0, 0], thighL: [-8, 0, -8], thighR: [-8, 0, 8], kneeL: [16, 0, 0], kneeR: [16, 0, 0], ankleL: [-8, 0, 0], ankleR: [-8, 0, 0] },
+    // SPEED 5.4 IS DELIBERATE, AND MAKING HIM FASTER MADE HIM WORSE — measured,
+    // so that the next person to look at this table does not spend the
+    // afternoon re-deriving it. He has the roster's third-best melee exchange
+    // rate (1.83 against the field, behind only titanus and colossus) and looks
+    // like he can never spend it, so 6.5 was tried on exactly that reasoning.
+    // Against konga, who did not change, it went from 1W 3L / -42% to
+    // 0W 5L 1D / -71% over six matches (tools/scratch/arena1v1.mjs) — and one
+    // of those was a 90-second stalemate at 100% each, two mechs that never
+    // engaged at all. Against titanus it moved -59% -> -50%, inside the noise.
+    // The reading: at 5.4 he is slow enough that the AI plays him as a ZONER
+    // and keeps him at hose range; at 6.5 he starts trying to close, and
+    // arrives in melee having spent the approach being hit. If he needs help it
+    // is his REACH that wants it, not his legs.
     stats: { hp: 1300, speed: 5.4, jump: 9, weight: 0.95, armor: 0.26, blockMult: 0.04 },
     ui: { power: 8, speed: 3, defense: 10 },
     levelHands: true, // wrist counter-pitch keeps the hand hardware on the aim line (signatures.js)
