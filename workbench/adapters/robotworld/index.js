@@ -44,7 +44,9 @@ import {
 } from '../../../src/mechs/skinops.js';
 import { buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE } from '../../../src/combat/hurtbox.js';
 import { PROPS, PROP_MATS, mergePropMeshes } from '../../../src/arena/props.js';
-import { propManifest, loadPropModel, setPropAssetBase } from '../../../src/arena/propglb.js';
+import {
+  propManifest, loadPropModel, setPropAssetBase, preloadPropModels, propGlbSwap,
+} from '../../../src/arena/propglb.js';
 import { THEMES, THEMES_BY_ID, themePropNames } from '../../../src/arena/themes.js';
 import { Arena } from '../../../src/arena/arena.js';
 import { emptyLevel, LEVEL_VERSION, PLAYTEST_KEY } from '../../../src/arena/level.js';
@@ -493,16 +495,28 @@ const CONFIG = defineWorkbenchConfig({
     paletteEntry: (id) => ARENA_PALETTE_BY_ID[id] || null,
     swatches: () => ARENA_SWATCHES,
     // a lone prop with no arena around it, baked per material the way the game
-    // bakes them — a full arena is 150+ props and each is a pile of meshes
+    // bakes them — a full arena is 150+ props and each is a pile of meshes.
+    // The GLB SWAP IS PART OF WHAT A PROP IS: the game replaces the procedural
+    // visuals with the imported model wherever one exists (placeProp ->
+    // propGlbSwap), and the two differ in shape, in size and — until the
+    // models were straightened — in which way they face. An editor drawing the
+    // procedural stand-in is an editor showing you a different object from the
+    // one you are placing. Best-effort: a model that has not been preloaded
+    // (see preloadProps) simply leaves the procedural build in place, which is
+    // exactly what the game does with one that fails to load.
     prop: (name, opts = {}) => {
       const build = PROPS[name];
       if (!build) return null;
       const o = { ...opts };
       if (o.mat === 'ice') o.mat = PROP_MATS.ice;
       const g = build(o);
+      propGlbSwap(name, g);
       mergePropMeshes(g);
       return g;
     },
+    // fetch the imported models for a set of prop names, so the swap above has
+    // something to swap in. Resolves when they are in the cache (or failed).
+    preloadProps: (names) => preloadPropModels(names),
     // materials shared by every prop of a kind: an editor that disposes its
     // proxies must not dispose these or it breaks the next prop built
     sharedMaterials: () => new Set(Object.values(PROP_MATS)),
