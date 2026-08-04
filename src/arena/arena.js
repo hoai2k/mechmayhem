@@ -7,6 +7,7 @@ import { generateMassing, THEME_MASSING } from './massing.js';
 import { buildingDonors } from './buildglb.js';
 import { PROPS, PROP_MATS, placeProp, mergePropMeshes } from './props.js';
 import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
+import { propShell } from './propshell.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
@@ -693,7 +694,7 @@ export class Arena {
       const dz = w ? w.wrapDelta(f.pos.z - p.z) : f.pos.z - p.z;
       if (Math.hypot(dx, dz) > p.r + f.radius) continue;   // broad phase, always round
       if (p.shell) {
-        // THE SHELL, not the cylinder (see _propShell): a mech stops where the
+        // THE SHELL, not the cylinder (see propshell.js): a mech stops where the
         // model is. Boxes are world-space and the prop may be the toroidal
         // image next to us, so they are read at the same offset the broad
         // phase just measured.
@@ -853,54 +854,6 @@ export class Arena {
     }
   }
 
-  // ---- THE PROP'S REAL SHAPE -------------------------------------------
-  // A prop's gameplay collider is ONE VERTICAL CYLINDER measured off its ground
-  // band, which is right for a smokestack and a lie for anything that is not
-  // round. THE GEAR is the worked example: a thin brass disc standing on edge,
-  // 6 units across and one deep, whose cylinder is a solid pillar as wide as
-  // the disc and as tall as the top of it. A mech walking at it stops three
-  // units short of a face he can see, and a SURFACE WALKER climbs the pillar —
-  // so konga ended up hanging in the air beside the gear with all four limbs
-  // reaching and nothing to hold (measured: 3.5 units from the nearest visible
-  // surface, every limb AIRBORNE).
-  //
-  // So a prop also carries its SHELL: the world boxes of its own meshes, merged
-  // down to a handful. That is what the fighter is pushed out of and what the
-  // climber's field reads, so what you touch is what you see. The cylinder
-  // stays — every other user of a prop body (damage radius, "am I inside one",
-  // the AI's avoidance, the ghost clones) wants one cheap round number, and
-  // none of them are about contact.
-  //
-  // Merged greedily, cheapest union first, because the count is what everything
-  // downstream pays: 13 meshes on a gear become 3 boxes that still say "disc",
-  // where their single union would say "block".
-  _propShell(g, maxBoxes = 6) {
-    const boxes = [];
-    g.updateWorldMatrix(true, true);
-    const bb = new THREE.Box3();
-    g.traverse((o) => {
-      if (!o.isMesh || o.userData.noCollide) return;
-      bb.setFromObject(o);
-      if (!bb.isEmpty()) boxes.push([bb.min.x, bb.min.y, bb.min.z, bb.max.x, bb.max.y, bb.max.z]);
-    });
-    if (!boxes.length) return null;
-    const vol = (b) => Math.max(0, b[3] - b[0]) * Math.max(0, b[4] - b[1]) * Math.max(0, b[5] - b[2]);
-    const union = (a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.min(a[2], b[2]),
-      Math.max(a[3], b[3]), Math.max(a[4], b[4]), Math.max(a[5], b[5])];
-    while (boxes.length > maxBoxes) {
-      let bi = 0, bj = 1, best = Infinity;
-      for (let i = 0; i < boxes.length; i++) {
-        for (let j = i + 1; j < boxes.length; j++) {
-          const cost = vol(union(boxes[i], boxes[j])) - vol(boxes[i]) - vol(boxes[j]);
-          if (cost < best) { best = cost; bi = i; bj = j; }
-        }
-      }
-      boxes[bi] = union(boxes[bi], boxes[bj]);
-      boxes.splice(bj, 1);
-    }
-    return boxes;
-  }
-
   // register a built prop's gameplay hooks + measure its solid collider.
   // shared by procedural placement and authored (level-editor) placement.
   _regProp(g, x, z, gy = 0) {
@@ -976,9 +929,9 @@ export class Arena {
         this.propBodies.push({
           group: g, idx: this.propGroup.children.indexOf(g),
           x, z, r, h,
-          // what he actually touches (see _propShell); the cylinder above is
+          // what he actually touches (see propshell.js); the cylinder above is
           // still what everything else asks about
-          shell: this._propShell(g),
+          shell: propShell(g, { r, h, x: 0, z: 0 }),
           hp: 26 + r * Math.min(h, 16) * 7,
           alive: true,
           tint: g.userData.explosive ? 0x8a4030 : 0x8f887c,

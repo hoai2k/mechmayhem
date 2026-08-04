@@ -740,6 +740,14 @@ export const PROPS = {
       p.rotation.set(rng.range(-0.1, 0.1), -a + Math.PI / 2 + rng.range(-0.3, 0.3), rng.range(-0.08, 0.08));
       g.add(p);
     }
+    // IT IS LIGHT, NOT SCENERY. Every standing prop is measured for a solid
+    // collider off its GROUND BAND, and this one has no ground band at all —
+    // five transparent curtains hung 36-50 units up. With nothing low to
+    // measure, the rule fell back to the whole bounding box (a 130-unit ring),
+    // capped the radius at 7 and gave the frozen arena an invisible pillar in
+    // the middle of it, 65 units tall. Found by `node tools/propshell.mjs`,
+    // which ranked its collider 109 units away from anything you can see.
+    g.userData.noCollide = true;
     return g;
   },
 
