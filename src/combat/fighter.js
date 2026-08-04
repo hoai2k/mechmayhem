@@ -194,6 +194,16 @@ const GLITCH_OVERLOAD = 10;
 const GLITCH_STUN_TIME = 3;
 const _glitchTint = new THREE.Color();
 const _arcA = new THREE.Vector3(), _arcB = new THREE.Vector3(), _arcBow = new THREE.Vector3();
+
+// IS THE PLAYER ASKING FOR ANYTHING AT ALL? One predicate, used in the two
+// places that have to agree about it: what CANCELS a `cancelOnMove` flourish,
+// and what refuses to start a taunt in the first place. Split in two they drift,
+// and the failure is a taunt that cancels and relaunches on the same frame for
+// as long as both buttons are held.
+function wantsAction(I) {
+  return Math.abs(I.moveX) > 0.2 || Math.abs(I.moveZ) > 0.2 ||
+    !!(I.jump || I.dash || I.light || I.heavy || I.special || I.ult || I.ranged || I.block);
+}
 // Slots held back for the next ~third of a second of hand vent before a
 // chimney chuff is allowed to spend any (see tauntVenting).
 const HAND_RESERVE = 110;
@@ -2582,10 +2592,19 @@ export class Fighter {
     // clips marked `cancelOnMove` (intro, taunt) go; an attack is a
     // commitment and holds.
     if (!this.controlsLocked && this.alive && this.animator.action?.clip.cancelOnMove &&
-        !this.animator.action.fadingOut &&
-        (Math.abs(I.moveX) > 0.2 || Math.abs(I.moveZ) > 0.2 ||
-         I.jump || I.dash || I.light || I.heavy || I.special || I.ult || I.ranged)) {
+        !this.animator.action.fadingOut && wantsAction(I)) {
+      // A TAUNT IS NOT A COMMITMENT. It borrows the `attack` state to hold the
+      // body still — the clip drives the legs, so something has to stop the
+      // walk running underneath it — and that state is what canAct() and the
+      // locomotion both read. Stopping only the CLIP left the state behind:
+      // the pose dropped on the first frame of input and then the mech stood
+      // there for the rest of the taunt's would-be duration, so the stick had
+      // to be released and pushed again to take effect. Give the state back
+      // here, in the same frame, ahead of the intent block below — so the input
+      // that cancelled the taunt is the input that acts on it.
+      const wasTaunt = this.animator.action.clip.name === 'taunt';
       this.animator.stop(0.1);
+      if (wasTaunt && this.state === 'attack') this.setState('normal', 0);
     }
     this.stateT -= dt;
     this.specialCd = Math.max(0, this.specialCd - dt);
@@ -3007,7 +3026,11 @@ export class Fighter {
       } else if (I.heavy) this.doHeavy();
       else if (I.dash) this.doDash();
       else if (I.ranged) this.doRanged();
-      else if (I.taunt && this.state === 'normal') {
+      else if (I.taunt && this.state === 'normal' && !wantsAction(I)) {
+        // …and it does not start while anything else is being asked for. The
+        // taunt borrows the `attack` state to keep the body still, and the
+        // cancel above hands that state straight back — so without this a stick
+        // held with the taunt button would launch and cancel it every frame.
         this.setState('attack', this.animator.play('taunt') * 0.9);
       }
       if (I.jump && this.grounded && this.state === 'normal') {
