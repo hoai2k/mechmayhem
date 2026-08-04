@@ -527,8 +527,31 @@ export const ROSTER = [
     rigidShell: true,
     channelClip: 'shootLow', // hose cannons fire from the hip, never raised
     moves: {
-      light: { dmg: [40, 44, 60], knock: [6, 7, 14], range: 3.6 },
-      heavy: { dmg: 100, knock: 24, range: 3.9, launch: 9 },
+      // BALANCE: 3.6 -> 4.6 and 3.9 -> 4.7. `range` is NOT the reach — it sets
+      // the swing capsule's radius and how far past the fist it extends
+      // (Fighter.strikeVolume); the hit is the swept LIMB against the victim's
+      // hurtbox, so what a body can touch is decided by its ARMS. Cranky's
+      // authored range is already above titanus' and konga's and he still
+      // reaches far less far than either, because his pincers sit out to the
+      // sides of a wide shell instead of punching forward. Measured
+      // (tools/scratch/meleereach.mjs, victim pinned dead ahead, last distance
+      // that still connects): cranky light 6.5 against titanus 9.0 and konga
+      // 10.25 — titanus' JAB out-reaches cranky's HEAVY (7.75). That is the
+      // shortfall behind "great trade rate, never gets to spend it": he has to
+      // walk a full body-length further in than anyone else, and eats a hit
+      // doing it, every single time. After: light 7.5, heavy 8.75 — 40% of the
+      // gap closed, and his heavy now reaches about as far as titanus'.
+      //
+      // IT WILL NOT MOVE HIS CPU WIN RATE, AND THAT IS NOT A FAILURE OF THIS
+      // NUMBER. ai.js classifies him by his ranged weapon: a `hose` gets
+      // preferredRange 9, `melee` is rangedPref <= 6, so the CPU holds him at
+      // nine units and actively BACKS OFF inside 5.4. Every melee reach he has,
+      // old or new, sits inside the band his own AI is retreating from — the
+      // bench cannot see this change by construction, and it measured -65% vs
+      // konga against -71% before, which is the same number twice. The benefit
+      // is for a human, who does close.
+      light: { dmg: [40, 44, 60], knock: [6, 7, 14], range: 4.6 },
+      heavy: { dmg: 100, knock: 24, range: 4.7, launch: 9 },
       ranged: { name: 'Hydro Hose', type: 'hose', dmg: 7, cooldown: 0.075, range: 20, ammo: 150 },
       special: { id: 'geyser', name: 'Geyser', cooldown: 7, dmg: 62, radius: 11, launch: 15, duration: 6 },
       ult: { id: 'tsunami', name: 'TSUNAMI', dmg: 135, width: 30, range: 48, knock: 20 },
