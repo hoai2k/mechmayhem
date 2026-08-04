@@ -894,6 +894,7 @@ export class ArenaSelectScreen {
       c.appendChild(art);
       c.appendChild(el('div', 'arena-name', t('arena.random.name')));
       c.appendChild(el('div', 'arena-desc', t('arena.random.desc')));
+      c.title = t('arena.random.desc'); // the blurb, which the card has no room to print
       c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = 0; this.refresh(); } });
       c.addEventListener('click', () => this.confirm());
       wrap.appendChild(c);
@@ -908,6 +909,7 @@ export class ArenaSelectScreen {
       c.appendChild(art);
       c.appendChild(el('div', 'arena-name', t.name));
       c.appendChild(el('div', 'arena-desc', t.desc));
+      c.title = t.desc;
       c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = i + 1; this.refresh(); } });
       c.addEventListener('click', () => this.confirm());
       wrap.appendChild(c);

@@ -353,17 +353,32 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
 /* ---------- arena select ---------- */
 .arena-row { display: flex; gap: 22px; }
 .arena-card {
+  position: relative;
   width: min(24vw, 320px); border-radius: 10px; overflow: hidden; cursor: pointer;
   border: 2px solid rgba(90,140,190,0.25); transition: transform 0.12s, border-color 0.12s;
   background: #0a1220;
 }
 .arena-card.selected { border-color: var(--hud-cyan); transform: scale(1.05); box-shadow: 0 0 28px rgba(56,232,255,0.45); }
 .arena-card .arena-art { width: 100%; aspect-ratio: 16/9; display: block; }
+/* The title rides ON the art, pinned to the bottom of the CARD rather than
+   sitting under it in flow: the grid sizes a card by how many rows fit the
+   screen, which is routinely SHORTER than art + name + desc stacked, and the
+   card clips its overflow — so a label below the art is a label nobody ever
+   sees (thirteen arenas told apart by their sky colour alone). Over the art it
+   is legible at every card size, and the scrim is what keeps it readable
+   against a pale skyline. */
 .arena-card .arena-name {
-  padding: 10px 14px 4px; font-family: var(--font-display); font-weight: 700; font-size: 20px;
-  letter-spacing: 0.12em; text-transform: uppercase;
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; pointer-events: none;
+  padding: 22px 12px 9px;
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(13px, 1.15vw, 20px);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  text-shadow: 0 1px 3px #000, 0 0 10px rgba(0,0,0,0.85);
+  background: linear-gradient(180deg, rgba(4,8,14,0) 0%, rgba(4,8,14,0.72) 45%, rgba(4,8,14,0.92) 100%);
 }
-.arena-card .arena-desc { padding: 0 14px 12px; font-size: 12px; color: #8fb4cc; line-height: 1.4; }
+/* The blurb has nowhere left to live on a clipped card — it rides the card's
+   tooltip instead (menus.js), so nothing is lost. */
+.arena-card .arena-desc { display: none; }
 
 /* ---------- HUD ---------- */
 #hud { position: absolute; inset: 0; pointer-events: none; }
@@ -750,7 +765,7 @@ body.touch-mode .slot-card { width: calc(50% - 8px); min-width: 0; }
 body.touch-mode .arena-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 0; width: 100%; max-width: 560px; }
 body.touch-mode .arena-card { width: auto; }
 body.touch-mode .arena-card .arena-desc { display: none; }
-body.touch-mode .arena-card .arena-name { font-size: 15px; padding: 8px 12px; }
+body.touch-mode .arena-card .arena-name { font-size: 15px; padding: 18px 10px 7px; }
 
 /* keep nav buttons pinned to the viewport (not the scrolling content) */
 body.touch-mode .touch-navbar { position: fixed; left: 0; right: 0; bottom: 2vh; z-index: 25; }
