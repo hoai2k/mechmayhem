@@ -169,7 +169,28 @@ export async function runLevelWorkbench(config, params) {
     return baked;
   }
 
-  function openArena(themeId, seed) {
+  // AN ARENA THAT HAS BEEN AUTHORED OPENS FROM ITS FILE. Baking is how you
+  // edit a city the GENERATOR wrote; once someone has laid one out by hand,
+  // that file is what the game plays, and re-baking it here would hand them a
+  // procedural roll of the same theme wearing its name — every edit made on
+  // top of the wrong city, and a save quietly reverting their work. So the
+  // authored file wins whenever there is one, and `fresh` (the seed ⟳ button,
+  // or an explicit &seed= in the url) is how you deliberately ask for a
+  // generated layout anyway.
+  function openArena(themeId, seed, { fresh = false } = {}) {
+    const authored = !fresh && AR.authoredLevel?.(themeId);
+    if (authored) {
+      setHint(`Loading ${THEME_NAME(themeId)}…`);
+      AR.levels.load(authored).then((d) => {
+        if (!d) return openArena(themeId, seed, { fresh: true }); // no file: generate one
+        loadLevelData(d);
+        sourceLabel = `${THEME_NAME(themeId)} · authored (${authored})`;
+        setHint(`${(d.objects || []).length} objects loaded from the authored ${THEME_NAME(themeId)}`
+          + ' — this is the arena the game plays. seed ⟳ builds a procedural one instead.');
+        refreshSource();
+      }).catch(() => openArena(themeId, seed, { fresh: true }));
+      return;
+    }
     setHint(`Baking ${THEME_NAME(themeId)}…`);
     // one frame of breathing room so the hint actually paints before the
     // (synchronous, ~half-second) arena build blocks the thread
@@ -881,7 +902,9 @@ export async function runLevelWorkbench(config, params) {
       else { console.error('level load: not found', loadName); openArena('neon', bakeSeed); }
     }).catch((e) => { console.error('level load failed:', e); openArena('neon', bakeSeed); });
   } else if (arenaName && IS_THEME(arenaName)) {
-    openArena(arenaName, bakeSeed);
+    // &seed=<n> names a layout, which only a generated arena has — asking for
+    // one is asking to bake, authored file or not
+    openArena(arenaName, bakeSeed, { fresh: params.has('seed') });
   } else if (blankTheme && IS_THEME(blankTheme)) {
     loadLevelData(AR.blank(blankTheme));
     sourceLabel = 'blank arena';
@@ -919,7 +942,9 @@ export async function runLevelWorkbench(config, params) {
     const seedIn = el('input', 'le-seed'); seedIn.type = 'number'; seedIn.value = bakeSeed; seedIn.title = 'Layout seed';
     seedIn.onchange = () => { bakeSeed = +seedIn.value || 7; };
     seedRow.append(tag('span', 'le-seedlbl', 'seed'), seedIn,
-      btn('⟳', () => { bakeSeed = Math.floor(Math.random() * 9999) + 1; seedIn.value = bakeSeed; if (level.theme) openArena(level.theme, bakeSeed); }, 'mini'));
+      // `fresh` — a reroll is the explicit ask for a GENERATED layout, so it
+      // bakes even for an arena that ships an authored one
+      btn('⟳', () => { bakeSeed = Math.floor(Math.random() * 9999) + 1; seedIn.value = bakeSeed; if (level.theme) openArena(level.theme, bakeSeed, { fresh: true }); }, 'mini'));
     seedRow.querySelector('.le-mini').title = 'Reroll this arena with a new seed';
 
     // the logo is the way back to the other workbenches — this tool has its own
@@ -1027,7 +1052,11 @@ export async function runLevelWorkbench(config, params) {
     if (!arenaSel) return;
     const want = sourceLabel.startsWith('blank') ? 'blank:' + level.theme : 'theme:' + level.theme;
     for (const o of arenaSel.querySelectorAll('option')) if (o.value === want) { arenaSel.value = want; break; }
-    if (seedRow) seedRow.style.display = sourceLabel.includes('seed') ? '' : 'none';
+    // the seed box belongs to any arena opened BY THEME — including one opened
+    // from its authored file, since ⟳ is the way back to a generated layout
+    if (seedRow) {
+      seedRow.style.display = (sourceLabel.includes('seed') || sourceLabel.includes('authored')) ? '' : 'none';
+    }
   }
 
   // ---- palette drawer ------------------------------------------------
@@ -1262,7 +1291,7 @@ export async function runLevelWorkbench(config, params) {
   function showHelp() {
     const body = el('div');
     body.innerHTML = `
-      <b>Pick an arena</b> — the dropdown top-left builds one of the 12 shipped arenas and hands you every piece of it. <b>seed ⟳</b> rerolls the same arena's layout.<br><br>
+      <b>Pick an arena</b> — the dropdown top-left opens one of the 12 shipped arenas and hands you every piece of it. An arena that has been AUTHORED (a hand-built level the game plays as-is) opens from its file, so you are editing what ships; every other arena is generated for real from its theme, and <b>seed ⟳</b> rerolls that layout — or builds a procedural version of an authored one.<br><br>
       <b>Select</b> — click an object · shift-click to add · shift-drag empty ground to marquee a block · Ctrl+A everything.<br>
       <b>Move</b> — just drag it. The whole selection travels. <b>Alt-drag</b> leaves a copy behind.<br>
       <b>Turn</b> — <b>R</b> (or ⟳ on the floating toolbar) puts the gizmo in rotate mode, turning the selection about its own centre. <b>[</b> / <b>]</b> nudge 15°.<br>

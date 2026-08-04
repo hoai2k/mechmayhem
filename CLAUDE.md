@@ -1449,7 +1449,17 @@ audio). Progress history: `TASKS.md`.
   tower, every prop with its own yaw and seed, the lanes, hills, bridges,
   pools and the elevated loop come back as objects you can click. The `seed ⟳`
   button rerolls that arena's layout; `?edit=level&arena=<theme>` opens one
-  directly, `&seed=<n>` picks the layout, `&theme=<id>` still means a BLANK
+  directly, `&seed=<n>` picks the layout,
+  …EXCEPT AN ARENA THAT HAS BEEN AUTHORED, which opens from ITS FILE
+  (`config.arena.authoredLevel(id)`, derived from `AUTHORED_ARENAS`). Baking is
+  how you edit a city the GENERATOR wrote; once one is hand-built, that file is
+  what the game plays, and re-baking would hand the owner a procedural roll
+  wearing its name — every edit made on top of the wrong city and a save
+  quietly reverting the work. `fresh` is the deliberate way back to a generated
+  layout: the seed ⟳ button and an explicit `&seed=` both pass it, and the seed
+  box stays on screen for an authored arena precisely so ⟳ is reachable. It is
+  NOT gated on `CONFIG.proceduralArenas` — that setting says what a MATCH
+  builds; a level file is what this tool edits either way. `&theme=<id>` still means a BLANK
   level on that theme and `&load=<name>` still edits
   `public/levels/<name>.json`. `?battle=<theme>&level=<name>` plays one.
   IT IS A WORKBENCH like the rest: it lives at `/workbench/?edit=level`, imports
