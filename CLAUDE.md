@@ -1391,6 +1391,26 @@ audio). Progress history: `TASKS.md`.
   in twin viewports with one shared camera, with triangle/texture/VRAM/file
   deltas and a size check; the mesh merge is judged by flipping `?props=raw`
   on a battle URL, since it changes draw calls and not pixels.
+- AN ARENA IS A RECIPE UNTIL SOMEBODY AUTHORS IT (`src/arena/authored.js`).
+  themes.js says what a place is MADE OF and every match rolls a new city from
+  it with a fresh seed — which is why an arena the owner laid out by hand was,
+  for a while, a file on disk nothing in the game ever opened. `AUTHORED_ARENAS`
+  is the registry that closes that gap: theme id -> level basename in
+  `public/levels/`, and `resolveArenaTheme(theme)` is the ONE call both the menu
+  path (boot.js `startBattle`) and the `?battle=` harness make to ask "what am I
+  actually building". A theme with no entry has no authored version and stays
+  procedural — most of them, today — so the two kinds sit side by side with no
+  per-arena flag, and a level file that fails to load costs the player a
+  GENERATED city rather than a broken one.
+  It resolves BEFORE the prop warm-up, because it is the authored level that
+  says which props this city places, and it KEEPS the base theme's name/desc:
+  the player picked NEON DISTRICT off the card and that is what the loading
+  screen should go on calling it, whatever the level is titled in the editor.
+  SETTINGS -> PROCEDURAL ARENAS (`CONFIG.proceduralArenas`, OFF by default,
+  `?procedural=1`) ignores the table entirely and generates everything, which is
+  how the procedural cities stay reachable once an arena has been authored. The
+  harness honours it too — a bare `?battle=neon` plays what the MENUS play, or a
+  soak silently tests an arena nobody ships.
 - THE ARENA EDITOR (`/workbench/?edit=level`) EDITS THE SHIPPED ARENAS, not just blank
   canvases. Pick one of the 12 from the top-bar dropdown and it is BAKED: the
   arena is built for real, exactly as a match builds it, and every massed

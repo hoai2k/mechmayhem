@@ -16,6 +16,7 @@ import { createMech } from '../mechs/gltf.js';
 import { preloadPropModels } from '../arena/propglb.js';
 import { preloadBuildingModels } from '../arena/buildglb.js';
 import { loadLevel, themeFromLevel } from '../arena/level.js';
+import { resolveArenaTheme } from '../arena/authored.js';
 
 export async function runBattleTest() {
   const params = new URLSearchParams(location.search);
@@ -29,6 +30,13 @@ export async function runBattleTest() {
   if (levelName) {
     const lvl = await loadLevel(levelName);
     if (lvl) theme = themeFromLevel(lvl);
+  } else {
+    // no level named: play what the GAME would play for this theme — its
+    // authored level where one exists, generated otherwise. A soak or a
+    // screenshot that quietly exercised the procedural city while the menus
+    // shipped a hand-built one would be testing the wrong arena.
+    // ?procedural=1 opts out, exactly as the setting does.
+    theme = await resolveArenaTheme(theme);
   }
 
   // the real match preloads prop GLBs + building donors before the arena

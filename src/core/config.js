@@ -41,6 +41,13 @@ export const CONFIG = {
   // (?showcase, ?rigedit, pose/skin tools, ?battle=...) always show every
   // mech regardless. Persisted from the settings menu; ?showall=1 forces on.
   showAllRobots: params.get('showall') === '1' || readPref('rw.showAllRobots'),
+  // PROCEDURAL ARENAS: generate EVERY arena from its theme recipe + a fresh
+  // seed, ignoring the hand-built levels in src/arena/authored.js. OFF by
+  // default, so an arena that HAS an authored version plays it and every other
+  // arena is generated exactly as before. Turn it on for a new city each match
+  // everywhere. Persisted from the settings menu; ?procedural=1 forces it on
+  // for a session.
+  proceduralArenas: params.get('procedural') === '1' || readPref('rw.proceduralArenas'),
   // REVERSE CAMERA Y: which way the right stick (and a touch look-drag) pitches
   // the camera. OFF is the standard third-person feel — push DOWN and the
   // camera rises so you look down on your mech; ON gives the flight-sim
@@ -196,4 +203,9 @@ export function setRobotSpeed(v) {
 export function setShowAllRobots(on) {
   CONFIG.showAllRobots = on;
   try { localStorage.setItem('rw.showAllRobots', on ? '1' : '0'); } catch (e) { /* ok */ }
+}
+
+export function setProceduralArenas(on) {
+  CONFIG.proceduralArenas = on;
+  try { localStorage.setItem('rw.proceduralArenas', on ? '1' : '0'); } catch (e) { /* ok */ }
 }
