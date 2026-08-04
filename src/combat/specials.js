@@ -345,9 +345,19 @@ export const SPECIALS = {
       stateT: (dur) => dur * 0.85,
       onFire: () => {
         const w = f.world;
-        // storm placed well AHEAD of tempest — it's a zoning tool, not a
-        // self-centered burst
-        const center = fwd(f, sp.radius * 0.95);
+        // THE STORM IS THROWN FORWARD, BUT NOT A WHOLE RADIUS FORWARD. It is a
+        // zoning tool and should land in front of him rather than on his own
+        // head — but at `radius * 0.95` the disc's trailing edge sat 0.4 units
+        // BEHIND the caster, which means it covered a forward cone and nothing
+        // else. Mapped at radius 8 with the victim pinned on a grid
+        // (tools/scratch/specialmap.mjs): hits out to 12 dead ahead, 8 at 60
+        // degrees off, and NOTHING at 90, 135 or 180 — not even at two units,
+        // standing on his toes. A fight is mostly circling at melee range, so
+        // most casts were geometrically incapable of connecting.
+        // At `lead` 0.45 the same disc covers 4.4 behind him to 11.6 ahead and
+        // reaches 7 units to either side of where he stands. Same area, same
+        // damage, placed where the fight is; roster can override per mech.
+        const center = fwd(f, sp.radius * (sp.lead ?? 0.45));
         center.y = 0;
         const cloudY = 13;
         // the storm cloud: a heavy slab of churning dark smoke hanging over
