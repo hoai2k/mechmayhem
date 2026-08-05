@@ -27,7 +27,9 @@
 import { TAU } from '../../core/utils.js';
 import {
   makeSiteOk, makePropOk, placeNear, classifyProps, emitClump,
+  traitsFor, traitYaw,
 } from './util.js';
+import { planTraitClasses } from './proparrange.js';
 
 export const CIRCUIT = {
   id: 'circuit',
@@ -116,16 +118,24 @@ function planBuildings(env, geo, { terrain, rng, count }) {
   return sites;
 }
 
-function planProps(env, geo, { rng, sites, specs, propOk }) {
+function planProps(env, geo, ctx) {
+  const { rng, sites, specs, propOk, terrain } = ctx;
   const { B, P, clearing: C } = env;
   const { k, rBastion } = geo;
   const pOk = makePropOk(propOk, sites, P);
   const plan = new Map();
   const cls = classifyProps(specs);
 
+  // gates and their guardians belong on the OPEN CORRIDORS — the circuit
+  // hands its gate angles over as the preferred approaches (a theme with a
+  // real road still gets its gates on the road, which outranks geometry)
+  const approaches = Array.from({ length: k }, (_, i) => gateAngle(geo, i));
+  planTraitClasses(env, ctx, cls, plan, { approaches });
+
   // --- rhythm props: a colonnade ringing the plaza (the colosseum wall),
   // leftovers marking the gate corridors like a race circuit's aprons ---
   cls.rhythm.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const out = [];
     let budget = spec.count;
     if (si === 0) {
@@ -135,7 +145,8 @@ function planProps(env, geo, { rng, sites, specs, propOk }) {
         const a = (i / ringN) * TAU + rng.range(-0.06, 0.06);
         const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
         if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z, ry: a + Math.PI / 2 });
+        // the colosseum ring addresses the fight it walls in
+        out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) ?? (a + Math.PI / 2) });
         budget--;
       }
     }
@@ -145,32 +156,17 @@ function planProps(env, geo, { rng, sites, specs, propOk }) {
       const r = rng.range(C + 16, Math.min(B * 1.1, P / 2 - 16));
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!pOk(x, z, spec.name)) continue;
-      out.push({ x, z, ry: a + Math.PI / 2 });
+      const rowDir = { dx: Math.cos(a), dz: Math.sin(a) };   // down the corridor
+      out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, { rowDir }) ?? (a + Math.PI / 2) });
       budget--;
     }
     if (out.length) plan.set(spec, out);
   });
 
-  // --- pairs flank a gate each: gateposts on the open corridors ---
-  cls.pairs.forEach((spec, si) => {
-    const out = [];
-    const a = gateAngle(geo, si % k);
-    const r = rBastion - rng.range(4, 8);
-    const px = -Math.sin(a), pz = Math.cos(a);   // perpendicular across the gate
-    for (const s of [1, -1]) {
-      for (let t = 0; t < 8; t++) {
-        const w = (12 + t * 2.5) * s;
-        const x = Math.cos(a) * r + px * w, z = Math.sin(a) * r + pz * w;
-        if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z, ry: a });
-        break;
-      }
-    }
-    if (out.length) plan.set(spec, out);
-  });
-
-  // --- mediums clutter the bastion fronts: cover at the cover ---
+  // --- mediums (counts 2–4) clutter the bastion fronts: cover at the cover,
+  // standing the way their trait says (yards snap, monuments face in) ---
   cls.mediums.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const out = [];
     for (let i = 0; i < spec.count; i++) {
       const a = bastionAngle(geo, (si + i) % k) + rng.range(-0.2, 0.2);
@@ -178,7 +174,7 @@ function planProps(env, geo, { rng, sites, specs, propOk }) {
         const r = rBastion - rng.range(12, 22) - t * 2;
         const x = Math.cos(a) * r, z = Math.sin(a) * r;
         if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z });
+        out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
         break;
       }
     }
@@ -187,12 +183,13 @@ function planProps(env, geo, { rng, sites, specs, propOk }) {
 
   // --- the hero stands at the landmark bastion, facing the arena ---
   cls.heroes.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const a = bastionAngle(geo, si % k) + rng.range(-0.15, 0.15);
     for (let t = 0; t < 12; t++) {
       const r = rBastion + rng.range(10, 16) + t * 2;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!pOk(x, z, spec.name)) continue;
-      plan.set(spec, [{ x, z, ry: a + Math.PI }]);
+      plan.set(spec, [{ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) ?? (a + Math.PI) }]);
       break;
     }
   });

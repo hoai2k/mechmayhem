@@ -24,7 +24,9 @@
 import { TAU } from '../../core/utils.js';
 import {
   makeSiteOk, makePropOk, placeNear, shuffle, classifyProps, emitClump,
+  traitsFor, traitYaw,
 } from './util.js';
+import { planTraitClasses } from './proparrange.js';
 
 const r1 = (v) => Math.round(v * 10) / 10;
 
@@ -158,17 +160,25 @@ function planBuildings(env, axis, { terrain, rng, count }) {
   return sites;
 }
 
-function planProps(env, axis, { rng, sites, specs, propOk }) {
+function planProps(env, axis, ctx) {
+  const { rng, sites, specs, propOk, terrain } = ctx;
   const { B, P, clearing: C } = env;
   const { Wp, plazas } = axis;
   const pOk = makePropOk(propOk, sites, P);
   const plan = new Map();
   const cls = classifyProps(specs);
 
+  // gates land ON the boulevards where they leave the plaza (gateSpots finds
+  // the crossings), guardians flank those approaches facing in, fountains
+  // take the pocket plazas, solos keep to themselves
+  planTraitClasses(env, ctx, cls, plan, { plazas });
+
   // --- rhythm props run the avenues: staggered rows both sides, and the
   // third-and-later specs line the BORDER boulevards, so the seam reads
-  // dressed exactly like any other street ---
+  // dressed exactly like any other street. Yaw is the trait's: lights and
+  // billboards turn square-on to their street, colonnades run along it ---
   cls.rhythm.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const out = [];
     const border = si >= 2;
     const ax = si % 2 === 0 ? 'x' : 'z';
@@ -176,6 +186,7 @@ function planProps(env, axis, { rng, sites, specs, propOk }) {
     const span = border ? P / 2 - 20 : B * 1.05;
     const startR = border ? 10 : C + 4;
     const spacing = Math.max(12, (span - startR) / Math.max(2, Math.ceil(spec.count / 2)));
+    const rowDir = ax === 'x' ? { dx: 1, dz: 0 } : { dx: 0, dz: 1 };
     let k = 0;
     for (let along = startR; along <= span && k < spec.count; along += spacing) {
       for (const s of [1, -1]) {
@@ -186,33 +197,21 @@ function planProps(env, axis, { rng, sites, specs, propOk }) {
         // border rows live on the seam road's inner face (both faces exist
         // across the wrap already)
         if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z, ry: ax === 'x' ? Math.PI / 2 : 0 });
+        out.push({
+          x, z,
+          ry: traitYaw(tr, terrain, rng, x, z, { rowDir })
+            ?? (ax === 'x' ? Math.PI / 2 : 0),
+        });
         k++;
       }
     }
     if (out.length) plan.set(spec, out);
   });
 
-  // --- pairs gate the principal boulevard where it leaves the plaza ---
-  cls.pairs.forEach((spec, si) => {
-    const out = [];
-    const ax = si % 2 === 0 ? 'x' : 'z';
-    for (const s of [1, -1]) {
-      for (let t = 0; t < 8; t++) {
-        const along = s * (C + 2.5 + t * 2.2);
-        const side = (Wp / 2 + 2.2) * (rng.chance(0.5) ? 1 : -1);
-        const x = ax === 'x' ? along : side;
-        const z = ax === 'x' ? side : along;
-        if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z, ry: ax === 'x' ? Math.PI / 2 : 0 });
-        break;
-      }
-    }
-    if (out.length) plan.set(spec, out);
-  });
-
-  // --- mediums dress the pocket plazas and the mid-ring boulevard fronts ---
+  // --- mediums (counts 2–4) dress the pocket plazas and the mid-ring
+  // boulevard fronts, each standing the way its trait says ---
   cls.mediums.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const out = [];
     for (let i = 0; i < spec.count; i++) {
       let x, z;
@@ -231,7 +230,8 @@ function planProps(env, axis, { rng, sites, specs, propOk }) {
       for (let t = 0; t < 8; t++) {
         const jx = x + rng.range(-2, 2) * t, jz = z + rng.range(-2, 2) * t;
         if (!pOk(jx, jz, spec.name)) continue;
-        out.push({ x: jx, z: jz });
+        const focal = pl && i % 2 === 0 ? pl : { x: 0, z: 0 };
+        out.push({ x: jx, z: jz, ry: traitYaw(tr, terrain, rng, jx, jz, { focal }) });
         break;
       }
     }
@@ -239,8 +239,10 @@ function planProps(env, axis, { rng, sites, specs, propOk }) {
   });
 
   // --- heroes terminate vistas: beside the avenue, far down it, so looking
-  // along the boulevard always ends on something ---
+  // along the boulevard always ends on something (a sacred hero out there
+  // faces back up the avenue at the fight) ---
   cls.heroes.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const ax = si % 2 === 0 ? 'x' : 'z';
     const s = rng.chance(0.5) ? 1 : -1;
     for (let t = 0; t < 10; t++) {
@@ -249,7 +251,7 @@ function planProps(env, axis, { rng, sites, specs, propOk }) {
       const x = ax === 'x' ? along : side;
       const z = ax === 'x' ? side : along;
       if (!pOk(x, z, spec.name)) continue;
-      plan.set(spec, [{ x, z }]);
+      plan.set(spec, [{ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) }]);
       break;
     }
   });

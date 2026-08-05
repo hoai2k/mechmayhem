@@ -27,8 +27,10 @@
 import { TAU } from '../../core/utils.js';
 import {
   wrapD, torusDist, makeSiteOk, makePropOk, placeNear, shuffle,
-  classifyProps, emitClump,
+  classifyProps, emitClump, traitsFor, traitYaw, PATH_KINDS,
+  lanePoint, laneTangent, yawAlong,
 } from './util.js';
+import { planTraitClasses } from './proparrange.js';
 
 const r1 = (v) => Math.round(v * 10) / 10;
 
@@ -74,15 +76,14 @@ export const WARDS = {
 
     // pocket plazas are PAVED — a painted `pave` patch at each plaza ward,
     // put FIRST so the theme's seeded lakes and pools keep clear of them
+    const paves = plazas.map((wd) => ({
+      x: r1(wd.x), z: r1(wd.z), r: r1(rng.range(11, 15)),
+    }));
     const L0 = env.theme.layout || {};
     const layout = {
       ...L0,
       patches: [
-        {
-          kind: 'pave',
-          glow: theme.ground?.accent || null,
-          list: plazas.map((wd) => ({ x: r1(wd.x), z: r1(wd.z), r: r1(rng.range(11, 15)) })),
-        },
+        { kind: 'pave', glow: theme.ground?.accent || null, list: paves },
         ...(L0.patches || []),
       ],
     };
@@ -90,7 +91,7 @@ export const WARDS = {
     return {
       layout,
       buildings: (ctx) => planBuildings(env, wards, ctx),
-      props: (ctx) => planProps(env, wards, ctx),
+      props: (ctx) => planProps(env, wards, paves, ctx),
     };
   },
 };
@@ -178,8 +179,9 @@ function planBuildings(env, wards, { terrain, rng, count }) {
   return sites;
 }
 
-function planProps(env, wards, { rng, sites, specs, propOk }) {
-  const { P, clearing: C } = env;
+function planProps(env, wards, paves, ctx) {
+  const { rng, sites, specs, propOk, terrain } = ctx;
+  const { P } = env;
   const pOk = makePropOk(propOk, sites, P);
   const plan = new Map();
   const cls = classifyProps(specs);
@@ -187,14 +189,35 @@ function planProps(env, wards, { rng, sites, specs, propOk }) {
   const denseWards = wards.filter((wd) => ['blocks', 'towers', 'market', 'yard'].includes(wd.role));
   const plazaWards = byRole('plaza');
 
-  // --- rhythm props: rows along ward block faces + a ring round each plaza ---
-  // the first rhythm spec also furnishes the plaza rim, the rest run as
-  // colonnades beside the dense wards (the authored Neon District's own
-  // pillar rows and light runs, generated)
+  // gates on the paths, guardians flanking them, centrepieces on the pocket
+  // plazas, solos apart — the trait classes shared by every system
+  planTraitClasses(env, ctx, cls, plan, { plazas: paves });
+
+  // --- rhythm props: rows along ward block faces + a ring round each plaza;
+  // lane-trait specs (colonnades, rails) line the walkable lanes instead ---
+  const walkLanes = terrain.lanes.filter((l) => PATH_KINDS.has(l.kind));
   cls.rhythm.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const out = [];
     let budget = spec.count;
-    if (si === 0 && plazaWards.length) {
+    if (tr.lane && walkLanes.length) {
+      // a processional row: along the path, set back off its shoulder
+      const lane = walkLanes[si % walkLanes.length];
+      const side = rng.chance(0.5) ? 1 : -1;
+      const start = (rng.chance(0.5) ? 1 : -1) * rng.range(env.clearing + 6, env.B * 0.5);
+      const spacing = rng.range(8, 10);
+      for (let i = 0; i < spec.count; i++) {
+        const along = start + i * spacing * Math.sign(start || 1);
+        const p = lanePoint(terrain, lane, along);
+        const t = laneTangent(terrain, lane, along);
+        const x = p.x + -t.dz * (lane.half + 2.6) * side;
+        const z = p.z + t.dx * (lane.half + 2.6) * side;
+        if (!pOk(x, z, spec.name)) continue;
+        out.push({ x, z, ry: yawAlong(t.dx, t.dz) });
+        budget--;
+      }
+    }
+    if (si === 0 && plazaWards.length && budget > 0) {
       for (const wd of plazaWards) {
         const ringN = Math.min(6, Math.max(4, Math.floor(budget / 2)));
         const rr = rng.range(15, 18);
@@ -202,7 +225,11 @@ function planProps(env, wards, { rng, sites, specs, propOk }) {
           const a = (i / ringN) * TAU + rng.range(-0.1, 0.1);
           const x = wd.x + Math.cos(a) * rr, z = wd.z + Math.sin(a) * rr;
           if (!pOk(x, z, spec.name)) continue;
-          out.push({ x, z, ry: a + Math.PI / 2 });
+          // street furniture on a plaza rim addresses the plaza
+          out.push({
+            x, z,
+            ry: traitYaw(tr, terrain, rng, x, z, { focal: wd }) ?? (a + Math.PI / 2),
+          });
           budget--;
         }
         if (budget <= 0) break;
@@ -218,12 +245,13 @@ function planProps(env, wards, { rng, sites, specs, propOk }) {
       const len = Math.min(budget, rng.int(3, 5));
       const spacing = rng.range(7.5, 9.5);
       const a0 = -((len - 1) / 2) * spacing;
+      const rowDir = axis === 'x' ? { dx: 1, dz: 0 } : { dx: 0, dz: 1 };
       for (let i = 0; i < len; i++) {
         const along = a0 + i * spacing;
         const x = axis === 'x' ? wd.x + along : wd.x + off;
         const z = axis === 'x' ? wd.z + off : wd.z + along;
         if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z, ry: axis === 'x' ? Math.PI / 2 : 0 });
+        out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, { rowDir }) ?? yawAlong(rowDir.dx, rowDir.dz) });
         budget--;
       }
     }
@@ -234,16 +262,18 @@ function planProps(env, wards, { rng, sites, specs, propOk }) {
       const a = rng.range(0, TAU), rr = rng.range(14, 40);
       const x = wd.x + Math.cos(a) * rr, z = wd.z + Math.sin(a) * rr;
       if (!pOk(x, z, spec.name)) continue;
-      out.push({ x, z });
+      out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
       budget--;
     }
     if (out.length) plan.set(spec, out);
   });
 
-  // --- medium props: the first two specs cluster into the MARKET ward's
-  // bazaar; later specs spread one-per-ward as district dressing ---
+  // --- medium props (counts 2–4): the first two specs cluster into the
+  // MARKET ward's bazaar; later specs spread ward to ward as dressing.
+  // Yaw answers to traits — obelisks face the fight, vats snap to the grid ---
   const market = byRole('market')[0];
   cls.mediums.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const out = [];
     if (si < 2 && market) {
       for (let i = 0; i < spec.count; i++) {
@@ -251,7 +281,7 @@ function planProps(env, wards, { rng, sites, specs, propOk }) {
           const a = rng.range(0, TAU), rr = rng.range(6, 18);
           const x = market.x + Math.cos(a) * rr, z = market.z + Math.sin(a) * rr;
           if (!pOk(x, z, spec.name)) continue;
-          out.push({ x, z });
+          out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
           break;
         }
       }
@@ -263,7 +293,7 @@ function planProps(env, wards, { rng, sites, specs, propOk }) {
           const a = rng.range(0, TAU), rr = rng.range(8, 26);
           const x = wd.x + Math.cos(a) * rr, z = wd.z + Math.sin(a) * rr;
           if (!pOk(x, z, spec.name)) continue;
-          out.push({ x, z });
+          out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
           break;
         }
       }
@@ -271,33 +301,17 @@ function planProps(env, wards, { rng, sites, specs, propOk }) {
     if (out.length) plan.set(spec, out);
   });
 
-  // --- pairs gate the stage: one each side of the spawn plaza, facing in ---
-  for (const spec of cls.pairs) {
-    const out = [];
-    const a0 = rng.range(0, TAU);
-    for (let i = 0; i < 2; i++) {
-      const a = a0 + i * Math.PI + rng.range(-0.25, 0.25);
-      for (let t = 0; t < 8; t++) {
-        const rr = C + 3 + t * 2.5;
-        const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-        if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z, ry: a + Math.PI / 2 });
-        break;
-      }
-    }
-    if (out.length) plan.set(spec, out);
-  }
-
   // --- heroes anchor districts: the tower court first, then a plaza rim ---
   const heroSpots = [...byRole('towers'), ...plazaWards, ...byRole('yard')];
   cls.heroes.forEach((spec, si) => {
+    const tr = traitsFor(spec.name);
     const wd = heroSpots[si % Math.max(1, heroSpots.length)];
     if (!wd) return;
     for (let t = 0; t < 12; t++) {
       const a = rng.range(0, TAU), rr = rng.range(16, 26) + t * 1.5;
       const x = wd.x + Math.cos(a) * rr, z = wd.z + Math.sin(a) * rr;
       if (!pOk(x, z, spec.name)) continue;
-      plan.set(spec, [{ x, z }]);
+      plan.set(spec, [{ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) }]);
       break;
     }
   });

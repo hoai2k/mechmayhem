@@ -40,9 +40,23 @@ export function arenaTexEntries(theme) {
   if (!theme) return out;
   out.push(['sky', `sky_${theme.id}`], ['sky', `horizon_${theme.id}`]);
   if (GROUND_TEX[theme.id]) out.push(['ground', GROUND_TEX[theme.id]]);
-  const facade = FACADE_TEX[theme.buildings?.styles?.[0]];
-  if (facade) out.push(['building', facade], ['building', 'bldg_roof_gravel']);
+  const facade = facadeTexFor(theme);
+  if (facade) {
+    out.push(['building', facade],
+      ['building', theme.buildings?.roofTex || 'bldg_roof_gravel']);
+  }
   return out.filter(([set, name]) => hasTex(set, name));
+}
+
+// The facade material a theme's buildings wear: a theme may name its OWN
+// (`buildings.facadeTex` — the per-theme facades in docs/
+// ASSET_REQUESTS_ARENA_DESIGN.md land here), gated on the texture actually
+// existing so a named-but-not-yet-generated facade quietly keeps the shared
+// per-style default. Same rule for `buildings.roofTex`.
+function facadeTexFor(theme) {
+  const own = theme.buildings?.facadeTex;
+  if (own && hasTex('building', own)) return own;
+  return FACADE_TEX[theme.buildings?.styles?.[0]] || null;
 }
 
 const _v = new THREE.Vector3();
@@ -285,13 +299,16 @@ export class Arena {
 
     // ---- destructible buildings ----
     const styleIdx = theme.buildings.styles[0];
+    const facadeTex = facadeTexFor(theme);
     let sideMat = null, roofMat = null;
-    if (CONFIG.useTextures && FACADE_TEX[styleIdx]) {
+    if (CONFIG.useTextures && facadeTex) {
       // pack facade: one tile ≈ one floor band, per-chunk face UVs are 0..1
-      sideMat = pbrMaterial('building', FACADE_TEX[styleIdx], {
+      sideMat = pbrMaterial('building', facadeTex, {
         repeat: 1, emissiveIntensity: theme.buildings.glow ? 0.6 : 0.0,
       });
-      roofMat = pbrMaterial('building', 'bldg_roof_gravel', { repeat: 1 });
+      const roofName = theme.buildings.roofTex && hasTex('building', theme.buildings.roofTex)
+        ? theme.buildings.roofTex : 'bldg_roof_gravel';
+      roofMat = pbrMaterial('building', roofName, { repeat: 1 });
     }
     if (!sideMat) {
       const facade = chunkFacade(styleIdx, seed);
@@ -338,7 +355,7 @@ export class Arena {
     // fighters always start in an open plaza with clear sight lines
     // tint helper shared by procedural + authored placement (pack facades
     // carry their own color, so only a whisper of tint survives)
-    const tintFor = (t) => (CONFIG.useTextures && FACADE_TEX[styleIdx])
+    const tintFor = (t) => (CONFIG.useTextures && facadeTex)
       ? new THREE.Color(t).lerp(new THREE.Color(0xffffff), 0.68).getHex() : t;
     let placedSites = [];   // building sites, for the prop planner to keep off
     if (theme.authored) {

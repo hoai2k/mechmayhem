@@ -6528,3 +6528,56 @@ AUTHORED / CITY WARDS / GRAND AXIS / COLOSSEUM / FALLBACK"
 the old pref migrates ON->fallback, OFF->authored). AUTHORED — the default —
 plays the hand-built levels where they exist and hands every other arena to
 CITY WARDS.
+
+## PROPS THAT KNOW HOW TO STAND + the building-variety audit (user request, 2026-08-05)
+
+Reported from Desert Ruins: sphinxes at odd angles. The design systems knew
+how MANY of a prop to place and roughly where, but nothing knew what a prop
+IS — so a count-2 sphinx spec got generic gatepost treatment and a random-ish
+yaw. `src/arena/designs/proptraits.js` is that knowledge now: a per-prop-name
+table of PLACEMENT TRAITS, refining (never replacing) the shape classes, so a
+prop absent from it still lands sensibly and a new theme needs no entry.
+
+The one fact that makes it cheap: EVERY PROP'S FRONT IS +Z, measured off the
+builders (sphinx head, idol eyes, billboard face, bus-stop opening, bandshell
+mouth all at +z; every gate passes through along z; pipes are the `long:'x'`
+exception). So the whole vocabulary is a yaw rule plus a grouping rule:
+- face:'center' — sacred/monumental props aim at their region's focal point
+  (the battle circle, or the pocket plaza they stand in); sacred PAIRS flank
+  a gated approach, symmetric about its axis, both facing in
+- face:'gate' — gates sit ON a walkable lane where it crosses the plaza rim,
+  passage along the path; a blocked gate slides ALONG its lane, never off it
+- face:'road' — billboards, streetlights, bus stops turn square-on to the
+  nearest street
+- grid — industrial fixtures snap to the world grid; a grid clump is a YARD
+  (one shared yaw per container/quonset nest)
+- lane — pipelines, carts, parked vehicles lie along the nearest path
+- solo / centerpiece / scatter — campfires isolate, fountains take a plaza's
+  middle, ferns stay organic
+
+The shared trait pass (designs/proparrange.js) handles gates/flanks/
+centrepieces/solos identically in all three systems (they are focal-point
+geometry, not system geometry); each system's own rows, dressing, nests and
+heroes resolve yaw through traitYaw. Measured, not eyeballed:
+tools/scratch/traitprobe.mjs builds a battle headless and reports facing
+deviation (vs the centre OR the prop's own plaza), gates on-lane, grid-snap
+share and solo spacing — ruins under all three systems: every face-centre
+prop at 0.0°, the great gate ON the processional way, sphinx pair at
+(-10,-55)/(10,-55) flanking it symmetrically.
+
+AND THE BUILDINGS: THEME_MASSING audited so every theme draws >=4 silhouette
+families, four new ones grown for the gaps — `court` (three wings round a
+courtyard: neon/uptown/skyterrace/ruins), `ruin` (per-column ragged heights,
+one surviving facade line: ruins/jungle/volcano/scrapyard), `dome` (stepped
+circular shrink: frozen/quarry/orbital), `silo` (2×2 tank battery off a
+shared base: foundry/harbor/scrapyard). Themes may now name their OWN facade
+and roof (`buildings.facadeTex`/`roofTex`, hasTex-gated so inert until the
+images land); docs/ASSET_REQUESTS_ARENA_DESIGN.md carries generation prompts
+for ten facades/roofs (sandstone ruin, mossy temple, arctic panel, basalt
+plate, rock-cut crystal, station hull, dock corrugated, rust patchwork +
+two roofs) for the owner to generate — the eight themes still wearing the
+four shared facades are the ones named.
+
+Verified: bake round-trip all 12 themes × 3 designs, soaks clean (ruins
+avenues + authored neon), traitprobe green on ruins/jungle/harbor/frozen/
+neon across systems, build green.
