@@ -6,6 +6,7 @@ import { GeyserFX } from './geyserfx.js';
 import { FireTornadoFX } from './nadofx.js';
 import { fireTint } from './flamefx.js';
 import { TidalWaveFX } from './wavefx.js';
+import { bakePoseShell } from './poseshell.js';
 // deliberate cycle with fighter.js (and a reach into game/ai.js): both are
 // only touched at runtime, for SAURION's summoned raptor pack
 import { Fighter } from './fighter.js';
@@ -733,44 +734,16 @@ export const SPECIALS = {
     cast(f, 'aim', { stateT: (sp.duration || 5) + 0.4, speed: 0.5 });
     w.audio?.play('cloak');
 
-    // build the spectre: bake the current pose into a throwaway shell whose
-    // meshes carry the live world matrices, then glide the shell forward
+    // build the spectre: bake the current pose into a throwaway shell (see
+    // poseshell.js — the SkinnedMesh trap is documented there), then glide the
+    // shell forward. One flat additive material for the whole body: this one
+    // is meant to read as a projection, not as him.
     const gmat = new THREE.MeshBasicMaterial({
       color: 0xdfefff, transparent: true, opacity: 0.34,
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
-    const ghost = new THREE.Group();
-    f.mech.group.updateWorldMatrix(true, true);
-    f.mech.group.traverse((o) => {
-      if (!o.isMesh || o.visible === false) return;
-      if (o.isSkinnedMesh) {
-        // a static shell can't reuse a SkinnedMesh's matrixWorld — rendered
-        // skinned verts follow the BONES and cancel the mesh node's own
-        // transform (Tripo's Armature offset), so the naive bake floats the
-        // spectre meters above the ground. Bake the posed skin instead.
-        o.skeleton.update();
-        const src = o.geometry.attributes.position;
-        const arr = new Float32Array(src.count * 3);
-        const v = new THREE.Vector3();
-        for (let i = 0; i < src.count; i++) {
-          o.getVertexPosition(i, v);   // skin-aware
-          o.localToWorld(v);
-          arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z;
-        }
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-        if (o.geometry.index) geo.setIndex(o.geometry.index);
-        const m = new THREE.Mesh(geo, gmat);
-        m.matrixAutoUpdate = false;
-        m.userData.bakedGeo = true; // owned by the ghost — dispose with it
-        ghost.add(m);
-        return;
-      }
-      const m = new THREE.Mesh(o.geometry, gmat);
-      m.matrixAutoUpdate = false;
-      m.matrix.copy(o.matrixWorld);
-      ghost.add(m);
-    });
+    const shell = bakePoseShell(f.mech.group, { material: gmat, normals: false });
+    const ghost = shell.group;
     w.scene.add(ghost);
     w.effects.rings.spawn(f.pos, { from: 3, to: 0.5, dur: 0.4, color: 0xbfe8ff, y: f.height * 0.5 });
 
@@ -785,11 +758,7 @@ export const SPECIALS = {
     const gx = () => ox + dirX * traveled;
     const gz = () => oz + dirZ * traveled;
 
-    const dropGhost = () => {
-      w.scene.remove(ghost);
-      gmat.dispose();
-      for (const m of ghost.children) if (m.userData.bakedGeo) m.geometry.dispose();
-    };
+    const dropGhost = () => { shell.dispose(); gmat.dispose(); };
 
     const finish = () => {
       f._charging = false;

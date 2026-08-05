@@ -182,6 +182,12 @@ export async function runBattleTest() {
   };
   engine.start();
   window.__world = world; // debug hooks
+  // …the ENGINE too, which is what a capture harness needs: `paused` stops RAF
+  // advancing the sim while it keeps presenting frames, `step(dt)` advances it
+  // by exactly what is asked and `capture()` draws and reads synchronously. A
+  // tool that sleeps instead lands wherever SwiftShader's ~20x slowdown puts
+  // it, which cannot resolve anything shorter than a second.
+  window.__engine = engine;
   window.__ais = ais;
   window.__cam = cameraSys;
   window.__fighters = fighters;

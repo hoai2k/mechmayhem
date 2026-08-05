@@ -16,6 +16,7 @@ import {
 } from './climb.js';
 import { aimCannons, cannonRecoil, hasCannons, ON_TARGET } from './cannonaim.js';
 import { floorGuard, clearFloorGuard } from './floorguard.js';
+import { bakePoseShell } from './poseshell.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -44,6 +45,25 @@ const _woundRed = new THREE.Color(0xd8202e); // poison wound flush
 // while movement keeps its legs. Everything else (braced artillery, the
 // sniper's aim, a ground pound) locks him down for the duration.
 const RUN_AND_GUN_CLIPS = new Set(['shoot', 'shootL', 'saurionQuillFan']);
+// ---- HOW THE APPARITION LEAVES (WRAITH, Fighter.disperseGiant) ------------
+// `dur` is the crossfade: the whole handover from giant to mech, and the only
+// window in the game where the same fighter is on screen twice. Half a second
+// is long enough to read as two bodies and short enough that nobody tries to
+// hit the one that isn't there — the hitbox has been the small one since frame
+// one. `swell` is how much bigger the giant still gets on its way out (on top
+// of `tauntGrow`, so 1.6 x 1.45 is 2.3 of him at the last visible frame): the
+// growth has to CONTINUE through the dissolve, because a shape that stops
+// growing and then fades reads as a fade, while one that is still expanding as
+// it thins reads as coming apart. `waves` splits the bats across the fade
+// instead of firing them all on the first frame — the flock should be
+// assembling out of him, not waiting for him.
+// `minK` is the interruption guard. A hit swaps the taunt for the flinch clip,
+// which can happen on the FIRST frame — and handing over from an apparition
+// that never grew is half a second of the player's own body faded out while he
+// is being hit, which is exactly when he needs to see it. Below this much
+// growth there is no giant to hand over from, so the old behaviour is the right
+// one: bats, and he is simply there.
+const WRAITH_DISPERSE = { dur: 0.5, swell: 1.45, waves: 3, minK: 0.25 };
 // ---- VERTICAL STRIKE AIM (elevateStrikeAt) ----
 // The extremities a blow can be thrown with, for AIMING purposes. The head is
 // in the list and is NOT in combat's own strike-limb table: a bite is thrown
@@ -3587,12 +3607,18 @@ export class Fighter {
   //
   // THERE IS NO WAY BACK DOWN. A symmetric ramp made the whole thing a bellows
   // — he inflated, he deflated, nothing happened. So the exit is not a shrink
-  // at all: the instant the taunt ends he is back at his own size in his own
-  // place, on the SAME frame, and the giant is disposed of separately — it
-  // comes apart into a column of bats that climb away. That reads as the
-  // apparition having been something other than his body, which is the point of
-  // a ghost, and it costs nothing in combat terms because the hitbox is back to
-  // normal immediately rather than over a third of a second.
+  // at all: the instant the taunt ends the FIGHTER is back at his own size in
+  // his own place, on the SAME frame, and the apparition is disposed of
+  // separately. That reads as the giant having been something other than his
+  // body, which is the point of a ghost, and it costs nothing in combat terms
+  // because the hitbox is back to normal immediately rather than over half a
+  // second of cinematic.
+  //
+  // …AND "DISPOSED OF" IS NOW A CROSSFADE, WITH TWO WRAITHS IN IT. The giant
+  // used to be deleted on the frame it stopped being useful, with the bats
+  // spawned where it had stood — which asked the eye to accept a vanishing and
+  // a swarm as the same event, and read as a pop. It now hands over instead:
+  // see disperseGiant.
   //
   // The BASE values are captured on the first frame of the first taunt rather
   // than at construction: a mech may already be scaled by something else, and
@@ -3607,16 +3633,11 @@ export class Fighter {
     }
     const B = this._growBase;
     if (want === 0) {
-      // the apparition comes apart where it stood — sized off the BIG body,
-      // which is why the swarm is emitted before anything is restored
+      // …the apparition is peeled off as a frozen shell BEFORE anything is
+      // restored (it has to be baked at the size and pose it is wearing), and
+      // the fighter underneath goes back to normal on this same frame
       const g = 1 + (this.def.tauntGrow - 1) * k;
-      this.world.effects?.batSwarm(this.pos, {
-        // SIZED OFF A PICTURE, not off a hunch: at 0.55 of body scale a bat is
-        // a dark fleck the eye reads as dust. 1.8 is where the silhouette —
-        // wings, ears, the flap — is legible at combat camera distance.
-        n: Math.round(16 + 14 * k), radius: this.radius * 1.15,
-        height: this.baseHeight, scale: B.s * g * 1.8,
-      });
+      this.disperseGiant(g, k, B);
       this.world.effects?.rings?.spawn(this.pos,
         { from: 0.4, to: this.radius * 2.6, dur: 0.45, color: 0x2a2438, y: 0.35 });
       this.world.audio?.play('cloak');
@@ -3625,8 +3646,7 @@ export class Fighter {
       this.scale = B.s; this.baseHeight = B.h; this.baseHitRadius = B.hr; this.radius = B.r;
       this._growBase = null;
       if (this.animator) this.animator.sizeMul = 1;
-      this.setOpacity(1);
-      return;
+      return;                        // opacity belongs to the crossfade now
     }
     const nk = clamp01(k + (1 - k) * Math.min(1, dt * 2.2 * 2));
     this._growK = 1 - nk < 0.002 ? 1 : nk;
@@ -3655,6 +3675,123 @@ export class Fighter {
         { life: rand(0.5, 1.1), size: rand(1.1, 2.4) * this.scale * 0.4,
           color: 0x8ea0c8, color2: 0x2b3350, alpha: 0.3, grow: 1.4, drag: 1.1 });
     }
+  }
+
+  // ---- THE HANDOVER: two wraiths for half a second -------------------------
+  //
+  // The giant does not disappear, it is PEELED OFF. On the frame the taunt
+  // ends, the apparition is baked exactly as it is drawn — pose, size and all
+  // (poseshell.js) — into a shell that belongs to the world rather than to this
+  // fighter, and the fighter underneath is restored to his own size and turned
+  // down to invisible. Over `dur` the shell keeps GROWING and fades to nothing
+  // while the mech fades up inside it, so there are two of him on screen for
+  // the whole crossfade: one arriving at normal size, one leaving at twice the
+  // height it started, coming apart into bats as it goes.
+  //
+  // WHY A SHELL AND NOT THE BODY ITSELF. Because the body has to be back
+  // instantly: the hitbox, the height, the reach and Animator.sizeMul all
+  // belong to a mech in a fight, and half a second of giant hurtbox that
+  // nothing can be hit by is exactly the kind of lie that loses a round. The
+  // shell is scenery — it has no skeleton, takes no hits, and cannot be
+  // interrupted, which is also why it survives the fighter being hit, killed or
+  // knocked across the arena mid-fade. It is scaled about HIS FEET (the bake's
+  // `origin`), so a body that doubles in size grows UP out of the floor instead
+  // of sinking through it.
+  //
+  // IT KEEPS HIS OWN MATERIALS, cloned. A flat spectre material was tried and
+  // is wrong here: Ghost Protocol projects a spectre and should look like one,
+  // but this thing is the giant you have been looking at for three seconds and
+  // the eye has to accept it as the same object while the small one walks out
+  // of it. Cloned, because a shared material would fade the real mech too —
+  // the same trap `setOpacity` documents for glacier's ice block.
+  disperseGiant(g, k, base) {
+    const w = this.world;
+    if (!w || !this.mech?.group) { this.setOpacity(1); return; }
+    const D = WRAITH_DISPERSE;
+    // an interrupted taunt has no giant to hand over from — see minK
+    if (k < D.minK) {
+      this.world.effects?.batSwarm(this.pos, {
+        n: Math.round(16 + 14 * k), radius: base.r * g * 1.15,
+        height: base.h * g, scale: base.s * g * 1.8,
+      });
+      this.setOpacity(1);
+      return;
+    }
+    // bake at his feet so the swell grows upward, not toward the world origin
+    const origin = this.pos.clone();
+    let shell;
+    try {
+      shell = bakePoseShell(this.mech.group, {
+        origin,
+        material: (src) => {
+          const m = src.clone();
+          m.transparent = true;
+          m.depthWrite = false;      // it is about to be see-through all over
+          m.opacity = src.opacity ?? 1;
+          return m;
+        },
+      });
+    } catch (e) {
+      // a body we cannot bake is not worth crashing a taunt over — fall back
+      // to what this used to do, which is simply to stop being there
+      console.warn('[wraith] could not bake the apparition', e);
+      this.setOpacity(1);
+      return;
+    }
+    shell.group.position.copy(origin);
+    w.scene.add(shell.group);
+
+    const fx = w.effects;
+    const startOp = Math.max(0.05, 1 - 0.45 * k);   // where growTaunt left him
+    const batTotal = Math.round(16 + 14 * k);
+    let t = 0, wave = 0, done = false;
+    // the body owns its own opacity again the moment anything else claims it
+    // (a cloak cast, the death fade) — this only drives it while it is his
+    const driving = () => this.alive && !this.status?.cloak;
+    this.setOpacity(0);
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      shell.dispose();
+      if (driving()) this.setOpacity(1);
+    };
+
+    w.addUpdater((dt) => {
+      t += dt;
+      const p = clamp01(t / D.dur);
+      // The shell swells on an EASE-OUT — most of the growth up front, while it
+      // is still solid enough for the growth to be what you notice.
+      // THE SCALE HERE IS THE EXTRA ONLY: the bake took world-space vertices
+      // off a group that was already wearing `g`, so the giant's own size is
+      // baked in and multiplying by it again would start the shell at 2.6x.
+      const swell = 1 + (D.swell - 1) * (1 - (1 - p) * (1 - p));
+      shell.group.scale.setScalar(swell);
+      const grow = g * swell;               // …the TOTAL, for sizing the flock
+      // …and the two opacities are a STRAIGHT LINEAR CROSSFADE, which is the
+      // whole ask: both bodies visibly present through the middle of it. The
+      // first version faded the shell on the square, which is a curve that has
+      // already spent two thirds of its visibility by the time it is a third of
+      // the way through — measured, the giant was down to 0.14 at the halfway
+      // point and 0.02 at 0.42s, so what was on screen was a dark smear
+      // dissolving rather than a second wraith handing over. Linear is not a
+      // failure of imagination here; a crossfade is exactly what this is.
+      for (const m of shell.materials) m.opacity = startOp * (1 - p);
+      if (driving()) this.setOpacity(p);
+      // …and the flock assembles out of him as he goes, sized off the shell at
+      // the moment each wave leaves rather than off the body that is left
+      while (wave < D.waves && p >= (wave + 1) / (D.waves + 1)) {
+        wave++;
+        fx?.batSwarm(this.pos, {
+          // SIZED OFF A PICTURE, not off a hunch: at 0.55 of body scale a bat
+          // is a dark fleck the eye reads as dust. 1.8 is where the silhouette
+          // — wings, ears, the flap — is legible at combat camera distance.
+          n: Math.round(batTotal / D.waves), radius: base.r * grow * 1.15,
+          height: base.h * grow, scale: base.s * grow * 1.8,
+        });
+      }
+      return p < 1;
+    }, finish);
   }
 
   // ---- SOLID ICE (roster `tauntIce` — GLACIER) ----------------------------

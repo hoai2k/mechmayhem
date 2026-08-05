@@ -1771,13 +1771,48 @@ audio). Progress history: `TASKS.md`.
   at -0.6 and -2.2 along his facing, path midpoint +1.65). WRAITH LOOMS
   (`growTaunt`, roster `tauntGrow: 1.6` — the same levers colossus' ult pulls,
   `Animator.sizeMul` included) with a gale blown through his cloak
-  (`swayCloak`'s `wind`), half-transparent with cold wisps coming off him, and
-  the clip tips his whole spine FORWARD over you with the head counter-rotated
-  so the hood stays on your face. THERE IS NO WAY BACK DOWN: a symmetric ramp made the whole
-  thing a bellows, so the instant the taunt ends he is back at his own size on
-  the SAME frame and the GIANT is disposed of separately — `Effects.batSwarm`
+  (`swayCloak`'s `wind`), half-transparent with cold wisps coming off him. THE
+  POSE IS TWO KEYS AND STAYS OUT OF THE WAY: he draws himself up and tips
+  SLIGHTLY forward (10.4° at the hips against a 5° torso counter) and holds that
+  to the last frame — it used to keep folding over you to 46° of spine, which is
+  a second effect competing with the growth for the same silhouette, and the one
+  that reads at arena distance is the size.
+  THERE IS NO WAY BACK DOWN: a symmetric ramp made the whole
+  thing a bellows, so the instant the taunt ends the FIGHTER is back at his own
+  size on the SAME frame — hitbox, height and `sizeMul` all belong to a body in
+  a fight, and half a second of giant hurtbox nothing can be hit by loses
+  rounds.
+  …AND THE GIANT IS HANDED OVER RATHER THAN DELETED (`Fighter.disperseGiant`).
+  It used to vanish on that frame with the bats spawned where it had stood,
+  which asks the eye to take a disappearance and a swarm as one event and reads
+  as a pop. The apparition is now PEELED OFF as a frozen shell — baked exactly
+  as drawn, pose and size and all (`bakePoseShell`, poseshell.js) — into the
+  world's scene, and over `WRAITH_DISPERSE.dur` (0.5s) it keeps GROWING
+  (`swell` 1.45 on top of `tauntGrow`, so 2.3x him at the last visible frame)
+  while it fades, as the mech fades up inside it. So there are TWO WRAITHS on
+  screen for the whole crossfade, which is the point: one arriving at normal
+  size, one leaving at twice the height it started. The growth has to CONTINUE
+  through the dissolve — a shape that stops growing and then fades reads as a
+  fade, one still expanding as it thins reads as coming apart.
+  THREE THINGS THAT ARE NOT FREE HERE. The fade is LINEAR, deliberately: the
+  first version faded on the square, which had spent two thirds of its
+  visibility a third of the way in (measured 0.14 at the halfway point, 0.02 at
+  0.42s) and put a dark smear on screen instead of a second body. The shell
+  keeps HIS OWN materials, cloned — a flat spectre material is right for Ghost
+  Protocol, which is a projection, and wrong for the thing you have been looking
+  at for three seconds; cloned because a shared one would fade the real mech too
+  (the trap `setOpacity` documents for glacier's ice). And it is scaled about
+  HIS FEET (the bake's `origin`), or a body that doubles in size grows toward
+  the world origin instead of upward.
+  `WRAITH_DISPERSE.minK` is the interruption guard: a hit swaps the taunt for
+  the flinch clip and can do it on the first frame, and handing over from an
+  apparition that never grew is half a second of the player's own body faded out
+  while he is being hit. Under that much growth the old instant path runs.
+  `Effects.batSwarm`
   breaks it into black bats that climb away (a body-shaped spawn volume, so what
-  comes apart is the shape that was standing there). The bats are a NORMAL-blended
+  comes apart is the shape that was standing there), released in `waves` across
+  the fade rather than all on the first frame — the flock should be assembling
+  out of him, not waiting for him. The bats are a NORMAL-blended
   pool — an additive black sprite is nothing at all — off a 2x2 wing-position
   atlas (`batTexture`) looped by ParticlePool's `flap` (atlas loops per SECOND;
   the old `cell: -1` walks the frames once over the particle's whole life, which
@@ -1861,7 +1896,13 @@ that combat silently depends on. Never rebuild a design without it.
   a clip in `SMASH_MIRRORS` needs its `*Mirror` name overridden too, or half the
   swings fall through to the shared clip
 - `src/combat/` — fighter.js (state machine), specials.js (24 specials/ults
-  by id), projectiles.js, effects.js (pooled VFX)
+  by id), projectiles.js, effects.js (pooled VFX), poseshell.js (a mech FROZEN
+  AND DETACHED — a throwaway copy of the body exactly as drawn this frame, free
+  to be moved, scaled and faded while the real one keeps fighting. Both callers
+  are wraith's: Ghost Protocol's gliding spectre and the loom taunt's departing
+  giant. Note a SkinnedMesh's `matrixWorld` is NOT where its skin is drawn — the
+  bone matrices already carry the mesh node's transform — so the skin is baked
+  vertex by vertex; copying the matrix floats the copy metres off the ground)
 - `src/arena/` — themes.js (12 arena configs), arena.js, destructible.js
   (instanced chunk buildings), props.js
 - `src/game/` — boot.js (screen flow), world.js, match.js, camera.js
