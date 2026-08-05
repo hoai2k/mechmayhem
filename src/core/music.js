@@ -37,7 +37,7 @@
 import {
   MUSIC_BASE, MUSIC_FILES, MUSIC_ARENA_BASE, MUSIC_ARENA_FILES,
 } from 'virtual:rw-music';
-import { CONFIG, setMusicVolume } from './config.js';
+import { CONFIG, setMusicVolume, menuMusicVolume } from './config.js';
 
 const titleOf = (file) => file.replace(/\.[^.]+$/, '');
 const byTitle = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
@@ -111,9 +111,12 @@ export class MusicPlayer {
    *   rotation (the menu theme; see MENU_TRACKS).
    * @param {boolean} [opts.loop] loop the one song forever rather than
    *   advancing to another when it ends.
+   * @param {boolean} [opts.menu] this is the MENU theme: it plays at the
+   *   music bus quieted by CONFIG.menuMusicMix, and has no arena rotation.
    */
   constructor(opts = {}) {
     this.loop = !!opts.loop;
+    this._menu = !!opts.menu;
     this._fixed = opts.tracks || null;      // a caller-supplied list (menu theme)
     this._pool = CONFIG.music ? (this._fixed || TRACKS) : [];  // the general rotation
     this.tracks = this._pool;               // what is playing NOW (arena or general)
@@ -157,8 +160,12 @@ export class MusicPlayer {
   get available() { return !!this.el && this.tracks.length > 0; }
   /** Song name for the readout, or null when nothing is loaded. */
   get nowPlaying() { return this.track ? this.track.name : null; }
-  /** The music bus level (the settings slider writes it through CONFIG). */
-  get volume() { return CONFIG.musicVolume; }
+  /**
+   * This player's level. The battle soundtrack plays at the music bus itself;
+   * the MENU theme plays at the bus quieted by `CONFIG.menuMusicMix`, since a
+   * screen you are reading and talking over wants less than a fight does.
+   */
+  get volume() { return this._menu ? menuMusicVolume() : CONFIG.musicVolume; }
   /** True when a song is actually meant to be audible right now. */
   get audible() { return this.playing && this.enabled && !this.muted; }
 
@@ -292,9 +299,14 @@ export class MusicPlayer {
     this._changed();
   }
 
-  /** Settings slider: 0..1 on the music bus alone. Persisted through CONFIG. */
+  /**
+   * Settings slider: 0..1 on the music bus alone. Persisted through CONFIG.
+   * A MENU player never writes the bus — its level is derived from it — so
+   * this just re-reads what the slider left, which is what keeps the menu
+   * theme following the slider down at its own quieter share.
+   */
   setVolume(v) {
-    setMusicVolume(v);
+    if (!this._menu) setMusicVolume(v);
     this._applyVolume();
     this._changed();
   }

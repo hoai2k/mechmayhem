@@ -87,7 +87,7 @@ export async function bootGame() {
   // title and select screens. The procedural sequencer's `menu` pattern is
   // the FALLBACK — it plays whenever this file can't (no <audio>, missing
   // asset, or a RW_NO_MUSIC build, which empties the track list).
-  const menuMusic = new MusicPlayer({ tracks: MENU_TRACKS, loop: true });
+  const menuMusic = new MusicPlayer({ tracks: MENU_TRACKS, loop: true, menu: true });
   // a missing/undecodable file must not leave the menus silent: the sequencer
   // takes over the moment the element gives up on it
   menuMusic.el?.addEventListener('error', () => {
