@@ -116,8 +116,19 @@
  *   heirsOf(gaitId)   -> …and the variants built on this one
  *   clone / diff / format(gaitId, gait) -> copy · differences · source text
  *   install(animator, gait) -> run this (edited) gait on a live subject
- *   evaluate(gait, env)     -> the gait's own contribution to a pose, used to
- *                        solve "this limb moved N radians" back into a dial
+ *   evaluate(gait, env)     -> what the gait does to a pose, used to solve "this
+ *                        limb moved N radians" back into a dial AND to answer
+ *                        "can this dial move this subject at all". Pass
+ *                        `env.body` (below) and it runs the whole pose
+ *                        pipeline, not just the shared table.
+ *   body(id, animator) -> OPTIONAL — an opaque handle for `env.body`, naming the
+ *                        SUBJECT the pose is being evaluated on. A gait is one
+ *                        table shared by many bodies, but a pose is a pipeline
+ *                        whose last passes are per-subject and may REPLACE what
+ *                        the gait wrote rather than add to it. Without this the
+ *                        tool measures the table and offers dials that cannot
+ *                        move the model in front of you. Omit it and evaluate
+ *                        ignores env.body, which is the old behaviour.
  *   phaseRate(gait, {…}) -> gait phase advance per second, for a frozen preview
  *   topSpeed(id, {game, sprint}) -> the game's real top locomotion speed
  *

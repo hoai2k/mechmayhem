@@ -48,7 +48,9 @@
 // running the SHIPPED gait, phase-locked to yours — the only honest way to
 // judge "is this actually better".
 //
-// MOVING THE POSE ON SCREEN. Click a limb (or its dot) to select the joint. The
+// MOVING THE POSE ON SCREEN. Click a limb to select the joint (hover marks
+// which one you'll get — there is no permanent dot on every joint, because
+// nothing here edits a joint on its own; see the joint marks section). The
 // panel then lists the dials that drive it, and DRAGGING THE HIGHLIGHTED JOINT
 // tunes the active one — drag the limb the way you want it to go. The tool
 // measures d(joint angle)/d(dial) at the phase you are parked on, works out
@@ -545,9 +547,26 @@ export async function runGaitWorkbench(config, params) {
   }
 
   // ---------- joint marks ----------
+  // TWO DOTS AT MOST — the one under the cursor and the one you picked, and
+  // nothing at all the rest of the time.
+  //
+  // This tool used to draw the whole skeleton: fifteen dots hanging over the
+  // model, always. They were left over from when a joint here was a thing you
+  // EDITED — there was a joint-rotation mode that authored `gait.keys` through
+  // a gizmo, and a constellation of handles was the honest picture of that.
+  // That mode is gone (the data side survives, nothing writes it), and what a
+  // joint means now is narrower: a place to click to ask WHICH DIAL MOVES THIS
+  // LIMB, and then something to drag to tune that dial. A permanent dot on
+  // every joint says the opposite — it advertises fifteen per-bone handles on a
+  // tool that has none, and it does it by scattering bright markers over the
+  // one thing you opened the workbench to look at, which is the walk cycle.
+  //
+  // Hover feedback keeps the affordance without the litter: the cursor already
+  // turns to a pointer over a pickable limb, and the dot that comes with it is
+  // the confirmation that THIS is the joint the click will take. The selected
+  // one stays lit because you are about to drag it.
   const marks = new THREE.Group();
   scene.add(marks);
-  const markMat = new THREE.MeshBasicMaterial({ color: 0x9fb2c8, depthTest: false, transparent: true, opacity: 0.7 });
   const selMat = new THREE.MeshBasicMaterial({ color: 0xff9f43, depthTest: false });
   const hovMat = new THREE.MeshBasicMaterial({ color: 0xffe08a, depthTest: false });
   const markPool = {};
@@ -558,17 +577,18 @@ export async function runGaitWorkbench(config, params) {
     const r = (mech.dims.scale || 1) * 0.09;
     for (const j of JOINT_ORDER) {
       const o = mech.joints[j];
-      if (!o) continue;
+      const sel = j === selJoint, hov = j === hoverJoint;
       let dot = markPool[j];
+      if (!o || !(sel || hov)) { if (dot) dot.visible = false; continue; }
       if (!dot) {
-        dot = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), markMat);
+        dot = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), hovMat);
         dot.renderOrder = 999;
         markPool[j] = dot; marks.add(dot);
       }
+      dot.visible = true;
       dot.position.copy(o.getWorldPosition(_wp));
-      const sel = j === selJoint, hov = j === hoverJoint;
-      dot.scale.setScalar(r * (sel ? 1.8 : hov ? 1.4 : 1));
-      dot.material = sel ? selMat : hov ? hovMat : markMat;
+      dot.scale.setScalar(r * (sel ? 1.8 : 1.4));
+      dot.material = sel ? selMat : hovMat;
     }
   }
 
@@ -660,6 +680,12 @@ export async function runGaitWorkbench(config, params) {
       // …and the extra legs a hexapod carries, for the same reason: which bones
       // they are, and which tripod each is in, is measured off the rig
       hex: animator?.hexLegs?.() || null,
+      // …AND WHOSE BODY THIS IS. A gait is one shared table but a pose is a
+      // pipeline, and its last passes belong to THIS subject alone (see
+      // config.gait.body): they may add to what the gait wrote or replace it
+      // outright, and a dial whose joint gets replaced is dead here however
+      // live it is on the mech standing next to him.
+      body: G.body?.(curId, animator) || null,
 
       ratio, s: mech.dims.scale || 1,
       ankleGain: animator.ankleGain, footFlat: animator.footFlat,
@@ -774,11 +800,11 @@ export async function runGaitWorkbench(config, params) {
   // date when the cycle changes.
   function sensitivity(dial, joint) {
     const gait = gaitOf(gaitId);
-    const env = {
-      ph: animator.phase, ratio: throttle, s: mech.dims.scale,
-      ankleGain: animator.ankleGain, footFlat: animator.footFlat,
-      hipHeight: mech.dims.hipHeight,
-    };
+    // the SAME env the relevance scan runs on, this body's post-gait passes
+    // included — a drag has to be projected onto the movement that survives to
+    // the screen, not onto the one the gait alone would have made
+    const env = effectEnv(throttle);
+    env.ph = animator.phase;
     const key = joint === 'hips' ? 'hipsRot' : joint;
     const eps = Math.max(1e-3, (dial.max - dial.min) * 0.01);
     const before = G.evaluate(gait, env);
