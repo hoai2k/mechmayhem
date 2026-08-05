@@ -85,6 +85,35 @@ export function levelHands(tgt) {
   }
 }
 
+// SAURION'S RUNNING FORELIMB CARRY, in one table because it is the whole of
+// what a raptor does with its arms — and because the gait workbench cannot
+// help you here. The gait's `arms.*` dials are a jogger's counter-swing; a
+// theropod's forelimbs do not pump, they are CARRIED, so the signature ASSIGNS
+// these joints (lerp with the speed ratio as the weight) rather than adding to
+// what the cycle wrote. That assignment is what makes seven of the nine arm
+// dials inert on his body at speed — the workbench measures it and hides them
+// now (config.gait.body), which is honest, but it also means these five numbers
+// are the only place his running arms can be changed.
+//
+// ARMS FORWARD, and forward is MEASURED — the rendered hand against the
+// shoulder along his own facing, as a fraction of body height
+// (tools/scratch/armcarry.mjs). He used to run with the arms hanging BEHIND the
+// shoulder line: standing he carried the hand 0.26 ahead of the shoulder (the
+// alert Jurassic-Park half-raise the rest pose authors) and the run dropped it
+// to 0.07 with the ELBOW at -0.06, i.e. behind the joint it hangs off. That is
+// the drop, not a swing — the run carry was pitched LESS forward than his own
+// standing stance, so breaking into a run visibly let the arms fall back.
+//   · `shoulder`  upper-arm pitch. NEGATIVE IS FORWARD (same sign as thigh
+//                 pitch — see the counter-swing note in gaits.js), so the fix
+//                 is a bigger magnitude, not a smaller one.
+//   · `elbow`     the fold. Deeper keeps the claws tucked under the chest as
+//                 the shoulder reaches out, which is the difference between
+//                 carried and reaching.
+//   · `wrist`     claws cocked up off the forearm line.
+//   · `splay`     shoulder roll, mirrored L/R — arms held just off the ribs.
+//   · `bob`       the only life in it: a small twice-a-stride carry bounce.
+const SAURION_CARRY = { shoulder: -1.35, elbow: -1.45, wrist: 0.55, splay: 0.12, bob: 0.05 };
+
 export const SIGNATURES = {
   vulcan(anim, dt, ctx, tgt) {
     const J = anim.J, t = anim.t;
@@ -187,6 +216,7 @@ export const SIGNATURES = {
 
   saurion(anim, dt, ctx, tgt) {
     const J = anim.J, t = anim.t;
+    // (the running forelimb carry is SAURION_CARRY, above the registry)
     // RAPTOR LOCOMOTION (researched theropod gait): the tail is a
     // travelling S-wave that wags side-to-side in time with the stride
     // to control angular momentum — raised at rest, whipping and
@@ -225,15 +255,16 @@ export const SIGNATURES = {
       tgt.hipsRot[0] += 0.08 * run;
       tgt.hipsPos[1] -= 0.06 * run * anim.s;
       tgt.head[0] += -0.22 * run;
-      const carryBob = Math.sin(ph * 2) * 0.05 * run;
-      tgt.shoulderL[0] = lerp(tgt.shoulderL[0], -0.62 + carryBob, run);
-      tgt.shoulderR[0] = lerp(tgt.shoulderR[0], -0.62 + carryBob, run);
-      tgt.shoulderL[2] = lerp(tgt.shoulderL[2], -0.1, run);
-      tgt.shoulderR[2] = lerp(tgt.shoulderR[2], 0.1, run);
-      tgt.elbowL[0] = lerp(tgt.elbowL[0], -1.15, run);
-      tgt.elbowR[0] = lerp(tgt.elbowR[0], -1.15, run);
-      tgt.handL[0] = lerp(tgt.handL[0], 0.5, run);
-      tgt.handR[0] = lerp(tgt.handR[0], 0.5, run);
+      const C = SAURION_CARRY;
+      const carryBob = Math.sin(ph * 2) * C.bob * run;
+      tgt.shoulderL[0] = lerp(tgt.shoulderL[0], C.shoulder + carryBob, run);
+      tgt.shoulderR[0] = lerp(tgt.shoulderR[0], C.shoulder + carryBob, run);
+      tgt.shoulderL[2] = lerp(tgt.shoulderL[2], -C.splay, run);
+      tgt.shoulderR[2] = lerp(tgt.shoulderR[2], C.splay, run);
+      tgt.elbowL[0] = lerp(tgt.elbowL[0], C.elbow, run);
+      tgt.elbowR[0] = lerp(tgt.elbowR[0], C.elbow, run);
+      tgt.handL[0] = lerp(tgt.handL[0], C.wrist, run);
+      tgt.handR[0] = lerp(tgt.handR[0], C.wrist, run);
       // longer, springier strides than the humanoid cycle gives
       tgt.thighL[0] += -Math.sin(ph) * 0.2 * run;
       tgt.thighR[0] += -Math.sin(ph + Math.PI) * 0.2 * run;

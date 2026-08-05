@@ -368,6 +368,16 @@ audio). Progress history: `TASKS.md`.
   unused and is gone. The DATA side survives untouched — `applyGaitKeys` still
   runs and "Output gait" still carries any `keys` a gait has — so a gait file
   that carries them is unaffected; there is just no UI that writes them.)
+  …AND THE SKELETON OF DOTS WENT WITH IT. A dot on all fifteen joints, always,
+  was the honest picture of a tool where a joint was a thing you EDITED; on this
+  one a joint is a place to CLICK to ask which dial moves this limb, and a
+  permanent handle on every bone advertises fifteen per-bone controls that do not
+  exist — while scattering bright markers over the walk cycle you opened the tool
+  to look at. At most TWO are drawn now: the joint under the cursor (the cursor
+  already turns to a pointer there — the dot is which joint the click will take)
+  and the one you picked, which you are about to drag. Picking is unchanged: the
+  dots were never the only target, the body itself is pickable and the nearest
+  joint wins.
   EVERY DIAL GROUP OPENS SHUT: sixty-odd dials across nine groups is a wall, so
   you open the one limb you came to tune.
   ONLY THE DIALS THAT MOVE THIS BODY are shown. A gait is one table shared by
@@ -394,6 +404,25 @@ audio). Progress history: `TASKS.md`.
   command line: `node tools/gaitdials.mjs <mech> [throttle]` — and note
   `&throttle=0` is a real standstill now (`Number('0') || 1` used to quietly open
   it at full speed, so 0 and 1 reported the same answer).
+  "THE WHOLE PIPELINE" MEANS THE SIGNATURE TOO, and for a while it did not. The
+  scan ran `applyGait` and the layers around it, which is the shared table — but
+  the LAST thing the animator touches a pose with is per-mech: `SIGNATURES[<id>]`
+  and the GLB profile's `post` hook, and a signature is free to ASSIGN a joint
+  rather than add to it. SAURION is the case that exposed it: his raptor carry
+  lerps shoulder pitch/roll, elbow pitch and wrist pitch to fixed angles with the
+  speed ratio as the weight, so at a run SEVEN of the nine `arms.*` dials cannot
+  move him at all — and the panel offered all nine, which is a slider you can
+  drag for an afternoon with nothing happening. `config.gait.evaluate` takes an
+  `env.body` handle now (`config.gait.body(id, animator)`) and runs those passes,
+  so what the tool measures is what the frame does; `arms.cross` (shoulder YAW,
+  the one axis his carry leaves alone) stays live and correctly so. THE ANIMATOR
+  IT HANDS THEM IS A DECOY with an EMPTY joint table and `dt: 0` — a signature's
+  other half writes bones directly (tails, halos, gatlings), and a relevance scan
+  that twitches the tail dozens of times a second has changed the thing it was
+  measuring. Every one of those writes is already guarded, so an empty table
+  makes them no-ops; a signature that throws under it is disabled for that body
+  and the measurement falls back to the gait alone. `node
+  tools/scratch/sigdecoy.mjs` runs the scan on all 20 and fails on either.
   TYPING beats the slider: a dial's
   number box takes values PAST the slider's ends (the range is the sane band, not
   a limit) and marks itself amber when it is outside what the handle can reach.
@@ -406,6 +435,22 @@ audio). Progress history: `TASKS.md`.
   readout prints both, and they agreeing is the no-skate proof), the sideways
   offset is the track, and a stance foot sliding off its own print is a cadence
   that doesn't match the speed.
+- SOME LIMBS ARE CARRIED, NOT SWUNG, and then the gait dials are not where they
+  live. The `arms.*` group is a jogger's counter-swing; a theropod's forelimbs
+  do not pump, so `SIGNATURES.saurion` ASSIGNS his shoulders, elbows and wrists
+  at speed (`SAURION_CARRY` in signatures.js — one table, five numbers, lerped
+  in on the speed ratio) and that assignment is why the workbench greys most of
+  his arm rows. HIS ARMS USED TO FALL BACK AS HE RAN, which is what makes it
+  worth stating: measured as the rendered hand against the shoulder along his own
+  facing (`node tools/scratch/armcarry.mjs <mech> [throttle]`, fraction of body
+  height), standing carried the hand 0.256 AHEAD of the shoulder — the alert
+  Jurassic-Park half-raise his rest pose authors — and breaking into a run
+  DROPPED it to 0.075 with the elbow at -0.06, behind the joint it hangs off. The
+  run carry was pitched less forward than his own standing stance. It is 0.248 /
+  elbow +0.073 now: the sprint holds the carriage the stance sets instead of
+  letting it go. NEGATIVE SHOULDER PITCH IS FORWARD (the same sign as thigh
+  pitch — see the counter-swing note in gaits.js), so the fix is a BIGGER
+  magnitude, which is the one thing easy to get backwards here.
 - SKINNING A BONE CHAIN (`node tools/tailskin.mjs <mech> [--prefix tail]
   [--band 0.35] [--root hips]`): a chain like fenrir's blade-tail is easy to
   skin badly, and the bad way is the obvious one — each segment's geometry

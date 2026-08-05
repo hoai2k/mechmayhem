@@ -32,6 +32,7 @@ import {
   BONE_TINTS, MANNEQUIN_ID, MANNEQUIN_DEF,
 } from '../../../src/mechs/mannequin.js';
 import { profileFor, ARM_JOINTS, mirrorJointName } from '../../../src/mechs/glbanim.js';
+import { SIGNATURES } from '../../../src/mechs/signatures.js';
 import {
   buildGlbForTool, fetchRawManifest, loadRawGlbScene, applyEntryDrops, skinnedBox, measureHeadTop, setAssetBase,
   clearGlbCache,
@@ -98,6 +99,73 @@ const defOf = (id) => ROSTER_BY_ID[id] || REFERENCE_DEFS[id] || null;
 // its own VIEW), so handing them a 7-unit body would put the camera inside its
 // shin.
 const referenceBody = (height = 7) => buildMannequin({ dims: canonicalDims(height), def: MANNEQUIN_DEF });
+
+// ---------------------------------------------------------------------------
+// THE PASSES THAT RUN AFTER THE GAIT ON ONE PARTICULAR BODY — the per-mech
+// SIGNATURE (signatures.js) and the GLB profile's `post` hook, which are the
+// last two things Animator.update does to the pose target. The gait workbench
+// asks "can this dial move THIS mech" by sweeping it through the pipeline, and
+// the answer is wrong unless these run: a signature is free to ASSIGN a joint
+// rather than add to it, and one that does owns that joint outright. Saurion is
+// the worked example — his raptor carry lerps shoulder pitch/roll, elbow pitch
+// and wrist pitch to fixed angles with the speed ratio as the weight, so at a
+// run seven of the nine `arms.*` dials cannot move him at all.
+//
+// THE ANIMATOR IT IS HANDED IS A DECOY, and every part of that is deliberate.
+// A signature writes two ways — into `tgt` (what the pose smoother owns) and
+// straight onto `anim.J` bones (tails, halos, gatlings) — and the second kind
+// must not happen here: this runs dozens of times per scan, on a model the
+// owner is looking at, and a scan that visibly twitches the tail is a scan that
+// changed the thing it was measuring. Every one of those writes is already
+// guarded (`if (!tj) continue`, `if (J.halo)`, `anim.part(…)`), so an EMPTY
+// joint table turns the whole class of them into no-ops while the `tgt` writes
+// — the only ones a dial sweep can see anyway — land normally.
+//   · `dt: 0` freezes every damp and countdown, so the sweep's trials differ by
+//     the dial and nothing else. Two signatures re-roll random scratch when
+//     their timer expires (jerry's twitches, nullbot's failing display); the
+//     scratch object PERSISTS across the scan, so they roll once and then hold.
+//   · `materials`/`rigBones` null: same rule as the bones, one level up.
+//   · a signature that throws under the decoy is DISABLED for that body rather
+//     than allowed to break the tool — the measurement degrades to the gait
+//     alone, which is exactly what it was before this existed.
+const _postScratch = new Map();      // mech id -> the decoy animator, reused
+const _postBroken = new Set();       // …and the ones that threw, never retried
+function postGaitLayers(tgt, env, body) {
+  const { id, animator } = body;
+  if (!id || _postBroken.has(id)) return;
+  const sig = SIGNATURES[id];
+  const post = profileFor(id)?.post;
+  if (!sig && !post) return;
+  let decoy = _postScratch.get(id);
+  if (!decoy) {
+    const def = defOf(id);
+    decoy = {
+      J: {},                                    // no bone is reachable
+      part: () => null,                         // …nor any face part
+      addImpulse: () => {},
+      mech: { def, isGLB: !!animator?.mech?.isGLB, materials: null, rigBones: null },
+      D: animator?.D || {}, s: animator?.s ?? 1, sizeMul: 1,
+      rest: animator?.rest || {}, cur: animator?.cur || {},
+      action: null, gait: null, t: 0, phase: 0, spinVel: 0,
+    };
+    _postScratch.set(id, decoy);
+  }
+  decoy.t = env.tailT ?? 0;
+  decoy.phase = env.ph ?? 0;
+  if (animator) { decoy.D = animator.D; decoy.s = animator.s; decoy.rest = animator.rest; }
+  // the fighter frame the signature reads: `run` is the speed ratio, which is
+  // what a carry crossfades on, and everything else is a body at rest so no
+  // combat branch is measured
+  const ctx = { speed: env.ratio ?? 0, maxSpeed: 1, grounded: true, firing: false, dashT: 0 };
+  try {
+    sig?.(decoy, 0, ctx, tgt);
+    post?.(decoy, 0, ctx, tgt);
+  } catch (e) {
+    _postBroken.add(id);
+    console.warn(`[gait] post-gait layer for '${id}' failed under measurement; `
+      + 'dial relevance falls back to the gait alone', e);
+  }
+}
 
 const CONFIG = defineWorkbenchConfig({
   game: 'robotworld',
@@ -366,8 +434,23 @@ const CONFIG = defineWorkbenchConfig({
         }
         applyHexGait(tgt, g, shared);
       }
+      // …AND THE PASSES THAT COME AFTER THE GAIT ON THIS PARTICULAR BODY.
+      // A gait is one table, but a POSE is a pipeline, and the last thing the
+      // animator runs is per-mech: SIGNATURES[<id>] and the GLB profile's
+      // `post` hook. Those may ADD to what the gait wrote (a shell waggle) or
+      // REPLACE it outright — saurion's raptor carry assigns his shoulders,
+      // elbows and wrists at a run, which kills seven of the nine `arms.*`
+      // dials stone dead on him however far they are dragged. Measuring the
+      // gait alone reported all nine live and sent the owner dragging sliders
+      // that could not move the model: the panel is only worth trusting if
+      // what it measures is what the frame actually does.
+      if (env.body) postGaitLayers(tgt, shared, env.body);
       return tgt;
     },
+    // The handle `evaluate` needs to run those layers — the tool holds an
+    // animator already (it reads ankleGain/tailChain off it) and passes it
+    // straight back, so no game type crosses into workbench/tools.
+    body: (id, animator) => (id ? { id, animator } : null),
     // The game's OWN top locomotion speed for this mech, so the preview's
     // throttle is in real units and the stride cadence matches a match.
     // moveSpeedFor is the fighter's own formula and bakes in the LIVE ROBOT
