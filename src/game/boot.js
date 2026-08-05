@@ -660,6 +660,9 @@ export async function bootGame() {
     S.battle = { world, arena, fighters, humans, ais, cameraSys, hud, match, paused: false, usesTouch, loading: null, arenaObjs };
     if (touchControls) touchControls.setVisible(false); // hidden until the bell
     stopMenuMusic();
+    // this arena's own songs (src/music/arenas/) if it has any, else the
+    // general pool — set BEFORE start(), which plays whatever is pre-rolled
+    music.setArena(theme);
     if (music.available) { audio.stopMusic(); music.start(); }
     else audio.music(theme.music);
     // pre-fight warm-up screen: the match is gated behind it while the

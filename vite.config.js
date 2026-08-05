@@ -22,16 +22,25 @@ import path from 'node:path';
 // RW_NO_MUSIC=1 builds the game WITHOUT the soundtrack: no files copied, an
 // empty track list, and the game falls back to its procedural battle themes.
 // That's the switch for a packaged build that shouldn't carry ~40MB of audio.
+//
+// `src/music/arenas/` is the same thing PER ARENA: a song named for an arena
+// ("Jungle Temple 1") plays on that arena instead of the general pool. It is
+// listed and copied exactly like the pool — the MATCHING is core/music.js'
+// business, this only says which files exist.
 const MUSIC_DIR = path.resolve('src/music');
+const ARENA_DIR = path.join(MUSIC_DIR, 'arenas');
 const MUSIC_EXT = /\.(mp3|ogg|m4a|wav|webm)$/i;
 const MUSIC_ID = 'virtual:rw-music';
 
-function musicFiles() {
+function songsIn(dir) {
   if (process.env.RW_NO_MUSIC === '1') return [];
   try {
-    return fs.readdirSync(MUSIC_DIR).filter((f) => MUSIC_EXT.test(f)).sort();
+    return fs.readdirSync(dir).filter((f) => MUSIC_EXT.test(f)).sort();
   } catch (e) { return []; } // no folder — procedural themes only
 }
+
+function musicFiles() { return songsIn(MUSIC_DIR); }
+function arenaFiles() { return songsIn(ARENA_DIR); }
 
 function musicPlugin() {
   let isBuild = false;
@@ -45,17 +54,22 @@ function musicPlugin() {
       // copy beside index.html (relative, so `base: './'` keeps working)
       const base = isBuild ? './music/' : '/src/music/';
       return `export const MUSIC_BASE = ${JSON.stringify(base)};\n`
-        + `export const MUSIC_FILES = ${JSON.stringify(musicFiles())};\n`;
+        + `export const MUSIC_FILES = ${JSON.stringify(musicFiles())};\n`
+        + `export const MUSIC_ARENA_BASE = ${JSON.stringify(base + 'arenas/')};\n`
+        + `export const MUSIC_ARENA_FILES = ${JSON.stringify(arenaFiles())};\n`;
     },
     // Copied, not emitted: routing ~40MB of audio through rollup's asset
     // pipeline (buffer it, hash it, account it) costs a minute and a half of
     // build time to produce files it must not rename anyway.
     writeBundle(opts) {
-      const files = musicFiles();
-      if (!files.length) return;
+      const copy = (src, files, dst) => {
+        if (!files.length) return;
+        fs.mkdirSync(dst, { recursive: true });
+        for (const f of files) fs.copyFileSync(path.join(src, f), path.join(dst, f));
+      };
       const dir = path.join(opts.dir || 'dist', 'music');
-      fs.mkdirSync(dir, { recursive: true });
-      for (const f of files) fs.copyFileSync(path.join(MUSIC_DIR, f), path.join(dir, f));
+      copy(MUSIC_DIR, musicFiles(), dir);
+      copy(ARENA_DIR, arenaFiles(), path.join(dir, 'arenas'));
     },
     // a song added/removed while the dev server runs: reload the page so the
     // virtual module is re-read
