@@ -20,12 +20,15 @@
 import { TAU } from '../../core/utils.js';
 import {
   torusDist, makePropOk, gateSpots, gateNudge, makeGateOk, flankSpots,
-  traitsFor, traitYaw, yawTo, shuffle,
+  sightlineClear, traitsFor, traitYaw, yawTo, shuffle,
 } from './util.js';
 
 /**
  * env: the design plan env ({ theme, rng, B, P, clearing }).
- * ctx: the prop-plan ctx arena.js hands over ({ terrain, sites, propOk }).
+ * ctx: the prop-plan ctx arena.js hands over ({ terrain, footprints, propOk })
+ *      — `footprints` are the boxes of the buildings ALREADY BUILT this
+ *      arena, which is what a prop must stay out of (a site coordinate is
+ *      only the middle of a silhouette up to 20 units across).
  * cls: classifyProps' output — this consumes gates/flanks/centerpieces/solos.
  * plan: the Map being built (spec → placements).
  * opts.plazas:     [{x, z, r}] the system's pocket plazas (pave patches).
@@ -35,12 +38,12 @@ import {
  */
 export function planTraitClasses(env, ctx, cls, plan, { plazas = [], approaches = null } = {}) {
   const { rng, P, clearing: C } = env;
-  const { terrain, sites, propOk } = ctx;
-  const pOk = makePropOk(propOk, sites, P);
+  const { terrain, footprints, propOk } = ctx;
+  const pOk = makePropOk(propOk, footprints, P);
   // guardians stand against walls — a plinth beside a facade is classical —
-  // so flanks keep only a plinth's worth of building clearance
-  const pOkTight = makePropOk(propOk, sites, P, 6.5);
-  const gOk = makeGateOk(terrain, sites);
+  // so flanks keep only a plinth's worth of clearance FROM THE WALL ITSELF
+  const pOkTight = makePropOk(propOk, footprints, P, 1.5);
+  const gOk = makeGateOk(terrain, footprints);
 
   // ---- gates: on the paths, at the plaza rim, one per crossing ----
   const wantGates = cls.gates.reduce((s, sp) => s + sp.count, 0);
@@ -68,17 +71,22 @@ export function planTraitClasses(env, ctx, cls, plan, { plazas = [], approaches 
     }
   }
 
-  // ---- flanks: guardian pairs on the gated approaches, facing the centre ----
+  // ---- flanks: guardian pairs on the gated approaches, facing the centre,
+  // AND VISIBLE FROM IT — a guardian tucked behind a street wall has a
+  // perfect yaw nobody will ever see, so the sightline is part of the rule
+  // (relaxed on a second pass rather than losing the pair entirely) ----
+  const origin = { x: 0, z: 0 };
   cls.flanks.forEach((spec, si) => {
     const a = usedAngles.length
       ? usedAngles[si % usedAngles.length]
       : (approaches?.length ? approaches[si % approaches.length] : rng.range(0, TAU));
-    for (let t = 0; t < 6; t++) {
-      const r = C + 11 + t * 3.5;
-      const pair = flankSpots(a, r, 17 + t * 1.5);
-      if (pair.every((p) => pOkTight(p.x, p.z, spec.name))) {
-        plan.set(spec, pair);
-        return;
+    for (const needSight of [true, false]) {
+      for (let t = 0; t < 6; t++) {
+        const r = C + 11 + t * 3.5;
+        const pair = flankSpots(a, r, 17 + t * 1.5);
+        const ok = pair.every((p) => pOkTight(p.x, p.z, spec.name)
+          && (!needSight || sightlineClear(footprints, origin, p)));
+        if (ok) { plan.set(spec, pair); return; }
       }
     }
     // no room astride the approach: sweep the rim for any two footholds,

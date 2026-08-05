@@ -1588,7 +1588,30 @@ audio). Progress history: `TASKS.md`.
   property survives. Sacred pairs FLANK the gated approach symmetric about
   its axis (the ruins' sphinx pair sits either side of the great gate's
   road, both facing the fight); a gate whose spot is blocked slides ALONG
-  its lane rather than stepping off it. `node tools/scratch/traitprobe.mjs
+  its lane rather than stepping off it.
+  A PROP KEEPS OFF THE BUILDINGS' FOOTPRINTS, NOT THEIR CENTRES. A site
+  coordinate is the MIDDLE of a massed silhouette up to 20 units across, so a
+  planner holding a fixed radius from it put the ruins' sphinx pair INSIDE a
+  20x20 tower (measured: gap 0.0 to the nearest building). Buildings are
+  built before props are planned, so arena.js hands the planner their real
+  boxes (`ctx.footprints`, read off `destructo.buildings[].aabb`) and
+  `makePropOk`/`makeGateOk` reject by BOX, not by distance. A guardian also
+  has to be SEEN: `sightlineClear` walks the line from the focal point and
+  refuses a spot hidden behind a street wall (relaxed on a second pass rather
+  than losing the pair).
+  …AND THE MODEL HAS TO AGREE WITH THE YAW. A placed prop usually renders an
+  imported GLB (propglb.js) turned by the prop manifest's `ry`, and
+  `tools/propyaw.mjs` only aligns its LONG AXIS (mod 180) — a sphinx's long
+  axis is head-to-tail, so a model can be perfectly axis-aligned and still be
+  back to front. It was: the sphinx faced the fight with its haunches at a
+  measured 0.0 deg of yaw error. `node tools/scratch/propfront.mjs "<url>"
+  <prop>…` measures where each MODEL's mass sits high up, in the prop's own
+  frame, and names the reversed ones (`sphinxStatue` 90 -> 270,
+  `crystalMonolith` + 180 — fixed in the manifest, so the fallback scatter and
+  the authored levels get it too). It judges only GLB-backed props: the
+  PROCEDURAL builders define the convention, and the heuristic is fooled by a
+  flat-topped one (the jungle idol's face is at +Z and its moss cap is the top
+  third). `node tools/scratch/traitprobe.mjs
   "<battle url>"` MEASURES all of it on a built arena (facing deviation vs
   the arena centre OR the prop's own pocket plaza, gates on-lane, grid snap
   share, solo spacing) — worst facing deviation is 0.0° on ruins under all

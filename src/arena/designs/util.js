@@ -46,16 +46,33 @@ export function makeSiteOk(terrain, sites) {
 }
 
 /**
+ * Is (x,z) inside one of the buildings, plus `pad`?
+ *
+ * FOOTPRINTS, NOT CENTRES. A massed silhouette is up to 20 units across and
+ * a site coordinate is its middle, so "keep 10 units from the site" let a
+ * guardian stand INSIDE a 20×20 tower (measured on Desert Ruins: the sphinx
+ * pair at gap 0.0 from the nearest building, standing in the lobby). The
+ * arena hands over the real boxes, measured off what it just built.
+ */
+export function insideFootprint(footprints, x, z, pad = 0) {
+  for (const b of footprints) {
+    if (x > b.minX - pad && x < b.maxX + pad &&
+        z > b.minZ - pad && z < b.maxZ + pad) return true;
+  }
+  return false;
+}
+
+/**
  * Prop-spot validator on top of the arena's own propSpotOk: adds the cell
  * margin (ghost clones cover the wrap, but a prop centred ON the seam would
  * double-draw) and keeps props out of building footprints — a designed row
  * beside a tower must run along its face, not through it.
  */
-export function makePropOk(propSpotOk, sites, P, margin = 10.5) {
+export function makePropOk(propSpotOk, footprints, P, pad = 3.5) {
   return (x, z, name) => {
     if (Math.abs(x) > P / 2 - 6 || Math.abs(z) > P / 2 - 6) return false;
     if (!propSpotOk(x, z, name)) return false;
-    return sites.every((s) => torusDist(s.x, s.z, x, z, P) > margin);
+    return !insideFootprint(footprints, x, z, pad);
   };
 }
 
@@ -253,7 +270,7 @@ export function gateNudge(terrain, spot, t) {
  * else still applies: flat ground, off hazards/bridges/the viaduct, clear of
  * buildings, inside the cell.
  */
-export function makeGateOk(terrain, sites) {
+export function makeGateOk(terrain, footprints) {
   const P = terrain.P;
   return (x, z) => {
     if (Math.hypot(x, z) < 16) return false;
@@ -264,8 +281,26 @@ export function makeGateOk(terrain, sites) {
     if (terrain.viaduct &&
         Math.abs(terrain.vLocal(x, z).perp) < terrain.viaduct.w / 2 + 1.5) return false;
     if (terrain.heightAt(x, z) > 0.15) return false;
-    return sites.every((s) => torusDist(s.x, s.z, x, z, P) > 12);
+    return !insideFootprint(footprints, x, z, 4);
   };
+}
+
+/**
+ * Can this spot SEE the focal point — is there no building between them?
+ * A guardian facing the fight from behind a street wall is decoration: the
+ * yaw is right and nobody will ever know. Buildings are planned before props,
+ * so the test is against the site list, each treated as a disc of `clear`
+ * (a massed tower is 15–20 units across, so ~9 is its half-width plus a
+ * little). Cheap point-to-segment distance, no geometry needed.
+ */
+export function sightlineClear(footprints, from, to) {
+  const dx = to.x - from.x, dz = to.z - from.z;
+  const n = Math.max(4, Math.ceil(Math.hypot(dx, dz) / 3));
+  for (let i = 1; i < n; i++) {                    // walk the line, skip the ends
+    const t = i / n;
+    if (insideFootprint(footprints, from.x + dx * t, from.z + dz * t, 0)) return false;
+  }
+  return true;
 }
 
 // a guardian pair flanking the approach at angle `a`: symmetric about it,

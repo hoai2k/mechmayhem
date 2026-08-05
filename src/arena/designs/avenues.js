@@ -161,10 +161,10 @@ function planBuildings(env, axis, { terrain, rng, count }) {
 }
 
 function planProps(env, axis, ctx) {
-  const { rng, sites, specs, propOk, terrain } = ctx;
+  const { rng, footprints, specs, propOk, terrain } = ctx;
   const { B, P, clearing: C } = env;
   const { Wp, plazas } = axis;
-  const pOk = makePropOk(propOk, sites, P);
+  const pOk = makePropOk(propOk, footprints, P);
   const plan = new Map();
   const cls = classifyProps(specs);
 
