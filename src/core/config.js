@@ -10,11 +10,18 @@ export const SPEED_MAX = 2.0;
 export const SPEED_STEP = 0.05;
 export const SPEED_DEFAULT = 1.0;
 
+// Music bus default, and the MENU THEME's share of it: the menus play at
+// `musicVolume * menuMusicMix`, so 0.5 is "half as loud as a fight". Change
+// the mix to move the menus alone; the settings slider moves the bus, and the
+// menus follow it down.
+export const MUSIC_VOL_DEFAULT = 0.22;
+export const MENU_MUSIC_MIX_DEFAULT = 0.5;
+
 // Round length slider bounds, in SECONDS.
 export const ROUND_MIN = 30;
 export const ROUND_MAX = 300;
 export const ROUND_STEP = 10;
-export const ROUND_DEFAULT = 120;
+export const ROUND_DEFAULT = 180;
 
 const clampRound = (v) => (Number.isFinite(v)
   ? Math.round(Math.min(ROUND_MAX, Math.max(ROUND_MIN, v))) : ROUND_DEFAULT);
@@ -114,7 +121,13 @@ export const CONFIG = {
   // with RW_NO_MUSIC=1 ships no songs, which turns it off on its own.
   music: params.get('music') !== '0',
   // Music bus level, independent of the SFX bus. Settings slider, persisted.
-  musicVolume: readNum('rw.musicVol', 0.22),
+  musicVolume: readNum('rw.musicVol', MUSIC_VOL_DEFAULT),
+  // …and the MENU THEME is quieter than that, by a set PERCENTAGE of it: it
+  // plays under screens a player is reading and talking over, where the
+  // fight's level is loud. Stated as a fraction of the music bus rather than
+  // as a second level, so the settings slider stays the ONE music control and
+  // the menus follow it down. `menuMusicVolume` is the level that falls out.
+  menuMusicMix: readNum('rw.menuMusicMix', MENU_MUSIC_MIX_DEFAULT),
   // IDLE PREFETCH (game/predict.js): while the player is reading the title
   // screen or picking a robot, quietly pull down what the fight is about to
   // need — the song, the arena's textures, the models for RANDOM picks.
@@ -214,6 +227,15 @@ export function setMusicVolume(v) {
   CONFIG.musicVolume = Math.min(1, Math.max(0, +v || 0));
   try { localStorage.setItem('rw.musicVol', String(CONFIG.musicVolume)); } catch (e) { /* ok */ }
 }
+
+/** The menu theme's share of the music bus, 0..1. Persisted. */
+export function setMenuMusicMix(v) {
+  CONFIG.menuMusicMix = Math.min(1, Math.max(0, +v || 0));
+  try { localStorage.setItem('rw.menuMusicMix', String(CONFIG.menuMusicMix)); } catch (e) { /* ok */ }
+}
+
+/** What the MENU theme actually plays at: the bus, quieted by the mix. */
+export function menuMusicVolume() { return CONFIG.musicVolume * CONFIG.menuMusicMix; }
 
 export function setReverseCameraY(on) {
   CONFIG.reverseCameraY = on;

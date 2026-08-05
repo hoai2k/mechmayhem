@@ -1951,7 +1951,11 @@ that combat silently depends on. Never rebuild a design without it.
   `MusicPlayer` (`menuMusic` in boot.js) behind the title/select screens. The
   procedural sequencer's `menu` pattern is now the FALLBACK: it plays when
   <audio> is unavailable, the file 404s/fails to decode, or music is off. One
-  settings toggle and one volume slider drive both players), utils.
+  volume slider drives both players: it writes the music bus
+  (`CONFIG.musicVolume`) and the menu theme plays at a SHARE of it —
+  `CONFIG.menuMusicMix` (0.5), a screen you read and talk over wanting less
+  than a fight does — so the menus follow the slider down at their own level
+  (`menuMusicVolume()`; a menu player never writes the bus)), utils.
   THREE TUNING LAYERS, don't confuse them: `tuning.js` = the GAMEPLAY DIALS
   every mech shares (stamina durations, pace, dash, guard arc, hit reactions
   — the file to edit for feel; costs are stated as SECONDS/fractions of a
