@@ -1571,12 +1571,38 @@ audio). Progress history: `TASKS.md`.
   construction — street walls, gateway towers, terminated vistas) and CIRCUIT
   (arena-shooter flow: rotationally-symmetric bastion ring with open gates,
   inner cover pods, ONE tall symmetry-break for orientation, corner clusters
-  that wrap-assemble across the border). Props are arranged by SPEC SHAPE,
-  never name (count 1 = hero landmark · 2 = gateposts · 3-4 = district
-  dressing · >=5 = rows/rings with authored yaw · `clump` = nests), so a new
-  theme's palette lands in formations with no edit anywhere. The `pave` patch
+  that wrap-assemble across the border). Props are arranged by SPEC SHAPE
+  (count 1 = hero landmark · 2 = gateposts · 3-4 = district dressing · >=5 =
+  rows/rings with authored yaw · `clump` = nests), so a new theme's palette
+  lands in formations with no edit anywhere — REFINED by PLACEMENT TRAITS
+  (`designs/proptraits.js`, a per-prop-NAME table of how a prop wants to
+  STAND: sphinxes and idols face the focal point, gates sit ON a walkable
+  lane where it crosses the plaza rim with their passage along it, street
+  furniture turns square-on to the nearest road, industrial yards snap to the
+  world grid, campfires and bus stops isolate, fountains take a pocket
+  plaza's centre, ferns stay organic scatter). EVERY PROP'S FRONT IS +Z
+  (measured off the builders — the sphinx's head, the billboard's face, the
+  bandshell's mouth; gates pass through along Z; pipes are the `long:'x'`
+  exception), which is what makes one yaw-rule table work for all 67 props.
+  A prop absent from the table has no preferences, so the no-per-theme-edit
+  property survives. Sacred pairs FLANK the gated approach symmetric about
+  its axis (the ruins' sphinx pair sits either side of the great gate's
+  road, both facing the fight); a gate whose spot is blocked slides ALONG
+  its lane rather than stepping off it. `node tools/scratch/traitprobe.mjs
+  "<battle url>"` MEASURES all of it on a built arena (facing deviation vs
+  the arena centre OR the prop's own pocket plaza, gates on-lane, grid snap
+  share, solo spacing) — worst facing deviation is 0.0° on ruins under all
+  three systems. The `pave` patch
   kind (terrain.js) is the designed square the plaza roles paint — no hazard,
-  crisp disc + rim, in the level editor palette too. JUDGE A LAYOUT FROM
+  crisp disc + rim, in the level editor palette too. BUILDING VARIETY IS
+  AUDITED PER THEME (massing.js THEME_MASSING): every theme draws from >=4
+  silhouette families, four grown for the audit — `court` (three wings round
+  a courtyard), `ruin` (per-column ragged heights with one surviving facade
+  line), `dome` (stepped circular shrink) and `silo` (a 2×2 tank battery off
+  a shared base) — and a theme may name its OWN facade/roof material
+  (`buildings.facadeTex`/`roofTex`, hasTex-gated so naming one before its
+  images exist changes nothing; the wanted images are specced as generation
+  prompts in `docs/ASSET_REQUESTS_ARENA_DESIGN.md`). JUDGE A LAYOUT FROM
   ABOVE: `?battle=<t>&design=<id>&overhead=1` parks the camera straight down
   with fog off, framing the whole cell (`overhead=2` adds the wrap neighbours
   — the continuity check).

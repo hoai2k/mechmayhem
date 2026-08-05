@@ -67,12 +67,28 @@ shared purse.
    should land you somewhere designed, not in a quiet band.
 3. **Landmarks with intent** — count-1 props and `tall` towers anchor
    districts, terminate vistas, or break symmetry for orientation.
-4. **Props in formations** — classified by SPEC SHAPE, never by name (so any
-   theme works): count 1 = hero landmark · count 2 = gateposts · count 3–4 =
-   district dressing · count ≥ 5 = rhythm (rows, colonnades, rings, with
-   controlled yaw) · `clump` = nests kept as nests. This is the authored Neon
-   District's own grammar (pillar rows spaced ~8, a substation farm grid, a
-   kiosk quarter), generated.
+4. **Props in formations** — classified by SPEC SHAPE (so any theme works):
+   count 1 = hero landmark · count 2 = gateposts · count 3–4 = district
+   dressing · count ≥ 5 = rhythm (rows, colonnades, rings, with controlled
+   yaw) · `clump` = nests kept as nests. This is the authored Neon District's
+   own grammar (pillar rows spaced ~8, a substation farm grid, a kiosk
+   quarter), generated.
+5. **Placement traits refine by name** (`designs/proptraits.js`) — how a prop
+   wants to STAND: sacred/monumental props (`face:'center'`) aim their front
+   at the region's focal point — the battle circle, or the pocket plaza they
+   stand in — and sacred PAIRS flank a gated approach symmetric about its
+   axis; gates (`face:'gate'`) sit ON a walkable lane where it crosses the
+   plaza rim, passage along the path (blocked spots slide ALONG the lane,
+   never off it); street furniture (`face:'road'`) turns square-on to the
+   nearest lane; industrial fixtures (`grid`) snap to the world grid, and a
+   grid-trait clump is a YARD (one shared yaw per nest); long runs (`lane`)
+   lie along the nearest path; `solo` props isolate; `centerpiece` props take
+   a plaza's middle; `scatter` props are left to the organic ring scatter.
+   The facing convention is +Z = every prop's front (measured off the
+   builders; `long:'x'` marks the exceptions), so one yaw table serves all.
+   A prop absent from the table has no preferences — new themes still work
+   untouched. `node tools/scratch/traitprobe.mjs "<battle url>"` measures
+   every rule on a built arena.
 5. **The stage is sacred** — clearing free of buildings and hazards, spawn
    ring sightlines clean, exactly as the fallback keeps it.
 6. **Planner/executor split** — a design system only decides positions
@@ -117,6 +133,16 @@ wrap-assemble into clusters straddling the border. Terrain stays the theme's
 own (hazards are the risk layer). Rhythm props ring the plaza colonnade-style
 and mark the gate corridors; pairs are gateposts on the gates; clumps shelter
 behind the bastions.
+
+## Building variety
+
+`massing.js` carries fourteen silhouette families; `THEME_MASSING` is audited
+so every theme draws from at least four, with a signature: courts for the
+civic cities, `ruin` shells for the fallen ones, domes for the sealed
+habitats, silo batteries for the works. A theme may also name its own facade
+and roof material (`buildings.facadeTex` / `roofTex` — hasTex-gated, so the
+name is inert until its images are committed); the wanted facades are specced
+as generation prompts in `docs/ASSET_REQUESTS_ARENA_DESIGN.md`.
 
 ## Tuning and extending
 

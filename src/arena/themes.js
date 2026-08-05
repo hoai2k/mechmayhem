@@ -3,7 +3,10 @@
 //   sky {top,bottom,stars}, fog {color,near,far}, sun/hemi/rim lights,
 //   ground {color, road(bool), accent}, buildings {count,tints,styles,hRange,
 //   massing?: [[normal styles],[landmark styles]] — silhouette families from
-//   src/arena/massing.js; every theme has a default in THEME_MASSING there},
+//   src/arena/massing.js; every theme has a default in THEME_MASSING there,
+//   facadeTex?/roofTex?: this theme's OWN building material (texture-pack
+//   name — see docs/ASSET_REQUESTS_ARENA_DESIGN.md); gated on the texture
+//   existing, so naming one before its images land changes nothing},
 //   props [{name, ring:[rMin,rMax], count, opts}], ambient (particle style),
 //   bounds (half-size of square play area), pylonMat (boundary glow color)
 //
@@ -171,7 +174,7 @@ export const THEMES = [
     rim: { color: 0x5f8fff, intensity: 0.85, pos: [60, 40, -50] },
     exposure: 1.04,
     ground: { color: 0x363b40, road: false, accent: 0xffb43c },
-    buildings: { count: 8, tints: [0x687480, 0x7a6450, 0x566470, 0x806e58], styles: [3, 1], hRange: [4, 6], glow: true },
+    buildings: { count: 8, tints: [0x687480, 0x7a6450, 0x566470, 0x806e58], styles: [3, 1], hRange: [4, 6], glow: true, facadeTex: 'bldg_dock_corrugated' },
     // working port: two open harbor basins with trawlers riding at anchor,
     // container canyons stacked between the plate roads, gantry cranes
     // towering over the outer band (walk between their legs)
@@ -245,7 +248,7 @@ export const THEMES = [
     rim: { color: 0xff8c3c, intensity: 0.75, pos: [-60, 30, 50] },
     exposure: 1.02,
     ground: { color: 0x554636, road: false, accent: 0xffb43c },
-    buildings: { count: 7, tints: [0x7a563a, 0x6e5844, 0x82603e, 0x60564a], styles: [1, 3], hRange: [3, 6], glow: false },
+    buildings: { count: 7, tints: [0x7a563a, 0x6e5844, 0x82603e, 0x60564a], styles: [1, 3], hRange: [3, 6], glow: false, facadeTex: 'bldg_rust_patchwork' },
     // the mech graveyard: a colossal buried hand marks the boneyard, the
     // crusher still runs, crushed-car towers make scrap canyons, and the
     // ground itself leaks oil and mud
@@ -288,7 +291,7 @@ export const THEMES = [
     rim: { color: 0xc46bff, intensity: 1.25, pos: [60, 30, -50] },
     exposure: 1.08,
     ground: { color: 0x3d3452, road: false, accent: 0xb46bff },
-    buildings: { count: 7, tints: [0x665f7c, 0x565068, 0x7a6f8e], styles: [3, 1], hRange: [3, 6], glow: true },
+    buildings: { count: 7, tints: [0x665f7c, 0x565068, 0x7a6f8e], styles: [3, 1], hRange: [3, 6], glow: true, facadeTex: 'bldg_rockcut_crystal' },
     // the pit at night: crystal thickets in glowing nests, the hoist
     // headframe on the rim, blasting charges staged mid-bench, a tailings
     // pond glowing faint violet
@@ -327,7 +330,7 @@ export const THEMES = [
     rim: { color: 0xff5a10, intensity: 1.3, pos: [-60, 25, -50] },
     exposure: 1.1,
     ground: { color: 0x2b1d18, road: false, accent: 0xff5a10 },
-    buildings: { count: 7, tints: [0x5c443a, 0x5a463c, 0x66504a], styles: [1, 3], hRange: [3, 6], glow: true },
+    buildings: { count: 7, tints: [0x5c443a, 0x5a463c, 0x66504a], styles: [1, 3], hRange: [3, 6], glow: true, facadeTex: 'bldg_basalt_plate' },
     // a live caldera floor: lava lakes and ash fields between basalt column
     // outcrops, fumaroles hissing, natural rock arches to duck through,
     // and a doomed monitoring post still logging tremors
@@ -368,7 +371,7 @@ export const THEMES = [
     rim: { color: 0x9be8ff, intensity: 1.1, pos: [-60, 35, -40] },
     exposure: 1.04,
     ground: { color: 0x93aec4, road: false, accent: 0x53c8ff },
-    buildings: { count: 8, tints: [0x98a4b0, 0x8894a0, 0xa4b0bc], styles: [3, 2], hRange: [3, 6], glow: true },
+    buildings: { count: 8, tints: [0x98a4b0, 0x8894a0, 0xa4b0bc], styles: [3, 2], hRange: [3, 6], glow: true, facadeTex: 'bldg_arctic_panel' },
     // station K-9 after the evacuation: an icebreaker locked in the floe,
     // quonset row half-buried, the heated pipeline still steaming, frozen
     // lakes glinting under the aurora
@@ -410,7 +413,7 @@ export const THEMES = [
     rim: { color: 0xffd8a0, intensity: 0.85, pos: [60, 40, -50] },
     exposure: 1.02,
     ground: { color: 0xb08f62, road: false, accent: 0x2ee6c8 },
-    buildings: { count: 7, tints: [0xbf9d6c, 0xb08c5c, 0xc8a878, 0xa89268], styles: [1], hRange: [3, 6], glow: false },
+    buildings: { count: 7, tints: [0xbf9d6c, 0xb08c5c, 0xc8a878, 0xa89268], styles: [1], hRange: [3, 6], glow: false, facadeTex: 'bldg_sandstone_ruin', roofTex: 'bldg_roof_sandstone' },
     // the dig site whole: a monumental pylon gate over the processional way,
     // sphinx guardians and colonnades half-swallowed by dunes, palms around
     // a real oasis, the archaeologists' camp abandoned mid-season
@@ -454,7 +457,7 @@ export const THEMES = [
     rim: { color: 0x62ff9a, intensity: 0.7, pos: [-60, 30, 50] },
     exposure: 1.0,
     ground: { color: 0x53643a, road: false, accent: 0x62ff9a },
-    buildings: { count: 6, tints: [0x93987c, 0x83886c, 0x8c9670], styles: [1], hRange: [3, 5], glow: false },
+    buildings: { count: 6, tints: [0x93987c, 0x83886c, 0x8c9670], styles: [1], hRange: [3, 5], glow: false, facadeTex: 'bldg_temple_mossy', roofTex: 'bldg_roof_mossy' },
     // deep canopy: serpent gates guard the flagstone way, liana curtains and
     // fern thickets close the sight lines, swamp pools bog the unwary, and
     // real FOREST walls grow in clumped groves
@@ -496,7 +499,7 @@ export const THEMES = [
     rim: { color: 0x53e8ff, intensity: 1.3, pos: [-70, 30, -50] },
     exposure: 1.08,
     ground: { color: 0x30343c, road: false, accent: 0x53e8ff },
-    buildings: { count: 8, tints: [0x66738a, 0x76839a, 0x5a6880, 0x8892a4], styles: [2, 3], hRange: [3, 7], glow: true },
+    buildings: { count: 8, tints: [0x66738a, 0x76839a, 0x5a6880, 0x8892a4], styles: [2, 3], hRange: [3, 7], glow: true, facadeTex: 'bldg_station_hull' },
     // VALKYRIE's live flight deck: a shuttle on its pad, sun-tracking solar
     // wings, manipulator arms mid-task, cryo tanks venting — all threaded
     // by an elevated mag-track loop with glowing rails
