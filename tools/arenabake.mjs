@@ -14,6 +14,11 @@ const args = process.argv.slice(2);
 let seed = 7;
 const si = args.indexOf('--seed');
 if (si >= 0) { seed = Number(args[si + 1]) || 7; args.splice(si, 2); }
+// --design <mode>: which design system generates the baked arena (the page
+// reads the same stored pref the game does; default = the shipped default)
+let design = null;
+const di = args.indexOf('--design');
+if (di >= 0) { design = args[di + 1]; args.splice(di, 2); }
 const themes = args.length ? args : null;
 
 const browser = await chromium.launch({
@@ -23,6 +28,11 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
+if (design) {
+  await page.addInitScript((d) => {
+    try { localStorage.setItem('rw.arenaDesign', d); } catch (e) { /* ok */ }
+  }, design);
+}
 await page.goto('http://localhost:5173/workbench/?edit=level&arena=neon', { waitUntil: 'networkidle' });
 await page.waitForFunction(() => window.__leveleditor, null, { timeout: 30000 });
 
