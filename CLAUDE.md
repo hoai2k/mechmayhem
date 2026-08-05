@@ -1881,7 +1881,16 @@ that combat silently depends on. Never rebuild a design without it.
   soundtrack: every file in `src/music/` is a song, listed by the `rw-music`
   vite plugin, filename = title — drop one in and it joins the rotation.
   STREAMED, not bundled: copied to `dist/music/`, fetched on demand.
-  `?music=0` or a `RW_NO_MUSIC=1` build turns it off). THE MENU THEME is a
+  `?music=0` or a `RW_NO_MUSIC=1` build turns it off. A song in
+  `src/music/arenas/` belongs to ONE ARENA — the filename names it ("Jungle
+  Temple 1") — and that arena plays its own songs, shuffled with no repeats,
+  instead of the general pool; an arena with none keeps the pool.
+  `music.setArena(theme)` in startBattle is the whole hook, and the match is
+  DERIVED from the name (case/punctuation dropped, trailing track number
+  dropped, theme name AND id tried — so `Scrapyard 7.mp3` and
+  `Scrapyard 7 2.mp3` both find an arena whose name ends in a digit). The
+  order is a SHUFFLE BAG, not a fresh random pick, or a two-song arena would
+  flip a coin every time). THE MENU THEME is a
   separate, fixed track — `public/sound/Bohemian Cello Flame Hybrid Suite.mp3`,
   named by `MENU_TRACKS` in music.js and played on a LOOP by a second
   `MusicPlayer` (`menuMusic` in boot.js) behind the title/select screens. The
