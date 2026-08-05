@@ -63,7 +63,15 @@ const RUN_AND_GUN_CLIPS = new Set(['shoot', 'shootL', 'saurionQuillFan']);
 // is being hit, which is exactly when he needs to see it. Below this much
 // growth there is no giant to hand over from, so the old behaviour is the right
 // one: bats, and he is simply there.
-const WRAITH_DISPERSE = { dur: 0.5, swell: 1.45, waves: 3, minK: 0.25 };
+//
+// THE FLOCK IS TWO RATES, AND THE JUMP BETWEEN THEM IS THE EFFECT. `trickle`
+// is the seconds between single bats peeling off him for the WHOLE taunt —
+// he is coming apart the entire time he stands there, quietly — and `burst`
+// multiplies what leaves during the dispersal, so the ending is not "bats
+// appear" but "all of them at once". A burst that is merely the same rate
+// continued reads as nothing happening.
+const WRAITH_DISPERSE = { dur: 0.5, swell: 1.45, waves: 3, minK: 0.25,
+  trickle: 0.14, burst: 2.5 };
 // ---- VERTICAL STRIKE AIM (elevateStrikeAt) ----
 // The extremities a blow can be thrown with, for AIMING purposes. The head is
 // in the list and is NOT in combat's own strike-limb table: a bite is thrown
@@ -3675,6 +3683,20 @@ export class Fighter {
         { life: rand(0.5, 1.1), size: rand(1.1, 2.4) * this.scale * 0.4,
           color: 0x8ea0c8, color2: 0x2b3350, alpha: 0.3, grow: 1.4, drag: 1.1 });
     }
+    // …AND HE IS ALREADY COMING APART while he stands there. Ones and twos peel
+    // off him for the whole taunt, which is what makes the ending an ESCALATION
+    // rather than an announcement: the flock does not arrive out of nowhere, it
+    // was always leaving him and then all of it goes at once. Emitted through
+    // the same batSwarm the dispersal uses, so a bat is a bat — one call, one
+    // set of numbers, and the only difference between the two is how many.
+    this._batT = (this._batT ?? 0) - dt;
+    if (this._batT <= 0) {
+      this._batT = WRAITH_DISPERSE.trickle * rand(0.7, 1.3);   // never metronomic
+      this.world.effects?.batSwarm(this.pos, {
+        n: 1, radius: this.radius * 0.9, height: this.baseHeight,
+        scale: this.scale * 1.8,
+      });
+    }
   }
 
   // ---- THE HANDOVER: two wraiths for half a second -------------------------
@@ -3711,7 +3733,7 @@ export class Fighter {
     // an interrupted taunt has no giant to hand over from — see minK
     if (k < D.minK) {
       this.world.effects?.batSwarm(this.pos, {
-        n: Math.round(16 + 14 * k), radius: base.r * g * 1.15,
+        n: Math.round((16 + 14 * k) * D.burst), radius: base.r * g * 1.15,
         height: base.h * g, scale: base.s * g * 1.8,
       });
       this.setOpacity(1);
@@ -3743,7 +3765,8 @@ export class Fighter {
 
     const fx = w.effects;
     const startOp = Math.max(0.05, 1 - 0.45 * k);   // where growTaunt left him
-    const batTotal = Math.round(16 + 14 * k);
+    // …times `burst`, because this is the moment the trickle turns into a flock
+    const batTotal = Math.round((16 + 14 * k) * D.burst);
     let t = 0, wave = 0, done = false;
     // the body owns its own opacity again the moment anything else claims it
     // (a cloak cast, the death fade) — this only drives it while it is his

@@ -82,12 +82,17 @@ for (const t of times) {
     }
     let bodyOp = 1;
     f.group.traverse((o) => { if (o.isMesh) bodyOp = Math.min(bodyOp, o.material.opacity); });
-    return { scale: +f.scale.toFixed(2), bodyOp: +bodyOp.toFixed(2),
+    // live particles in the bat pool — the trickle-vs-flock number
+    const bp = w.effects?.bats;
+    let bats = 0;
+    if (bp) for (let i = 0; i < bp.cap; i++) if (bp.life[i] > 0) bats++;
+    return { scale: +f.scale.toFixed(2), bodyOp: +bodyOp.toFixed(2), bats,
       shells, shellOp: +shellOp.toFixed(2), shellScale: +shellScale.toFixed(2) };
   }, { dtTotal: t - now });
   now = t;
   console.log(`  t=${String(t).padStart(5)}s  body x${stat.scale} op ${stat.bodyOp}`
-    + `  ·  apparitions ${stat.shells} (x${stat.shellScale}, op ${stat.shellOp})`);
+    + `  ·  apparitions ${stat.shells} (x${stat.shellScale}, op ${stat.shellOp})`
+    + `  ·  bats ${stat.bats}`);
   const uri = await page.evaluate(() => window.__engine.capture());
   tiles.push({ t, buf: Buffer.from(uri.split(',')[1], 'base64') });
 }

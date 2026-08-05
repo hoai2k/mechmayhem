@@ -2557,8 +2557,15 @@ const VULCAN_TAUNT = {
 // everything BELOW it back, and his hands hang at y 2.5 under a torso joint at
 // y 4.8. So the sign came out inverted and he leaned away from you for a whole
 // release. Read the HEAD (or the hood), never a hanging limb.
+// THE HOLD IS THE ONLY PART THAT SHORTENED. He reaches the drawn-up lean at
+// 1.396s and the rest of the clip is him standing in it; `dur` 2.9 spent 1.504s
+// there, which is a long time to look at a pose that has stopped changing. It
+// is 0.902s now — 40% off the PAUSE, with the draw-up itself untouched, because
+// the rise is the part that is still moving and cutting into it would only make
+// the growth snap. Everything else is timed off this: the fighter reads `dur`
+// for when to hand over, so the dispersal simply arrives sooner.
 const WRAITH_TAUNT = {
-  dur: 2.9, cancelOnMove: true,
+  dur: 2.3, cancelOnMove: true,
   keys: [
     { t: 0, pose: {} },
     // drawing himself UP and slightly OVER you — chin lifting, arms opening,

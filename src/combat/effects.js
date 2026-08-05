@@ -585,8 +585,14 @@ export class Effects {
     });
     // WRAITH's ghost leaving: black bats, so NORMAL-blended (an additive black
     // sprite is nothing at all) and flapping off a looping 2x2 wing atlas
+    // …and the cap has to hold BOTH halves of that at once. A pool is a ring
+    // buffer, so emitting past `cap` overwrites the oldest LIVE particle: with
+    // 120, wraith's dispersal burst ate the trickle that had been leaving him
+    // for the whole taunt, and "suddenly lots" cost you the "some" it is
+    // supposed to be a jump from. A bat lives up to 2.4s, so the two overlap by
+    // design.
     this.bats = new ParticlePool(scene, batTexture(), {
-      cap: 120, blending: THREE.NormalBlending, cols: 2, rows: 2,
+      cap: 260, blending: THREE.NormalBlending, cols: 2, rows: 2,
     });
     this.rings = new RingPool(scene);
     this.beams = new BeamPool(scene);

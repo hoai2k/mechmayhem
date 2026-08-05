@@ -1776,7 +1776,12 @@ audio). Progress history: `TASKS.md`.
   SLIGHTLY forward (10.4° at the hips against a 5° torso counter) and holds that
   to the last frame — it used to keep folding over you to 46° of spine, which is
   a second effect competing with the growth for the same silhouette, and the one
-  that reads at arena distance is the size.
+  that reads at arena distance is the size. THE HOLD IS THE ONLY PART THAT HAS
+  BEEN SHORTENED (`dur` 2.9 -> 2.3): he reaches the lean at 1.396s either way,
+  and what came off is 40% of the 1.50s he then spent standing in a pose that
+  had stopped changing. Cutting into the RISE instead would only make the growth
+  snap, and everything downstream is timed off `dur`, so the dispersal simply
+  arrives sooner.
   THERE IS NO WAY BACK DOWN: a symmetric ramp made the whole
   thing a bellows, so the instant the taunt ends the FIGHTER is back at his own
   size on the SAME frame — hitbox, height and `sizeMul` all belong to a body in
@@ -1808,11 +1813,21 @@ audio). Progress history: `TASKS.md`.
   the flinch clip and can do it on the first frame, and handing over from an
   apparition that never grew is half a second of the player's own body faded out
   while he is being hit. Under that much growth the old instant path runs.
-  `Effects.batSwarm`
+  THE FLOCK IS TWO RATES AND THE JUMP BETWEEN THEM IS THE EFFECT. `trickle`
+  (0.14s, jittered so it is never metronomic) peels single bats off him for the
+  WHOLE taunt — he is coming apart the entire time he stands there — and
+  `burst` (2.5x) multiplies what leaves during the dispersal, which is released
+  in `waves` across the fade rather than all on the first frame. So the ending
+  is an ESCALATION rather than an announcement: measured live in the pool, 5 ->
+  10 -> 11 bats through the loom, still 10 at the handover, then 59 and 83.
+  Both halves go through the same `Effects.batSwarm` — one call, one set of
+  numbers, the only difference is how many — which
   breaks it into black bats that climb away (a body-shaped spawn volume, so what
-  comes apart is the shape that was standing there), released in `waves` across
-  the fade rather than all on the first frame — the flock should be assembling
-  out of him, not waiting for him. The bats are a NORMAL-blended
+  comes apart is the shape that was standing there). THE POOL HAS TO HOLD BOTH
+  AT ONCE: a pool is a ring buffer, so emitting past `cap` overwrites the oldest
+  LIVE particle, and at 120 the burst ate the trickle it is supposed to be a
+  jump from (260 now; a bat lives up to 2.4s, so the two deliberately overlap).
+  The bats are a NORMAL-blended
   pool — an additive black sprite is nothing at all — off a 2x2 wing-position
   atlas (`batTexture`) looped by ParticlePool's `flap` (atlas loops per SECOND;
   the old `cell: -1` walks the frames once over the particle's whole life, which
