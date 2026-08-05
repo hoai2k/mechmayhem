@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import { DestructibleSystem } from './destructible.js';
 import { Terrain } from './terrain.js';
 import { generateMassing, THEME_MASSING } from './massing.js';
+import {
+  STRUCTURE_KINDS, structureMaterial, assignStructures, themeStructureKinds,
+} from './structures.js';
 import { buildingDonors } from './buildglb.js';
 import { PROPS, PROP_MATS, placeProp, mergePropMeshes } from './props.js';
 import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
@@ -44,6 +47,14 @@ export function arenaTexEntries(theme) {
   if (facade) {
     out.push(['building', facade],
       ['building', theme.buildings?.roofTex || 'bldg_roof_gravel']);
+  }
+  // …and the materials this theme's LARGE STRUCTURES want (rock, crystal,
+  // ice). Listed whether or not the images exist yet — the filter below
+  // drops the ones that don't, so the prefetcher warms them the day they
+  // land and nothing changes until then.
+  for (const kind of themeStructureKinds(theme)) {
+    const tex = STRUCTURE_KINDS[kind]?.tex;
+    if (tex) out.push(['struct', tex]);
   }
   return out.filter(([set, name]) => hasTex(set, name));
 }
@@ -326,10 +337,28 @@ export class Arena {
         color: 0xb0aca4, roughness: 0.9, metalness: 0.1,
       });
     }
+    // PER-CHUNK TINT IS ON for buildings too. `setColorAt` has always been
+    // called with the theme's tint (and with the colours a voxelized GLB
+    // donor sampled from its own texture), but without `vertexColors` three
+    // drops the instance colour in the fragment stage — so every one of those
+    // was computed and thrown away, and a donor's sampled palette rendered as
+    // plain facade. See the geometry note in destructible.js for the other
+    // half of the fix.
+    sideMat.vertexColors = true;
+    roofMat.vertexColors = true;
     // box face order: px, nx, py (top), ny, pz, nz
     const chunkMats = [sideMat, sideMat, roofMat, roofMat, sideMat, sideMat];
     this.destructo = new DestructibleSystem(this.scene, chunkMats);
     this.objects.push(this.destructo.mesh, this.destructo.debris.mesh);
+    // NOT EVERY LARGE STRUCTURE IS A BUILDING (src/arena/structures.js). A
+    // structure kind is the same destructible chunks with its own SHAPE and
+    // its own MATERIAL — basalt, crystal, ice — and a material means its own
+    // InstancedMesh, so one DestructibleSystem is built per material family
+    // the theme actually uses. `destructoAll` is what every combat query
+    // walks; `destructo` stays the buildings' one, which is what the tools,
+    // the recipe and specials.js already reach for.
+    this.structos = new Map();          // material family -> DestructibleSystem
+    this.destructoAll = [this.destructo];
 
     // ---- design system: WHERE the generated pieces stand ----
     // A generated arena's placement is planned by the selected design system
@@ -363,6 +392,17 @@ export class Arena {
       for (const o of theme.authored) {
         if (o.k !== 'building') continue;
         const cw = o.cw || 3.5, ch = o.ch || 3.3, cd = o.cd || 3.5;
+        // an authored STRUCTURE keeps its own material system and the exact
+        // cells it was baked with — a baked crystal field must come back as
+        // crystal, not as a tower wearing a facade
+        if (o.struct && STRUCTURE_KINDS[o.struct]) {
+          const sys = this.structoFor(o.struct);
+          if (sys) {
+            sys.addBuildingCells(o.x, o.z, o.cells || [], cw, ch, cd,
+              { tint: o.tint ?? 0xffffff, rng });
+            continue;
+          }
+        }
         const tint = tintFor(o.tint ?? theme.buildings.tints[0]);
         // `cells` is a massed silhouette (setback tower, ziggurat, warehouse…)
         // carried verbatim out of a baked arena; without it the tower is the
@@ -393,7 +433,22 @@ export class Arena {
         ? plan.buildings({ terrain: this.terrain, rng, count })
         : this.terrain.buildingSites(count, rng);
       placedSites = sites;
+      // …and then some of them stop being buildings. Whole GROUPS convert to
+      // the theme's declared structure kinds (crystal fields, basalt
+      // country, ice works) — never single sites interleaved among towers,
+      // which reads as a mistake rather than as a place. Runs here, after
+      // the sites are chosen, so every design system AND the fallback
+      // scatter get it from one place.
+      assignStructures(sites, theme, rng, P);
       for (const site of sites) {
+        // A STRUCTURE, NOT A BUILDING: its own silhouette family, its own
+        // cell scale, its own palette, and its own material system — but
+        // the same chunks, so it collapses, damages, occludes and can be
+        // climbed exactly like a tower.
+        if (site.struct && STRUCTURE_KINDS[site.struct]) {
+          this.addStructure(site.struct, site.x, site.z, rng, site.tall);
+          continue;
+        }
         // a designed site may pin its own floor band (a low market shed, the
         // tower court's high-rise ring); everything else keeps the theme's
         const hRange = site.hRange ? [...site.hRange] : [...theme.buildings.hRange];
@@ -507,7 +562,8 @@ export class Arena {
       // massed silhouette is up to 20 units across, so a planner keeping a
       // fixed radius from the site COORDINATE puts props inside towers. The
       // buildings are already built by here, so hand over their real boxes.
-      const footprints = this.destructo.buildings.map((b) => b.aabb).filter(Boolean);
+      const footprints = this.destructoAll
+        .flatMap((d) => d.buildings.map((b) => b.aabb)).filter(Boolean);
       const propPlan = plan?.props
         ? plan.props({
           rng, terrain: this.terrain, sites: placedSites, footprints,
@@ -597,9 +653,64 @@ export class Arena {
 
   bind(world) {
     this.world = world;
-    this.destructo.world = world;
     world.wrapHalf = this.wrapHalf;
-    this.destructo.setWrapPeriod(this.wrapHalf * 2);
+    for (const d of this.destructoAll) {
+      d.world = world;
+      d.setWrapPeriod(this.wrapHalf * 2);
+    }
+  }
+
+  // ---- structures (src/arena/structures.js) ----
+  // The DestructibleSystem for a kind's MATERIAL FAMILY, built the first
+  // time that family is asked for. Kinds sharing a family (the two basalt
+  // ones, the two cut-ice ones) share a system, so an arena pays one extra
+  // instanced mesh per LOOK rather than per kind.
+  structoFor(kind) {
+    const def = STRUCTURE_KINDS[kind];
+    if (!def) return null;
+    let sys = this.structos.get(def.mat);
+    if (!sys) {
+      const mat = structureMaterial(def.mat, def.tex);
+      // one material for all six faces: a landform has no roof
+      sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 3600);
+      sys.world = this.world;
+      if (this.wrapHalf) sys.setWrapPeriod(this.wrapHalf * 2);
+      this.structos.set(def.mat, sys);
+      this.destructoAll.push(sys);
+      this.objects.push(sys.mesh, sys.debris.mesh);
+    }
+    return sys;
+  }
+
+  /** Build one structure of `kind` at (x,z). Returns its cells for the recipe. */
+  addStructure(kind, x, z, rng, tall = false) {
+    const def = STRUCTURE_KINDS[kind];
+    const sys = this.structoFor(kind);
+    if (!sys) return null;
+    const m = generateMassing(def.style, rng, { hRange: def.hRange, tall });
+    const [c0, c1] = def.cell;
+    const cw = rng.range(c0, c1), cd = rng.range(c0, c1);
+    const ch = rng.range(c0, c1) * 1.15;
+    const tint = def.tints[rng.int(0, def.tints.length - 1)];
+    // the odd chunk lit differently — ember in the basalt, a bright facet in
+    // a crystal. Per-CELL tint, which addBuildingCells already honours.
+    const cells = def.accent
+      ? m.cells.map((c) => (rng.chance(def.accent.chance)
+        ? { ...c, tint: def.accent.color } : c))
+      : m.cells;
+    // A LANDFORM IS ALLOWED TO BE BIG. The building path clamps a wide
+    // silhouette to 19/nx so a tower never swallows the street — apply that
+    // to a mound eleven cells across and it comes out with 2.2-unit chunks,
+    // which is a pile of gravel where a hill was meant to be. A mound SHOULD
+    // be forty units across; the clamp here only stops the extreme.
+    const cwE = Math.min(cw, 58 / m.nx), cdE = Math.min(cd, 58 / m.nz);
+    sys.addBuildingCells(x, z, cells, cwE, ch, cdE, { tint, rng });
+    this.recipe?.buildings.push({
+      k: 'building', struct: kind, x: round1(x), z: round1(z),
+      cells, nx: m.nx, ny: m.ny, nz: m.nz,
+      cw: round2(cwE), ch: round2(ch), cd: round2(cdE), tint,
+    });
+    return cells;
   }
 
   // ---- combat services ----
@@ -608,7 +719,11 @@ export class Arena {
   // revealed, and there is nothing out there to hang off yet.
   grabProbe(px, py, pz) {
     if (this.world?.sandbox) return null;
-    return this.destructo.grabProbe(px, py, pz);
+    for (const d of this.destructoAll) {
+      const hit = d.grabProbe(px, py, pz);
+      if (hit) return hit;
+    }
+    return null;
   }
 
   damageSphere(pos, radius, dmg, dir = null, structural = false) {
@@ -616,7 +731,9 @@ export class Arena {
     this.igniteCampfires(pos, radius + 1.2);
     const terra = this.terrain.damageSphere(pos, radius, dmg);
     const props = this.damageProps(pos, radius, dmg * (structural ? 1.4 : 0.8), dir);
-    return this.destructo.damageSphere(pos, radius, dmg, dir, structural) + props + terra;
+    let hits = 0;
+    for (const d of this.destructoAll) hits += d.damageSphere(pos, radius, dmg, dir, structural);
+    return hits + props + terra;
   }
 
   // ground height contributed by terrain features (hills, live bridge decks)
@@ -736,10 +853,22 @@ export class Arena {
       w.audio?.play('flame');
     }
   }
-  pointHits(pos) { return this.destructo.pointHits(pos) || this.terrain.pointHits(pos); }
-  raySolid(origin, dir, range) { return this.destructo.raySolid(origin, dir, range); }
-  setOccluders(segments) { this.destructo.setOccluders(segments); }
-  applyViewFade(cam) { this.destructo.applyViewFade(cam); }
+  pointHits(pos) {
+    for (const d of this.destructoAll) {
+      const hit = d.pointHits(pos);
+      if (hit) return hit;
+    }
+    return this.terrain.pointHits(pos);
+  }
+  raySolid(origin, dir, range) {
+    for (const d of this.destructoAll) {
+      const hit = d.raySolid(origin, dir, range);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  setOccluders(segments) { for (const d of this.destructoAll) d.setOccluders(segments); }
+  applyViewFade(cam) { for (const d of this.destructoAll) d.applyViewFade(cam); }
 
   collideFighter(f) {
     // no boundary clamp — space wraps; buildings, settled rubble and SOLID
@@ -751,7 +880,7 @@ export class Arena {
     // yet. Everything solid is therefore skipped — running into a building
     // nobody can see reads as an invisible wall — but TERRAIN still carries
     // them, because that is the ground under their feet, not scenery.
-    if (!this.world?.sandbox) this.destructo.collideFighter(f);
+    if (!this.world?.sandbox) for (const d of this.destructoAll) d.collideFighter(f);
     this.terrain.collideFighter(f);
     if (this.world?.sandbox) return;
     const w = this.world;
@@ -1033,7 +1162,7 @@ export class Arena {
 
   update(dt) {
     this.t += dt;
-    this.destructo.update(dt);
+    for (const d of this.destructoAll) d.update(dt);
     this.terrain.update(dt);
     this.updateExplosives();
     this.updateHazards(dt);
@@ -1101,7 +1230,7 @@ export class Arena {
         }
       });
     }
-    this.destructo.dispose();
+    for (const d of this.destructoAll) d.dispose();
     this.objects.length = 0;
   }
 }

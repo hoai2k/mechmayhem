@@ -309,13 +309,21 @@ export const THEMES = [
     ambient: 'motes',
     bounds: 54,
     music: 'battleNight',
+    // the pit is lined with the stuff: whole massifs and jagged spire
+    // clusters of resonant crystal, lit from within and every one a
+    // different hue (structures.js crystalSpire tints)
+    structures: [
+      { kind: 'crystalSpire', share: 0.36 },
+      { kind: 'crystalMassif', share: 0.16 },
+      { kind: 'rockOutcrop', share: 0.1 },
+    ],
     layout: {
       clearing: 38,
       lanes: [
         { kind: 'road', style: 'dirt', count: 1, width: 5.5, color: 0x2e2740 },
         { kind: 'crystal', count: 2, width: 3.2, glow: 0xb46bff },
       ],
-      patches: [{ kind: 'water', count: 1, r: [9, 13], glow: 0xb46bff }],  // tailings pond
+      patches: [{ kind: 'water', count: 1, r: [9, 13], glow: 0xb46bff, organic: 0.8 }],  // tailings pond
       bridges: { count: 1, color: 0x4c4460, edge: 0xb46bff },
       hills: { count: 4, color: 0x4a4060, hMax: 6 },            // mining terraces
       clusters: { count: 3, size: [2, 3] },
@@ -347,15 +355,26 @@ export const THEMES = [
     steamVents: 5,
     bounds: 52,
     music: 'battleIndustrial',
+    // THE BIG THINGS HERE ARE GEOLOGY, NOT ARCHITECTURE (src/arena/
+    // structures.js): mounds of cooled basalt and jointed column cliffs take
+    // most of the sites, and what buildings remain read as the outpost that
+    // was foolish enough to be built here.
+    structures: [
+      { kind: 'volcanicMound', share: 0.34 },
+      { kind: 'basaltCliff', share: 0.28 },
+    ],
     layout: {
       clearing: 36,
       lanes: [
         { kind: 'road', style: 'stone', count: 1, width: 5, color: 0x241a14 },
-        { kind: 'lava', count: 2, width: 6.5 },
+        { kind: 'lava', count: 3, width: 6.5 },
       ],
+      // MORE LAVA, AND NOT CIRCULAR: `organic` gives a patch a ragged
+      // many-lobed outline (terrain.js) instead of the three-blob circle, so
+      // a lava lake reads as a flow that pooled rather than a stamped disc
       patches: [
-        { kind: 'lava', count: 2, r: [10, 14] },   // lava lakes
-        { kind: 'ash', count: 2, r: [8, 12] },
+        { kind: 'lava', count: 4, r: [11, 17], organic: 1.0 },   // lava lakes
+        { kind: 'ash', count: 2, r: [8, 12], organic: 0.7 },
       ],
       bridges: { count: 3, color: 0x241c18, edge: 0xff5a10 },   // basalt causeways
       hills: { count: 3, color: 0x352520, hMax: 6 },
@@ -392,15 +411,22 @@ export const THEMES = [
     ambient: 'snow',
     bounds: 56,
     music: 'battleDay',
+    // ice mountains and the station's own CUT-ICE works — semi-transparent
+    // blocks, walls and towers that break exactly like everything else
+    structures: [
+      { kind: 'iceberg', share: 0.3 },
+      { kind: 'iceWorks', share: 0.18 },
+      { kind: 'iceTower', share: 0.12 },
+    ],
     layout: {
       clearing: 38,
       lanes: [
         { kind: 'road', style: 'dirt', count: 1, width: 6, color: 0x5a6c7c },  // plowed track
         { kind: 'ice', count: 1, width: 8, glow: 0x9be8ff },                   // frozen river
       ],
-      patches: [{ kind: 'ice', count: 2, r: [11, 16], glow: 0x9be8ff }],       // frozen lakes
+      patches: [{ kind: 'ice', count: 2, r: [11, 16], glow: 0x9be8ff, organic: 0.9 }],  // frozen lakes
       bridges: { count: 1, color: 0x788a9a, edge: 0x53c8ff },
-      hills: { count: 3, color: 0xc2d4e0, hMax: 4 },            // snow drifts
+      hills: { count: 6, color: 0xc2d4e0, hMax: 6 },            // snow drifts
       clusters: { count: 3, size: [2, 3] },
     },
   },
@@ -433,6 +459,8 @@ export const THEMES = [
     ambient: 'sand',
     bounds: 56,
     music: 'battleDay',
+    // every standing mass here is a temple, a mastaba or a pyramid — see
+    // THEME_MASSING in massing.js; the dig site owns no rectangles
     layout: {
       clearing: 38, plaza: true,
       lanes: [

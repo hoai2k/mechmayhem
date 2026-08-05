@@ -6615,3 +6615,73 @@ Re-verified after both: traitprobe green on ruins/jungle/neon/harbor across
 all three systems, bake round-trip 12 themes x 3 designs, propshell mean
 phantom skin unchanged at 0.68, soaks clean (ruins/avenues, quarry/wards,
 authored neon), build green.
+
+## NOT EVERY LARGE STRUCTURE IS A BUILDING (user request, 2026-08-05)
+
+Six arenas stopped being cities with a reskin. A STRUCTURE KIND
+(src/arena/structures.js) keeps a big mass's gameplay identical — the same
+destructible chunks, so it collapses, damages, gives cover, carries fountains
+and is climbed exactly like a tower — and changes what it is made of: a
+silhouette from a new LANDFORM family in massing.js (mound / columns /
+spires / iceWall / berg), its own cell scale, its own palette, and its own
+MATERIAL. A material means a second InstancedMesh, so the arena builds one
+DestructibleSystem PER MATERIAL FAMILY the theme uses and `destructoAll` is
+what every combat query walks (climb.js and fountains.js included, so a
+crystal spire is climbable and can hold a fountain).
+
+WHICH SITES CONVERT IS BY GROUP. A theme declares `structures:[{kind,share}]`
+and whole clusters convert — volcano 62%, quarry 62%, frozen 60% — because a
+crystal spire between two office blocks reads as a mistake while a field of
+them reads as a place. Scattered sites are nested into spatial groups first.
+It runs in arena.js after the sites are chosen, so all three design systems
+AND the fallback scatter get it from one place, and the recipe records
+`struct` so a baked arena comes back as crystal rather than as towers
+(arenabake now fingerprints every system, and all 12 x 3 designs pass).
+
+- VOLCANIC FORGE: basalt mounds and jointed column cliffs, ember-lit cracks;
+  a third lava lane and four lava lakes at `organic: 1.0`.
+- CRYSTAL QUARRY: jagged spire clusters in six hues, crystal massifs, rock.
+- FROZEN OUTPOST: icebergs, SEMI-TRANSPARENT cut-ice walls with gateways and
+  ice towers (destructible like everything else), twice the snow drifts.
+- DESERT RUINS / JUNGLE TEMPLE / ORBITAL: no structures — instead their
+  massing lists lost every rectangle. New monumental shapes: `pyramid`,
+  `mastaba`, `desertTemple` (pylon-fronted hall), `jungleTemple` (stepped
+  temple with a stair spine and a shrine crown), `habitat` (round tower with
+  an observation crown), `ringHab` (drum base, octagonal block, mast).
+
+ORGANIC PATCHES: `organic` (0..1) on a patch spec replaces the three-blob
+circle with 6-9 lobes reaching 1.35r. THE PAINT AND THE HAZARD READ THE SAME
+LOBES — paint one shape and burn another and you get fire you can stand in
+and ground that burns from nowhere.
+
+### The bug underneath: per-chunk colour was doing NOTHING
+
+Chased from "why is my basalt mound white". `setColorAt` fills
+`instanceColor`, and three folds it into vColor in the VERTEX stage — but the
+FRAGMENT stage only declares vColor under USE_COLOR, i.e.
+`material.vertexColors`. Turn that on and the vertex stage ALSO runs
+`vColor *= color`, reading a per-vertex `color` attribute a BoxGeometry does
+not have; WebGL supplies (0,0,0) and every chunk goes black. Both halves are
+needed: the chunk geometry now carries a WHITE colour attribute and the
+materials set `vertexColors: true`. Until this, every theme building tint and
+every colour a voxelized GLB donor sampled from its own texture was computed
+and thrown away. Buildings are tinted now too — with the texture pack on
+`tintFor` already lerps 68% toward white, so neon and uptown are
+pixel-identical and the tints finally mean something at `?textures=0` and on
+donors.
+
+AND THE GLOW IS DIFFUSE, NOT EMISSIVE. `emissive` is a uniform: one material
+cannot glow in six crystal hues, and a uniform emissive over near-black
+basalt washes the rock to white — exactly how the first build looked. A
+saturated instance colour plus the bloom pass is what reads as lit from
+within, per chunk, in its own hue. (A shader patch multiplying emissive by
+vColor was tried and removed: it never applied, and the diffuse route is
+simpler and needs no program-cache games.)
+
+Verified: build green · bake round-trip 12 themes x 3 designs · soaks clean
+(volcano/quarry/frozen/ruins + authored neon) · climbprobe worst up-turn 1.4
+deg with no unexplained movement · propshell mean phantom skin unchanged at
+0.69 · traitprobe green. New textures requested in
+docs/ASSET_REQUESTS_STRUCTURES.md (struct_basalt_rock, struct_crystal_facet,
+struct_ice_glacier, struct_ice_cut, struct_rock_grey) — all hasTex-gated and
+already prefetched by arenaTexEntries, so they slot in on commit.

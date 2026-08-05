@@ -70,9 +70,13 @@ export class UltFountains {
   // ---- placement ----
   // roofs of LIVING buildings: any alive chunk with no alive chunk above it
   roofSpot(rng = Math.random) {
-    const d = this.world.arena?.destructo;
-    if (!d?.buildings.length) return null;
+    // every destructible system: a fountain on top of a crystal spire or an
+    // ice tower (arena/structures.js) is as good a prize as one on a roof
+    const systems = (this.world.arena?.destructoAll || [this.world.arena?.destructo])
+      .filter((s) => s?.buildings.length);
+    if (!systems.length) return null;
     for (let tries = 0; tries < 6; tries++) {
+      const d = systems[(rng() * systems.length) | 0];
       const b = d.buildings[(rng() * d.buildings.length) | 0];
       if (!b || b.alive <= 0) continue;
       const tops = [];

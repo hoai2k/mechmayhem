@@ -103,9 +103,11 @@ shared purse.
    each model's own front and names the reversed ones (fixed in the prop
    manifest, so every path benefits). Procedural builders are not judged —
    they *define* the convention.
-5. **The stage is sacred** — clearing free of buildings and hazards, spawn
+8. **The stage is sacred** — clearing free of buildings and hazards, spawn
    ring sightlines clean, exactly as the fallback keeps it.
-6. **Planner/executor split** — a design system only decides positions
+9. **Not every large mass is a building** — a theme may declare `structures`
+   and whole clusters of its sites become landforms instead (see below).
+10. **Planner/executor split** — a design system only decides positions
    (`plan(env)` → layout override + site list + prop map); the Arena executes
    through the same massing/tinting/recipe code as the fallback, so designed
    arenas bake, record and play identically.
@@ -147,6 +149,39 @@ wrap-assemble into clusters straddling the border. Terrain stays the theme's
 own (hazards are the risk layer). Rhythm props ring the plaza colonnade-style
 and mark the gate corridors; pairs are gateposts on the gates; clumps shelter
 behind the bastions.
+
+## Large structures that are not buildings
+
+`src/arena/structures.js`. A theme declares `structures: [{kind, share}]` and
+whole CLUSTERS of its building sites convert to that kind — never single
+sites interleaved, because a crystal spire between two office blocks reads as
+a mistake while a field of them reads as a place. The gameplay is unchanged
+(same destructible chunks: collapse, damage, cover, climbing, fountains); what
+changes is the silhouette (the LANDFORM family in massing.js), the cell scale,
+the palette and the MATERIAL — one extra `DestructibleSystem` per material
+family, walked by `arena.destructoAll`.
+
+| theme | structures | share |
+|-------|-----------|-------|
+| Volcanic Forge | volcanic mounds, basalt column cliffs | 62% |
+| Crystal Quarry | crystal spire clusters, crystal massifs, rock outcrops | 62% |
+| Frozen Outpost | icebergs, cut-ice works, ice towers | 60% |
+
+Desert Ruins, Jungle Temple and Orbital Platform keep buildings but own no
+RECTANGLES: their massing lists are monumental only (`pyramid`, `mastaba`,
+`desertTemple`, `jungleTemple`, `habitat`, `ringHab`).
+
+Two things worth knowing before tuning these:
+
+- **A landform is allowed to be big.** The building path clamps a wide
+  silhouette to `19/nx` so a tower never swallows a street; apply that to a
+  mound eleven cells across and you get 2.2-unit chunks — gravel where a hill
+  was meant to be. Structures clamp at `58/nx` and stand 1.15× their cell size.
+- **The glow is diffuse, not emissive.** `emissive` is a uniform, so it cannot
+  give six crystal hues, and over near-black basalt it washes the rock white.
+  Saturated per-chunk instance colour plus the bloom pass is what reads as
+  lit-from-within — and per-chunk colour needs `vertexColors: true` AND the
+  white `color` attribute on the chunk geometry (see destructible.js).
 
 ## Building variety
 
