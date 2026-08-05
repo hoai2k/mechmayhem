@@ -6474,3 +6474,57 @@ catches fewer frames — three runs of the identical manifest gave 286.0 / 305.8
 ±10% is noise. The stable part is the non-face 113.8, which held to the decimal
 across every configuration in both entries, and that is what says these changes
 touched the face and nothing else.
+
+## ARENA DESIGN SYSTEMS: swappable procedural layout + three new designers (user request, 2026-08-05)
+
+The arena generator's WHERE became pluggable. themes.js keeps saying what a
+place is made of; a DESIGN SYSTEM (`src/arena/designs/`) now plans where it
+all stands — an optional reworked `theme.layout` handed to the Terrain,
+building sites, and a per-spec prop placement map — and arena.js executes the
+plan through the exact code the old scatter ran (massing, tints, `_regProp`,
+recipe recording), so designed arenas bake and play through every existing
+path. The FALLBACK is the absence of a plan: `arenaDesignSystem()` returns
+null and the original generator runs byte-identical.
+
+Research first (docs/ARENA_DESIGN.md carries the brief + sources): Kevin
+Lynch's five city elements (paths/edges/districts/nodes/landmarks) and
+real-world block scale for the urban systems, and deathmatch-map grammar
+(circulation loops, sightline control, rotational symmetry for fairness with
+exactly one deliberate break, alternating cover and kill ground) for the
+combat one. Plus the owner's authored Neon District, read as a design
+language: buildings in street-wall blocks, props in FORMATIONS — pillar rows
+spaced ~8, a substation farm grid, a kiosk quarter — and the centre kept open.
+
+Three systems ship, all torus-continuous (placement spans the whole wrap cell,
+distances measured wrapped, structures deliberately straddling the seam):
+
+- CITY WARDS (default): a jittered periodic 3×3 ward grid with shuffled roles
+  — dense block grids, a tower court, a market bazaar of the theme's mid
+  props, yards nesting the clumped props, paved pocket plazas (one or two),
+  scatter breathing room. The seam ring carries ordinary city.
+- GRAND AXIS: the theme's road lanes reissued as straight boulevards through
+  the spawn plaza AND along the cell border (the seam becomes a street,
+  continuous by construction), street walls filled plaza-outward, gateway
+  towers on the plaza diagonals, cell-corner towers that wrap-assemble over
+  the border crossing, heroes terminating vistas.
+- COLOSSEUM CIRCUIT: rotationally-symmetric bastion ring stamped from one
+  template (spawn fairness) with open gates between, inner cover pods for the
+  orbit, ONE extra-tall spire as the orientation break, corner clusters
+  assembling across the seam.
+
+Props are classified by SPEC SHAPE only (count 1 hero · 2 gateposts · 3-4
+dressing · >=5 rows/rings with authored yaw via placeProp's `opts.ry` ·
+`clump` stays a nest at the same budget), so every theme's palette — and any
+future theme's — lands in formations with no per-theme table.
+
+Grown for this: the `pave` ground patch (a designed square: crisp disc + rim
++ optional accent glow, no hazard, in the arena editor palette), and the
+battle harness's `?overhead=1|2` layout-judging view (straight down, fog off,
+whole cell / cell + wrap neighbours).
+
+SETTINGS: "PROCEDURAL ARENAS: ON/OFF" is now "ARENA DESIGN:
+AUTHORED / CITY WARDS / GRAND AXIS / COLOSSEUM / FALLBACK"
+(`CONFIG.arenaDesign`, `?design=<mode>`; `?procedural=1` still = fallback;
+the old pref migrates ON->fallback, OFF->authored). AUTHORED — the default —
+plays the hand-built levels where they exist and hands every other arena to
+CITY WARDS.

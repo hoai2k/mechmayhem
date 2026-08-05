@@ -1546,11 +1546,40 @@ audio). Progress history: `TASKS.md`.
   says which props this city places, and it KEEPS the base theme's name/desc:
   the player picked NEON DISTRICT off the card and that is what the loading
   screen should go on calling it, whatever the level is titled in the editor.
-  SETTINGS -> PROCEDURAL ARENAS (`CONFIG.proceduralArenas`, OFF by default,
-  `?procedural=1`) ignores the table entirely and generates everything, which is
-  how the procedural cities stay reachable once an arena has been authored. The
-  harness honours it too — a bare `?battle=neon` plays what the MENUS play, or a
-  soak silently tests an arena nobody ships.
+  SETTINGS -> ARENA DESIGN (`CONFIG.arenaDesign`, `?design=<mode>`) says which
+  DESIGN SYSTEM lays a generated arena out — see the entry below. Only its
+  `authored` mode (the default) consults this table; every other mode
+  (`wards`/`avenues`/`circuit`/`fallback`) generates everything, which is how
+  the procedural cities stay reachable once an arena has been authored. The old
+  `?procedural=1` still means `fallback`, and the retired on/off pref migrates
+  (ON -> fallback, OFF -> authored). The harness honours it too — a bare
+  `?battle=neon` plays what the MENUS play, or a soak silently tests an arena
+  nobody ships.
+- AN ARENA'S LAYOUT IS A DESIGN SYSTEM (`src/arena/designs/`, brief + research
+  in `docs/ARENA_DESIGN.md`). themes.js stays the WHAT (palettes, props,
+  hazards, mood); WHERE it all stands is a pluggable PLANNER: `plan(env)`
+  returns an optional reworked `theme.layout` for the Terrain, building sites,
+  and a per-spec prop placement map — and arena.js EXECUTES the plan through
+  the exact code the fallback runs (massing, tints, `_regProp`, recipe), so a
+  designed arena bakes and records identically to a scattered one. FALLBACK is
+  the absence of a plan (`arenaDesignSystem()` returns null) — the original
+  scatter generator survives byte-identical. Three systems ship: WARDS (Lynch
+  districts: a jittered periodic ward grid with roles — dense block grids, a
+  tower court, a market bazaar, yards, paved pocket plazas — over the whole
+  cell so the seam ring carries city), AVENUES (axial: boulevards through the
+  plaza AND along the wrap seam — the border becomes a street, continuous by
+  construction — street walls, gateway towers, terminated vistas) and CIRCUIT
+  (arena-shooter flow: rotationally-symmetric bastion ring with open gates,
+  inner cover pods, ONE tall symmetry-break for orientation, corner clusters
+  that wrap-assemble across the border). Props are arranged by SPEC SHAPE,
+  never name (count 1 = hero landmark · 2 = gateposts · 3-4 = district
+  dressing · >=5 = rows/rings with authored yaw · `clump` = nests), so a new
+  theme's palette lands in formations with no edit anywhere. The `pave` patch
+  kind (terrain.js) is the designed square the plaza roles paint — no hazard,
+  crisp disc + rim, in the level editor palette too. JUDGE A LAYOUT FROM
+  ABOVE: `?battle=<t>&design=<id>&overhead=1` parks the camera straight down
+  with fog off, framing the whole cell (`overhead=2` adds the wrap neighbours
+  — the continuity check).
 - THE ARENA EDITOR (`/workbench/?edit=level`) EDITS THE SHIPPED ARENAS, not just blank
   canvases. Pick one of the 12 from the top-bar dropdown and it is BAKED: the
   arena is built for real, exactly as a match builds it, and every massed
@@ -1566,7 +1595,7 @@ audio). Progress history: `TASKS.md`.
   quietly reverting the work. `fresh` is the deliberate way back to a generated
   layout: the seed ⟳ button and an explicit `&seed=` both pass it, and the seed
   box stays on screen for an authored arena precisely so ⟳ is reachable. It is
-  NOT gated on `CONFIG.proceduralArenas` — that setting says what a MATCH
+  NOT gated on `CONFIG.arenaDesign` — that setting says what a MATCH
   builds; a level file is what this tool edits either way. `&theme=<id>` still means a BLANK
   level on that theme and `&load=<name>` still edits
   `public/levels/<name>.json`. `?battle=<theme>&level=<name>` plays one.

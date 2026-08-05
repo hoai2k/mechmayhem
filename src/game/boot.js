@@ -15,7 +15,8 @@ import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsS
 import { installKnobs, warnUnknownParams } from '../core/knobs.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
-  CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY, setProceduralArenas,
+  CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY,
+  setArenaDesign, ARENA_DESIGN_MODES,
   setRobotSpeed, SPEED_MIN, SPEED_MAX, SPEED_STEP,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
@@ -228,12 +229,14 @@ export async function bootGame() {
       fn: () => setShowAllRobots(!CONFIG.showAllRobots),
     },
     {
-      // ON: every arena is rolled from its theme recipe, as they all were
-      // before any were authored. OFF: an arena listed in arena/authored.js
-      // plays its hand-built level, everything else is generated regardless.
-      label: () => t(CONFIG.proceduralArenas
-        ? 'settings.proceduralArenas.on' : 'settings.proceduralArenas.off'),
-      fn: () => setProceduralArenas(!CONFIG.proceduralArenas),
+      // which design system lays out each match's arena (src/arena/designs/).
+      // AUTHORED plays the hand-built levels where they exist and hands every
+      // other arena to the default system; CITY WARDS / GRAND AXIS /
+      // COLOSSEUM generate EVERY arena fresh with that system; FALLBACK is
+      // the original scatter generator, kept reachable forever.
+      label: () => t(`settings.arenaDesign.${CONFIG.arenaDesign}`),
+      fn: () => setArenaDesign(ARENA_DESIGN_MODES[
+        (ARENA_DESIGN_MODES.indexOf(CONFIG.arenaDesign) + 1) % ARENA_DESIGN_MODES.length]),
     },
     // controller-reachable page reload (via LB/RB → settings → this item)
     { label: () => t('settings.reload'), fn: () => window.location.reload() },
