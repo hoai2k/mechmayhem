@@ -22,7 +22,7 @@ import {
 } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
-import { MusicPlayer } from '../core/music.js';
+import { MusicPlayer, MENU_TRACKS } from '../core/music.js';
 import { NowPlaying } from '../ui/nowplaying.js';
 import { Predictor } from './predict.js';
 import { createMech, preloadMechModels, loadManifest, is3dMode } from '../mechs/gltf.js';
@@ -68,7 +68,10 @@ export async function bootGame() {
       setSfxVolume() {}, setMusicVolume() {},
     };
   }
-  const resumeAudio = () => audio.resume();
+  // the menus open BEFORE any gesture, and autoplay policy rejects a media
+  // element until there has been one — so the first click/keypress asks the
+  // menu theme to play again (a no-op if it already is)
+  const resumeAudio = () => { audio.resume(); if (S?.mode !== 'battle') menuMusic?.retry(); };
   window.addEventListener('pointerdown', resumeAudio);
   window.addEventListener('keydown', resumeAudio);
 
@@ -79,6 +82,23 @@ export async function bootGame() {
   // empty or <audio> is unavailable.
   const music = new MusicPlayer();
   const nowPlaying = new NowPlaying(uiRoot, music);
+
+  // ---- menu theme: the recorded track in public/sound/, looped behind the
+  // title and select screens. The procedural sequencer's `menu` pattern is
+  // the FALLBACK — it plays whenever this file can't (no <audio>, missing
+  // asset, or a RW_NO_MUSIC build, which empties the track list).
+  const menuMusic = new MusicPlayer({ tracks: MENU_TRACKS, loop: true });
+  // a missing/undecodable file must not leave the menus silent: the sequencer
+  // takes over the moment the element gives up on it
+  menuMusic.el?.addEventListener('error', () => {
+    menuMusic.stop();
+    if (S.mode !== 'battle') audio.music('menu');
+  });
+  function startMenuMusic() {
+    if (menuMusic.available) { audio.stopMusic(); menuMusic.resume(); }
+    else audio.music('menu');
+  }
+  function stopMenuMusic() { menuMusic.stop(); }
 
   // ---- idle prefetch (game/predict.js): while the player reads the title
   // screen and picks a robot, pull down what the fight is about to need. The
@@ -107,6 +127,7 @@ export async function bootGame() {
     audio.setSfxVolume(muted ? 0 : 0.8);
     audio.setMusicVolume(muted ? 0 : 0.35);
     music.setMuted(muted);
+    menuMusic.setMuted(muted);
     muteBtn.textContent = muted ? '🔇' : '🔊';
   }
   muteBtn.addEventListener('click', () => setMuted(!muted));
@@ -133,10 +154,11 @@ export async function bootGame() {
   };
   const settingsItems = () => [
     { label: () => t(muted ? 'settings.sound.off' : 'settings.sound.on'), fn: () => setMuted(!muted) },
-    ...(music.available
+    ...(music.available || menuMusic.available
       ? [{
         label: () => t(music.enabled ? 'settings.music.on' : 'settings.music.off'),
-        fn: () => music.setEnabled(!music.enabled),
+        // one toggle, both players (battle soundtrack + menu theme)
+        fn: () => { const on = !music.enabled; music.setEnabled(on); menuMusic.setEnabled(on); },
       }, {
         // ←→ drags the music bus alone; SOUND: OFF still silences everything
         label: () => t('settings.musicVol', {
@@ -145,8 +167,9 @@ export async function bootGame() {
         }),
         slide: (d) => {
           const v = Math.min(1, Math.max(0, Math.round(music.volume * 20 + d) / 20));
-          music.setVolume(v);
-          if (!music.enabled && v > 0) music.setEnabled(true);
+          music.setVolume(v);           // CONFIG.musicVolume is the shared bus…
+          menuMusic.setVolume(v);       // …but each element's gain is its own
+          if (!music.enabled && v > 0) { music.setEnabled(true); menuMusic.setEnabled(true); }
         },
       }]
       : []),
@@ -405,7 +428,7 @@ export async function bootGame() {
     teardownBattle();
     ensureStage('lineup');
     S.mode = 'title';
-    audio.music('menu');
+    startMenuMusic();
     predictor.start();
     setScreen(new TitleScreen(uiRoot, {
       audio, hotButtons,
@@ -636,6 +659,7 @@ export async function bootGame() {
     const usesTouch = humans.some((h) => h.device === 'touch');
     S.battle = { world, arena, fighters, humans, ais, cameraSys, hud, match, paused: false, usesTouch, loading: null, arenaObjs };
     if (touchControls) touchControls.setVisible(false); // hidden until the bell
+    stopMenuMusic();
     if (music.available) { audio.stopMusic(); music.start(); }
     else audio.music(theme.music);
     // pre-fight warm-up screen: the match is gated behind it while the
@@ -781,8 +805,10 @@ export async function bootGame() {
       if (S.mode === 'battle' && S.battle && !S.battle.paused && !S.battle.loading) pauseBattle();
       audio.suspend();
       music.pause();
+      menuMusic.pause();
     } else if (!muted) {
       audio.resume();
+      if (S.mode !== 'battle') menuMusic.resume();
       // the fight itself does NOT auto-resume; the soundtrack only comes back
       // if the match was left running (results screen, mid-warm-up)
       if (S.battle && !S.battle.paused) music.resume();
@@ -802,7 +828,7 @@ export async function bootGame() {
     setTimeout(() => splash.remove(), 600);
   }));
 
-  window.__game = { S, engine, audio, music, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
+  window.__game = { S, engine, audio, music, menuMusic, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
   // A mistyped switch says so instead of looking like a dead knob, and every
   // tuning value is reachable live as `rw` (see core/knobs.js).
   warnUnknownParams();

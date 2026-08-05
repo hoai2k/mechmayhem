@@ -1881,7 +1881,13 @@ that combat silently depends on. Never rebuild a design without it.
   soundtrack: every file in `src/music/` is a song, listed by the `rw-music`
   vite plugin, filename = title — drop one in and it joins the rotation.
   STREAMED, not bundled: copied to `dist/music/`, fetched on demand.
-  `?music=0` or a `RW_NO_MUSIC=1` build turns it off), utils.
+  `?music=0` or a `RW_NO_MUSIC=1` build turns it off). THE MENU THEME is a
+  separate, fixed track — `public/sound/Bohemian Cello Flame Hybrid Suite.mp3`,
+  named by `MENU_TRACKS` in music.js and played on a LOOP by a second
+  `MusicPlayer` (`menuMusic` in boot.js) behind the title/select screens. The
+  procedural sequencer's `menu` pattern is now the FALLBACK: it plays when
+  <audio> is unavailable, the file 404s/fails to decode, or music is off. One
+  settings toggle and one volume slider drive both players), utils.
   THREE TUNING LAYERS, don't confuse them: `tuning.js` = the GAMEPLAY DIALS
   every mech shares (stamina durations, pace, dash, guard arc, hit reactions
   — the file to edit for feel; costs are stated as SECONDS/fractions of a
