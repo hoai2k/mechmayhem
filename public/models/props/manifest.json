@@ -64,7 +64,8 @@
   },
   "crystalMonolith": {
     "file": "crystalMonolith.glb",
-    "fit": 11
+    "fit": 11,
+    "ry": 180
   },
   "quonsetHut": {
     "file": "quonsetHut.glb",
@@ -74,7 +75,7 @@
   "sphinxStatue": {
     "file": "sphinxStatue.glb",
     "fit": 8,
-    "ry": 90
+    "ry": 270
   },
   "solarWing": {
     "file": "solarWing.glb",

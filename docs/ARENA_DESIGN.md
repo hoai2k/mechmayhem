@@ -89,6 +89,20 @@ shared purse.
    A prop absent from the table has no preferences — new themes still work
    untouched. `node tools/scratch/traitprobe.mjs "<battle url>"` measures
    every rule on a built arena.
+6. **Props keep off building FOOTPRINTS, and stay visible.** A site
+   coordinate is the middle of a silhouette up to 20 units across, so
+   clearance is measured against the real boxes (`ctx.footprints`, read off
+   the buildings the arena just built) rather than a radius from the centre —
+   otherwise a guardian ends up inside a tower. Guardians additionally need a
+   clear sightline to the focal point: one hidden behind a street wall has a
+   perfect yaw nobody can see.
+7. **The model must agree with the yaw.** A placed prop usually renders an
+   imported GLB turned by the prop manifest's `ry`; `tools/propyaw.mjs`
+   aligns its long axis only (mod 180), which cannot tell a sphinx's head
+   from its tail. `node tools/scratch/propfront.mjs "<url>" <prop>…` measures
+   each model's own front and names the reversed ones (fixed in the prop
+   manifest, so every path benefits). Procedural builders are not judged —
+   they *define* the convention.
 5. **The stage is sacred** — clearing free of buildings and hazards, spawn
    ring sightlines clean, exactly as the fallback keeps it.
 6. **Planner/executor split** — a design system only decides positions

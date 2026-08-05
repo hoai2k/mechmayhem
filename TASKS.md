@@ -6581,3 +6581,37 @@ four shared facades are the ones named.
 Verified: bake round-trip all 12 themes × 3 designs, soaks clean (ruins
 avenues + authored neon), traitprobe green on ruins/jungle/harbor/frozen/
 neon across systems, build green.
+
+### …and two things the sphinx fix uncovered
+
+TRAIT YAW WAS RIGHT AND THE STATUE STILL SHOWED ITS BACK. Two separate bugs
+sat under the reported one, and neither is visible in the placement numbers:
+
+1. A PROP WAS ALLOWED TO STAND INSIDE A BUILDING. Prop clearance was a fixed
+   radius from a building's SITE COORDINATE — but that coordinate is the
+   MIDDLE of a massed silhouette up to 20 units across, so 10 units of
+   clearance is inside the lobby. Measured on Desert Ruins: the sphinx pair
+   at gap 0.0 from the nearest building (20x20, 22 tall). Buildings are built
+   before props are planned, so arena.js now hands the planner their REAL
+   boxes (`ctx.footprints` off `destructo.buildings[].aabb`) and the
+   validators reject by box. Guardians additionally require a clear
+   SIGHTLINE to the focal point (`sightlineClear`) — one standing behind a
+   street wall has a perfect yaw nobody will ever see.
+2. THE MODEL DISAGREED WITH THE YAW. A placed prop renders an imported GLB
+   turned by the prop manifest's `ry`, and tools/propyaw.mjs only aligns the
+   model's LONG AXIS (mod 180) — a sphinx's long axis is head-to-tail, so the
+   model was axis-perfect and back to front. At 0.0 degrees of measured yaw
+   error the statue faced the fight with its haunches.
+   `tools/scratch/propfront.mjs` measures where a MODEL's mass sits high up
+   in the prop's own frame and names the reversed ones: `sphinxStatue`
+   (ry 90 -> 270) and `crystalMonolith` (+180, its tall spire now leans over
+   the arena instead of away). Fixed in the manifest, so the fallback scatter
+   and the authored levels get it too. It judges GLB-backed props ONLY — the
+   procedural builders define the convention, and the heuristic is fooled by
+   a flat-topped one (the jungle idol's face is at +Z; its moss cap is the
+   top third).
+
+Re-verified after both: traitprobe green on ruins/jungle/neon/harbor across
+all three systems, bake round-trip 12 themes x 3 designs, propshell mean
+phantom skin unchanged at 0.68, soaks clean (ruins/avenues, quarry/wards,
+authored neon), build green.

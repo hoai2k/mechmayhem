@@ -503,9 +503,14 @@ export class Arena {
       // the design system's prop plan: exact spots (and often yaws) per spec.
       // Only ground props are plannable — `on:` specs live inside patches and
       // sky-anchored specs (ring ≤ 6) hang their visuals far away.
+      // WHAT THE BUILDINGS ACTUALLY OCCUPY, not where their sites were: a
+      // massed silhouette is up to 20 units across, so a planner keeping a
+      // fixed radius from the site COORDINATE puts props inside towers. The
+      // buildings are already built by here, so hand over their real boxes.
+      const footprints = this.destructo.buildings.map((b) => b.aabb).filter(Boolean);
       const propPlan = plan?.props
         ? plan.props({
-          rng, terrain: this.terrain, sites: placedSites,
+          rng, terrain: this.terrain, sites: placedSites, footprints,
           specs: (theme.props || []).filter((s) => !s.on && s.ring && s.ring[1] > 6),
           propOk: (x, z, name) => propSpotOk(x, z, FLAT_PROPS.has(name)),
         })

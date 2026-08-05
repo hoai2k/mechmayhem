@@ -20,30 +20,108 @@
 // case this whole layer reports itself unavailable and the sequencer keeps the
 // fight too.
 //
+// PER-ARENA SONGS: a file in `src/music/arenas/` named for an arena
+// ("Jungle Temple 1.mp3") is that arena's own soundtrack and replaces the
+// general pool there — see ARENA_TRACKS below. An arena with no songs of its
+// own keeps the general rotation, which is most of them.
+//
 // Usage:
 //   const music = new MusicPlayer();
+//   music.setArena(theme);    // this fight's pool: the arena's songs or the pool
 //   music.prime();            // start buffering the song start() will pick
 //   music.start();            // plays the primed song
 //   music.pause(); music.resume(); music.stop();
 //   music.setEnabled(false);  // player toggle (persisted)
 //   music.setMuted(true);     // global SOUND: OFF, not persisted here
 // ============================================================================
-import { MUSIC_BASE, MUSIC_FILES } from 'virtual:rw-music';
-import { CONFIG, setMusicVolume } from './config.js';
+import {
+  MUSIC_BASE, MUSIC_FILES, MUSIC_ARENA_BASE, MUSIC_ARENA_FILES,
+} from 'virtual:rw-music';
+import { CONFIG, setMusicVolume, menuMusicVolume } from './config.js';
+
+const titleOf = (file) => file.replace(/\.[^.]+$/, '');
+const byTitle = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
 
 /** Every song found in src/music/, alphabetical. `{ name, url }`. */
 export const TRACKS = MUSIC_FILES
+  .map((file) => ({ name: titleOf(file), url: MUSIC_BASE + encodeURIComponent(file) }))
+  .sort(byTitle);
+
+// ---------------------------------------------------------------- per-arena
+//
+// A song in `src/music/arenas/` belongs to the arena its FILENAME names —
+// "Jungle Temple 1.mp3" and "Jungle Temple 2.mp3" are the JUNGLE TEMPLE
+// soundtrack, and that arena plays those two (shuffled, no repeats) instead
+// of the general pool. Nothing is registered anywhere: the arena is matched
+// off the name, so naming a file after an arena is the whole of adding one.
+//
+// The KEY is the name with punctuation, spaces and case thrown away, so
+// "jungle-temple", "JungleTemple" and the theme's own id all reduce to
+// `jungletemple`. A song offers TWO keys — with and without a trailing track
+// number — because a number is only a track number when the arena's name does
+// not end in one: SCRAPYARD 7 is an arena, and "Scrapyard 7 2.mp3" and
+// "Scrapyard 7.mp3" both have to find it. An arena with no songs of its own
+// matches neither key and keeps the general rotation.
+
+/** `"Jungle Temple"` -> `"jungletemple"`. */
+export const arenaKey = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+/** The same, with a trailing track number dropped: `"Jungle Temple 2"`. */
+const trackKey = (s) => arenaKey(String(s || '').replace(/[\s_-]*\d+\s*$/, ''));
+
+/** Every song found in src/music/arenas/. `{ name, url, arena, arenaFull }`. */
+export const ARENA_TRACKS = MUSIC_ARENA_FILES
   .map((file) => ({
-    name: file.replace(/\.[^.]+$/, ''),
-    url: MUSIC_BASE + encodeURIComponent(file),
+    name: titleOf(file),
+    url: MUSIC_ARENA_BASE + encodeURIComponent(file),
+    arena: trackKey(titleOf(file)),      // "Jungle Temple 2" -> jungletemple
+    arenaFull: arenaKey(titleOf(file)),  // "Scrapyard 7"     -> scrapyard7
   }))
-  .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  .sort(byTitle);
+
+/**
+ * The songs written for this arena, or `[]` for one that has none yet.
+ * `theme` is a THEMES entry (matched on its display name AND its id, so
+ * either "Jungle Temple 1.mp3" or "jungle 1.mp3" finds it).
+ */
+export function arenaTracksFor(theme) {
+  if (!theme || !CONFIG.music) return [];
+  const keys = [arenaKey(theme.name), arenaKey(theme.id)].filter(Boolean);
+  return ARENA_TRACKS.filter((t) => keys.includes(t.arena) || keys.includes(t.arenaFull));
+}
+
+/**
+ * THE MENU THEME — one recorded track, in `public/sound/`, played on a loop
+ * behind the title/select screens instead of the procedural sequencer's
+ * `menu` pattern. It is a PUBLIC asset rather than a `src/music/` song on
+ * purpose: those are the battle rotation (a file dropped there joins it), and
+ * the menu theme is a fixed, named piece. The sequencer stays as the fallback
+ * for when this file is missing or <audio> is unavailable.
+ */
+export const MENU_TRACKS = [{
+  name: 'Bohemian Cello Flame Hybrid Suite',
+  url: (typeof document !== 'undefined' ? new URL('sound/Bohemian Cello Flame Hybrid Suite.mp3', document.baseURI).href : ''),
+}];
 
 const STORE_KEY = 'rw.musicOn';
 
 export class MusicPlayer {
-  constructor() {
-    this.tracks = CONFIG.music ? TRACKS : [];
+  /**
+   * @param {object} [opts]
+   * @param {Array}  [opts.tracks] play THESE songs instead of the src/music/
+   *   rotation (the menu theme; see MENU_TRACKS).
+   * @param {boolean} [opts.loop] loop the one song forever rather than
+   *   advancing to another when it ends.
+   * @param {boolean} [opts.menu] this is the MENU theme: it plays at the
+   *   music bus quieted by CONFIG.menuMusicMix, and has no arena rotation.
+   */
+  constructor(opts = {}) {
+    this.loop = !!opts.loop;
+    this._menu = !!opts.menu;
+    this._fixed = opts.tracks || null;      // a caller-supplied list (menu theme)
+    this._pool = CONFIG.music ? (this._fixed || TRACKS) : [];  // the general rotation
+    this.tracks = this._pool;               // what is playing NOW (arena or general)
+    this.arena = null;                      // the arena whose songs are loaded
+    this._bag = [];                         // the shuffled order left to play
     this.track = null;      // the song currently loaded (playing or paused)
     this.next = null;       // the pre-rolled song the NEXT start() will use
     this.playing = false;   // wants to be audible (false while paused/stopped)
@@ -58,10 +136,15 @@ export class MusicPlayer {
     this.el = null;
     this._warm = null;      // { track, url } — `next`, already downloaded
     this._playingWarm = null;
-    if (typeof Audio !== 'undefined' && this.tracks.length) {
+    // the element is made once, so gate it on EVERY song this player could
+    // ever reach — an arena pool counts even when the general one is empty
+    const anySong = this._pool.length
+      || (!this._fixed && CONFIG.music && ARENA_TRACKS.length);
+    if (typeof Audio !== 'undefined' && anySong) {
       try {
         this.el = new Audio();
         this.el.preload = 'none';   // nothing streams until we ask for it
+        this.el.loop = this.loop;   // the menu theme plays until we leave
         this.el.volume = this.volume;
         // one song ends → straight into another one, forever
         this.el.addEventListener('ended', () => { if (this.playing) this._advance(); });
@@ -77,12 +160,39 @@ export class MusicPlayer {
   get available() { return !!this.el && this.tracks.length > 0; }
   /** Song name for the readout, or null when nothing is loaded. */
   get nowPlaying() { return this.track ? this.track.name : null; }
-  /** The music bus level (the settings slider writes it through CONFIG). */
-  get volume() { return CONFIG.musicVolume; }
+  /**
+   * This player's level. The battle soundtrack plays at the music bus itself;
+   * the MENU theme plays at the bus quieted by `CONFIG.menuMusicMix`, since a
+   * screen you are reading and talking over wants less than a fight does.
+   */
+  get volume() { return this._menu ? menuMusicVolume() : CONFIG.musicVolume; }
   /** True when a song is actually meant to be audible right now. */
   get audible() { return this.playing && this.enabled && !this.muted; }
 
   // ------------------------------------------------------------------ control
+
+  /**
+   * Point the rotation at THIS arena's own songs (src/music/arenas/, matched
+   * on the theme's name or id) — or back at the general pool when the arena
+   * has none. Called as a fight is built, before `start()`.
+   *
+   * The song already pre-rolled is KEPT when it belongs to the new pool, so
+   * an arena with no music of its own still opens on the song the menus spent
+   * their idle time downloading; a swap simply loses that head start and
+   * streams instead, which is what a miss has always cost.
+   */
+  setArena(theme) {
+    if (this._fixed) return;                       // the menu theme is not a rotation
+    // named off the DISPLAY name, which resolveArenaTheme preserves through an
+    // authored level (the id can come back as the level's own)
+    const key = theme ? (arenaKey(theme.name) || arenaKey(theme.id)) : null;
+    if (key === this.arena) return;
+    this.arena = key;
+    const own = arenaTracksFor(theme);
+    this.tracks = own.length ? own : this._pool;
+    this._bag = [];
+    if (!this.tracks.includes(this.next)) { this.next = null; this._roll(); }
+  }
 
   /**
    * Download the song `start()` is going to play, WITHOUT playing it. Called
@@ -152,6 +262,16 @@ export class MusicPlayer {
     this._changed();
   }
 
+  /**
+   * Ask the element to play again if it is meant to be audible but isn't —
+   * the answer to autoplay policy, which rejects `play()` until the page has
+   * seen a gesture. A no-op when nothing is loaded or it is already running.
+   */
+  retry() {
+    if (!this.available || !this.playing || !this.track) return;
+    if (this.el.paused) this._play();
+  }
+
   /** Skip to the next pre-rolled song. */
   skip() {
     if (!this.available || !this.playing) return;
@@ -179,9 +299,14 @@ export class MusicPlayer {
     this._changed();
   }
 
-  /** Settings slider: 0..1 on the music bus alone. Persisted through CONFIG. */
+  /**
+   * Settings slider: 0..1 on the music bus alone. Persisted through CONFIG.
+   * A MENU player never writes the bus — its level is derived from it — so
+   * this just re-reads what the slider left, which is what keeps the menu
+   * theme following the slider down at its own quieter share.
+   */
   setVolume(v) {
-    setMusicVolume(v);
+    if (!this._menu) setMusicVolume(v);
     this._applyVolume();
     this._changed();
   }
@@ -196,14 +321,26 @@ export class MusicPlayer {
     if (!want) { try { this.el.pause(); } catch (e) { /* ok */ } }
   }
 
-  /** Pre-roll the song after this one: random, never an immediate repeat. */
+  /**
+   * Pre-roll the song after this one. The order is a SHUFFLE BAG rather than
+   * a fresh random pick: every song in the pool plays once before any of them
+   * plays again, which is what keeps a two-song arena alternating instead of
+   * flipping a coin each time. A refilled bag never opens on the song that
+   * just finished, so the wrap is not an immediate repeat either.
+   */
   _roll() {
     if (!this.tracks.length) { this.next = null; return; }
-    const pool = this.tracks.length > 1
-      ? this.tracks.filter((t) => t !== this.track && t !== this.next)
-      : this.tracks;
-    const src = pool.length ? pool : this.tracks;
-    this.next = src[(Math.random() * src.length) | 0];
+    if (!this._bag.length) {
+      const bag = this.tracks.slice();
+      for (let i = bag.length - 1; i > 0; i--) {   // Fisher-Yates
+        const j = (Math.random() * (i + 1)) | 0;
+        [bag[i], bag[j]] = [bag[j], bag[i]];
+      }
+      // don't open a new bag on the song still playing
+      if (bag.length > 1 && bag[0] === this.track) bag.push(bag.shift());
+      this._bag = bag;
+    }
+    this.next = this._bag.shift();
   }
 
   /** Move onto the pre-rolled song and roll the one after it. */

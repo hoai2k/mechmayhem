@@ -180,9 +180,9 @@ function planBuildings(env, wards, { terrain, rng, count }) {
 }
 
 function planProps(env, wards, paves, ctx) {
-  const { rng, sites, specs, propOk, terrain } = ctx;
+  const { rng, footprints, specs, propOk, terrain } = ctx;
   const { P } = env;
-  const pOk = makePropOk(propOk, sites, P);
+  const pOk = makePropOk(propOk, footprints, P);
   const plan = new Map();
   const cls = classifyProps(specs);
   const byRole = (role) => wards.filter((wd) => wd.role === role);
