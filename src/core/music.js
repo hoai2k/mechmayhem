@@ -39,11 +39,32 @@ export const TRACKS = MUSIC_FILES
   }))
   .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
+/**
+ * THE MENU THEME — one recorded track, in `public/sound/`, played on a loop
+ * behind the title/select screens instead of the procedural sequencer's
+ * `menu` pattern. It is a PUBLIC asset rather than a `src/music/` song on
+ * purpose: those are the battle rotation (a file dropped there joins it), and
+ * the menu theme is a fixed, named piece. The sequencer stays as the fallback
+ * for when this file is missing or <audio> is unavailable.
+ */
+export const MENU_TRACKS = [{
+  name: 'Bohemian Cello Flame Hybrid Suite',
+  url: (typeof document !== 'undefined' ? new URL('sound/Bohemian Cello Flame Hybrid Suite.mp3', document.baseURI).href : ''),
+}];
+
 const STORE_KEY = 'rw.musicOn';
 
 export class MusicPlayer {
-  constructor() {
-    this.tracks = CONFIG.music ? TRACKS : [];
+  /**
+   * @param {object} [opts]
+   * @param {Array}  [opts.tracks] play THESE songs instead of the src/music/
+   *   rotation (the menu theme; see MENU_TRACKS).
+   * @param {boolean} [opts.loop] loop the one song forever rather than
+   *   advancing to another when it ends.
+   */
+  constructor(opts = {}) {
+    this.loop = !!opts.loop;
+    this.tracks = CONFIG.music ? (opts.tracks || TRACKS) : [];
     this.track = null;      // the song currently loaded (playing or paused)
     this.next = null;       // the pre-rolled song the NEXT start() will use
     this.playing = false;   // wants to be audible (false while paused/stopped)
@@ -62,6 +83,7 @@ export class MusicPlayer {
       try {
         this.el = new Audio();
         this.el.preload = 'none';   // nothing streams until we ask for it
+        this.el.loop = this.loop;   // the menu theme plays until we leave
         this.el.volume = this.volume;
         // one song ends → straight into another one, forever
         this.el.addEventListener('ended', () => { if (this.playing) this._advance(); });
@@ -150,6 +172,16 @@ export class MusicPlayer {
     try { this.el.pause(); this.el.removeAttribute('src'); this.el.load(); } catch (e) { /* ok */ }
     if (prev) { try { URL.revokeObjectURL(prev.url); } catch (e) { /* ok */ } }
     this._changed();
+  }
+
+  /**
+   * Ask the element to play again if it is meant to be audible but isn't —
+   * the answer to autoplay policy, which rejects `play()` until the page has
+   * seen a gesture. A no-op when nothing is loaded or it is already running.
+   */
+  retry() {
+    if (!this.available || !this.playing || !this.track) return;
+    if (this.el.paused) this._play();
   }
 
   /** Skip to the next pre-rolled song. */
