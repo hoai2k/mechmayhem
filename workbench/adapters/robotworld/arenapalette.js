@@ -61,6 +61,7 @@ export const ARENA_PALETTE = [
       { id: 'patch_sand', label: 'Sand', k: 'patch', kind: 'sand' },
       { id: 'patch_grass', label: 'Lawn', k: 'patch', kind: 'grass' },
       { id: 'patch_ash', label: 'Ash', k: 'patch', kind: 'ash' },
+      { id: 'patch_pave', label: 'Plaza paving ✦new', k: 'patch', kind: 'pave', hint: 'Paved pocket plaza — pure paint, no hazard' },
     ],
   },
   {

@@ -35,7 +35,8 @@ export async function runBattleTest() {
     // authored level where one exists, generated otherwise. A soak or a
     // screenshot that quietly exercised the procedural city while the menus
     // shipped a hand-built one would be testing the wrong arena.
-    // ?procedural=1 opts out, exactly as the setting does.
+    // ?design=<mode> picks a design system exactly as the setting does, and
+    // the old ?procedural=1 still forces the fallback generator.
     theme = await resolveArenaTheme(theme);
   }
 
@@ -177,8 +178,23 @@ export async function runBattleTest() {
       `${f.def.name.padEnd(9)} hp:${Math.max(0, f.hp | 0).toString().padStart(4)} ult:${'★'.repeat(f.ultCharges) || '-'} ${f.state}`
     ).join('\n') + `\ncam:${cameraSys.mode} draws:${engine.renderer.info.render.calls}`;
   };
+  // ?overhead=<height>: park the view straight down over the arena centre —
+  // THE LAYOUT-JUDGING VIEW for the design systems (arena/designs/).
+  // ?overhead=1 frames the whole cell; ?overhead=2 frames the cell plus its
+  // wrap neighbours (the continuity check); any other value is a height.
+  // Fog has to go — the entire board sits past the fog wall from up there.
+  const ovh = parseFloat(params.get('overhead') || '0');
+  const overheadH = ovh === 1 ? arena.wrapHalf * 2.3
+    : ovh === 2 ? arena.wrapHalf * 3.8 : ovh;
+  if (overheadH) engine.scene.fog = null;
   engine.onRender = (dtReal) => {
     cameraSys.update(dtReal, fighters, humans);
+    if (overheadH) {
+      const cam = engine.camera;
+      cam.position.set(0, overheadH, 0.01);
+      cam.up.set(0, 0, -1);
+      cam.lookAt(0, 0, 0);
+    }
   };
   engine.start();
   window.__world = world; // debug hooks

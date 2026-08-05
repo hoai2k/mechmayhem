@@ -619,7 +619,7 @@ const CONFIG = defineWorkbenchConfig({
     // WHICH ARENAS ARE HAND-BUILT RATHER THAN GENERATED (src/arena/authored.js
     // is the game's own registry — derived, never a second copy). The editor
     // opens these from their file instead of baking a seed, so it edits what
-    // the game plays. Deliberately NOT gated on CONFIG.proceduralArenas: that
+    // the game plays. Deliberately NOT gated on CONFIG.arenaDesign: that
     // setting says which arena a MATCH builds, and a level file stays the thing
     // this tool edits either way.
     authoredLevel: (id) => AUTHORED_ARENAS[id] || null,

@@ -128,10 +128,15 @@ export const MESSAGES = {
   'settings.reverseCamY.off': 'REVERSE CAMERA Y: OFF',
   'settings.showAllRobots.on': 'SHOW ALL ROBOTS: ON',
   'settings.showAllRobots.off': 'SHOW ALL ROBOTS: OFF',
-  // ON = every arena is generated fresh each match. OFF (the default) = an
-  // arena with a hand-built version plays it; the rest are generated anyway.
-  'settings.proceduralArenas.on': 'PROCEDURAL ARENAS: ON',
-  'settings.proceduralArenas.off': 'PROCEDURAL ARENAS: OFF',
+  // which design system lays out each match's arena (src/arena/designs/):
+  // AUTHORED (default) plays the hand-built levels where they exist and
+  // generates the rest with the default system; the named systems generate
+  // EVERY arena fresh; FALLBACK is the original scatter generator.
+  'settings.arenaDesign.authored': 'ARENA DESIGN: AUTHORED',
+  'settings.arenaDesign.wards': 'ARENA DESIGN: CITY WARDS',
+  'settings.arenaDesign.avenues': 'ARENA DESIGN: GRAND AXIS',
+  'settings.arenaDesign.circuit': 'ARENA DESIGN: COLOSSEUM',
+  'settings.arenaDesign.fallback': 'ARENA DESIGN: FALLBACK',
   'settings.reload': 'RELOAD PAGE',
   'settings.split.side': 'SPLIT: SIDE BY SIDE',
   'settings.split.stacked': 'SPLIT: STACKED',

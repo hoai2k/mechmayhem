@@ -51,21 +51,26 @@ const KINDS = {
 };
 
 // patch kinds → live hazard (same behaviors as lanes)
+// `pave` is a paved pocket plaza — pure paint, no hazard: the design systems
+// (arena/designs/) use it to open designed squares in a dense board
 const PATCH_HAZ = {
   water: 'water', lake: 'water', lava: 'lava', acid: 'acid',
   oil: 'oil', mud: 'mud', ice: null, sand: null, grass: null, ash: null,
+  pave: null,
 };
 
 const hex = (c) => '#' + new THREE.Color(c).getHexString();
 
 export class Terrain {
-  constructor(arena, theme, rng) {
+  // `layoutOverride`: a design system's reworked layout (arena/designs/) —
+  // same shape as theme.layout, built fresh per arena, never the shared theme
+  constructor(arena, theme, rng, layoutOverride = null) {
     this.arena = arena;
     this.theme = theme;
     this.rng = rng;
     this.P = arena.wrapHalf * 2;      // toroidal cell period
     this.B = arena.bounds;            // main play radius
-    const L = this.L = theme.layout || {};
+    const L = this.L = layoutOverride || theme.layout || {};
     this.clearing = L.clearing ?? 38; // spawn plaza: building/hazard-free
     this.lanes = [];
     this.patches = [];
@@ -1124,6 +1129,24 @@ export class Terrain {
       }
       c.restore();
     };
+    // ring stroke round a patch at all 9 wrap offsets (pave plaza rims)
+    const strokePatch = (c, p, radiusM, widthM, color, alpha, dash = null) => {
+      if (!c) return;
+      c.save();
+      c.strokeStyle = color;
+      c.globalAlpha = alpha;
+      c.lineWidth = Math.max(1.5, widthM * m2px);
+      if (dash) c.setLineDash(dash.map((d) => d * m2px));
+      for (const ox of [-S, 0, S]) {
+        for (const oy of [-S, 0, S]) {
+          c.beginPath();
+          c.arc((p.x / P + 0.5) * S + ox, (p.z / P + 0.5) * S + oy,
+            Math.max(2, radiusM * m2px), 0, TAU);
+          c.stroke();
+        }
+      }
+      c.restore();
+    };
     for (const p of this.patches) {
       const lobes = [
         { dx: 0, dz: 0, s: 1 },
@@ -1133,6 +1156,16 @@ export class Terrain {
       const inner = [{ dx: lobes[1].dx * 0.5, dz: lobes[1].dz * 0.5, s: 1 }];
       const base = p.color ? hex(p.color) : null;
       switch (p.kind) {
+        case 'pave': {
+          // a designed square: crisp paving, an inner apron, a painted rim —
+          // deliberately geometric where every other patch is organic
+          const disc = [{ dx: 0, dz: 0, s: 1 }];
+          fillPatch(ctx, p, p.r, base || '#43464d', 0.45, disc);
+          fillPatch(ctx, p, p.r * 0.62, '#585c64', 0.3, disc);
+          strokePatch(ctx, p, p.r * 0.84, 0.5, '#00000055', 0.7);
+          if (p.glow) strokePatch(ectx, p, p.r * 0.92, 0.4, hex(p.glow), 0.6);
+          break;
+        }
         case 'water': case 'lake':
           fillPatch(ctx, p, p.r * 1.1, '#c2c9c2', 0.26, lobes);   // pale banks
           fillPatch(ctx, p, p.r, base || '#173341', 0.9, lobes);

@@ -8,6 +8,7 @@ import { buildingDonors } from './buildglb.js';
 import { PROPS, PROP_MATS, placeProp, mergePropMeshes } from './props.js';
 import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
 import { propShell } from './propshell.js';
+import { arenaDesignSystem } from './designs/index.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
@@ -313,9 +314,23 @@ export class Arena {
     this.destructo = new DestructibleSystem(this.scene, chunkMats);
     this.objects.push(this.destructo.mesh, this.destructo.debris.mesh);
 
+    // ---- design system: WHERE the generated pieces stand ----
+    // A generated arena's placement is planned by the selected design system
+    // (src/arena/designs/) and executed by the code below; a null plan means
+    // the FALLBACK — this file's original scatter, untouched. Authored levels
+    // (and the level editor's empty stage) place exactly and plan nothing.
+    const design = theme.authored ? null : arenaDesignSystem();
+    const plan = design
+      ? design.plan({
+        theme, rng, B: this.bounds, P,
+        clearing: theme.layout?.clearing ?? 38,
+      })
+      : null;
+
     // ---- terrain: painted roads/streams, hills, bridges, hazard lanes ----
-    // (built before buildings/props so both can respect its layout)
-    this.terrain = new Terrain(this, theme, rng);
+    // (built before buildings/props so both can respect its layout; a design
+    // system may hand it a reworked layout — boulevards, paved plazas)
+    this.terrain = new Terrain(this, theme, rng, plan?.layout || null);
 
     // building layout: clusters (mini city blocks / compounds) separated by
     // the painted road grid, plus scattered solo cover — the terrain keeps
@@ -325,6 +340,7 @@ export class Arena {
     // carry their own color, so only a whisper of tint survives)
     const tintFor = (t) => (CONFIG.useTextures && FACADE_TEX[styleIdx])
       ? new THREE.Color(t).lerp(new THREE.Color(0xffffff), 0.68).getHex() : t;
+    let placedSites = [];   // building sites, for the prop planner to keep off
     if (theme.authored) {
       // authored levels place exact towers from the editor
       for (const o of theme.authored) {
@@ -354,9 +370,17 @@ export class Arena {
         || THEME_MASSING[theme.id]
         || [['tower', 'slab', 'lshape'], ['tower']];
       const donorPool = buildingDonors(theme.id);
-      for (const site of this.terrain.buildingSites(count, rng)) {
-        const hRange = [...theme.buildings.hRange];
-        if (site.cluster >= 0 && !site.tall && rng.chance(0.5)) {
+      // sites come from the design system's plan, or from the fallback's own
+      // cluster-and-scatter when no plan is running
+      const sites = plan?.buildings
+        ? plan.buildings({ terrain: this.terrain, rng, count })
+        : this.terrain.buildingSites(count, rng);
+      placedSites = sites;
+      for (const site of sites) {
+        // a designed site may pin its own floor band (a low market shed, the
+        // tower court's high-rise ring); everything else keeps the theme's
+        const hRange = site.hRange ? [...site.hRange] : [...theme.buildings.hRange];
+        if (!site.hRange && site.cluster >= 0 && !site.tall && rng.chance(0.5)) {
           hRange[1] = Math.max(hRange[0], hRange[1] - 1);
         }
         const cw = rng.range(3.2, 3.9), ch = rng.range(3.1, 3.6), cd = rng.range(3.2, 3.9);
@@ -434,10 +458,14 @@ export class Arena {
         this._regProp(g, o.x, o.z, gy);
       }
     } else {
-      const buildAt = (spec, x, z, i, skyAnchored = false) => {
+      const buildAt = (spec, x, z, i, skyAnchored = false, ry) => {
         let opts = Array.isArray(spec.opts) ? spec.opts[i % spec.opts.length] : { ...(spec.opts || {}) };
         opts = { ...opts, seed: rng.int(1, 99999) };
         const recOpts = { ...opts };            // before the ice-material swap
+        // a designed placement may aim the prop (a row faces its street);
+        // scattered props keep placeProp's random yaw. Set after recOpts —
+        // the recipe already records the final yaw at the placement level.
+        if (ry !== undefined) opts.ry = ry;
         if (opts.mat === 'ice') opts.mat = PROP_MATS.ice;
         const gy = skyAnchored ? 0 : this.terrain.heightAt(x, z);
         const g = placeProp(this.propGroup, this.objects, spec.name, x, z, opts);
@@ -455,6 +483,16 @@ export class Arena {
       // curtains (flat additive quads hung round the arena) would only stack
       // as bright rectangles over it. They stay for the no-texture fallback.
       const skipSkyProps = CONFIG.useTextures && hasTex('sky', `sky_${theme.id}`);
+      // the design system's prop plan: exact spots (and often yaws) per spec.
+      // Only ground props are plannable — `on:` specs live inside patches and
+      // sky-anchored specs (ring ≤ 6) hang their visuals far away.
+      const propPlan = plan?.props
+        ? plan.props({
+          rng, terrain: this.terrain, sites: placedSites,
+          specs: (theme.props || []).filter((s) => !s.on && s.ring && s.ring[1] > 6),
+          propOk: (x, z, name) => propSpotOk(x, z, FLAT_PROPS.has(name)),
+        })
+        : null;
       for (const spec of theme.props || []) {
         if (skipSkyProps && spec.name === 'aurora') continue;
         // `on: 'water'` (or any patch kind): the prop lives INSIDE a patch —
@@ -469,6 +507,14 @@ export class Arena {
             const a = rng.range(0, Math.PI * 2), rr = rng.range(0, Math.max(0, p.r - 3.5));
             buildAt(spec, p.x + Math.cos(a) * rr, p.z + Math.sin(a) * rr, i);
           }
+          continue;
+        }
+        // designed placement: the plan already expanded rows, rings, nests
+        // and gates for this spec; a spec the plan is silent about (or found
+        // no room for) falls through to the ring scatter below
+        const planned = propPlan?.get(spec);
+        if (planned?.length) {
+          planned.forEach((pp, i) => buildAt(spec, pp.x, pp.z, i, false, pp.ry));
           continue;
         }
         for (let i = 0; i < spec.count; i++) {

@@ -10,9 +10,12 @@
 // with no entry has no authored version and stays procedural, which is most of
 // them today, so the two kinds live side by side with no flag per arena.
 //
-// SETTINGS -> PROCEDURAL ARENAS (CONFIG.proceduralArenas, off by default)
-// ignores this table entirely and rolls every arena from its recipe, which is
-// how the generated cities stay reachable once an arena has been authored.
+// SETTINGS -> ARENA DESIGN (CONFIG.arenaDesign) decides whether this table is
+// consulted at all: only the 'authored' mode plays hand-built levels; every
+// other mode ('wards' / 'avenues' / 'circuit' / 'fallback') generates every
+// arena from its recipe through the chosen design system
+// (src/arena/designs/), which is how the generated cities stay reachable once
+// an arena has been authored.
 import { CONFIG } from '../core/config.js';
 import { loadLevel, themeFromLevel } from './level.js';
 
@@ -21,10 +24,10 @@ export const AUTHORED_ARENAS = {
 };
 
 // The level file for a theme, or null when it should be generated — either
-// because nothing is authored for it or because the player asked for
-// procedural arenas.
+// because nothing is authored for it or because the player asked for a
+// generated design system.
 export function authoredLevelFor(themeId) {
-  if (CONFIG.proceduralArenas) return null;
+  if (CONFIG.arenaDesign !== 'authored') return null;
   return AUTHORED_ARENAS[themeId] || null;
 }
 
