@@ -15,6 +15,12 @@
 // Styles: tower · slab · lshape · ziggurat · pagoda · warehouse ·
 //         industrial · modules · bunker · terrace · court · ruin ·
 //         dome · silo
+// Monumental (the themes that should own no rectangles):
+//         pyramid · mastaba · desertTemple · jungleTemple ·
+//         habitat · ringHab
+// Landforms (same chunks, geology instead of architecture — the kinds in
+// src/arena/structures.js dress these with rock / crystal / ice materials):
+//         mound · columns · spires · iceWall · berg
 
 // footprint helpers ---------------------------------------------------------
 const key = (x, z) => `${x},${z}`;
@@ -83,6 +89,20 @@ function roofBits(floors, rng, n = 2) {
     bits.add(k);
   }
   if (bits.size) floors.push(bits);
+}
+
+// a filled disc of cells of radius r about (cx,cz) — the primitive behind
+// every ROUND form here (domes, crystal spires, volcanic mounds, habitats).
+// Voxelized at chunk scale a disc reads as genuinely round, which is what
+// keeps a landform from looking like another box.
+function disc(fp, cx, cz, r) {
+  const n = Math.ceil(r) + 1;
+  for (let x = Math.floor(cx - n); x <= Math.ceil(cx + n); x++) {
+    for (let z = Math.floor(cz - n); z <= Math.ceil(cz + n); z++) {
+      if (Math.hypot(x - cx, z - cz) <= r + 0.35) fp.add(key(x, z));
+    }
+  }
+  return fp;
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +214,219 @@ export function generateMassing(style, rng, opts = {}) {
       const tx = rng.int(0, w - 2), tz = rng.int(0, d - 2);
       floors.push(F(2, 2, tx, tz));
       floors.push(F(1, 1, tx, tz));
+      break;
+    }
+    // ---- MONUMENTAL: the shapes that replace rectangles in the ancient
+    // and off-world themes. A theme whose whole story is "older than the
+    // war" should not be fighting among office blocks.
+    case 'pyramid': {
+      // a true pyramid: square, shrinking a ring a floor, to a capstone.
+      // Landmarks get the full height their footprint allows.
+      let w = rng.int(7, 9);
+      if (opts.tall) w += 2;
+      if (w % 2 === 0) w++;                       // odd, so it tips to one cell
+      let fp = F(w, w);
+      const steps = (w - 1) / 2;
+      for (let y = 0; y <= steps; y++) {
+        floors.push(fp);
+        fp = shrink(fp);
+      }
+      break;
+    }
+    case 'mastaba': {
+      // flat-topped trapezoid tomb — the low, wide desert form that sits
+      // between the pyramids, with a battered (sloping) wall
+      const w = rng.int(6, 8), d = rng.int(4, 6);
+      ny = Math.max(3, Math.min(ny, 5));
+      let fp = F(w, d);
+      for (let y = 0; y < ny; y++) {
+        floors.push(fp);
+        if (y % 2 === 1) fp = shrink(fp);
+      }
+      break;
+    }
+    case 'desertTemple': {
+      // pylon-fronted hall: two thick gate towers, a colonnaded hall
+      // running back between them, a raised sanctuary at the far end
+      const hall = rng.int(4, 6), w = 5;
+      const towerH = Math.max(4, Math.min(ny + 1, 7));
+      const hallH = Math.max(2, towerH - 2);
+      for (let y = 0; y < towerH; y++) {
+        const fp = new Set();
+        rect(fp, 0, 0, 2, 2);                     // pylon towers, either side
+        rect(fp, w - 2, 0, 2, 2);
+        if (y < hallH) {
+          rect(fp, 0, 2, w, hall);                // the hall behind them
+        } else if (y < hallH + 2) {
+          rect(fp, 1, 2 + hall - 2, w - 2, 2);    // sanctuary over the rear
+        }
+        floors.push(fp);
+      }
+      break;
+    }
+    case 'jungleTemple': {
+      // a stepped temple-pyramid with a STAIR spine down one face and a
+      // shrine cell on the crown — the silhouette the theme is named for
+      const w = rng.int(6, 8);
+      const steps = Math.max(3, Math.min(Math.floor(w / 2), 4));
+      let fp = F(w, w);
+      const perStep = 2;
+      for (let s = 0; s < steps; s++) {
+        for (let k = 0; k < perStep; k++) floors.push(new Set(fp));
+        fp = shrink(fp);
+      }
+      // the shrine, and a stair running the full height down the +z face
+      const sw = Math.max(2, Math.floor(w / 3));
+      const s0 = Math.floor((w - sw) / 2);
+      for (let y = 0; y < 3; y++) floors.push(F(sw, sw, s0, s0));
+      const stairX = Math.floor(w / 2);
+      floors.forEach((fl, y) => {
+        const reach = Math.max(0, w - 1 - Math.floor(y / perStep));
+        for (let z = reach; z < w; z++) fl.add(key(stairX, z));
+      });
+      break;
+    }
+    case 'habitat': {
+      // ROUNDED space-age: a circular tower that swells into an observation
+      // crown — grown a ring at a time, so the overhang rule holds
+      const r0 = rng.range(1.6, 2.4);
+      ny = Math.max(5, Math.min(ny + 2, 9));
+      const c = Math.ceil(r0) + 2;
+      const crown = Math.floor(ny * rng.range(0.62, 0.75));
+      for (let y = 0; y < ny; y++) {
+        const t = y < crown ? r0 * 0.82
+          : r0 * (1.0 + 0.5 * Math.min(1, (y - crown) / 1.5) - 0.35 * Math.max(0, (y - crown - 2) / 2));
+        const fp = disc(new Set(), c, c, Math.max(0.9, t));
+        floors.push(fp);
+      }
+      break;
+    }
+    case 'ringHab': {
+      // ANGULAR space-age: a wide drum base carrying a stepped octagonal
+      // block and a mast — a docking spine rather than an office tower
+      const r = rng.range(2.4, 3.2);
+      const c = Math.ceil(r) + 2;
+      ny = Math.max(4, Math.min(ny, 7));
+      for (let y = 0; y < ny; y++) {
+        const fp = new Set();
+        if (y < 2) disc(fp, c, c, r);                    // the drum
+        else if (y < ny - 1) rect(fp, c - 2, c - 2, 4, 4); // the block
+        else rect(fp, c - 1, c - 1, 2, 2);
+        floors.push(fp);
+      }
+      for (let y = 0; y < 3; y++) floors.push(F(1, 1, c, c));   // the mast
+      break;
+    }
+
+    // ---- LANDFORMS: not buildings at all. Same destructible chunks, but
+    // the shapes are geology, and structures.js gives them their own
+    // materials (basalt, crystal, ice) instead of a building facade.
+    case 'mound': {
+      // a volcanic mound / rubble hill: a wide irregular dome whose radius
+      // wobbles per floor, so nothing about it reads as machined
+      const r0 = rng.range(3.4, 5.2) * (opts.tall ? 1.25 : 1);
+      const c = Math.ceil(r0) + 2;
+      const layers = Math.max(4, Math.round(r0 * rng.range(1.25, 1.75)));
+      for (let y = 0; y < layers; y++) {
+        const t = 1 - y / layers;
+        const r = r0 * (0.35 + 0.65 * t) * rng.range(0.86, 1.06);
+        const fp = disc(new Set(), c + rng.range(-0.5, 0.5), c + rng.range(-0.5, 0.5),
+          Math.max(0.8, r));
+        floors.push(fp);
+      }
+      break;
+    }
+    case 'columns': {
+      // basalt columns / a cliff face: a bundle of square shafts at
+      // different heights, tallest along one edge — jointed rock, not a wall
+      const w = rng.int(4, 6), d = rng.int(3, 5);
+      const top = Math.max(5, ny + rng.int(1, 3));
+      const hmap = [];
+      const lean = rng.chance(0.5) ? 'x' : 'z';
+      for (let x = 0; x < w; x++) {
+        for (let z = 0; z < d; z++) {
+          const along = lean === 'x' ? x / Math.max(1, w - 1) : z / Math.max(1, d - 1);
+          const h = Math.max(1, Math.round(top * (0.35 + 0.65 * along) * rng.range(0.78, 1.12)));
+          hmap.push({ x, z, h });
+        }
+      }
+      const hi2 = Math.max(...hmap.map((c) => c.h));
+      for (let y = 0; y < hi2; y++) {
+        const fp = new Set();
+        for (const c of hmap) if (y < c.h) fp.add(key(c.x, c.z));
+        floors.push(fp);
+      }
+      break;
+    }
+    case 'spires': {
+      // a crystal cluster: several tapering shafts of different heights
+      // leaning out of one base — the jagged silhouette, in voxels
+      const n = rng.int(3, 5);
+      const span = rng.int(5, 7);
+      const shafts = [];
+      for (let i = 0; i < n; i++) {
+        shafts.push({
+          x: rng.int(1, span - 1), z: rng.int(1, span - 1),
+          h: Math.max(3, Math.round((ny + rng.int(0, 4)) * (i === 0 ? 1.25 : rng.range(0.5, 0.95)))),
+          dx: rng.chance(0.5) ? 1 : -1, dz: rng.chance(0.5) ? 1 : -1,
+          lean: rng.range(0.1, 0.32),               // cells of drift per floor
+        });
+      }
+      const top = Math.max(...shafts.map((s) => s.h));
+      for (let y = 0; y < top; y++) {
+        const fp = new Set();
+        if (y < 1) disc(fp, span / 2, span / 2, span * 0.42);   // the bed
+        for (const s of shafts) {
+          if (y >= s.h) continue;
+          // taper: a 2-wide shaft near the base, one cell at the tip
+          const ox = Math.round(s.dx * s.lean * y), oz = Math.round(s.dz * s.lean * y);
+          fp.add(key(s.x + ox, s.z + oz));
+          if (y < s.h * 0.45) {
+            fp.add(key(s.x + ox + 1, s.z + oz));
+            fp.add(key(s.x + ox, s.z + oz + 1));
+          }
+        }
+        floors.push(fp);
+      }
+      break;
+    }
+    case 'iceWall': {
+      // HUMAN-MADE ice: a cut block wall with a gateway through it and a
+      // stepped parapet — quarried, not grown
+      const w = rng.int(6, 8);
+      ny = Math.max(3, Math.min(ny, 5));
+      const gate = Math.floor(w / 2);
+      const d = 2;
+      for (let y = 0; y < ny; y++) {
+        const fp = new Set();
+        for (let x = 0; x < w; x++) {
+          // the gateway: two cells wide, open for the lower two floors
+          if (y < 2 && (x === gate || x === gate - 1)) continue;
+          for (let z = 0; z < d; z++) fp.add(key(x, z));
+        }
+        floors.push(fp);
+      }
+      // parapet: alternating merlons along the top
+      const cap = new Set();
+      for (let x = 0; x < w; x += 2) cap.add(key(x, 0));
+      floors.push(cap);
+      break;
+    }
+    case 'berg': {
+      // an ice mountain: a steep irregular peak, shrinking fast, with one
+      // shoulder — reads as a crag rather than a dome
+      const r0 = rng.range(2.6, 3.8) * (opts.tall ? 1.3 : 1);
+      const c = Math.ceil(r0) + 2;
+      const layers = Math.max(5, Math.round(r0 * rng.range(1.6, 2.2)));
+      const shx = rng.chance(0.5) ? 1 : -1;
+      for (let y = 0; y < layers; y++) {
+        const t = 1 - y / layers;
+        const fp = disc(new Set(), c, c, Math.max(0.8, r0 * t * rng.range(0.9, 1.08)));
+        if (y < layers * 0.45) {                    // the shoulder
+          disc(fp, c + shx * r0 * 0.7, c + r0 * 0.2, Math.max(0.8, r0 * 0.45 * t));
+        }
+        floors.push(fp);
+      }
       break;
     }
     case 'court': {
@@ -335,7 +568,12 @@ export const THEME_MASSING = {
   quarry: [['terrace', 'industrial', 'bunker', 'dome'], ['industrial']],
   volcano: [['bunker', 'industrial', 'terrace', 'ruin'], ['industrial']],
   frozen: [['bunker', 'warehouse', 'modules', 'dome'], ['modules', 'dome']],
-  ruins: [['ziggurat', 'terrace', 'bunker', 'ruin', 'court'], ['ziggurat']],
-  jungle: [['ziggurat', 'pagoda', 'bunker', 'ruin'], ['ziggurat']],
-  orbital: [['modules', 'slab', 'tower', 'dome'], ['modules']],
+  // NO RECTANGLES IN THE ANCIENT AND OFF-WORLD THEMES. What is left standing
+  // in a dig site is a temple, not an office block; the jungle's kings built
+  // stepped pyramids; a station deck carries drums and habitats. These three
+  // draw only from the monumental family (massing.js), so a plain box cannot
+  // turn up in them at all.
+  ruins: [['desertTemple', 'mastaba', 'ziggurat', 'pyramid', 'ruin'], ['pyramid', 'ziggurat']],
+  jungle: [['jungleTemple', 'ziggurat', 'pagoda', 'ruin'], ['jungleTemple']],
+  orbital: [['habitat', 'ringHab', 'modules', 'dome'], ['habitat', 'ringHab']],
 };

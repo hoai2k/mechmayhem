@@ -55,6 +55,18 @@ export class DestructibleSystem {
     this.ghostOffsets = [];
 
     const geo = new THREE.BoxGeometry(1, 1, 1);
+    // PER-CHUNK COLOUR NEEDS BOTH HALVES, and the second one is not obvious.
+    // `setColorAt` fills `instanceColor`, which three folds into vColor in the
+    // VERTEX stage — but the FRAGMENT stage only declares vColor under
+    // USE_COLOR, i.e. `material.vertexColors`. Turn that on and the vertex
+    // stage also runs `vColor *= color`, reading a per-vertex `color`
+    // attribute a BoxGeometry does not have: WebGL then supplies (0,0,0) and
+    // every chunk goes black. So the geometry carries a WHITE colour
+    // attribute, which makes that multiply a no-op and leaves the instance
+    // colour in charge. Materials that want per-chunk tint set
+    // `vertexColors: true` (see arena/structures.js).
+    geo.setAttribute('color', new THREE.BufferAttribute(
+      new Float32Array(geo.attributes.position.count * 3).fill(1), 3));
     this.mesh = new THREE.InstancedMesh(geo, material, this.totalCap);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;

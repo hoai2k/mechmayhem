@@ -52,9 +52,14 @@ const results = await page.evaluate(async ({ seed, themes }) => {
   // model the moment one finishes streaming (props.js propGlbSwap), so the
   // SAME theme at the SAME seed built twice in a row already disagrees by a
   // body or two. Counting it would report the game's own async as bake drift.
+  // EVERY destructible system: buildings live in `destructo`, and a theme's
+  // large STRUCTURES (crystal, basalt, ice — arena/structures.js) live in one
+  // more system per material, so a fingerprint reading only the first would
+  // call a lost crystal field a clean round trip.
   const fingerprint = (a) => ({
-    chunks: a.destructo.mesh.count,
-    buildings: a.destructo.buildings.length,
+    chunks: (a.destructoAll || [a.destructo]).reduce((n, d) => n + d.mesh.count, 0),
+    buildings: (a.destructoAll || [a.destructo]).reduce((n, d) => n + d.buildings.length, 0),
+    systems: (a.destructoAll || [a.destructo]).length,
     props: a.propGroup.children.length,
     explosives: a.explosives.length,
     spikes: a.spikes.length,

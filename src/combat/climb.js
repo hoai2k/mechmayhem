@@ -125,8 +125,10 @@ function collectSolids(f, reach) {
   const arena = f.world.arena;
   if (!arena || f.world.sandbox) return;
   const px = f.pos.x, py = f.pos.y, pz = f.pos.z;
-  const d = arena.destructo;
-  if (d) {
+  // EVERY destructible system, not just the buildings': a crystal spire and
+  // a basalt cliff (arena/structures.js) are exactly as climbable as a tower
+  for (const d of arena.destructoAll || [arena.destructo]) {
+    if (!d) continue;
     for (const b of d.buildings) {
       if (b.alive <= 0) continue;
       const a = b.aabb;

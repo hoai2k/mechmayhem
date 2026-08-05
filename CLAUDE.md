@@ -1555,6 +1555,57 @@ audio). Progress history: `TASKS.md`.
   (ON -> fallback, OFF -> authored). The harness honours it too — a bare
   `?battle=neon` plays what the MENUS play, or a soak silently tests an arena
   nobody ships.
+- NOT EVERY LARGE STRUCTURE IS A BUILDING (`src/arena/structures.js`, asset
+  prompts in `docs/ASSET_REQUESTS_STRUCTURES.md`). A big destructible mass has
+  a gameplay job — block sight, give cover, be climbed, come down — and every
+  one of them used to be a chunk shell wearing a facade, which is right for a
+  city and wrong for a caldera. A STRUCTURE KIND keeps the gameplay identical
+  (same chunks, so it collapses, damages, carries fountains and climbs exactly
+  like a tower) and changes what it is made of: a silhouette from the LANDFORM
+  family in massing.js (`mound`/`columns`/`spires`/`iceWall`/`berg`), its own
+  cell scale, its own palette, and ITS OWN MATERIAL. A material means a second
+  InstancedMesh, so the arena builds ONE DestructibleSystem PER MATERIAL FAMILY
+  the theme uses (`arena.structoFor`) and `arena.destructoAll` is what every
+  combat query walks — `destructo` stays the buildings' one, which is what the
+  tools, the recipe and specials.js reach for. climb.js and fountains.js walk
+  all of them, so a crystal spire is climbable and can carry a fountain.
+  WHICH SITES CONVERT IS BY GROUP, NEVER INTERLEAVED (`assignStructures`): a
+  theme declares `structures: [{kind, share}]` (shares are of the whole site
+  budget — volcano 0.62, quarry 0.62, frozen 0.60) and whole CLUSTERS convert,
+  because a crystal spire between two office blocks reads as a mistake while a
+  field of them reads as a place. Scattered sites are nested into spatial
+  groups first. It runs in arena.js after the sites are chosen, so the three
+  design systems AND the fallback scatter all get it from one place.
+  A LANDFORM IS ALLOWED TO BE BIG: the building path clamps a wide silhouette
+  to 19/nx so a tower cannot swallow a street, and applying that to a mound
+  eleven cells across gives 2.2-unit chunks — a pile of gravel where a hill
+  was meant to be. Structures clamp at 58/nx and stand 1.15x their cell size
+  tall.
+- PER-CHUNK COLOUR NEEDS BOTH HALVES, and it was silently doing NOTHING.
+  `setColorAt` fills `instanceColor` and three folds it into vColor in the
+  VERTEX stage — but the FRAGMENT stage only declares vColor under USE_COLOR,
+  i.e. `material.vertexColors`. Turn that on and the vertex stage also runs
+  `vColor *= color`, reading a per-vertex `color` attribute a BoxGeometry does
+  not have, so WebGL supplies (0,0,0) and every chunk goes BLACK. The fix is
+  both: the chunk geometry carries a WHITE colour attribute (destructible.js)
+  and the materials that want tint set `vertexColors: true`. Until this, every
+  theme building tint AND every colour a voxelized GLB donor sampled from its
+  own texture was computed and thrown away. Buildings are tinted now too; with
+  the texture pack on, `tintFor` already lerps 68% toward white, so the shipped
+  look is unchanged (neon/uptown are pixel-identical) and the tints finally
+  mean something with `?textures=0` and on donors.
+  AND THE GLOW IS DIFFUSE, NOT EMISSIVE: `emissive` is a UNIFORM, so one
+  material cannot glow in six crystal hues, and a uniform emissive over a
+  near-black basalt tint washes the rock to white — which is exactly how the
+  first build looked. What sells "lit from within" is a saturated instance
+  colour plus the bloom pass finding it, per chunk, in its own hue.
+- ORGANIC GROUND PATCHES (`organic` 0..1 on a theme patch spec). A patch used
+  to be three jittered circles; `organic` gives it 6-9 lobes crawling out to
+  1.35r, so a lava lake reads as a flow that pooled rather than a stamped
+  disc. THE PAINT AND THE HAZARD READ THE SAME LOBES (`patch.lobes`, used by
+  both `buildOverlay` and `onPatch`) — paint one shape and burn another and
+  you get fire you can stand in and ground that burns you from nowhere.
+  Volcano runs 4 lava lakes at `organic: 1.0` plus a third lava lane.
 - AN ARENA'S LAYOUT IS A DESIGN SYSTEM (`src/arena/designs/`, brief + research
   in `docs/ARENA_DESIGN.md`). themes.js stays the WHAT (palettes, props,
   hazards, mood); WHERE it all stands is a pluggable PLANNER: `plan(env)`

@@ -121,10 +121,23 @@ export class Terrain {
   }
 
   // patch containing (x,z), widened by margin. Returns the patch or null.
+  //
+  // AN ORGANIC PATCH IS NOT A CIRCLE, AND THE HAZARD MUST AGREE WITH THE
+  // PAINT. A lava flow that pooled has a ragged outline; painting one shape
+  // and burning another means fire you can stand in and ground that burns
+  // you from nowhere. So a patch carries `lobes` — offset sub-discs — and
+  // BOTH the paint and this containment test are the union of them.
   onPatch(x, z, margin = 0) {
     for (const p of this.patches) {
-      const d = Math.hypot(this.wrapD(x - p.x), this.wrapD(z - p.z));
-      if (d < p.r + margin) return p;
+      const dx = this.wrapD(x - p.x), dz = this.wrapD(z - p.z);
+      if (Math.hypot(dx, dz) > p.r * 1.5 + margin) continue;    // broad phase
+      if (!p.lobes) {
+        if (Math.hypot(dx, dz) < p.r + margin) return p;
+        continue;
+      }
+      for (const lb of p.lobes) {
+        if (Math.hypot(dx - lb.dx, dz - lb.dz) < p.r * lb.s + margin) return p;
+      }
     }
     return null;
   }
@@ -209,8 +222,36 @@ export class Terrain {
   buildPatches(rng) {
     for (const spec of this.L.patches || []) {
       const hazard = PATCH_HAZ[spec.kind] ?? null;
+      // `organic` (0..1): how ragged this patch's outline is. 0 (the
+      // default) is the old three-blob circle; 1 is a lava flow that pooled
+      // — six to nine lobes crawling out to 1.35r, with the whole outline
+      // driven by the patch's own seeded lobes so paint and hazard agree.
+      const org = spec.organic ?? 0;
+      const mkLobes = (r) => {
+        if (!org) {
+          return [
+            { dx: 0, dz: 0, s: 1 },
+            { dx: rng.range(-0.3, 0.3) * r, dz: rng.range(-0.3, 0.3) * r, s: rng.range(0.55, 0.75) },
+            { dx: rng.range(-0.35, 0.35) * r, dz: rng.range(-0.35, 0.35) * r, s: rng.range(0.5, 0.7) },
+          ];
+        }
+        const n = 5 + Math.round(org * 4);
+        const lobes = [{ dx: 0, dz: 0, s: rng.range(0.62, 0.78) }];
+        const a0 = rng.range(0, TAU);
+        for (let i = 0; i < n; i++) {
+          // walk the rim, each lobe a different reach and size — a coastline,
+          // not a flower: the angular step is jittered too
+          const a = a0 + (i / n) * TAU + rng.range(-0.5, 0.5) / n * TAU;
+          const reach = rng.range(0.3, 0.72) * org;
+          lobes.push({
+            dx: Math.cos(a) * reach * r, dz: Math.sin(a) * reach * r,
+            s: rng.range(0.4, 0.72),
+          });
+        }
+        return lobes;
+      };
       const mk = (x, z, r) => this.patches.push({
-        kind: spec.kind, x, z, r, hazard,
+        kind: spec.kind, x, z, r, hazard, lobes: mkLobes(r), organic: org,
         glow: spec.glow || null, color: spec.color || null,
       });
       if (spec.list) {                       // authored: exact placement
@@ -1148,7 +1189,10 @@ export class Terrain {
       c.restore();
     };
     for (const p of this.patches) {
-      const lobes = [
+      // THE SAME LOBES THE HAZARD TEST USES (buildPatches): what is painted
+      // is what burns. An authored patch from a level file has none, so it
+      // falls back to the old three-blob circle here.
+      const lobes = p.lobes || [
         { dx: 0, dz: 0, s: 1 },
         { dx: rng.range(-0.3, 0.3) * p.r, dz: rng.range(-0.3, 0.3) * p.r, s: rng.range(0.55, 0.75) },
         { dx: rng.range(-0.35, 0.35) * p.r, dz: rng.range(-0.35, 0.35) * p.r, s: rng.range(0.5, 0.7) },
