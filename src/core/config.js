@@ -14,7 +14,7 @@ export const SPEED_DEFAULT = 1.0;
 export const ROUND_MIN = 30;
 export const ROUND_MAX = 300;
 export const ROUND_STEP = 10;
-export const ROUND_DEFAULT = 120;
+export const ROUND_DEFAULT = 180;
 
 const clampRound = (v) => (Number.isFinite(v)
   ? Math.round(Math.min(ROUND_MAX, Math.max(ROUND_MIN, v))) : ROUND_DEFAULT);

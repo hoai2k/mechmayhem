@@ -15,9 +15,8 @@ import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsS
 import { installKnobs, warnUnknownParams } from '../core/knobs.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
-  CONFIG, setInfiniteUltimates, setShowAllRobots, setReverseCameraY,
+  CONFIG, setShowAllRobots, setReverseCameraY,
   setArenaDesign, ARENA_DESIGN_MODES,
-  setRobotSpeed, SPEED_MIN, SPEED_MAX, SPEED_STEP,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
 } from '../core/config.js';
@@ -153,14 +152,13 @@ export async function bootGame() {
     return dim('\u25c4') + `<span style="letter-spacing:0.06em;margin:0 0.35em">`
       + `${'\u2588'.repeat(n)}${'\u2591'.repeat(10 - n)}</span>` + dim('\u25ba');
   };
+  // SOUND: ON/OFF is not here — the speaker button beside the gear is the one
+  // control for it, and MUSIC: ON/OFF was a second mute for the same bus that
+  // the volume slider already reaches (drag it to zero). The volume slider
+  // turns the players back on if they were off, so nothing is unreachable.
   const settingsItems = () => [
-    { label: () => t(muted ? 'settings.sound.off' : 'settings.sound.on'), fn: () => setMuted(!muted) },
     ...(music.available || menuMusic.available
       ? [{
-        label: () => t(music.enabled ? 'settings.music.on' : 'settings.music.off'),
-        // one toggle, both players (battle soundtrack + menu theme)
-        fn: () => { const on = !music.enabled; music.setEnabled(on); menuMusic.setEnabled(on); },
-      }, {
         // ←→ drags the music bus alone; SOUND: OFF still silences everything
         label: () => t('settings.musicVol', {
           bar: volBar(music.volume),
@@ -174,22 +172,6 @@ export async function bootGame() {
         },
       }]
       : []),
-    {
-      label: () => t(CONFIG.debugUltimates ? 'settings.infiniteUlts.on' : 'settings.infiniteUlts.off'),
-      fn: () => setInfiniteUltimates(!CONFIG.debugUltimates),
-    },
-    {
-      // ←→ scales how fast every robot WALKS, RUNS and FLIES. The bar is
-      // drawn over the slider's own 50%..200% span rather than 0..max, so a
-      // full bar is the fastest setting and the midpoint is the middle of
-      // the range; the number beside it is the multiplier itself.
-      label: () => t('settings.robotSpeed', {
-        bar: volBar((CONFIG.robotSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN)),
-        pct: Math.round(CONFIG.robotSpeed * 100),
-      }),
-      slide: (d) => setRobotSpeed(
-        Math.round((CONFIG.robotSpeed + d * SPEED_STEP) / SPEED_STEP) * SPEED_STEP),
-    },
     {
       // ←→ sets the round clock in seconds; takes effect from the next round
       label: () => t('settings.roundTime', {
@@ -238,8 +220,6 @@ export async function bootGame() {
       fn: () => setArenaDesign(ARENA_DESIGN_MODES[
         (ARENA_DESIGN_MODES.indexOf(CONFIG.arenaDesign) + 1) % ARENA_DESIGN_MODES.length]),
     },
-    // controller-reachable page reload (via LB/RB → settings → this item)
-    { label: () => t('settings.reload'), fn: () => window.location.reload() },
   ];
   function openSettings() {
     if (S.modal) return;
