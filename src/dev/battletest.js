@@ -55,8 +55,14 @@ export async function runBattleTest() {
   const engine = new Engine(document.getElementById('game-canvas'));
   const input = new Input();
   // shared wiring with the real match (src/game/battle.js) — no audio, and
-  // no seed so the Arena keeps its deterministic dev-harness default
-  const { world, arena, cameraSys } = createBattle(engine, { theme, input });
+  // no seed by default so the Arena keeps its deterministic dev-harness
+  // default. `&seed=<n>` overrides it: one fixed layout is what makes a
+  // probe reproducible, but auditing GENERATION means sweeping layouts, and
+  // without this every ?battle measurement silently reported the same roll.
+  const seedParam = params.get('seed');
+  const { world, arena, cameraSys } = createBattle(engine, {
+    theme, input, seed: seedParam !== null ? +seedParam : undefined,
+  });
 
   const ids = [];
   for (let i = 1; i <= 4; i++) {

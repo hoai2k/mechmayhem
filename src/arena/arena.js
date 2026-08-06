@@ -725,7 +725,13 @@ export class Arena {
       // CHUNK SHAPE for the family too (shards for crystal, boulders for
       // rock, drifts for snow), which is what stops a landform reading as
       // the pile of cubes it is made of. See chunkgeo.js.
-      sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 3600,
+      // CAPACITY IS MEASURED, NOT INHERITED: a system pre-allocates its whole
+      // instance budget ×9 wrap ghosts up front, and no structure family
+      // needs the buildings' 3600 — the worst over a 15-roll sweep of the
+      // three structure arenas (`&seed=` on a battle URL sweeps layouts) was
+      // 2094 chunks, so 2800 is a third's headroom. If a theme ever outgrows
+      // it, the truncation warn in addBuildingCells says so out loud.
+      sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 2800,
         shape);
       sys.world = this.world;
       if (this.wrapHalf) sys.setWrapPeriod(this.wrapHalf * 2);

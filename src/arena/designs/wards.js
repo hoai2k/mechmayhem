@@ -110,15 +110,21 @@ function planBuildings(env, wards, { terrain, rng, count }) {
     switch (wd.role) {
       case 'blocks': {
         // a mini street grid: towers on a pitch with alleys between, aligned
-        // to the world axes so the ward reads with the painted road grid
-        const pitch = rng.range(15, 17);
+        // to the world axes so the ward reads with the painted road grid.
+        // PITCH AND SPACING LEAVE ROOM FOR THE ALLEY: a massed silhouette is
+        // up to 19 wide, and at pitch 15-17 with 13-unit site spacing two
+        // wide neighbours interpenetrated — usually reading as density,
+        // occasionally sealing the alley into one solid block. The grid is a
+        // touch wider now and the spacing floor higher, so the narrowest
+        // alley two typical towers can leave is a walkable one.
+        const pitch = rng.range(16.5, 18.5);
         const grid = shuffle(rng, [-1, 0, 1].flatMap((gx) => [-1, 0, 1].map((gz) => [gx, gz])));
         let placed = 0, first = true;
         for (const [gx, gz] of grid) {
           if (placed >= Math.min(quota, 7)) break;
           const spot = placeNear(ok, rng,
             wd.x + gx * pitch + rng.range(-1.6, 1.6),
-            wd.z + gz * pitch + rng.range(-1.6, 1.6), 13, { tries: 3, step: 3 });
+            wd.z + gz * pitch + rng.range(-1.6, 1.6), 15, { tries: 3, step: 3 });
           if (!spot) continue;
           sites.push({ ...spot, cluster: ci, tall: first });
           first = false;

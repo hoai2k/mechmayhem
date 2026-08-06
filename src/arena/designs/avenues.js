@@ -118,8 +118,8 @@ function planBuildings(env, axis, { terrain, rng, count }) {
   });
 
   // street walls: rows flanking both principal boulevards, filled from the
-  // plaza outward and round-robin across the four rows, so however much
-  // budget is left the enclosure grows evenly where the fight is
+  // plaza outward and round-robin across the rows, so however much budget is
+  // left the enclosure grows evenly where the fight is
   const setback = Wp / 2 + rng.range(8.5, 10.5);
   const step = rng.range(17, 20);
   const rows = [];
@@ -132,12 +132,35 @@ function planBuildings(env, axis, { terrain, rng, count }) {
     }
     row.slots.sort((a, b) => Math.abs(a) - Math.abs(b));
   }
+  // …and a SPARSER wall along the border boulevards, or the seam street runs
+  // through nothing — a boulevard is a boulevard because something fronts it.
+  // One row per axis per edge sign; through the wrap the row at +P/2 IS the
+  // far side of the street the row at -P/2 fronts, so the pair walls both
+  // sides of one road. Wider spacing than the principal walls (the seam is
+  // the city's edge, not its heart), offsets clamped inside the cell margin
+  // makeSiteOk enforces (|coord| <= P/2 - 12), and the same round-robin
+  // shares the budget — border rows simply run out of slots sooner.
+  const setbackB = Math.max(axis.Ws / 2 + 8, 13.5);
+  const stepB = step * 1.6;
+  for (const ax of ['x', 'z']) {
+    for (const sign of [1, -1]) {
+      const row = { ax, off: sign * (P / 2 - setbackB), slots: [], border: true };
+      for (let along = 12; along < P / 2 - 30; along += stepB) {
+        for (const s of [1, -1]) row.slots.push(s * (along + rng.range(-2, 2)));
+      }
+      row.slots.sort((a, b) => Math.abs(a) - Math.abs(b));
+      rows.push(row);
+    }
+  }
   let more = true, si = 0;
   while (sites.length < count && more) {
     more = false;
     for (const row of rows) {
       if (sites.length >= count) break;
-      const along = row.slots[si];
+      // border rows fill at HALF the rate: the seam should read walled, not
+      // outrank the principal boulevards the fight actually happens on
+      if (row.border && si % 2) continue;
+      const along = row.slots[row.border ? si / 2 : si];
       if (along === undefined) continue;
       more = true;
       const x = row.ax === 'x' ? along : row.off + rng.range(-1.2, 1.2);

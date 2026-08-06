@@ -118,15 +118,19 @@ export function planTraitClasses(env, ctx, cls, plan, { plazas = [], approaches 
     else cls.heroes.push(spec);        // no plaza to take — a landmark then
   }
 
-  // ---- solos: apart from everything, never in a formation ----
+  // ---- solos: apart from everything, never in a formation. Sampled
+  // UNIFORMLY over the cell, not on a radial band — a band from the origin
+  // never reaches past P/2, so the cell corners (which are real places the
+  // wrap tiling stitches into the middle of the next block) went without a
+  // campfire forever ----
   for (const spec of cls.solos) {
     const tr = traitsFor(spec.name);
     const out = [];
     let guard = 0;
     while (out.length < spec.count && guard++ < 60) {
-      const a = rng.range(0, TAU);
-      const r = rng.range(C + 14, P / 2 - 20);
-      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      const x = rng.range(-P / 2 + 16, P / 2 - 16);
+      const z = rng.range(-P / 2 + 16, P / 2 - 16);
+      if (Math.hypot(x, z) < C + 14) continue;   // never on the stage's rim
       if (!pOk(x, z, spec.name)) continue;
       if (out.some((o) => torusDist(o.x, o.z, x, z, P) < 30)) continue;
       out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
