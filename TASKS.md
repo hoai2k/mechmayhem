@@ -6730,3 +6730,20 @@ both-directions rule tools/iconcheck.mjs uses for badges).
 adds a stray scan of `public/textures` / `public/sprites`. Proven to fail in
 both directions before being trusted: hiding a delivered facade reports
 MISSING, and dropping a PNG back into public/textures reports STRAY.
+
+## Columnar basalt + arena design audit (Opus/Fable session, cont.)
+
+- struct_basalt_column delivered → basaltCliff wears it with its own `column`
+  chunk shape (upright hex prisms); structoFor keys systems by LOOK
+  (mat+tex+shape) instead of material family, which the pair needed.
+- AUDIT of the design systems found and fixed: (1) ring-scatter fall-through
+  lost every trait yaw except the sun rule — grid props un-snapped, sacred
+  props faced nowhere (caught by traitprobe on circuit/ruins: both sarcophagi
+  off-grid); scatter now runs traitYaw per placement in every mode.
+  (2) circuit's mediums probed one ray and dropped the spec when it fouled.
+  (3) footprints were never checked against the spawn clearing — a 49-wide
+  iceberg reached 16 units INTO frozen's stage (Arena.clearOfPlaza fixes both
+  generated paths; authored placements untouched).
+- Verified: traitprobe green on 7 theme x system combos, clearing edge >= 39
+  everywhere measured, bake round-trip identical on all 3 systems, solar
+  probe green, soaks clean, no chunk-capacity warnings.

@@ -14,7 +14,7 @@ import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
 import { propShell } from './propshell.js';
 import { arenaDesignSystem } from './designs/index.js';
 import { traitsFor } from './designs/proptraits.js';
-import { sunYawOf, frontClear } from './designs/util.js';
+import { sunYawOf, frontClear, traitYaw } from './designs/util.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
@@ -484,10 +484,11 @@ export class Arena {
         }
         // wide silhouettes shrink their cells instead of swallowing streets
         const cwE = Math.min(cw, 19 / m.nx), cdE = Math.min(cd, 19 / m.nz);
-        this.destructo.addBuildingCells(site.x, site.z, m.cells, cwE, ch, cdE, { tint, rng });
+        const at = this.clearOfPlaza(site.x, site.z, (m.nx * cwE) / 2, (m.nz * cdE) / 2);
+        this.destructo.addBuildingCells(at.x, at.z, m.cells, cwE, ch, cdE, { tint, rng });
         // recorded with the RAW tint: the authored path runs tintFor again
         this.recipe?.buildings.push({
-          k: 'building', x: round1(site.x), z: round1(site.z),
+          k: 'building', x: round1(at.x), z: round1(at.z),
           cells: m.cells, nx: m.nx, ny: m.ny, nz: m.nz,
           cw: round2(cwE), ch: round2(ch), cd: round2(cdE), tint: rawTint,
         });
@@ -615,15 +616,22 @@ export class Arena {
           planned.forEach((pp, i) => buildAt(spec, pp.x, pp.z, i, false, pp.ry));
           continue;
         }
-        // A SOLAR COLLECTOR ANSWERS TO THE SUN WHEREVER IT IS PLACED. The
-        // design systems aim one through traitYaw, but a spec they found no
+        // A PROP'S ORIENTATION PREFERENCE HOLDS WHEREVER IT IS PLACED. The
+        // design systems aim props through traitYaw, but a spec they found no
         // room for — and every prop under the `fallback` design — falls
-        // through to this scatter, and three panels at three random angles
-        // read as a mistake however they got there. So the rule lives at the
-        // PLACEMENT level, not in the planners: one yaw for the whole arena,
-        // and a spot with a tower in the way is re-rolled (`clearFront`).
+        // through to this scatter, and it used to fall through to a RANDOM
+        // yaw: measured on circuit/ruins, both sarcophagi (grid-trait) landed
+        // off-grid because the planner had no room and the scatter forgot the
+        // trait. So the rule lives at the PLACEMENT level: the sun rule
+        // first (one yaw for the whole arena + `clearFront` re-rolls a spot
+        // with a tower in the way), else the general traitYaw — grid props
+        // snap, sacred props face the fight, street furniture addresses the
+        // nearest lane — and a prop with no preference keeps placeProp's
+        // random yaw exactly as before. Positions are untouched.
         const tr = traitsFor(spec.name);
         const sunRy = tr.face === 'sun' ? sunYaw - (tr.faceOffset || 0) : undefined;
+        const yawAt = (px, pz) => (sunRy !== undefined ? sunRy
+          : traitYaw(tr, this.terrain, rng, px, pz, { sunYaw }));
         for (let i = 0; i < spec.count; i++) {
           const skyAnchored = spec.ring[1] <= 6; // aurora-style props place their visuals far away
           let a, r, x, z, tries = 0;
@@ -635,7 +643,8 @@ export class Arena {
             && (!propSpotOk(x, z, FLAT_PROPS.has(spec.name))
               || !frontClear(tr, footprints, x, z, sunRy))
             && ++tries < 14);
-          buildAt(spec, x, z, i, skyAnchored, sunRy);
+          const ry = yawAt(x, z);
+          buildAt(spec, x, z, i, skyAnchored, ry);
           // `clump`: this placement is a NEST — scatter n-1 more of the same
           // prop around it (groves, container yards, boulder fields), giving
           // arenas real dense-vs-open texture instead of even sprinkle
@@ -648,7 +657,10 @@ export class Arena {
                 const cx = x + Math.cos(ca) * cr, cz = z + Math.sin(ca) * cr;
                 if (!propSpotOk(cx, cz, FLAT_PROPS.has(spec.name))) continue;
                 if (!frontClear(tr, footprints, cx, cz, sunRy)) continue;
-                buildAt(spec, cx, cz, i + k + 1, false, sunRy);
+                // a grid nest is a YARD — every member shares the seed's
+                // snapped yaw (emitClump's rule); anything else re-answers
+                // from its own spot (each statue faces the fight itself)
+                buildAt(spec, cx, cz, i + k + 1, false, tr.grid ? ry : yawAt(cx, cz));
                 break;
               }
             }
@@ -694,14 +706,19 @@ export class Arena {
   }
 
   // ---- structures (src/arena/structures.js) ----
-  // The DestructibleSystem for a kind's MATERIAL FAMILY, built the first
-  // time that family is asked for. Kinds sharing a family (the two basalt
-  // ones, the two cut-ice ones) share a system, so an arena pays one extra
-  // instanced mesh per LOOK rather than per kind.
+  // The DestructibleSystem for a kind's LOOK, built the first time that look
+  // is asked for. The key is material + texture + chunk shape — NOT the kind
+  // — so kinds that genuinely share a look (the two cut-ice ones) still
+  // share a system, while two kinds on one material family with different
+  // dressings get their own. That case is the basalt pair: the mounds wear
+  // the cracked rock and the cliffs the columnar texture, and keyed on the
+  // family alone whichever was built FIRST decided the texture for both.
   structoFor(kind) {
     const def = STRUCTURE_KINDS[kind];
     if (!def) return null;
-    let sys = this.structos.get(def.mat);
+    const shape = structureChunkShape(def);
+    const lookKey = `${def.mat}|${def.tex || ''}|${shape}`;
+    let sys = this.structos.get(lookKey);
     if (!sys) {
       const mat = structureMaterial(def.mat, def.tex);
       // one material for all six faces: a landform has no roof — and one
@@ -709,14 +726,41 @@ export class Arena {
       // rock, drifts for snow), which is what stops a landform reading as
       // the pile of cubes it is made of. See chunkgeo.js.
       sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 3600,
-        structureChunkShape(def.mat));
+        shape);
       sys.world = this.world;
       if (this.wrapHalf) sys.setWrapPeriod(this.wrapHalf * 2);
-      this.structos.set(def.mat, sys);
+      this.structos.set(lookKey, sys);
       this.destructoAll.push(sys);
       this.objects.push(sys.mesh, sys.debris.mesh);
     }
     return sys;
+  }
+
+  /**
+   * A SITE IS A CENTRE AND A SILHOUETTE IS WIDE. Every site validator keeps
+   * the CENTRE off the spawn clearing, but the massing drawn on it can be 46
+   * units across, and a footprint nobody re-checked reached 16 units into
+   * the plaza (frozen/avenues — an iceberg edge 22 from the origin against a
+   * 38-unit stage). So the built BOX is checked here, at the one place both
+   * generated paths pass through, and a site whose box would cut into the
+   * stage slides OUT along its own radial until it clears — same bearing,
+   * same cluster, the fight keeps its floor. Authored placements never come
+   * through this (an author's exact coordinates are the author's).
+   */
+  clearOfPlaza(x, z, hx, hz) {
+    const C = (this.theme.layout?.clearing ?? 38) + 2;
+    const edge = (px, pz) =>
+      Math.hypot(Math.max(0, Math.abs(px) - hx), Math.max(0, Math.abs(pz) - hz));
+    if (edge(x, z) >= C) return { x, z };
+    const d = Math.hypot(x, z) || 1;
+    const ux = x / d, uz = z / d;
+    let nx = x, nz = z, guard = 0;
+    while (edge(nx, nz) < C && guard++ < 40) { nx += ux * 2; nz += uz * 2; }
+    // never push through the cell margin — a shaved plaza beats a mass
+    // straddling the seam, where the ghost tiling would double-draw it
+    const lim = this.wrapHalf ? this.wrapHalf - 10 : Infinity;
+    if (Math.abs(nx) > lim || Math.abs(nz) > lim) return { x, z };
+    return { x: nx, z: nz };
   }
 
   /** Build one structure of `kind` at (x,z). Returns its cells for the recipe. */
@@ -725,9 +769,10 @@ export class Arena {
     if (!sys) return null;
     const m = structureMassing(kind, rng, tall);
     if (!m) return null;
-    sys.addBuildingCells(x, z, m.cells, m.cw, m.ch, m.cd, { tint: m.tint, rng });
+    const at = this.clearOfPlaza(x, z, (m.nx * m.cw) / 2, (m.nz * m.cd) / 2);
+    sys.addBuildingCells(at.x, at.z, m.cells, m.cw, m.ch, m.cd, { tint: m.tint, rng });
     this.recipe?.buildings.push({
-      k: 'building', struct: kind, x: round1(x), z: round1(z),
+      k: 'building', struct: kind, x: round1(at.x), z: round1(at.z),
       cells: m.cells, nx: m.nx, ny: m.ny, nz: m.nz,
       cw: round2(m.cw), ch: round2(m.ch), cd: round2(m.cd), tint: m.tint,
     });

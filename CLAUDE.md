@@ -1691,6 +1691,23 @@ audio). Progress history: `TASKS.md`.
   its axis (the ruins' sphinx pair sits either side of the great gate's
   road, both facing the fight); a gate whose spot is blocked slides ALONG
   its lane rather than stepping off it.
+  A TRAIT HOLDS WHEREVER THE PROP LANDS. A spec the planner finds no room
+  for falls through to arena.js' ring scatter (and every prop does under the
+  `fallback` design), and the scatter used to roll a RANDOM yaw — measured on
+  circuit/ruins, both sarcophagi (grid-trait) landed off-grid because
+  circuit's mediums march ONE ray per placement and a road fouled it. Fixed
+  twice: circuit sweeps the mid-field when its ray fails, and the scatter
+  itself runs `traitYaw` per placement (sun rule first, then grid/centre/
+  road; no-preference props keep the random yaw, positions untouched), so
+  orientation preferences are a PLACEMENT-level guarantee in all four modes.
+  `node tools/scratch/traitprobe.mjs` is the check.
+  AND A FOOTPRINT KEEPS OFF THE SPAWN CLEARING (`Arena.clearOfPlaza`): every
+  site validator keeps the CENTRE C+6 out, but the massing drawn on a site
+  can be 46 units wide, and an iceberg's edge measured 22 units from the
+  origin against frozen's 38-unit stage. Both generated paths (buildings and
+  structures) now slide a site out along its own radial until the built BOX
+  clears C+2 — same bearing, same cluster; authored placements are never
+  touched. Worst-case edge across themes x systems after: 39.4.
   A PROP KEEPS OFF THE BUILDINGS' FOOTPRINTS, NOT THEIR CENTRES. A site
   coordinate is the MIDDLE of a massed silhouette up to 20 units across, so a
   planner holding a fixed radius from it put the ruins' sphinx pair INSIDE a

@@ -617,7 +617,7 @@ const CONFIG = defineWorkbenchConfig({
       const cells = def.cells?.length ? def.cells : (m?.cells || []);
       if (!cells.length) return null;
       const cw = def.cw || m?.cw || 4.5, ch = def.ch || m?.ch || 5, cd = def.cd || m?.cd || 4.5;
-      const shape = CHUNK_SHAPES[structureChunkShape(kind.mat)] || CHUNK_SHAPES.box;
+      const shape = CHUNK_SHAPES[structureChunkShape(kind)] || CHUNK_SHAPES.box;
       const base = shape.geo();
       let nx = 0, nz = 0;
       for (const c of cells) { nx = Math.max(nx, c.gx + 1); nz = Math.max(nz, c.gz + 1); }
