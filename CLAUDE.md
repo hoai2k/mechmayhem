@@ -2003,6 +2003,27 @@ mechs (both routes: external rigged-GLB services and the free in-engine
 sculpted route), including **§5 THE CONTRACT** — per-mech joints/anchors
 that combat silently depends on. Never rebuild a design without it.
 
+## Where assets live — READ `ASSETS.md`
+
+ONE RULE: an asset lives in `src/` when the code must ENUMERATE it at build
+time, and in `public/` when the code FETCHES it by name at runtime. So the
+TEXTURE PACK is `src/textures/<set>/<name>/` (globbed by `core/texload.js`,
+which is what makes `hasTex()` a synchronous answer — `arena.js` and `pbrtex`
+choose materials inline) and so is `src/music/`; models, levels, badges,
+thumbs, posters and sound are `public/`, addressed by identity and mostly
+carrying their own manifest.
+`public/textures/` IS NOT READ — images put there are silently ignored and the
+game renders its procedural fallback, which is how ten delivered facades once
+sat doing nothing. The VFX sprite overrides moved into the pack for the same
+reason (`src/textures/sprite/`, manifest imported, no runtime fetch).
+NAMES THE GAME DECLARES ARE CHECKED OUT LOUD: `core/assetcheck.js` runs at
+boot and `console.error`s any texture a theme or a structure kind names with
+nothing behind it. Art that is requested-but-not-delivered is listed in
+`PENDING_ASSETS` there — remove an entry when it lands and the check starts
+guarding it; a pending entry that turns up IS reported, so the list cannot rot
+into crying wolf. `node tools/assetcheck.mjs` is the same check from the
+command line, plus a stray scan of the directories nothing reads.
+
 ## Architecture map
 
 - `src/core/` — engine (renderer/loop/post-FX), pbrtex (PBR skin synth),

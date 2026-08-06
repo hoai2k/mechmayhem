@@ -5,7 +5,7 @@ flame flipbook, billowy smoke cells, glinting droplet, glossy goop blobs,
 ice sparkles) — the game needs NO image files to look right.
 
 To swap in hand-made / AI-generated sprites, drop PNGs into
-`public/sprites/` plus a `public/sprites/manifest.json`:
+`src/textures/sprite/` plus a `src/textures/sprite/manifest.json`:
 
 ```json
 {

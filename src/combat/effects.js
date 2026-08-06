@@ -327,8 +327,20 @@ export class BurnerFx {
   }
 }
 
+// HAND-MADE SPRITE OVERRIDES live with the rest of the texture pack, in
+// src/textures/sprite/ — see ASSETS.md for why every image that becomes a
+// MATERIAL is enumerated at build time rather than fetched by path. The
+// manifest is imported (so the slot table needs no round trip) and the files
+// resolve through a glob (so Vite hashes them and a missing one is a
+// `undefined` URL we can report, not a 404 in the console).
+import SPRITE_MANIFEST from '../textures/sprite/manifest.json';
+
+const SPRITE_FILES = import.meta.glob('../textures/sprite/*.png', {
+  eager: true, query: '?url', import: 'default',
+});
+
 // ---------- sprite-override intake (chromakey capable) ----------
-// public/sprites/manifest.json maps slots to files:
+// src/textures/sprite/manifest.json maps slots to files:
 //   { "fire":    { "file": "fire_atlas.png",  "cols": 4, "rows": 4, "key": "luma" },
 //     "smoke":   { "file": "smoke_atlas.png", "cols": 2, "rows": 2, "key": "#00ff00" },
 //     "droplet": { "file": "droplet.png",     "key": "#00ff00" },
@@ -610,24 +622,27 @@ export class Effects {
     this._loadSpriteOverrides();
   }
 
-  // optional hand-made sprites drop in via public/sprites/manifest.json;
+  // optional hand-made sprites drop in via src/textures/sprite/manifest.json;
   // absent or broken -> the procedural textures above simply stay.
   // Per-slot outcomes land in this.spriteStatus for debugging.
+  //
+  // The manifest and the images are BUNDLED, not fetched: they are texture
+  // pack content like everything else under src/textures (see ASSETS.md), so
+  // the slot table is known without a round trip and a sprite cannot 404.
   async _loadSpriteOverrides() {
     this.spriteStatus = {};
     try {
-      const res = await fetch('/sprites/manifest.json');
-      if (!res.ok) { this.spriteStatus._manifest = 'http ' + res.status; return; }
-      const man = await res.json();
       const slots = {
         fire: this.flames, smoke: this.smoke, droplet: this.drops,
         goop: this.goop, ice: this.ice, spark: this.sparks, glow: this.glows,
       };
-      for (const [slot, cfg] of Object.entries(man)) {
+      for (const [slot, cfg] of Object.entries(SPRITE_MANIFEST)) {
         const pool = slots[slot];
         if (!pool || !cfg?.file) continue;
+        const url = SPRITE_FILES[`../textures/sprite/${cfg.file}`];
+        if (!url) { this.spriteStatus[slot] = 'missing file'; continue; }
         try {
-          const tex = await loadKeyedTexture('/sprites/' + cfg.file, cfg);
+          const tex = await loadKeyedTexture(url, cfg);
           pool.setTexture(tex, cfg.cols || 1, cfg.rows || 1);
           this.spriteStatus[slot] = 'ok';
         } catch (e) {

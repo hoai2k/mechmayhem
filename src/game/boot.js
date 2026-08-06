@@ -13,6 +13,7 @@ import { Match } from './match.js';
 import { Hud, toast } from '../ui/hud.js';
 import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen, playNeonBuzz } from '../ui/menus.js';
 import { installKnobs, warnUnknownParams } from '../core/knobs.js';
+import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
   CONFIG, setShowAllRobots, setReverseCameraY,
@@ -39,6 +40,10 @@ export async function bootGame() {
   const engine = new Engine(document.getElementById('game-canvas'));
   const input = new Input();
   const uiRoot = document.getElementById('ui-root');
+
+  // say so if a texture the data names has gone missing (a move, a rename,
+  // a folder in the wrong place) — otherwise it just renders procedural
+  checkDeclaredAssetsOnce();
 
   // document chrome (tab title + the portrait "rotate" hint in index.html)
   // is text too — pull it from the catalogue so nothing lives outside it

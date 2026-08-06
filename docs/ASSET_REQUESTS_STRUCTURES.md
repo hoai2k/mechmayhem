@@ -1,4 +1,8 @@
-# ASSET REQUESTS — arena STRUCTURES pass (2026-08)
+# ASSET REQUESTS — arena STRUCTURES (OUTSTANDING)
+
+**Status: 5 outstanding.** These are the only texture assets the game is
+still asking for. Building facades are all delivered — see
+`docs/ASSET_REQUESTS_ARENA_DESIGN.md`, which is now guidelines only.
 
 Textures for the large structures that are no longer buildings
 (`src/arena/structures.js`): volcanic rock, crystal, ice. Everything here is
@@ -7,10 +11,15 @@ that wants it, gated on the file existing, so committing the images is the
 whole integration. Until then the procedural colours ship, and they are
 tuned to look right on their own.
 
-**Where they go:** `public/textures/struct/<name>/<name>_<map>.png`
-(a NEW texture set, `struct` — the loader picks up any set under
-`src/textures/`; see `docs/TEXTURE_GEN_PROMPT.md` for how the pack is laid
-out). This request is separate from `docs/ASSET_REQUESTS_ARENA_DESIGN.md`,
+The five are listed in `PENDING_ASSETS` (`src/core/assetcheck.js`), so the
+boot check and `node tools/assetcheck.mjs` both report them as outstanding
+rather than missing. Delete a line there when its images land and the check
+starts guarding it — and if you forget, the check says so.
+
+**Where they go:** `src/textures/struct/<name>/<name>_<map>.png` — a NEW
+texture set, `struct`. The loader globs any set under `src/textures/`, and
+that is the ONLY place it looks: images committed to `public/textures/` are
+silently ignored (see ASSETS.md, and `node tools/assetcheck.mjs`). This request is separate from `docs/ASSET_REQUESTS_ARENA_DESIGN.md`,
 which covers building FACADES and is still wanted.
 
 All GLOBAL RULES from `docs/TEXTURE_GEN_PROMPT.md` apply unchanged:

@@ -1,8 +1,17 @@
 # Prompt for Codex — generate the ROBOTWORLD texture pack
 
+> **Status: this pack has been generated and is in play.** Kept as the
+> reference for the pack's conventions and for regenerating an entry. What is
+> still outstanding is listed in `docs/ASSET_REQUESTS_STRUCTURES.md`, and
+> `node tools/assetcheck.mjs` is the live answer either way.
+
 Copy everything below the line into Codex. When the images come back, commit
-them to `public/textures/<set>/<name>/` using the exact file names given —
-the game will pick them up from those paths.
+them to **`src/textures/<set>/<name>/`** using the exact file names given —
+the game picks them up from there and nowhere else (`src/core/texload.js`
+globs that folder at build time, which is what makes `hasTex()` a synchronous
+answer). `src/textures/` is NOT read: images put there are silently
+ignored. See ASSETS.md for the rule, and `node tools/assetcheck.mjs` will
+tell you if anything has landed in the wrong place.
 
 ---
 
@@ -36,7 +45,7 @@ MeshStandardMaterial). Follow these global rules for EVERY texture:
    (AAA game texture, not a photo scan with baked shadows). Battle-worn where
    noted: chipped paint edges, scuffs, grime settled in crevices.
 
-## SET A — arena grounds (2048², one per arena) → `public/textures/ground/`
+## SET A — arena grounds (2048², one per arena) → `src/textures/ground/`
 
 1. `ground_neon_asphalt` — dark wet-look city asphalt, faint cracks, patched
    tar lines, subtle oily iridescence. +metal(dark ~10%).
@@ -64,7 +73,7 @@ MeshStandardMaterial). Follow these global rules for EVERY texture:
     sub-pattern, brushed metal, subtle warning-free markings (plain geometric
     lines only). +metal.
 
-## SET B — building facades (1024², used on destructible towers) → `public/textures/building/`
+## SET B — building facades (1024², used on destructible towers) → `src/textures/building/`
 
 Each must tile so one tile ≈ one building floor (a band of windows +
 spandrel). Windows should be geometric and regular.
@@ -79,7 +88,7 @@ spandrel). Windows should be geometric and regular.
     strips, patina streaks. +metal. +emissive(amber round windows).
 17. `bldg_roof_gravel` — flat-roof gray gravel ballast with tar seams.
 
-## SET C — prop / detail materials (1024²) → `public/textures/prop/`
+## SET C — prop / detail materials (1024²) → `src/textures/prop/`
 
 18. `prop_container_steel` — corrugated shipping-container wall, sun-faded
     paint, rust blooms at ribs. +metal(rust areas).
@@ -93,7 +102,7 @@ spandrel). Windows should be geometric and regular.
 24. `prop_crystal` — translucent pale-cyan crystal facets, internal veining
     (low roughness, high clarity feel).
 
-## SET D — robot armor materials (1024²) → `public/textures/mech/`
+## SET D — robot armor materials (1024²) → `src/textures/mech/`
 
 IMPORTANT: the game TINTS armor per-mech, so albedo for 25–28 must be
 **neutral light gray (~#b0b0b0), fully desaturated** — variation through
