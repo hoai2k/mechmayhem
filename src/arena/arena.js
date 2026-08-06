@@ -694,14 +694,19 @@ export class Arena {
   }
 
   // ---- structures (src/arena/structures.js) ----
-  // The DestructibleSystem for a kind's MATERIAL FAMILY, built the first
-  // time that family is asked for. Kinds sharing a family (the two basalt
-  // ones, the two cut-ice ones) share a system, so an arena pays one extra
-  // instanced mesh per LOOK rather than per kind.
+  // The DestructibleSystem for a kind's LOOK, built the first time that look
+  // is asked for. The key is material + texture + chunk shape — NOT the kind
+  // — so kinds that genuinely share a look (the two cut-ice ones) still
+  // share a system, while two kinds on one material family with different
+  // dressings get their own. That case is the basalt pair: the mounds wear
+  // the cracked rock and the cliffs the columnar texture, and keyed on the
+  // family alone whichever was built FIRST decided the texture for both.
   structoFor(kind) {
     const def = STRUCTURE_KINDS[kind];
     if (!def) return null;
-    let sys = this.structos.get(def.mat);
+    const shape = structureChunkShape(def);
+    const lookKey = `${def.mat}|${def.tex || ''}|${shape}`;
+    let sys = this.structos.get(lookKey);
     if (!sys) {
       const mat = structureMaterial(def.mat, def.tex);
       // one material for all six faces: a landform has no roof — and one
@@ -709,10 +714,10 @@ export class Arena {
       // rock, drifts for snow), which is what stops a landform reading as
       // the pile of cubes it is made of. See chunkgeo.js.
       sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 3600,
-        structureChunkShape(def.mat));
+        shape);
       sys.world = this.world;
       if (this.wrapHalf) sys.setWrapPeriod(this.wrapHalf * 2);
-      this.structos.set(def.mat, sys);
+      this.structos.set(lookKey, sys);
       this.destructoAll.push(sys);
       this.objects.push(sys.mesh, sys.debris.mesh);
     }

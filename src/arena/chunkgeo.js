@@ -206,6 +206,16 @@ export const CHUNK_SHAPES = {
     geo: () => shardGeometry({ sides: 5, yMid: 0.02, rMid: 0.46 }),
     tilt: 0.85, spin: false, elong: [0.95, 1.7], swell: [1.2, 1.65],
   },
+  // jointed columnar basalt (basaltCliff): a colonnade is parallel prisms
+  // standing together, so no taper (rBase = rMid), a high waist so the
+  // "termination" is a short bevel reading as a weathered column top rather
+  // than a spike, near-upright with just enough lean to break the parade,
+  // and mild swell — columns SHOULD read as adjacent shafts, so unlike every
+  // other shape here the lattice is almost the point
+  column: {
+    geo: () => shardGeometry({ sides: 6, yMid: 0.42, rBase: 0.5, rMid: 0.5 }),
+    tilt: 0.09, spin: false, elong: [1.5, 2.4], swell: [1.06, 1.22],
+  },
   // cut ice: a human made these, so they keep a common upright grain rather
   // than a berg's chaos — but they are still SHARDS. The first attempt held
   // them near-vertical and barely elongated, which came out as stacked

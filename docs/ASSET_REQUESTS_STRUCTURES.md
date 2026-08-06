@@ -6,8 +6,11 @@ of them is now GUARDED — remove or rename a file and the boot check and
 `node tools/assetcheck.mjs` both report it. Building facades are delivered
 too (`docs/ASSET_REQUESTS_ARENA_DESIGN.md`).
 
-The one thing still open is the NICE-TO-HAVE at the bottom
-(`struct_basalt_column`), which nothing depends on.
+The nice-to-have at the bottom (`struct_basalt_column`) has landed too and
+is wired as promised: `basaltCliff` wears it (with its own `column` chunk
+shape — upright hexagonal prisms, since a colonnade drawn as boulders reads
+as neither), and `struct_basalt_rock` stays on the mounds. NOTHING is
+outstanding.
 
 This file is kept as the SPEC: it is what these materials are supposed to
 be, and the rules to follow for the next one. To add a structure material,
@@ -106,12 +109,13 @@ the glow as a mask, not as a colour.
    because the chunks it dresses are smooth-shaded rounded lumps and the
    texture is the only thing that will say "snow" rather than "white plastic".
 
-## Nice-to-have, not required — THE ONE THING STILL OPEN
+## Nice-to-have — delivered as well
 
-7. `struct_basalt_column` — jointed columnar basalt (the hexagonal-column
-   cliff face seen side-on). If provided, it will be given to `basaltCliff`
-   and `struct_basalt_rock` kept for the mounds; without it both use the
-   rock. Say the word and I will wire the second name.
+7. `struct_basalt_column` ✅ delivered — jointed columnar basalt (the
+   hexagonal-column cliff face seen side-on). Wired to `basaltCliff` with
+   `struct_basalt_rock` kept for the mounds; the cliff also carries
+   `shape: 'column'` (chunkgeo.js), because the texture only reads on
+   geometry that is actually columnar.
 
 ## What is NOT requested
 

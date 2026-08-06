@@ -52,7 +52,11 @@ export const STRUCTURE_KINDS = {
     cell: [5.0, 6.6], hRange: [3, 5],
   },
   basaltCliff: {
-    style: 'columns', mat: 'basalt', tex: 'struct_basalt_rock',
+    // the delivered nice-to-have: jointed columnar basalt. Its own texture
+    // AND its own chunk shape — a colonnade is upright prisms standing
+    // together, and boulder chunks wearing a column texture read as neither
+    style: 'columns', mat: 'basalt', tex: 'struct_basalt_column',
+    shape: 'column',
     tints: [0x372d28, 0x40332c, 0x4a3b31],
     accent: { color: 0xff5a10, chance: 0.07, emissive: true },
     cell: [4.4, 5.6], hRange: [4, 7],
@@ -232,7 +236,9 @@ const FAMILY_SHAPE = {
   iceGlass: 'iceSlab',
   snow: 'snow',
 };
-export const structureChunkShape = (family) => FAMILY_SHAPE[family] || 'box';
+// takes the KIND DEF, not the family name: a kind may override its family's
+// shape (`shape: 'column'` on basaltCliff — jointed colonnade, not boulders)
+export const structureChunkShape = (def) => def?.shape || FAMILY_SHAPE[def?.mat] || 'box';
 
 /**
  * The material array a DestructibleSystem wants (box face order: px, nx, py,
