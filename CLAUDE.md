@@ -1236,6 +1236,36 @@ audio). Progress history: `TASKS.md`.
   90°) and the worst unexplained movement (the step-over used to show up here
   as a 2.8-unit hop), plus each hand's and foot's distance to the nearest solid
   — and `node tools/climbshot.mjs <out-prefix>` for the pictures.
+- WHAT A GLB BUILD *MEASURES* IS A PROPERTY OF THE FILE, SO IT IS MEASURED ONCE
+  (`fitCache` in gltf.js, keyed on the manifest ENTRY OBJECT). Three passes in
+  `buildGlbMech` walk vertices: `skinnedBox` on every scale/reground step (20k
+  samples each), the visible head match (`measureHeadTop`), and
+  `Animator.calibrateFeet` (the whole skinIndex, per foot — 138k verts on
+  saurion). All three answer the same thing for every body built from the same
+  entry, because the geometry, the skinOps and the rig are the same. A match
+  only rebuilds one mid-fight when SAURION CALLS HIS PACK — `cloneMech` on a GLB
+  is `cloneGLB()`, i.e. a full `buildGlbMech` — so the raptor pack was paying it
+  three times: measured at 44 / 46 / 52ms, landing as three separate hitches as
+  the volley staggered the spawns 0.22s apart (the reported ult lag). Cached:
+  1.3-4ms per clone, worst world step over the cast 51.7 -> 2.8ms, steady state
+  with three minions unchanged (0.77 -> 0.85ms/step either way).
+  THE CACHE IS REPLAY, NOT APPROXIMATION. The reground steps are replayed BY
+  ORDINAL and only while the requested factor still matches what was recorded —
+  a build that asks for a different `k` re-measures from that step on and
+  re-records the tail — and the foot calibration is stored as the sole samples
+  in the ANKLE BONE'S OWN frame (pose-independent by construction, and the
+  model's scale is pinned per entry), re-bound to the new copy's bones.
+  Everything measured comes back bit-identical for all 19 GLB mechs:
+  `node tools/scratch/fitcache.mjs` builds each one and then `cloneGLB`s it,
+  diffing scale, ground offset, ankleGain/footFlat/footDepth, the sole points
+  and `lowestRenderedY`. The key is the ENTRY OBJECT, so a workbench's manifest
+  reload — which parses fresh entries — drops the cache by construction and can
+  never show stale numbers for an edited model; every `tools/*.mjs` builds
+  through `buildGlbForTool`, which spreads a new entry per call, so the tools
+  always measure.
+  `node tools/scratch/ultprobe.mjs <mech>` times a summon ult's two very
+  different costs (the spawn frames vs the steady state with the minions in),
+  and `tools/scratch/ultprof.mjs` is the CDP profile behind it.
 - A fighter grown at RUNTIME (colossus' COLOSSAL FORM ult scales him 4×) must
   tell the animation layer: `animator.sizeMul = <factor>`. Everything in
   animator.js is authored in the model's own local units, so without it the
