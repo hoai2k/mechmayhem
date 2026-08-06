@@ -178,13 +178,28 @@ function planProps(env, geo, ctx) {
     const tr = traitsFor(spec.name);
     const out = [];
     for (let i = 0; i < spec.count; i++) {
-      const a = bastionAngle(geo, (si + i) % k) + rng.range(-0.2, 0.2);
-      for (let t = 0; t < 10; t++) {
+      const a0 = bastionAngle(geo, (si + i) % k) + rng.range(-0.2, 0.2);
+      let placed = false;
+      // march inward along the bastion's own ray first — the front is the
+      // point — but a ray that happens to run down a road or through a
+      // footprint fouls ALL of its candidates, so a placement that fails the
+      // march sweeps the mid-field ring instead of dropping the whole spec
+      // to the trait-blind ring scatter (measured on ruins: both sarcophagi
+      // fell through and landed off-grid)
+      for (let t = 0; t < 10 && !placed; t++) {
         const r = rBastion - rng.range(12, 22) - t * 2;
+        const x = Math.cos(a0) * r, z = Math.sin(a0) * r;
+        if (!pOk(x, z, spec.name)) continue;
+        out.push({ x, z, ry: yawOf(tr, x, z, {}) });
+        placed = true;
+      }
+      for (let t = 0; t < 12 && !placed; t++) {
+        const a = rng.range(0, TAU);
+        const r = rng.range(C + 16, Math.max(C + 24, rBastion - 10));
         const x = Math.cos(a) * r, z = Math.sin(a) * r;
         if (!pOk(x, z, spec.name)) continue;
         out.push({ x, z, ry: yawOf(tr, x, z, {}) });
-        break;
+        placed = true;
       }
     }
     if (out.length) plan.set(spec, out);
