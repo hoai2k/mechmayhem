@@ -1600,6 +1600,23 @@ audio). Progress history: `TASKS.md`.
   — drew NOTHING: every structure in the quarry, the forge and the outpost was
   present in every collision, climb and damage query and invisible on screen.
   `withGroup` adds the one group; a box has its own six.
+  A SHARD HAS NO UNWRAP, so the uv is a BOX PROJECTION (`boxProject`): each
+  triangle is projected down whichever axis its normal points along most,
+  which is seamless on a faceted shape and costs nothing. Without ANY uv the
+  texture pack samples one texel and a rock renders as painted plastic — so
+  the landform materials landed and changed nothing until this existed. The
+  practical consequence for art: a strongly directional pattern shows up in
+  three directions at once, so these textures want isotropic detail.
+  THE EMISSIVE MAP IS TINTED PER CHUNK. `emissive` is a uniform, so a map
+  left alone lights every chunk the same and washes a near-black basalt mound
+  white (which is why the intensity was pinned at 0 for a while). `vColor` —
+  the instance colour — is already in that shader because `vertexColors` is
+  on, so `structureMaterial` patches `totalEmissiveRadiance *= vColor` in:
+  an ember chunk's cracks burn orange, the cold rock beside it barely glows,
+  and one crystal spire glows in six colours off one white map. A patched
+  shader needs its own `customProgramCacheKey`, and anything that turns
+  `vertexColors` OFF must retire the patch with it (the level editor's proxy
+  does) or `vColor` is undeclared and the shader will not compile.
   A SILHOUETTE IS NOT A PROPORTION. `mound` derives its layer count from its
   radius, so a snow drift wide enough to read as one came out four to nine
   chunks tall — a bank, not a pile. That is what the `drift` style is for (a
@@ -2057,6 +2074,9 @@ nothing behind it. Art that is requested-but-not-delivered is listed in
 guarding it; a pending entry that turns up IS reported, so the list cannot rot
 into crying wolf. `node tools/assetcheck.mjs` is the same check from the
 command line, plus a stray scan of the directories nothing reads.
+`PENDING_ASSETS` IS EMPTY TODAY — every texture the game declares is present,
+so every one of them is guarded and a rename or a deletion is reported rather
+than silently falling back to procedural.
 
 ## Architecture map
 

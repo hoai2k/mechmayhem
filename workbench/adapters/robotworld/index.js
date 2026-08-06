@@ -640,7 +640,14 @@ const CONFIG = defineWorkbenchConfig({
       const merged = mergeGeometries(geos, false);
       for (const g of geos) g.dispose();
       const mat = structureMaterial(kind.mat, kind.tex);
-      mat.vertexColors = false;                 // one tint for the whole proxy
+      // ONE TINT FOR THE WHOLE PROXY — a stand-in has no per-chunk instance
+      // colour to vary by. Turning `vertexColors` off ALSO retires the
+      // emissive-by-instance patch that material may carry: `vColor` is only
+      // declared under USE_COLOR, so a shader still multiplying by it would
+      // fail to compile and the editor would draw nothing at all.
+      mat.vertexColors = false;
+      mat.onBeforeCompile = () => {};
+      mat.customProgramCacheKey = () => 'structProxyFlat';
       mat.color = new THREE.Color(def.tint ?? m?.tint ?? kind.tints[0]);
       const mesh = new THREE.Mesh(merged, mat);
       mesh.castShadow = true; mesh.receiveShadow = true;

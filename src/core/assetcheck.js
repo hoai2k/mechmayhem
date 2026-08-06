@@ -44,14 +44,11 @@ import { GROUND_TEX, FACADE_TEX } from '../arena/arena.js';
  * cannot quietly go stale.
  */
 export const PENDING_ASSETS = new Set([
-  // docs/ASSET_REQUESTS_STRUCTURES.md — the landform materials. The
-  // structures ship with procedural colour until these arrive.
-  'struct/struct_basalt_rock',
-  'struct/struct_crystal_facet',
-  'struct/struct_ice_glacier',
-  'struct/struct_ice_cut',
-  'struct/struct_rock_grey',
-  'struct/struct_snow_pack',
+  // Empty: every texture the game declares is present. Add a name here the
+  // moment something is DECLARED but not yet delivered, so the audit reports
+  // it quietly (INFO) instead of shouting about a gap somebody already knows
+  // about — and take it out again when the art lands, which the check itself
+  // will tell you to do (ARRIVED).
 ]);
 
 /** Every [set, name, why] the game's own data declares. */

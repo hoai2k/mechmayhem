@@ -5,10 +5,11 @@ arena design pass have been delivered and are in play: every theme now
 resolves the facade it names (`node tools/assetcheck.mjs` proves it, and
 `src/core/assetcheck.js` reports at boot if one ever goes missing).
 
-This file stays as the GUIDELINES for adding another building material.
-Still outstanding elsewhere: the structure materials in
-`docs/ASSET_REQUESTS_STRUCTURES.md`. The original pack-wide brief is
-`docs/TEXTURE_GEN_PROMPT.md`.
+This file stays as the GUIDELINES for adding another building material. The
+structure materials in `docs/ASSET_REQUESTS_STRUCTURES.md` have landed too,
+so the game has NO outstanding texture asks at all — only the one
+nice-to-have listed at the bottom of that file. The original pack-wide brief
+is `docs/TEXTURE_GEN_PROMPT.md`.
 
 ## What is in play
 

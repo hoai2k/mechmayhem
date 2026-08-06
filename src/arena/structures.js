@@ -255,9 +255,32 @@ export function structureMaterial(family, tex) {
       packed.transparent = base.transparent;
       packed.opacity = base.opacity;
       packed.depthWrite = base.depthWrite;
-      packed.emissiveIntensity = 0;
       packed.vertexColors = true;
       packed.flatShading = base.flatShading;
+      // THE GLOW IS A MAP NOW, AND IT IS TINTED PER CHUNK. The basalt and
+      // crystal packs ship an emissive map — hot cracks in the rock, light
+      // along the fracture lines in the crystal — and `emissive` is a
+      // UNIFORM, so left alone it lights every chunk the same and washes a
+      // near-black mound to white (which is exactly how the first build of
+      // these looked, and why the intensity used to be pinned at 0). vColor
+      // is the instance colour and it is already in this shader, so
+      // multiplying the emissive by it gives the map its per-chunk hue for
+      // free: an ember chunk's cracks burn orange, the rock around it
+      // barely glows, and one crystal spire glows in six colours.
+      if (packed.emissiveMap) {
+        packed.emissiveIntensity = family === 'crystal' ? 0.85 : 1.1;
+        packed.onBeforeCompile = (s) => {
+          s.fragmentShader = s.fragmentShader.replace(
+            '#include <emissivemap_fragment>',
+            '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor;'
+          );
+        };
+        // a patched shader must not be handed a cached program compiled from
+        // the unpatched source
+        packed.customProgramCacheKey = () => 'structEmissiveByInstance';
+      } else {
+        packed.emissiveIntensity = 0;
+      }
       base.dispose();
       return packed;
     }

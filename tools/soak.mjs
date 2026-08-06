@@ -8,7 +8,14 @@ const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));
 await page.goto(process.argv[2], { waitUntil: 'networkidle' });
-await page.waitForTimeout(4000);
+// WAIT FOR THE WORLD, don't guess at it. A fixed pause was fine when an
+// arena was procedural colour; a themed one now streams several MB of
+// texture before it builds, and on SwiftShader that overran four seconds —
+// which surfaced as `Cannot read properties of undefined (reading 'events')`
+// and reads like a crash in the game rather than a harness that started early.
+await page.waitForFunction(() => window.__world && window.__ais && window.__fighters,
+  null, { timeout: 120000 });
+await page.waitForTimeout(1500);
 const result = await page.evaluate(() => {
   const w = window.__world, ais = window.__ais, fighters = window.__fighters;
   const log = [];
