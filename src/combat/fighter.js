@@ -16,6 +16,7 @@ import {
 } from './climb.js';
 import { aimCannons, cannonRecoil, hasCannons, ON_TARGET } from './cannonaim.js';
 import { floorGuard, clearFloorGuard } from './floorguard.js';
+import { updateAim } from './aim.js';
 import { bakePoseShell } from './poseshell.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
@@ -3178,6 +3179,11 @@ export class Fighter {
       if (len > 1) { ax /= len; az /= len; }
       if (this.lockTarget) {
         // target lock owns the facing (set below) — movement strafes
+      } else if (this.aiming) {
+        // SNIPER MODE with nothing locked: the crosshair owns the facing, so
+        // he squares up on his own shot and every sideways step is a strafe
+        // around it — the same stance a lock gives, without a target
+        this.targetYaw = this.aimYaw;
       } else if (I.strafe && I.aimYaw !== undefined) {
         // strafe lock: face where the camera points, glide sideways
         this.targetYaw = I.aimYaw;
@@ -3197,7 +3203,12 @@ export class Fighter {
     if (I.lockOn && this.alive) {
       if (!this.lockTarget || !this.lockTarget.alive) this.lockTarget = this.nearestEnemy();
       if (this.lockTarget) {
-        this.targetYaw = this.yawTo(this.lockTarget);
+        // SQUARE UP ON THE CROSSHAIR, not on the body: while the player is
+        // leading a strafing target the aim is what the mech is shooting at,
+        // and a mech facing one way while its shots leave at another reads as
+        // a bug. With no lead the two are the same angle (aim.js bounds the
+        // lead, so this can never turn him off the fight).
+        this.targetYaw = this.aiming ? this.aimYaw : this.yawTo(this.lockTarget);
         // lock reticle: a pulse in this player's color under the target
         this._lockFxT = (this._lockFxT ?? 0) - dt;
         if (this._lockFxT <= 0 && !this.isAI) {
@@ -3384,27 +3395,11 @@ export class Fighter {
     if (this._whirlHold != null) this.updateHeavyHold(dt);
     if (this._punchHold != null) this.updatePunchHold(dt);
     this.updateChargeGlow(dt);
-    // ---- LB lock-aim: while target lock is held, a light crosshair drifts
-    // onto the locked enemy (the HUD projects _lockAim into this player's
-    // view — fast camera swings and target dashes pull it off the body for
-    // a beat until it catches up) and any ranged attack fired during the
-    // lock flies at the crosshair's world point, height included ----
-    if (this.intent.lockOn && this.lockTarget?.alive && !this.isAI && this.alive) {
-      const T = this.lockTarget;
-      // aim at the HEAD, not the midsection — headshots feel like aiming
-      const ty = T.pos.y + T.height * 0.88;
-      const tx = this.pos.x + this.world.wrapDelta(T.pos.x - this.pos.x);
-      const tz = this.pos.z + this.world.wrapDelta(T.pos.z - this.pos.z);
-      if (!this._lockAim) this._lockAim = new THREE.Vector3(tx, ty, tz);
-      else {
-        const r = 1 - Math.exp(-9 * dt);
-        this._lockAim.x += (tx - this._lockAim.x) * r;
-        this._lockAim.y += (ty - this._lockAim.y) * r;
-        this._lockAim.z += (tz - this._lockAim.z) * r;
-      }
-    } else {
-      this._lockAim = null;
-    }
+    // ---- THE CROSSHAIR (combat/aim.js): under a target lock, or in sniper
+    // mode with LB held, the player's own aim — steered by the camera stick,
+    // drawn by the HUD, and the point any ranged attack fired while it is up
+    // flies at, height included ----
+    updateAim(this, dt);
     // ---- signature heavy mechanics (post-pose joint spins, drives, flares) ----
     this.updateHeavySignature(dt);
     // ---- generic special FX: scripted joint whirls / grows (bulwark bash) ----

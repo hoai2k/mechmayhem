@@ -214,6 +214,32 @@ export const TUNING = {
     leakDefault: 0.12,     // damage fraction through a guard when a mech sets no blockMult
   },
 
+  // ---- AIMING: THE CROSSHAIR AND THE SCOPE (combat/aim.js) ----------------
+  // The crosshair IS the ranged target — it is where a shot fired under a
+  // target lock (or in sniper mode) goes, so what the camera stick moves is
+  // the AIM, and the camera follows it rather than the other way round.
+  aim: {
+    yawRate: 1.5,      // rad/s of lead the stick can steer, at full deflection
+    pitchRate: 1.1,    // rad/s the stick raises/drops the aim
+    maxLead: 0.7,      // rad of lead off the locked target the stick may hold
+    maxPitch: 0.9,     // rad the aim may be raised/dropped from level
+    hold: 0.7,         // seconds after the stick stops before the aim re-settles
+    settle: 6,         // rate the aim eases back onto the locked target
+    // A LEAD MUST OUTLIVE THE SHOT THAT USES IT: `hold` is what makes leading
+    // possible at all, since an aim that re-acquires the instant you stop
+    // pushing is the auto-aim you were trying to get away from.
+    reach: 90,         // units the unlocked aim ray carries before it gives up
+    // ---- sniper mode (LB HELD) ----
+    zoomRate: 3.2,     // damp rate of the zoom blend — the whole feel of it
+    zoomFov: 0.52,     // FOV multiplier at full zoom (≈2x magnification)
+    zoomDist: 0.82,    // camera-distance multiplier at full zoom
+    shoulder: 2.6,     // units the view slides sideways so the mech clears the shot
+    shoulderUp: 0.7,   // ...and up
+    leadPull: 0.62,    // how far the look target slides toward the crosshair
+    zoomSens: 0.55,    // stick sensitivity multiplier at full zoom
+    holdTime: 0.2,     // seconds LB must be down to mean SNIPER rather than a lock tap
+  },
+
   // ---- MELEE / HIT REACTIONS ----------------------------------------------
   melee: {
     punchHoldCap: 1.8,     // seconds to fully bank a held haymaker

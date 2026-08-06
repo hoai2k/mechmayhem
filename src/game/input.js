@@ -1,5 +1,6 @@
 // Input: keyboard (2 local layouts) + Xbox controllers via Gamepad API.
 // Produces per-fighter intents and aggregated menu navigation events.
+import { TUNING } from '../core/tuning.js';
 
 const KB1 = {
   up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD',
@@ -33,6 +34,9 @@ export class Input {
     this.padsPrev = [{}, {}, {}, {}];
     this.padsCur = [{}, {}, {}, {}];
     this._lockLatch = [false, false, false, false]; // LB target-lock toggles
+    // when LB went down, per pad (null = up). A TAP toggles the lock on
+    // release; a HOLD is sniper mode instead — see readIntent.
+    this._lbDown = [null, null, null, null];
     this.onPadConnect = null;
     this._navHold = new Map();      // "src:dir" -> {t0, last} for menu auto-repeat
 
@@ -148,6 +152,8 @@ export class Input {
       intent.strafe = k('strafe');
       intent.duck = k('duck');
       intent.lockOn = false;
+      intent.sniper = false;   // LB hold — pads only (see below)
+      intent.lookX = intent.lookY = 0;
     } else if (device.startsWith('pad')) {
       const i = +device[3];
       mx = this.padsCur[i].lx || 0;
@@ -175,11 +181,28 @@ export class Input {
       // (fighter.js owns the mechanics)
       intent.chargeDash = this.padHeld(i, 'B');
       intent.dash = false;    // pads dash via the B coil/sprint
-      // LB: TARGET LOCK, a TOGGLE — tap to lock on (face the locked enemy,
-      // camera tracks them, sideways movement becomes a natural strafe),
-      // tap again to release. Was hold-to-lock; a toggle frees the finger
-      // for the bumper/trigger cluster during long lock fights.
-      if (this.padPressed(i, 'LB')) this._lockLatch[i] = !this._lockLatch[i];
+      // LB DOES TWO THINGS, TOLD APART BY HOW LONG IT IS DOWN.
+      //   TAP  — TARGET LOCK, a toggle: lock on (face the locked enemy, camera
+      //          tracks them, sideways movement becomes a natural strafe), tap
+      //          again to release. Was hold-to-lock; a toggle frees the finger
+      //          for the bumper/trigger cluster during long lock fights.
+      //   HOLD — SNIPER MODE, for as long as it is down: the view zooms in
+      //          around the crosshair (combat/aim.js) and the camera stick aims
+      //          instead of framing. It needs no lock and works in either
+      //          camera mode.
+      // The toggle therefore fires on RELEASE, and only for a press that never
+      // became a hold — otherwise raising the scope would flip the lock every
+      // time, which is the one thing a held button must not do.
+      const now = performance.now() / 1000;
+      const holdT = TUNING.aim.holdTime;
+      if (this.padPressed(i, 'LB')) this._lbDown[i] = now;
+      const lbHeld = this.padHeld(i, 'LB');
+      const t0 = this._lbDown[i];
+      if (!lbHeld && t0 != null) {
+        if (now - t0 < holdT) this._lockLatch[i] = !this._lockLatch[i];
+        this._lbDown[i] = null;
+      }
+      intent.sniper = lbHeld && t0 != null && now - t0 >= holdT;
       intent.lockOn = this._lockLatch[i];
       intent.strafe = false;
       // D-PAD DOWN, the twin of the ultimate on UP: the taunt lives on the pad
@@ -192,6 +215,11 @@ export class Input {
       // Crouch lives on the B coil now — holding it crouches while it winds.
       intent.duck = false;
       intent.camAdjust = this.padHeld(i, 'LS');
+      // the right stick, on the intent as well as on the camera: while the
+      // crosshair is up it is an AIM control (boot.js routes it — see the note
+      // on Fighter.aimIn), and the camera follows the aim rather than leading it
+      intent.lookX = this.padsCur[i].rx || 0;
+      intent.lookY = this.padsCur[i].ry || 0;
     } else if (device === 'touch') {
       const t = this.touch;
       mx = t.moveX;
@@ -215,6 +243,8 @@ export class Input {
       intent.strafe = t.held.has('strafe');
       intent.duck = t.held.has('duck');
       intent.lockOn = false;
+      intent.sniper = false;
+      intent.lookX = intent.lookY = 0;
     }
 
     // rotate into world space (camera-relative):

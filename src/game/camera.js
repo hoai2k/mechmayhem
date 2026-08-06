@@ -24,6 +24,8 @@ const _lift = new THREE.Vector3();   // per-frame scratch (was allocated per fig
 // fighter's raw `pos` orbits at the spin rate — every framing read below goes
 // through focusPos so the camera tracks the smooth falling base instead.
 const _fpA = new THREE.Vector3();
+const _scopeF = new THREE.Vector3();  // sniper scope scratch (view forward / right)
+const _scopeR = new THREE.Vector3();
 // ---------------------------------------------------------------------------
 // THE CLIMB CAMERA (surface walking, combat/climb.js).
 //
@@ -321,12 +323,61 @@ export class CameraSystem {
   // azimuth that puts the camera behind `f` looking straight at `other`
   // through the shortest wrapped path (target lock, and the solo
   // behind-the-player framing toward the nearest enemy)
+  //
+  // IT AIMS AT THE CROSSHAIR, NOT AT THE BODY. The lock's aim point is the
+  // player's to steer (combat/aim.js) — leading a strafing target is the whole
+  // reason it exists — so the orbit that "keeps the target in frame" has to
+  // follow the AIM, or the view would sit still while the crosshair walked off
+  // the side of it. With no lead the two are the same bearing, so an unsteered
+  // lock frames exactly what it always did.
   azimuthBehind(f, other) {
-    const a = f.focusPos(_fpA), b = other.focusPos(_fpB);
+    const a = f.focusPos(_fpA);
+    const p = (f.aiming && f._lockAim) ? _fpB.copy(f._lockAim) : other.focusPos(_fpB);
     return Math.atan2(
-      -this.world.wrapDelta(b.x - a.x),
-      -this.world.wrapDelta(b.z - a.z)
+      -this.world.wrapDelta(p.x - a.x),
+      -this.world.wrapDelta(p.z - a.z)
     );
+  }
+
+  // ---- SNIPER MODE: the view zooms in around the crosshair ----------------
+  //
+  // Everything here rides ONE number, the fighter's own `sniperK` (0..1, damped
+  // by aim.js), so raising and lowering the scope is one smooth move in both
+  // directions and no part of it can arrive ahead of another:
+  //   · the FOV narrows to `zoomFov` — the magnification, and what actually
+  //     makes a distant mech aimable;
+  //   · the camera comes in a little (`zoomDist`), so the shot is not taken
+  //     from the back of the arena;
+  //   · the whole view slides OVER THE SHOULDER (`shoulder`/`shoulderUp`),
+  //     because a crosshair centred behind your own mech is a crosshair you
+  //     cannot see — this is the one thing a third-person scope must do;
+  //   · and the look target slides toward the crosshair (`leadPull`), so the
+  //     thing being aimed at drifts to the middle of the screen instead of
+  //     sitting out at the edge of a now-narrow frame.
+  // Position and target take the SAME lateral shift: the view translates, it
+  // does not swing, so the aim direction on screen is unchanged by the slide.
+  applyScope(f, pos, target) {
+    const k = f?.sniperK || 0;
+    if (k < 0.001) return 0;
+    const A = TUNING.aim;
+    if (f._lockAim) target.lerp(f._lockAim, A.leadPull * k);
+    _scopeF.copy(target).sub(pos);
+    _scopeF.y = 0;
+    if (_scopeF.lengthSq() < 1e-6) return k;
+    _scopeF.normalize();
+    _scopeR.set(-_scopeF.z, 0, _scopeF.x);   // view-right, level with the world
+    const s = A.shoulder * k, up = A.shoulderUp * k;
+    pos.addScaledVector(_scopeR, s); pos.y += up;
+    target.addScaledVector(_scopeR, s); target.y += up;
+    return k;
+  }
+
+  // FOV for a view whose player is (or is not) scoped in. The framing math
+  // must never read this — it reasons in the BASE fov, or the zoom would feed
+  // back into the distance it is zooming.
+  scopeFov(f, baseFov) {
+    const k = f?.sniperK || 0;
+    return k < 0.001 ? baseFov : baseFov * lerp(1, TUNING.aim.zoomFov, k);
   }
 
   // how far past its natural size a mech is grown (COLOSSAL FORM) — 1 in a
@@ -495,7 +546,11 @@ export class CameraSystem {
       }
     }
 
-    const fovHalf = (this.engine.camera.fov * Math.PI / 360);
+    // BASE fov, never the live one: the scope narrows the camera's fov below,
+    // and framing distance derived from a zoomed fov would zoom itself further
+    // every frame.
+    if (this.baseFov === undefined) this.baseFov = this.engine.camera.fov;
+    const fovHalf = (this.baseFov * Math.PI / 360);
     let wantDist = clamp(radius / Math.tan(fovHalf) * 1.15, 26, 95 * giantF);
     // Solo: pull in close for an over-the-shoulder chase (the enemy stays
     // framed because the camera is directly behind the player, facing them).
@@ -503,6 +558,9 @@ export class CameraSystem {
     // (A COLOSSAL-FORM giant in frame scales the whole envelope out.)
     if (solo) wantDist = clamp(wantDist * 0.58, 22 * giantF, 34 * giantF);
     wantDist *= this.zoomMul;   // the player's own camera-adjust zoom
+    // sniper mode brings the eye in as it narrows the fov (see applyScope)
+    const scoped = solo ? humans[0] : null;
+    if (scoped?.sniperK) wantDist *= lerp(1, TUNING.aim.zoomDist, scoped.sniperK);
     if (!this.init) this.dist = wantDist;
     // COLOSSAL FORM: while a giant is in frame, ease the ZOOM slowly so the
     // size change lands FIRST — the scale reads before the reframe. The
@@ -545,6 +603,12 @@ export class CameraSystem {
       }
     }
 
+    // SNIPER MODE: slide the whole view over the shoulder and pull the look
+    // toward the crosshair. Applied to the WANT, so the damps below smooth the
+    // slide exactly as they smooth every other camera move — raising the scope
+    // is a camera move, not a cut.
+    this.applyScope(scoped, wantPos, _center);
+
     if (!this.init) {
       this.init = true;
       this.cPos.copy(wantPos);
@@ -560,6 +624,8 @@ export class CameraSystem {
     const cam = this.engine.camera;
     cam.position.set(this.cPos.x + shakeX, this.cPos.y + shakeY, this.cPos.z);
     cam.lookAt(this.cTarget.x + shakeX * 0.6, this.cTarget.y + shakeY * 0.6, this.cTarget.z);
+    const fov = this.scopeFov(scoped, this.baseFov);
+    if (Math.abs(cam.fov - fov) > 1e-3) { cam.fov = fov; cam.updateProjectionMatrix(); }
 
     // solo chase cam rides low — ghost buildings that hide the PLAYER's own
     // mech (enemies may still use cover; the camera never physically
@@ -615,7 +681,9 @@ export class CameraSystem {
       const ch = this.chase[i];
       const vp = layout[i];
       const cam = ch.camera;
+      if (ch.baseFov === undefined) ch.baseFov = cam.fov;
       cam.aspect = (window.innerWidth * vp.w) / (window.innerHeight * vp.h);
+      cam.fov = this.scopeFov(f, ch.baseFov);   // sniper mode (see applyScope)
       cam.updateProjectionMatrix();
 
       // toroidal wrap: when this player folds across the seam, shift their
@@ -658,7 +726,8 @@ export class CameraSystem {
       // pull out after; shrink → move in after) while the mech-follow stays
       // tight. Near-instant when not a giant, so normal framing is unchanged.
       if (ch.dist === undefined) ch.dist = baseDist;
-      ch.dist = this.giantZoomDamp(ch.dist, baseDist * this.zoomMul, gf, 12, dt);
+      const scopeDist = f.sniperK ? lerp(1, TUNING.aim.zoomDist, f.sniperK) : 1;
+      ch.dist = this.giantZoomDamp(ch.dist, baseDist * this.zoomMul * scopeDist, gf, 12, dt);
       const el = ch.el;
       _v.set(
         Math.sin(ch.az) * Math.cos(el), Math.sin(el), Math.cos(ch.az) * Math.cos(el)
@@ -686,6 +755,9 @@ export class CameraSystem {
       // giant's inflated size automatically
       lookAhead.y += f.height * 0.75;
       if (ck > 0) lookAhead.lerp(_ccTgt, ck);
+      // sniper mode: over the shoulder, look pulled toward the crosshair —
+      // on the WANT, so the damps below smooth it into place
+      this.applyScope(f, wantPos, lookAhead);
 
       if (!ch.init) { ch.pos.copy(wantPos); ch.target.copy(lookAhead); ch.init = true; }
       ch.pos.x = damp(ch.pos.x, wantPos.x, 5, dt);

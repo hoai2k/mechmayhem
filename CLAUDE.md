@@ -213,6 +213,51 @@ audio). Progress history: `TASKS.md`.
   face costs nothing; measured on titanus (walk 20.7, run 33.2): 0-150° 33.2 ·
   160° 26.1 · 165° 22.9 · 170° 19.9 · 180° 14.5. Only target lock can produce it — free camera
   turns the body to face travel, so the offset is ~0 and it never engages.
+- THE CROSSHAIR IS THE RANGED TARGET, AND THE CAMERA STICK IS WHAT MOVES IT
+  (`src/combat/aim.js`, dials in `TUNING.aim`, measured by `node
+  tools/crosshair.mjs [single|split|both]`). A shot fired under a target lock
+  already flew at the crosshair's world point, height included (world.js
+  `aimP`) — but that point was PINNED to the locked enemy's head, a servo you
+  could watch and not touch, so against anything that strafes you were aiming
+  at the one place he would not be when the shot arrived. The aim is now two
+  angles the player owns, offset from a BASE direction: the locked enemy's
+  head, or — with nothing locked — the CAMERA's own heading. Push the stick and
+  the crosshair leads; the camera follows it, because the lock orbit aims at
+  the aim POINT rather than at the body (`azimuthBehind`), so the two move
+  together and what you are aiming at stays in frame. Let go and it eases back
+  onto the target after `hold` seconds. WITH NO LEAD IT IS EXACTLY THE OLD
+  POINT — same head, same range — so nothing about an unsteered lock changed
+  (measured: 0.00 units off the head at rest).
+  THE PRICE, and it is deliberate: under a lock the right stick no longer
+  orbits the view by hand and the lead is bounded (`maxLead`, 40°). Tap out of
+  the lock and the camera is yours again exactly as before.
+  A HELD LB IS SNIPER MODE, and that is why the lock became a TAP toggle to
+  release on: the toggle now fires on RELEASE and only for a press that never
+  became a hold, so raising the scope cannot flip the lock (`node
+  tools/scratch/lbprobe.mjs` asserts all four transitions). It needs no lock and
+  no target — unlocked, the stick swings camera and crosshair as one thing and
+  the aim ray is TRACED into the world (enemy hurtboxes first, then the terrain
+  under it), which is what lets a LOBBED shell land where the crosshair is drawn
+  instead of at a fixed range.
+  THE ZOOM IS ONE NUMBER (`Fighter.sniperK`, damped both ways at `zoomRate`),
+  so raising and lowering the scope are the same move played in reverse and no
+  part of it can arrive ahead of another: the FOV narrows (`zoomFov`, 46->24.8
+  combined / 50->27 split), the eye comes in (`zoomDist`), the whole view slides
+  OVER THE SHOULDER (`shoulder`/`shoulderUp` — a crosshair centred behind your
+  own mech is a crosshair you cannot see) and the look target slides toward the
+  crosshair (`leadPull`), which is what brings the aim to the middle of a
+  now-narrow frame (measured: ndc y 0.36 -> 0.16). Stick sensitivity scales down
+  with it (`zoomSens`) or a magnified view is twice as twitchy as it looks.
+  Worst single-frame zoom step 0.052, i.e. ~0.3s in and out.
+  FOUR THINGS THAT ARE NOT OBVIOUS. The framing math must read the BASE fov
+  (`CameraSystem.baseFov` / `ch.baseFov`), or a distance derived from a zoomed
+  fov zooms itself further every frame. The mech SQUARES UP ON THE CROSSHAIR
+  rather than on the body (`targetYaw = aimYaw`), since shots leaving at an
+  angle to the facing read as a bug — and that is also what gives an unlocked
+  sniper the strafe stance for free. Stick RIGHT is MINUS aim yaw (a body facing
+  +z has its right hand at -x), which is measured by the probe rather than
+  reasoned about. And the aim is off entirely for the AI and for keyboard/touch
+  (no LB), so `f.aiming` false is the old code path everywhere it matters.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
   `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
   nova), `arthropod` (jerry), `hexapod` (cranky) and `quad` (fenrir).

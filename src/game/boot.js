@@ -768,10 +768,30 @@ export async function bootGame() {
           // left-stick CLICK = camera adjust: the vertical axis zooms the
           // view in/out (forward = in) instead of pitching it
           const adjust = input.padHeld(+h.device[3], 'LS');
+          // ---- WHO GETS THE RIGHT STICK: the camera, or the crosshair ----
+          // While the aim is up (target lock, or LB-held sniper mode) the stick
+          // is an AIMING control — that is the whole point of it: you steer the
+          // shot to where the target is GOING, and the camera follows the aim
+          // (camera.js frames the aim point) instead of being framed by hand.
+          //   · locked  — both axes are the aim's; the lock orbit follows it.
+          //   · sniper, nothing locked — the aim's base heading IS the camera's,
+          //     so X still turns the view (which carries the crosshair with it)
+          //     and only Y is taken, as the aim's pitch.
+          // camera-ADJUST (LS click, the zoom) always outranks it: it is how a
+          // player changes the framing, and it never aims.
+          const f = h.fighter;
+          const aiming = f.aiming && !adjust;
+          if (aiming) {
+            const inp = f.aimIn || (f.aimIn = { x: 0, y: 0 });
+            inp.x = f.lockTarget ? rx : 0;
+            inp.y = ry;
+          }
+          const camX = aiming && f.lockTarget ? 0 : rx;
+          const camY = aiming ? 0 : ry;
           if (B.cameraSys.mode === 'split') {
-            B.cameraSys.setLook(h.idx, rx, ry, adjust);
-          } else if (rx || ry) {
-            B.cameraSys.applyStick(rx, ry, dtReal, adjust);
+            B.cameraSys.setLook(h.idx, camX, camY, adjust);
+          } else if (camX || camY) {
+            B.cameraSys.applyStick(camX, camY, dtReal, adjust);
           }
         }
       }

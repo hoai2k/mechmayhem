@@ -102,8 +102,9 @@ export const MESSAGES = {
       <b style="color:#fff">KEYBOARD P2</b> — Arrows move · Num0 jump · Num1 light · Num2 heavy · Num3 block · Num4 ranged · Num5 special · Num6 ult · NumEnter dash · Num7 strafe-lock · Num8 duck<br>
       <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera (free look, nothing auto-swings it) · A jump · X light · Y heavy · RB ranged · RT special · LT block · L-stick CLICK camera adjust (R-stick ↑↓ zooms in/out) · D-pad ↑ ultimate · D-pad ↓ taunt<br>
       <b style="color:#fff">B / SHIFT — DASH &amp; SPRINT</b> — standing still, HOLD to wind up a dash coil (3s cap, crouches); the moment you push a direction it FIRES a dash that way — longer wind-up, farther dash. Already moving, press-and-HOLD for a short dash into a SPRINT that drains the yellow stamina bar (refills when you let go)<br>
-      <b style="color:#fff">PAD LB — TARGET LOCK</b> — HOLD to lock onto the nearest enemy: you face them, the camera keeps them framed, and sideways movement becomes a strafe<br>
-      <b style="color:#fff">AIM</b> — while LB target lock is held, a light crosshair drifts onto the target and ranged shots fly at it (height included); unlocked shots fire along your facing<br>
+      <b style="color:#fff">PAD LB — TAP: TARGET LOCK</b> — lock onto the nearest enemy: you face them, the camera keeps them framed, and sideways movement becomes a strafe. Tap again to release<br>
+      <b style="color:#fff">PAD LB — HOLD: SNIPER MODE</b> — the view zooms in around the crosshair for as long as you hold it, in either camera mode and with or without a lock (holding never changes the lock)<br>
+      <b style="color:#fff">AIM</b> — the crosshair IS your ranged target: every shot fired while it is up flies at it, height included. The RIGHT STICK MOVES IT — lead a strafing enemy and the camera follows your aim; let go and it eases back onto them. Unlocked shots fire along your facing<br>
       <b style="color:#fff">HOVER JETS</b> — press JUMP again in mid-air and HOLD to fly (lighter mechs fly higher)<br>
       <b style="color:#fff">CHARGED STRIKES</b> — TITANUS &amp; COLOSSUS: HOLD light (X) to keep the punch wound up, or heavy (Y) to keep the pound raised — release to strike with banked power<br>
       <b style="color:#fff">FINISHERS</b> — hold JUMP (A / SPACE) for 1s to skip the KO cinematic<br>
@@ -169,8 +170,8 @@ export const MESSAGES = {
   'controls.dpad.action': '▲ ultimate · ▼ taunt',
   'controls.dpad.detail': 'UP fires your ultimate once you\'ve collected a charge from a golden fountain — the big one, named on your mech\'s card. You can pocket two. DOWN strikes your mech\'s pose and calls its line — free, and worth nothing, except that standing still to do it in front of someone holding an ultimate charge is its own kind of statement. LEFT and RIGHT walk you around as a backup for the left stick.',
   'controls.lb.name': 'LB',
-  'controls.lb.action': 'target lock',
-  'controls.lb.detail': 'HOLD to lock onto the nearest enemy: you turn to face them, the camera keeps them framed, sideways movement becomes a strafe, and a crosshair drifts onto them so ranged shots fly their way.',
+  'controls.lb.action': 'target lock · hold to snipe',
+  'controls.lb.detail': 'TAP to lock onto the nearest enemy: you turn to face them, the camera keeps them framed, sideways movement becomes a strafe, and the crosshair sits on them so ranged shots fly their way — steer it with the right stick to lead a moving target. HOLD LB instead and the view zooms in around the crosshair for as long as you hold it.',
   'controls.lt.name': 'LT',
   'controls.lt.action': 'block',
   'controls.lt.detail': 'holds your guard up: blocking bleeds incoming damage down and stops chip knockback. A heavy swing will break it, so it buys you a beat rather than safety.',

@@ -56,6 +56,21 @@ export class Hud {
       this.crosshairs.push(c);
     }
 
+    // SNIPER MODE (LB held): a scope vignette over that player's own viewport,
+    // faded in by the same `sniperK` the camera zooms on — so the frame closing
+    // in and the view magnifying are one move. It is a HINT, not an occluder:
+    // it darkens the corners and leaves the middle of the shot clear.
+    this.scopes = [];
+    for (let i = 0; i < 4; i++) {
+      const s = document.createElement('div');
+      s.style.cssText = `
+        position:absolute; display:none; pointer-events:none; z-index:5; opacity:0;
+        background:radial-gradient(ellipse at center,
+          rgba(0,0,0,0) 34%, rgba(0,0,0,0.28) 62%, rgba(0,0,0,0.72) 100%);`;
+      this.el.appendChild(s);
+      this.scopes.push(s);
+    }
+
     this.unsubs = [
       world.events.on('damage', (d) => this.onDamage(d)),
       world.events.on('special', (d) => this.callout(t('hud.special', { mech: d.fighter.def.name, move: d.name }))),
@@ -179,6 +194,7 @@ export class Hud {
       const el = this.crosshairs[i];
       const f = humans[i];
       let shown = false;
+      const k = f?.sniperK || 0;
       if (f && f._lockAim && f.alive && cams?.cameraFor) {
         const cam = cams.cameraFor(i);
         _v.copy(f._lockAim).project(cam);
@@ -186,11 +202,27 @@ export class Hud {
           const vp = cams.viewportRectFor(i);
           el.style.left = (vp.x + (_v.x * 0.5 + 0.5) * vp.w) * 100 + '%';
           el.style.top = (1 - (vp.y + (_v.y * 0.5 + 0.5) * vp.h)) * 100 + '%';
+          // scoped in, the reticle TIGHTENS: a smaller, brighter ring says the
+          // shot is a precise one, and the loose lock reticle would swamp a
+          // magnified target
+          el.style.transform = `translate(-50%,-50%) scale(${(1 - 0.42 * k).toFixed(3)})`;
+          el.style.borderColor = `rgba(255,255,255,${(0.55 + 0.4 * k).toFixed(2)})`;
           el.style.display = 'block';
           shown = true;
         }
       }
       if (!shown && el.style.display !== 'none') el.style.display = 'none';
+      // ...and the scope vignette over that player's own viewport
+      const sc = this.scopes[i];
+      if (k > 0.01 && f?.alive && cams) {
+        const vp = cams.viewportRectFor(i);
+        sc.style.left = vp.x * 100 + '%';
+        sc.style.top = (1 - vp.y - vp.h) * 100 + '%';
+        sc.style.width = vp.w * 100 + '%';
+        sc.style.height = vp.h * 100 + '%';
+        sc.style.opacity = k.toFixed(3);
+        sc.style.display = 'block';
+      } else if (sc.style.display !== 'none') sc.style.display = 'none';
     }
   }
 
