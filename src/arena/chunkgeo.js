@@ -46,7 +46,7 @@ function fromTris(tris) {
   g.setAttribute('color', new THREE.BufferAttribute(
     new Float32Array(pos.length).fill(1), 3));
   g.computeVertexNormals();
-  return withGroup(g);
+  return withGroup(boxProject(g));
 }
 
 // A CHUNK MESH IS BUILT WITH AN ARRAY OF SIX MATERIALS (the building path
@@ -59,6 +59,39 @@ function withGroup(g) {
   const n = g.index ? g.index.count : g.attributes.position.count;
   g.clearGroups();
   g.addGroup(0, n, 0);
+  return g;
+}
+
+/**
+ * BOX-PROJECTED UVs. A shard and a boulder have no natural unwrap, and
+ * without SOME uv the texture pack samples one texel and the whole chunk
+ * comes out a flat colour — a rock material rendered as painted plastic.
+ * Each triangle is projected down whichever world axis its normal points
+ * along most, which on a faceted shape is exactly the projection that does
+ * not stretch: every face is nearly flat and nearly axis-facing already.
+ *
+ * `scale` is in CHUNK-LOCAL units, and the geometry is a unit cube's worth,
+ * so 1.0 puts one tile of the texture across one chunk. Landform chunks are
+ * 4-8 world units, which is about the scale these materials are authored at.
+ */
+function boxProject(g, scale = 1) {
+  const p = g.attributes.position;
+  const uv = new Float32Array(p.count * 2);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), n = new THREE.Vector3();
+  for (let t = 0; t < p.count; t += 3) {
+    a.fromBufferAttribute(p, t); b.fromBufferAttribute(p, t + 1); c.fromBufferAttribute(p, t + 2);
+    n.crossVectors(ab.subVectors(b, a), ac.subVectors(c, a));
+    const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+    // which pair of coordinates to read off, per dominant axis
+    const pick = ax > ay && ax > az ? ['z', 'y'] : (ay > az ? ['x', 'z'] : ['x', 'y']);
+    for (let k = 0; k < 3; k++) {
+      const v = k === 0 ? a : (k === 1 ? b : c);
+      uv[(t + k) * 2] = (v[pick[0]] + 0.5) * scale;
+      uv[(t + k) * 2 + 1] = (v[pick[1]] + 0.5) * scale;
+    }
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   return g;
 }
 
@@ -128,7 +161,7 @@ export function boulderGeometry({ detail = 1, bump = 0.3, r = 0.56 } = {}) {
   g.computeVertexNormals();
   g.setAttribute('color', new THREE.BufferAttribute(
     new Float32Array(p.count * 3).fill(1), 3));
-  return withGroup(g);
+  return withGroup(boxProject(g));
 }
 
 /** The plain chunk — what every building is made of, and the default. */
