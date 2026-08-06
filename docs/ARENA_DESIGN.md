@@ -132,8 +132,12 @@ city's crossing node) and a second pair running exactly along the cell border
 — the wrap seam becomes a street, continuous by construction. Hazard and
 water lanes stay seeded and organic. Buildings stand in STREET WALLS flanking
 the principal boulevards (fill from the plaza outward, round-robin over the
-four walls), four gateway towers frame the plaza diagonals, and the four
-cell-corner towers wrap-assemble into one gate over the border crossing.
+walls) AND — sparser, at half the fill rate — along the border boulevards,
+because a seam street running through nothing read as an absence: through
+the wrap, the row hugging +P/2 is the far side of the street the row at
+-P/2 fronts, so the pair walls both sides of one road. Four gateway towers
+frame the plaza diagonals, and the four cell-corner towers wrap-assemble
+into one gate over the border crossing.
 One or two paved pocket plazas open mid-quadrant. Rhythm props run the
 avenues (border boulevards included), pairs gate the plaza approaches, heroes
 terminate vistas far down an avenue.

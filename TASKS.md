@@ -6747,3 +6747,16 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
 - Verified: traitprobe green on 7 theme x system combos, clearing edge >= 39
   everywhere measured, bake round-trip identical on all 3 systems, solar
   probe green, soaks clean, no chunk-capacity warnings.
+
+## Audit follow-ups (approved improvements)
+
+- AVENUES walls the seam: a sparse border wall row per axis per sign, half
+  the principal fill rate, offsets inside the cell margin — the seam street
+  reads fronted instead of running through nothing.
+- WARDS block grids widened (pitch 16.5-18.5, spacing 15) so two wide massed
+  towers can no longer fuse and seal an alley shut.
+- SOLOS sample uniformly over the cell instead of a radial band — corners
+  get campfires now (measured: solo radii up to 178 vs the band's 131 cap).
+- Structure DestructibleSystems sized 2800 (buildings keep 3600), from a
+  15-roll seed sweep whose worst system was 2094 — and `&seed=<n>` now works
+  on ?battle URLs, because auditing generation means sweeping layouts.
