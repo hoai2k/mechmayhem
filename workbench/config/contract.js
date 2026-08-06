@@ -204,6 +204,14 @@
  *                        everything placed is an editor proxy the tool owns
  *   palette() / paletteEntry(id) / swatches() -> WHAT can be placed
  *   prop(name, opts)  -> a stand-in for one placed thing
+ *   structures()      -> [{id, label}] the large masses that are NOT
+ *                        buildings (crystal spires, bergs, drifts). Optional:
+ *                        a game whose big scenery is all architecture omits
+ *                        it and the editor simply has no landforms.
+ *   structure(def)    -> a stand-in for one, built from the GAME's own
+ *                        silhouette, chunk shape and material. A landform
+ *                        drawn as a windowed tower is the editor showing you
+ *                        a different arena from the one it just baked.
  *   sharedMaterials() -> materials the editor must never dispose
  *   levels.list() / levels.load(name) -> authored level files
  *   authoredLevel(id) -> the level file this arena SHIPS AS, or null when the

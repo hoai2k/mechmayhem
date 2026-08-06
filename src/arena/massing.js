@@ -20,7 +20,7 @@
 //         habitat · ringHab
 // Landforms (same chunks, geology instead of architecture — the kinds in
 // src/arena/structures.js dress these with rock / crystal / ice materials):
-//         mound · columns · spires · iceWall · berg
+//         mound · drift · columns · spires · iceWall · berg
 
 // footprint helpers ---------------------------------------------------------
 const key = (x, z) => `${x},${z}`;
@@ -332,6 +332,28 @@ export function generateMassing(style, rng, opts = {}) {
         const r = r0 * (0.35 + 0.65 * t) * rng.range(0.86, 1.06);
         const fp = disc(new Set(), c + rng.range(-0.5, 0.5), c + rng.range(-0.5, 0.5),
           Math.max(0.8, r));
+        floors.push(fp);
+      }
+      break;
+    }
+    case 'drift': {
+      // A SNOW DRIFT IS WIDE AND LOW, and it is shaped by the wind: a long
+      // ramp on the windward side rising to a lip, then a short drop. `mound`
+      // was tried first and is the wrong silhouette here — it derives its
+      // layer count from its radius, so a drift wide enough to read as one
+      // came out four to nine chunks tall, which is a snow BANK.
+      const r0 = rng.range(4.2, 6.4) * (opts.tall ? 1.2 : 1);
+      const c = Math.ceil(r0) + 2;
+      const layers = rng.int(2, 3);
+      // which way the wind ran: the crest sits off-centre along it
+      const wx = rng.chance(0.5) ? 1 : -1, wz = rng.chance(0.5) ? 1 : -1;
+      for (let y = 0; y < layers; y++) {
+        const t = y / layers;
+        const r = r0 * (1 - t * 0.55) * rng.range(0.9, 1.08);
+        const fp = disc(new Set(),
+          c + wx * t * r0 * 0.42 + rng.range(-0.4, 0.4),
+          c + wz * t * r0 * 0.42 + rng.range(-0.4, 0.4),
+          Math.max(1.1, r));
         floors.push(fp);
       }
       break;

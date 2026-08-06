@@ -14,16 +14,33 @@
 // This list intentionally covers ALL arena props, so anything that can appear
 // in a shipped arena can also be placed by hand.
 
+import { STRUCTURE_KINDS } from '../../../src/arena/structures.js';
+
 // shared accent swatches for colourable props/terrain
 export const ARENA_SWATCHES = [
   0x53e8ff, 0xff4dd8, 0x62ff9a, 0xffb43c, 0xff5040,
   0xb46bff, 0xffd23c, 0x2ee6c8, 0x9bff3c, 0xffffff,
 ];
 
+// THE LANDFORMS ARE DERIVED, NOT LISTED. STRUCTURE_KINDS is the declaration
+// (src/arena/structures.js); adding a kind there puts it in the palette with
+// no edit here, which is the same rule the rest of this adapter follows. A
+// placed one carries no `cells` — it grows its kind's own silhouette from a
+// seed pinned to where it stands, and the editor's stand-in and the match
+// build the same rock from it.
+const structureItems = Object.entries(STRUCTURE_KINDS).map(([id, def]) => ({
+  id: `struct_${id}`,
+  label: id.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()),
+  k: 'building',
+  struct: id,
+  hint: `Destructible ${def.mat} landform — ${def.style} silhouette`,
+}));
+
 export const ARENA_PALETTE = [
   {
     group: 'Structures', items: [
       { id: 'building', label: 'Tower', k: 'building', hint: 'Destructible chunk tower — footprint & height in the inspector' },
+      ...structureItems,
     ],
   },
   {

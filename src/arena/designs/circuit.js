@@ -27,7 +27,7 @@
 import { TAU } from '../../core/utils.js';
 import {
   makeSiteOk, makePropOk, placeNear, classifyProps, emitClump,
-  traitsFor, traitYaw,
+  traitsFor, traitYaw, sunYawOf, frontClear,
 } from './util.js';
 import { planTraitClasses } from './proparrange.js';
 
@@ -121,6 +121,11 @@ function planBuildings(env, geo, { terrain, rng, count }) {
 function planProps(env, geo, ctx) {
   const { rng, footprints, specs, propOk, terrain } = ctx;
   const { B, P, clearing: C } = env;
+  // every traitYaw in this planner carries the arena's sun azimuth, so a
+  // solar collector can answer to it (proptraits.js face:'sun')
+  const sunYaw = sunYawOf(env.theme);
+  const yawOf = (tr, x, z, extra = {}) =>
+    traitYaw(tr, terrain, rng, x, z, { sunYaw, ...extra });
   const { k, rBastion } = geo;
   const pOk = makePropOk(propOk, footprints, P);
   const plan = new Map();
@@ -146,7 +151,9 @@ function planProps(env, geo, ctx) {
         const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
         if (!pOk(x, z, spec.name)) continue;
         // the colosseum ring addresses the fight it walls in
-        out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) ?? (a + Math.PI / 2) });
+        const ry = yawOf(tr, x, z, {}) ?? (a + Math.PI / 2);
+        if (!frontClear(tr, footprints, x, z, ry)) continue;
+        out.push({ x, z, ry });
         budget--;
       }
     }
@@ -157,7 +164,9 @@ function planProps(env, geo, ctx) {
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!pOk(x, z, spec.name)) continue;
       const rowDir = { dx: Math.cos(a), dz: Math.sin(a) };   // down the corridor
-      out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, { rowDir }) ?? (a + Math.PI / 2) });
+      const ry = yawOf(tr, x, z, { rowDir }) ?? (a + Math.PI / 2);
+      if (!frontClear(tr, footprints, x, z, ry)) continue;
+      out.push({ x, z, ry });
       budget--;
     }
     if (out.length) plan.set(spec, out);
@@ -174,7 +183,7 @@ function planProps(env, geo, ctx) {
         const r = rBastion - rng.range(12, 22) - t * 2;
         const x = Math.cos(a) * r, z = Math.sin(a) * r;
         if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
+        out.push({ x, z, ry: yawOf(tr, x, z, {}) });
         break;
       }
     }
@@ -189,7 +198,7 @@ function planProps(env, geo, ctx) {
       const r = rBastion + rng.range(10, 16) + t * 2;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!pOk(x, z, spec.name)) continue;
-      plan.set(spec, [{ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) ?? (a + Math.PI) }]);
+      plan.set(spec, [{ x, z, ry: yawOf(tr, x, z, {}) ?? (a + Math.PI) }]);
       break;
     }
   });

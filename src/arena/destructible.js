@@ -4,6 +4,7 @@
 // chunks cascade-collapse.
 import * as THREE from 'three';
 import { rand, makeRng } from '../core/utils.js';
+import { CHUNK_SHAPES, chunkTransform } from './chunkgeo.js';
 
 // segment vs AABB (slab method), with padding and an optional XZ offset so
 // the same box can be tested at each of its wrap-ghost positions
@@ -38,8 +39,14 @@ const _c = new THREE.Color();
 const _box = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
 
 export class DestructibleSystem {
-  constructor(scene, material, capacity = 3600) {
+  // `shape` names an entry in CHUNK_SHAPES (chunkgeo.js) — what one chunk of
+  // this system is shaped like. Buildings are boxes and always will be; a
+  // structure system passes its family's own shard/boulder/drift. Purely
+  // visual: the chunk's box, its grid cell and everything combat measures are
+  // identical whichever shape is drawn in it.
+  constructor(scene, material, capacity = 3600, shape = 'box') {
     this.scene = scene;
+    this.shape = CHUNK_SHAPES[shape] || CHUNK_SHAPES.box;
     this.capacity = capacity;      // per-cell chunk budget
     // toroidal arenas: every chunk gets 8 ghost copies in the neighbor
     // cells, so the city is visible across the wrap seam. Ghosts activate
@@ -54,7 +61,7 @@ export class DestructibleSystem {
     this.wrapPeriod = 0;
     this.ghostOffsets = [];
 
-    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const geo = this.shape.geo();
     // PER-CHUNK COLOUR NEEDS BOTH HALVES, and the second one is not obvious.
     // `setColorAt` fills `instanceColor`, which three folds into vColor in the
     // VERTEX stage — but the FRAGMENT stage only declares vColor under
@@ -167,16 +174,19 @@ export class DestructibleSystem {
 
   // write a chunk's matrix (and its 8 ghost copies)
   writeChunk(chunk) {
-    _m.compose(
-      _p.set(chunk.x, chunk.y, chunk.z), _q.identity(),
-      _s.set(chunk.w * 1.001, chunk.h * 1.001, chunk.d * 1.001)
-    );
+    // `chunk.t` is the shaped systems' per-chunk turn and swell (chunkgeo.js
+    // chunkTransform); a building chunk has none and draws exactly as before.
+    const t = chunk.t;
+    if (t) _q.copy(t.q); else _q.identity();
+    const sw = chunk.w * 1.001 * (t ? t.sx : 1);
+    const sh = chunk.h * 1.001 * (t ? t.sy : 1);
+    const sd = chunk.d * 1.001 * (t ? t.sz : 1);
+    _m.compose(_p.set(chunk.x, chunk.y, chunk.z), _q, _s.set(sw, sh, sd));
     this.mesh.setMatrixAt(chunk.i * 9, _m);
     for (let g = 0; g < this.ghostOffsets.length; g++) {
       _m.compose(
         _p.set(chunk.x + this.ghostOffsets[g][0], chunk.y, chunk.z + this.ghostOffsets[g][1]),
-        _q.identity(),
-        _s.set(chunk.w * 1.001, chunk.h * 1.001, chunk.d * 1.001)
+        _q, _s.set(sw, sh, sd)
       );
       this.mesh.setMatrixAt(chunk.i * 9 + g + 1, _m);
     }
@@ -344,6 +354,9 @@ export class DestructibleSystem {
         gx, gy, gz,
         alive: true,
         hp: 30 + rng() * 25,
+        // drawn from the BUILDING's own rng, so a seeded arena rebuilds the
+        // same rock formation chunk for chunk
+        t: chunkTransform(this.shape, rng),
         b,
       };
       this.chunks.push(chunk);

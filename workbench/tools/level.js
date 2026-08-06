@@ -222,6 +222,15 @@ export async function runLevelWorkbench(config, params) {
   }
 
   function buildBuildingProxy(def) {
+    // A STRUCTURE IS NOT A TOWER. `struct` names one of the game's landform
+    // kinds (crystal spire, basalt cliff, berg, snow drift) and the adapter
+    // builds its stand-in out of the game's own silhouette, chunk shape and
+    // material — drawing it here as a windowed office block would be the
+    // editor showing you a different arena from the one it just baked.
+    if (def.struct) {
+      const s = AR.structure?.(def);
+      if (s) return s;
+    }
     const g = new THREE.Group();
     const cw = def.cw || 3.5, ch = def.ch || 3.3, cd = def.cd || 3.5;
     const m = windowMat(def.tint ?? 0x8a90a0);
@@ -712,6 +721,12 @@ export async function runLevelWorkbench(config, params) {
     } else if (p.k === 'viaduct') {
       const axis = Math.abs(world.x) > Math.abs(world.z) ? 'x' : 'z';
       def = { k: 'viaduct', axis, at: axis === 'z' ? snap(world.x) : snap(world.z), amp: 0, phase: 0, h: 6.8, w: 7.5, rampL: 14, r0: 0, pylonEvery: 3, color: 0x3a3f46, edge: null };
+    } else if (p.k === 'building' && p.struct) {
+      // A LANDFORM CARRIES NO SILHOUETTE OF ITS OWN: `struct` names the kind
+      // and the game grows the cells from where it stands, so the rock the
+      // proxy draws is the rock the match builds. No nx/ny/nz — those are a
+      // tower's footprint and would only be a second, disagreeing answer.
+      def = { k: 'building', struct: p.struct, x: snap(world.x), z: snap(world.z) };
     } else if (p.k === 'building') {
       def = { k: 'building', x: snap(world.x), z: snap(world.z), nx: 2, ny: 5, nz: 2, cw: 3.6, ch: 3.3, cd: 3.6, tint: AR.tints(level.theme)[0] };
     } else if (p.k === 'hill') {
@@ -1223,7 +1238,20 @@ export async function runLevelWorkbench(config, params) {
     if (d.k === 'prop') addNum('Rotation°', () => Math.round(THREE.MathUtils.radToDeg(d.ry || 0)), (v) => { d.ry = THREE.MathUtils.degToRad(v); applyXform(it); });
     if (d.k === 'spawn') addNum('Facing°', () => Math.round(THREE.MathUtils.radToDeg(d.yaw || 0)), (v) => { d.yaw = THREE.MathUtils.degToRad(v); applyXform(it); });
 
-    if (d.k === 'building') {
+    if (d.k === 'building' && d.struct && !d.cells?.length) {
+      // A HAND-PLACED LANDFORM has no footprint to edit — its silhouette is
+      // grown from its kind and its position, so what there is to change is
+      // WHICH ROCK you got (the seed) and what colour it is.
+      inspector.append(tag('div', 'le-note',
+        `${d.struct} — a landform, not a tower. Its shape is grown from the kind; `
+        + 'move it or reroll for a different one.'));
+      inspector.append(btn('Reroll shape', () => {
+        pushUndo();
+        d.seed = Math.floor(Math.random() * 99999) + 1;
+        rebuildProxy(it);
+      }));
+      addColor('Tint', () => d.tint ?? 0xffffff, (v) => { d.tint = v; rebuildProxy(it); }, AR.tints(level.theme));
+    } else if (d.k === 'building') {
       if (d.cells?.length) {
         inspector.append(tag('div', 'le-note', `Massed silhouette — ${d.cells.length} chunks, ${d.ny || cellSpan(d.cells, 'gy')} floors. Resize the chunk cell below, or “Simplify” to make it an editable box.`));
         addNum('Chunk width', () => d.cw, (v) => { d.cw = clampf(v, 2, 6); rebuildProxy(it); }, 0.1);

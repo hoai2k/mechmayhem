@@ -1581,6 +1581,40 @@ audio). Progress history: `TASKS.md`.
   eleven cells across gives 2.2-unit chunks — a pile of gravel where a hill
   was meant to be. Structures clamp at 58/nx and stand 1.15x their cell size
   tall.
+  A CHUNK DOES NOT HAVE TO BE A BOX (`src/arena/chunkgeo.js`), and until it
+  stopped being one every landform read as exactly what it is built from — a
+  stack of cubes on a lattice. Two things, and either alone still reads as a
+  grid: the chunk's OWN GEOMETRY (a faceted SHARD with a pointed termination —
+  the habit crystals actually grow in — or a noised icosahedron BOULDER), and
+  a PER-CHUNK turn and swell drawn from the building's own rng, where the
+  swell is over 1 ON PURPOSE so neighbours INTERPENETRATE and the lattice
+  fuses into one continuous mass. `CHUNK_SHAPES` names six —
+  `boulder`/`crystal`/`icefall`/`iceSlab`/`snow`/`box` — and `FAMILY_SHAPE`
+  (structures.js) assigns one per MATERIAL FAMILY, which is the grouping the
+  systems already use. `box` is every building and always will be, so the
+  cities are untouched. It is PURELY VISUAL: a rotated, swollen shard occupies
+  exactly the cell it always did, so nothing combat measures moves.
+  A MATERIAL ARRAY NEEDS GEOMETRY GROUPS. A chunk mesh is built with six
+  materials (a building wants a roof on two faces) and three renders an
+  array-material mesh BY GROUP, so the first custom geometry — which had none
+  — drew NOTHING: every structure in the quarry, the forge and the outpost was
+  present in every collision, climb and damage query and invisible on screen.
+  `withGroup` adds the one group; a box has its own six.
+  A SILHOUETTE IS NOT A PROPORTION. `mound` derives its layer count from its
+  radius, so a snow drift wide enough to read as one came out four to nine
+  chunks tall — a bank, not a pile. That is what the `drift` style is for (a
+  wide low dome, 2-3 layers, crest offset along the wind).
+  ONE ANSWER FOR THE SHAPE, THREE CALLERS: `structureMassing(kind, rng)` is
+  the silhouette+cell+tint as plain data, run by the arena to place one, by
+  the AUTHORED path for a hand-placed one carrying no baked cells, and by the
+  level editor to draw its stand-in — an editor that computed its own would be
+  showing you a different rock from the one that ships. A hand-placed
+  structure grows from `structSeed` (its position), so moving it gives you a
+  different rock, which is honest: it is a new rock.
+  IN THE ARENA EDITOR they are palette entries DERIVED from `STRUCTURE_KINDS`
+  (`arenapalette.js`), drawn through `config.arena.structure(def)`, with an
+  inspector that offers the two things a landform has — a reroll and a tint —
+  instead of a tower's footprint fields.
 - PER-CHUNK COLOUR NEEDS BOTH HALVES, and it was silently doing NOTHING.
   `setColorAt` fills `instanceColor` and three folds it into vColor in the
   VERTEX stage — but the FRAGMENT stage only declares vColor under USE_COLOR,

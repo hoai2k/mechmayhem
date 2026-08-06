@@ -5,13 +5,16 @@ import { DestructibleSystem } from './destructible.js';
 import { Terrain } from './terrain.js';
 import { generateMassing, THEME_MASSING } from './massing.js';
 import {
-  STRUCTURE_KINDS, structureMaterial, assignStructures, themeStructureKinds,
+  STRUCTURE_KINDS, structureMaterial, structureChunkShape, structureMassing,
+  structSeed, assignStructures, themeStructureKinds,
 } from './structures.js';
 import { buildingDonors } from './buildglb.js';
 import { PROPS, PROP_MATS, placeProp, mergePropMeshes } from './props.js';
 import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
 import { propShell } from './propshell.js';
 import { arenaDesignSystem } from './designs/index.js';
+import { traitsFor } from './designs/proptraits.js';
+import { sunYawOf, frontClear } from './designs/util.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
@@ -398,8 +401,21 @@ export class Arena {
         if (o.struct && STRUCTURE_KINDS[o.struct]) {
           const sys = this.structoFor(o.struct);
           if (sys) {
-            sys.addBuildingCells(o.x, o.z, o.cells || [], cw, ch, cd,
-              { tint: o.tint ?? 0xffffff, rng });
+            // A BAKED structure carries the exact cells it was built with. A
+            // HAND-PLACED one (dropped from the editor's palette) carries
+            // none, and an empty cell list is an invisible structure — so it
+            // grows its kind's own silhouette from a seed pinned to where it
+            // stands, which is what the editor drew its stand-in from.
+            if (o.cells?.length) {
+              sys.addBuildingCells(o.x, o.z, o.cells, cw, ch, cd,
+                { tint: o.tint ?? 0xffffff, rng });
+            } else {
+              const m = structureMassing(o.struct, makeRng(structSeed(o)));
+              if (m) {
+                sys.addBuildingCells(o.x, o.z, m.cells, o.cw || m.cw,
+                  o.ch || m.ch, o.cd || m.cd, { tint: o.tint ?? m.tint, rng });
+              }
+            }
             continue;
           }
         }
@@ -532,7 +548,10 @@ export class Arena {
     } else {
       const buildAt = (spec, x, z, i, skyAnchored = false, ry) => {
         let opts = Array.isArray(spec.opts) ? spec.opts[i % spec.opts.length] : { ...(spec.opts || {}) };
-        opts = { ...opts, seed: rng.int(1, 99999) };
+        // a placement trait may carry build options of its own: a solar mount
+        // that has been AIMED at the sun stops sweeping past it
+        // (designs/proptraits.js `opts`)
+        opts = { ...opts, ...(traitsFor(spec.name).opts || {}), seed: rng.int(1, 99999) };
         const recOpts = { ...opts };            // before the ice-material swap
         // a designed placement may aim the prop (a row faces its street);
         // scattered props keep placeProp's random yaw. Set after recOpts —
@@ -564,6 +583,7 @@ export class Arena {
       // buildings are already built by here, so hand over their real boxes.
       const footprints = this.destructoAll
         .flatMap((d) => d.buildings.map((b) => b.aabb)).filter(Boolean);
+      const sunYaw = sunYawOf(theme);   // one azimuth, shared by every collector
       const propPlan = plan?.props
         ? plan.props({
           rng, terrain: this.terrain, sites: placedSites, footprints,
@@ -595,6 +615,15 @@ export class Arena {
           planned.forEach((pp, i) => buildAt(spec, pp.x, pp.z, i, false, pp.ry));
           continue;
         }
+        // A SOLAR COLLECTOR ANSWERS TO THE SUN WHEREVER IT IS PLACED. The
+        // design systems aim one through traitYaw, but a spec they found no
+        // room for — and every prop under the `fallback` design — falls
+        // through to this scatter, and three panels at three random angles
+        // read as a mistake however they got there. So the rule lives at the
+        // PLACEMENT level, not in the planners: one yaw for the whole arena,
+        // and a spot with a tower in the way is re-rolled (`clearFront`).
+        const tr = traitsFor(spec.name);
+        const sunRy = tr.face === 'sun' ? sunYaw - (tr.faceOffset || 0) : undefined;
         for (let i = 0; i < spec.count; i++) {
           const skyAnchored = spec.ring[1] <= 6; // aurora-style props place their visuals far away
           let a, r, x, z, tries = 0;
@@ -602,8 +631,11 @@ export class Arena {
             a = rng.range(0, Math.PI * 2);
             r = rng.range(spec.ring[0], spec.ring[1]) * 1.85; // rings scaled with arena
             x = Math.cos(a) * r; z = Math.sin(a) * r;
-          } while (!skyAnchored && !propSpotOk(x, z, FLAT_PROPS.has(spec.name)) && ++tries < 14);
-          buildAt(spec, x, z, i, skyAnchored);
+          } while (!skyAnchored
+            && (!propSpotOk(x, z, FLAT_PROPS.has(spec.name))
+              || !frontClear(tr, footprints, x, z, sunRy))
+            && ++tries < 14);
+          buildAt(spec, x, z, i, skyAnchored, sunRy);
           // `clump`: this placement is a NEST — scatter n-1 more of the same
           // prop around it (groves, container yards, boulder fields), giving
           // arenas real dense-vs-open texture instead of even sprinkle
@@ -615,7 +647,8 @@ export class Arena {
                 const cr = rng.range(3, spec.clump.spread ?? 9);
                 const cx = x + Math.cos(ca) * cr, cz = z + Math.sin(ca) * cr;
                 if (!propSpotOk(cx, cz, FLAT_PROPS.has(spec.name))) continue;
-                buildAt(spec, cx, cz, i + k + 1);
+                if (!frontClear(tr, footprints, cx, cz, sunRy)) continue;
+                buildAt(spec, cx, cz, i + k + 1, false, sunRy);
                 break;
               }
             }
@@ -671,8 +704,12 @@ export class Arena {
     let sys = this.structos.get(def.mat);
     if (!sys) {
       const mat = structureMaterial(def.mat, def.tex);
-      // one material for all six faces: a landform has no roof
-      sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 3600);
+      // one material for all six faces: a landform has no roof — and one
+      // CHUNK SHAPE for the family too (shards for crystal, boulders for
+      // rock, drifts for snow), which is what stops a landform reading as
+      // the pile of cubes it is made of. See chunkgeo.js.
+      sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 3600,
+        structureChunkShape(def.mat));
       sys.world = this.world;
       if (this.wrapHalf) sys.setWrapPeriod(this.wrapHalf * 2);
       this.structos.set(def.mat, sys);
@@ -684,33 +721,17 @@ export class Arena {
 
   /** Build one structure of `kind` at (x,z). Returns its cells for the recipe. */
   addStructure(kind, x, z, rng, tall = false) {
-    const def = STRUCTURE_KINDS[kind];
     const sys = this.structoFor(kind);
     if (!sys) return null;
-    const m = generateMassing(def.style, rng, { hRange: def.hRange, tall });
-    const [c0, c1] = def.cell;
-    const cw = rng.range(c0, c1), cd = rng.range(c0, c1);
-    const ch = rng.range(c0, c1) * 1.15;
-    const tint = def.tints[rng.int(0, def.tints.length - 1)];
-    // the odd chunk lit differently — ember in the basalt, a bright facet in
-    // a crystal. Per-CELL tint, which addBuildingCells already honours.
-    const cells = def.accent
-      ? m.cells.map((c) => (rng.chance(def.accent.chance)
-        ? { ...c, tint: def.accent.color } : c))
-      : m.cells;
-    // A LANDFORM IS ALLOWED TO BE BIG. The building path clamps a wide
-    // silhouette to 19/nx so a tower never swallows the street — apply that
-    // to a mound eleven cells across and it comes out with 2.2-unit chunks,
-    // which is a pile of gravel where a hill was meant to be. A mound SHOULD
-    // be forty units across; the clamp here only stops the extreme.
-    const cwE = Math.min(cw, 58 / m.nx), cdE = Math.min(cd, 58 / m.nz);
-    sys.addBuildingCells(x, z, cells, cwE, ch, cdE, { tint, rng });
+    const m = structureMassing(kind, rng, tall);
+    if (!m) return null;
+    sys.addBuildingCells(x, z, m.cells, m.cw, m.ch, m.cd, { tint: m.tint, rng });
     this.recipe?.buildings.push({
       k: 'building', struct: kind, x: round1(x), z: round1(z),
-      cells, nx: m.nx, ny: m.ny, nz: m.nz,
-      cw: round2(cwE), ch: round2(ch), cd: round2(cdE), tint,
+      cells: m.cells, nx: m.nx, ny: m.ny, nz: m.nz,
+      cw: round2(m.cw), ch: round2(m.ch), cd: round2(m.cd), tint: m.tint,
     });
-    return cells;
+    return m.cells;
   }
 
   // ---- combat services ----

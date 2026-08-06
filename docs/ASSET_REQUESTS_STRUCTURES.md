@@ -70,6 +70,15 @@ mid-grey with structure in it takes any colour cleanly.
    as `ground_quarry_rock` but at chunk scale and without the crystal
    flecks.)
 
+6. `struct_snow_pack` — **Frozen Outpost**, the wind-packed snow drifts.
+   Deep dry snow that has been blown and set: a smooth crust with faint wind
+   ripples (sastrugi) running one way, a few shear steps where a slab has
+   broken, powder gathered in the low spots. Almost white, very slightly blue
+   in the shadows, effectively no specular — the least shiny surface in the
+   game. Keep the albedo nearly flat and put all the shape in the normal map,
+   because the chunks it dresses are smooth-shaded rounded lumps and the
+   texture is the only thing that will say "snow" rather than "white plastic".
+
 ## Nice-to-have, not required
 
 6. `struct_basalt_column` — jointed columnar basalt (the hexagonal-column

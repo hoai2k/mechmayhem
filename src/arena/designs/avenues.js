@@ -24,7 +24,7 @@
 import { TAU } from '../../core/utils.js';
 import {
   makeSiteOk, makePropOk, placeNear, shuffle, classifyProps, emitClump,
-  traitsFor, traitYaw,
+  traitsFor, traitYaw, sunYawOf, frontClear,
 } from './util.js';
 import { planTraitClasses } from './proparrange.js';
 
@@ -163,6 +163,11 @@ function planBuildings(env, axis, { terrain, rng, count }) {
 function planProps(env, axis, ctx) {
   const { rng, footprints, specs, propOk, terrain } = ctx;
   const { B, P, clearing: C } = env;
+  // every traitYaw in this planner carries the arena's sun azimuth, so a
+  // solar collector can answer to it (proptraits.js face:'sun')
+  const sunYaw = sunYawOf(env.theme);
+  const yawOf = (tr, x, z, extra = {}) =>
+    traitYaw(tr, terrain, rng, x, z, { sunYaw, ...extra });
   const { Wp, plazas } = axis;
   const pOk = makePropOk(propOk, footprints, P);
   const plan = new Map();
@@ -197,11 +202,9 @@ function planProps(env, axis, ctx) {
         // border rows live on the seam road's inner face (both faces exist
         // across the wrap already)
         if (!pOk(x, z, spec.name)) continue;
-        out.push({
-          x, z,
-          ry: traitYaw(tr, terrain, rng, x, z, { rowDir })
-            ?? (ax === 'x' ? Math.PI / 2 : 0),
-        });
+        const ry = yawOf(tr, x, z, { rowDir }) ?? (ax === 'x' ? Math.PI / 2 : 0);
+        if (!frontClear(tr, footprints, x, z, ry)) continue;
+        out.push({ x, z, ry });
         k++;
       }
     }
@@ -231,7 +234,7 @@ function planProps(env, axis, ctx) {
         const jx = x + rng.range(-2, 2) * t, jz = z + rng.range(-2, 2) * t;
         if (!pOk(jx, jz, spec.name)) continue;
         const focal = pl && i % 2 === 0 ? pl : { x: 0, z: 0 };
-        out.push({ x: jx, z: jz, ry: traitYaw(tr, terrain, rng, jx, jz, { focal }) });
+        out.push({ x: jx, z: jz, ry: yawOf(tr, jx, jz, { focal }) });
         break;
       }
     }
@@ -251,7 +254,7 @@ function planProps(env, axis, ctx) {
       const x = ax === 'x' ? along : side;
       const z = ax === 'x' ? side : along;
       if (!pOk(x, z, spec.name)) continue;
-      plan.set(spec, [{ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) }]);
+      plan.set(spec, [{ x, z, ry: yawOf(tr, x, z, {}) }]);
       break;
     }
   });

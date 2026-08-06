@@ -51,6 +51,7 @@ export const PENDING_ASSETS = new Set([
   'struct/struct_ice_glacier',
   'struct/struct_ice_cut',
   'struct/struct_rock_grey',
+  'struct/struct_snow_pack',
 ]);
 
 /** Every [set, name, why] the game's own data declares. */

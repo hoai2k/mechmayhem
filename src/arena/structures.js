@@ -25,6 +25,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../core/config.js';
 import { hasTex, pbrMaterial } from '../core/texload.js';
 import { torusDist } from './designs/util.js';
+import { generateMassing } from './massing.js';
 
 /**
  * kind: {
@@ -84,6 +85,18 @@ export const STRUCTURE_KINDS = {
     accent: { color: 0x53c8ff, chance: 0.14, emissive: true },
     cell: [4.2, 5.2], hRange: [3, 4],
   },
+  snowDrift: {
+    // wind-packed snow: low, wide and smooth. It is the one structure here
+    // that should read as SOFT, which is entirely the chunk shape's doing —
+    // same mound silhouette as a rock outcrop, drawn as overlapping rounded
+    // lumps rather than boulders or shards
+    style: 'drift', mat: 'snow', tex: 'struct_snow_pack',
+    tints: [0xe8f2fa, 0xdcebf6, 0xf2f8ff],
+    // A DRIFT IS WIDE AND LOW. At the 2-3 floors the other landforms use it
+    // came out a two-storey wall of snow, which is a bank, not a pile — the
+    // shape was right and the proportion was not.
+    cell: [6.0, 7.6], hRange: [1, 2],
+  },
   iceTower: {
     style: 'habitat', mat: 'iceGlass', tex: 'struct_ice_cut',
     tints: [0xa8dcf0, 0xc4e8f8],
@@ -140,11 +153,86 @@ const MAT_FAMILIES = {
   // be perfectly correct and completely invisible. Plain alpha blending with
   // depthWrite ON: chunks read as solid glass blocks and still sort sanely
   // against each other, which matters when a wall is 40 chunks deep.
+  // SNOW: bright, flat, faintly blue in shadow — the least shiny thing in
+  // the game, and deliberately smooth-shaded (no flatShading) so a drift
+  // reads as one soft mass rather than a heap of facets
+  snow: () => new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 1.0, metalness: 0.0, vertexColors: true,
+  }),
   iceGlass: () => new THREE.MeshStandardMaterial({
     color: 0xffffff, roughness: 0.1, metalness: 0.0, vertexColors: true,
     transparent: true, opacity: 0.6, depthWrite: true,
   }),
 };
+
+/**
+ * ONE STRUCTURE'S SHAPE — silhouette, chunk size, tint, accents — as plain
+ * data, without building anything. The arena runs it to place a structure,
+ * the arena's AUTHORED path runs it for a hand-placed one that carries no
+ * baked cells, and the level editor runs it to draw its stand-in. Three
+ * callers, one answer: an editor that computed its own silhouette would be
+ * showing you a different rock from the one that ships.
+ *
+ * Same `rng` in, same structure out — so a seeded arena rebuilds chunk for
+ * chunk, and the editor's proxy matches the game's build when both seed off
+ * the placement.
+ */
+/**
+ * The seed a HAND-PLACED structure grows from: its own position, rounded, so
+ * the rock the editor drew is the rock the match builds and moving it gives
+ * you a different one (which is the honest behaviour — it is a new rock).
+ */
+export const structSeed = (o) => (Math.round(o.x * 7) * 73856093
+  ^ Math.round(o.z * 7) * 19349663 ^ (o.seed || 0)) >>> 0;
+
+export function structureMassing(kind, rng, tall = false) {
+  const def = STRUCTURE_KINDS[kind];
+  if (!def) return null;
+  const m = generateMassing(def.style, rng, { hRange: def.hRange, tall });
+  const [c0, c1] = def.cell;
+  const cw = rng.range(c0, c1), cd = rng.range(c0, c1);
+  const ch = rng.range(c0, c1) * 1.15;
+  const tint = def.tints[rng.int(0, def.tints.length - 1)];
+  // the odd chunk lit differently — ember in the basalt, a bright facet in a
+  // crystal. Per-CELL tint, which addBuildingCells already honours.
+  const cells = def.accent
+    ? m.cells.map((c) => (rng.chance(def.accent.chance)
+      ? { ...c, tint: def.accent.color } : c))
+    : m.cells;
+  // A LANDFORM IS ALLOWED TO BE BIG. The building path clamps a wide
+  // silhouette to 19/nx so a tower never swallows the street — apply that to
+  // a mound eleven cells across and it comes out with 2.2-unit chunks, which
+  // is a pile of gravel where a hill was meant to be. A mound SHOULD be forty
+  // units across; the clamp here only stops the extreme.
+  return {
+    cells, nx: m.nx, ny: m.ny, nz: m.nz, tint,
+    cw: Math.min(cw, 58 / m.nx), ch, cd: Math.min(cd, 58 / m.nz),
+  };
+}
+
+/**
+ * WHAT ONE CHUNK OF EACH FAMILY IS SHAPED LIKE (chunkgeo.js CHUNK_SHAPES).
+ *
+ * A structure's material said what it is MADE of; this says what it is
+ * shaped like, and without it every one of these read as exactly what it is
+ * built from — a stack of cubes on a lattice. Crystal grows in shards, rock
+ * weathers into rounded lumps, a berg fractures, a drift packs smooth, and
+ * cut ice is sawn slabs standing on end (the one man-made family here, so
+ * the one that keeps a regular look).
+ *
+ * The shape rides the DestructibleSystem, so it is per FAMILY — the same
+ * grouping the materials already use, and the same reason: one instanced
+ * mesh per look.
+ */
+const FAMILY_SHAPE = {
+  basalt: 'boulder',
+  stone: 'boulder',
+  crystal: 'crystal',
+  iceRock: 'icefall',
+  iceGlass: 'iceSlab',
+  snow: 'snow',
+};
+export const structureChunkShape = (family) => FAMILY_SHAPE[family] || 'box';
 
 /**
  * The material array a DestructibleSystem wants (box face order: px, nx, py,

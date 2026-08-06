@@ -14,6 +14,7 @@
 //   clips     = animations.js, filtered per mech by the real play sites
 //   anchors   = muzzles/core/overhead, the origins combat fires from
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { defineWorkbenchConfig } from '../../config/contract.js';
 import { ROSTER, ROSTER_BY_ID, playableRoster } from '../../../src/mechs/roster.js';
 import { JOINT_ORDER } from '../../../src/mechs/rigadapter.js';
@@ -54,11 +55,16 @@ import { emptyLevel, LEVEL_VERSION, PLAYTEST_KEY } from '../../../src/arena/leve
 import { levelFromArena } from '../../../src/arena/bake.js';
 import { AUTHORED_ARENAS } from '../../../src/arena/authored.js';
 import { ARENA_PALETTE, ARENA_PALETTE_BY_ID, ARENA_SWATCHES } from './arenapalette.js';
+import {
+  STRUCTURE_KINDS, structureMaterial, structureChunkShape, structureMassing,
+  structSeed,
+} from '../../../src/arena/structures.js';
+import { CHUNK_SHAPES, chunkTransform } from '../../../src/arena/chunkgeo.js';
 import { Engine } from '../../../src/core/engine.js';
 import { World } from '../../../src/game/world.js';
 import { Input } from '../../../src/game/input.js';
 import { Fighter, moveSpeedFor } from '../../../src/combat/fighter.js';
-import { ease } from '../../../src/core/utils.js';
+import { ease, makeRng } from '../../../src/core/utils.js';
 import { mechClipList } from '../mechclips.js';
 import { anchorUses } from '../anchoruses.js';
 
@@ -583,6 +589,64 @@ const CONFIG = defineWorkbenchConfig({
       engine.renderer.toneMappingExposure = (THEMES_BY_ID[level.theme] || THEMES[0]).exposure ?? 1.0;
       if (engine.backdrop) engine.backdrop.visible = false;
       return a;
+    },
+
+    // LARGE STRUCTURES THAT ARE NOT BUILDINGS (src/arena/structures.js). The
+    // editor has to draw a crystal spire as a crystal spire: a baked quarry
+    // full of them rendered as windowed office towers is an editor showing
+    // you a different arena from the one it just built.
+    structures: () => Object.keys(STRUCTURE_KINDS).map((id) => ({
+      id,
+      // "crystalSpire" -> "Crystal spire"
+      label: id.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()),
+    })),
+
+    /**
+     * A stand-in for one placed structure, built from the GAME's own
+     * silhouette, chunk shape and material — one merged mesh, because a
+     * quarry is 15 of these at 140 chunks each and the editor tiles the cell
+     * nine ways. `def` is the level object ({struct, x, z, cells?, cw…});
+     * a hand-placed one carries no cells and grows the same seeded shape the
+     * match will build for it.
+     */
+    structure: (def) => {
+      const kind = STRUCTURE_KINDS[def.struct];
+      if (!kind) return null;
+      const seeded = makeRng(structSeed(def));
+      const m = def.cells?.length ? null : structureMassing(def.struct, seeded);
+      const cells = def.cells?.length ? def.cells : (m?.cells || []);
+      if (!cells.length) return null;
+      const cw = def.cw || m?.cw || 4.5, ch = def.ch || m?.ch || 5, cd = def.cd || m?.cd || 4.5;
+      const shape = CHUNK_SHAPES[structureChunkShape(kind.mat)] || CHUNK_SHAPES.box;
+      const base = shape.geo();
+      let nx = 0, nz = 0;
+      for (const c of cells) { nx = Math.max(nx, c.gx + 1); nz = Math.max(nz, c.gz + 1); }
+      // the same rng the game's chunks come off, so the proxy's turns and
+      // swells are the ones that will ship
+      const rng = makeRng(structSeed(def) ^ 0x9e3779b9);
+      const geos = [];
+      const q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
+      const mat4 = new THREE.Matrix4();
+      for (const c of cells) {
+        const t = chunkTransform(shape, rng);
+        p.set((c.gx - (nx - 1) / 2) * cw, (c.gy + 0.5) * ch, (c.gz - (nz - 1) / 2) * cd);
+        q.copy(t ? t.q : new THREE.Quaternion());
+        s.set(cw * (t ? t.sx : 1), ch * (t ? t.sy : 1), cd * (t ? t.sz : 1));
+        const g = base.clone();
+        g.applyMatrix4(mat4.compose(p, q, s));
+        geos.push(g);
+      }
+      base.dispose();
+      const merged = mergeGeometries(geos, false);
+      for (const g of geos) g.dispose();
+      const mat = structureMaterial(kind.mat, kind.tex);
+      mat.vertexColors = false;                 // one tint for the whole proxy
+      mat.color = new THREE.Color(def.tint ?? m?.tint ?? kind.tints[0]);
+      const mesh = new THREE.Mesh(merged, mat);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      const g = new THREE.Group();
+      g.add(mesh);
+      return g;
     },
 
     // WHAT CAN BE PLACED, and how to build a stand-in for one

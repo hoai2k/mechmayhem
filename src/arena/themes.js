@@ -414,9 +414,10 @@ export const THEMES = [
     // ice mountains and the station's own CUT-ICE works — semi-transparent
     // blocks, walls and towers that break exactly like everything else
     structures: [
-      { kind: 'iceberg', share: 0.3 },
-      { kind: 'iceWorks', share: 0.18 },
-      { kind: 'iceTower', share: 0.12 },
+      { kind: 'iceberg', share: 0.24 },
+      { kind: 'snowDrift', share: 0.12 },
+      { kind: 'iceWorks', share: 0.14 },
+      { kind: 'iceTower', share: 0.1 },
     ],
     layout: {
       clearing: 38,

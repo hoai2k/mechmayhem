@@ -28,6 +28,7 @@ import { TAU } from '../../core/utils.js';
 import {
   wrapD, torusDist, makeSiteOk, makePropOk, placeNear, shuffle,
   classifyProps, emitClump, traitsFor, traitYaw, PATH_KINDS,
+  sunYawOf, frontClear,
   lanePoint, laneTangent, yawAlong,
 } from './util.js';
 import { planTraitClasses } from './proparrange.js';
@@ -182,6 +183,11 @@ function planBuildings(env, wards, { terrain, rng, count }) {
 function planProps(env, wards, paves, ctx) {
   const { rng, footprints, specs, propOk, terrain } = ctx;
   const { P } = env;
+  // every traitYaw in this planner carries the arena's sun azimuth, so a
+  // solar collector can answer to it (proptraits.js face:'sun')
+  const sunYaw = sunYawOf(env.theme);
+  const yawOf = (tr, x, z, extra = {}) =>
+    traitYaw(tr, terrain, rng, x, z, { sunYaw, ...extra });
   const pOk = makePropOk(propOk, footprints, P);
   const plan = new Map();
   const cls = classifyProps(specs);
@@ -226,10 +232,9 @@ function planProps(env, wards, paves, ctx) {
           const x = wd.x + Math.cos(a) * rr, z = wd.z + Math.sin(a) * rr;
           if (!pOk(x, z, spec.name)) continue;
           // street furniture on a plaza rim addresses the plaza
-          out.push({
-            x, z,
-            ry: traitYaw(tr, terrain, rng, x, z, { focal: wd }) ?? (a + Math.PI / 2),
-          });
+          const ry = yawOf(tr, x, z, { focal: wd }) ?? (a + Math.PI / 2);
+          if (!frontClear(tr, footprints, x, z, ry)) continue;
+          out.push({ x, z, ry });
           budget--;
         }
         if (budget <= 0) break;
@@ -251,7 +256,10 @@ function planProps(env, wards, paves, ctx) {
         const x = axis === 'x' ? wd.x + along : wd.x + off;
         const z = axis === 'x' ? wd.z + off : wd.z + along;
         if (!pOk(x, z, spec.name)) continue;
-        out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, { rowDir }) ?? yawAlong(rowDir.dx, rowDir.dz) });
+        const ry = yawOf(tr, x, z, { rowDir }) ?? yawAlong(rowDir.dx, rowDir.dz);
+        // a collector will not stand looking into a wall (proptraits clearFront)
+        if (!frontClear(tr, footprints, x, z, ry)) continue;
+        out.push({ x, z, ry });
         budget--;
       }
     }
@@ -262,7 +270,9 @@ function planProps(env, wards, paves, ctx) {
       const a = rng.range(0, TAU), rr = rng.range(14, 40);
       const x = wd.x + Math.cos(a) * rr, z = wd.z + Math.sin(a) * rr;
       if (!pOk(x, z, spec.name)) continue;
-      out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
+      const ry = yawOf(tr, x, z, {});
+      if (!frontClear(tr, footprints, x, z, ry)) continue;
+      out.push({ x, z, ry });
       budget--;
     }
     if (out.length) plan.set(spec, out);
@@ -281,7 +291,7 @@ function planProps(env, wards, paves, ctx) {
           const a = rng.range(0, TAU), rr = rng.range(6, 18);
           const x = market.x + Math.cos(a) * rr, z = market.z + Math.sin(a) * rr;
           if (!pOk(x, z, spec.name)) continue;
-          out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
+          out.push({ x, z, ry: yawOf(tr, x, z, {}) });
           break;
         }
       }
@@ -293,7 +303,7 @@ function planProps(env, wards, paves, ctx) {
           const a = rng.range(0, TAU), rr = rng.range(8, 26);
           const x = wd.x + Math.cos(a) * rr, z = wd.z + Math.sin(a) * rr;
           if (!pOk(x, z, spec.name)) continue;
-          out.push({ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) });
+          out.push({ x, z, ry: yawOf(tr, x, z, {}) });
           break;
         }
       }
@@ -311,7 +321,7 @@ function planProps(env, wards, paves, ctx) {
       const a = rng.range(0, TAU), rr = rng.range(16, 26) + t * 1.5;
       const x = wd.x + Math.cos(a) * rr, z = wd.z + Math.sin(a) * rr;
       if (!pOk(x, z, spec.name)) continue;
-      plan.set(spec, [{ x, z, ry: traitYaw(tr, terrain, rng, x, z, {}) }]);
+      plan.set(spec, [{ x, z, ry: yawOf(tr, x, z, {}) }]);
       break;
     }
   });
