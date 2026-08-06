@@ -338,7 +338,13 @@ export class Animator {
   //
   // Called from createMech() once the retarget adapter exists (the GLB's real
   // bones only follow the virtual rig after postAnimate/adapter.sync).
-  calibrateFeet() {
+  // `store` is an optional per-MODEL cache object (gltf.js hands over its fit
+  // cache). The sole samples are stated in the ankle bone's OWN frame and the
+  // depth is a distance on a model whose scale is pinned per entry, so both are
+  // properties of the file rather than of this copy: a second body built from
+  // the same entry replays them instead of re-walking the whole skinIndex —
+  // which is the difference between a raptor-pack spawn costing 8ms and 50.
+  calibrateFeet(store = null) {
     const mech = this.mech;
     if (!mech.isGLB || !mech.boneMap) return this.ankleGain;
     const body = bodySkinnedMesh(mech.group);
@@ -347,13 +353,28 @@ export class Animator {
     mech.group.updateMatrixWorld(true);
     let depth = 0;
     const soles = [];
-    for (const side of ['L', 'R']) {
-      const bone = mech.boneMap['ankle' + side];
-      if (!bone) continue;
-      const s = boneSoleSamples(body, bone);
-      if (!s) continue;
-      depth = Math.max(depth, bone.getWorldPosition(_wp).y - s.lowest);
-      soles.push({ side, bone, points: s.points });
+    const cached = store?.foot;
+    if (cached) {
+      depth = cached.depth;
+      for (const c of cached.soles) {
+        const bone = mech.boneMap['ankle' + c.side];
+        if (bone) soles.push({ side: c.side, bone, points: c.points.map((p) => p.clone()) });
+      }
+    } else {
+      for (const side of ['L', 'R']) {
+        const bone = mech.boneMap['ankle' + side];
+        if (!bone) continue;
+        const s = boneSoleSamples(body, bone);
+        if (!s) continue;
+        depth = Math.max(depth, bone.getWorldPosition(_wp).y - s.lowest);
+        soles.push({ side, bone, points: s.points });
+      }
+      if (store) {
+        store.foot = {
+          depth,
+          soles: soles.map((s) => ({ side: s.side, points: s.points.map((p) => p.clone()) })),
+        };
+      }
     }
     // sole sample points, for the per-frame pelvis follow in update()
     this.soles = soles.length === 2 ? soles : null;

@@ -115,6 +115,12 @@ const loader = new GLTFLoader();
 // one decoder that reads both. It is a bundled module, not a fetched wasm
 // blob, so it costs a chunk rather than a round trip.
 loader.setMeshoptDecoder(MeshoptDecoder);
+// Per-ENTRY cache of everything buildGlbMech MEASURES off the geometry (the
+// scale/ground fit, the head match, the foot calibration). See the note at the
+// `fit` lookup in buildGlbMech — it is what keeps SAURION's raptor pack from
+// costing three ~50ms frames. WeakMap on the entry object, so a manifest reload
+// (which parses fresh entries) starts clean.
+const fitCache = new WeakMap();
 const _gcTmp = new THREE.Vector3();   // groundClamp scratch
 const _gcTmp2 = new THREE.Vector3();
 const PRONE_SINK = 0.08;              // see groundClamp / bodyH
@@ -580,8 +586,20 @@ function buildGlbMech(def, entry, gltf) {
   // (Tripo GLBs carry an Armature offset there), so a geometry-box ground
   // puts the rendered skin meters underground.
   const targetH = (D.hipHeight + D.torsoH + D.headSize * 2); // heightScale applied once, at the end
-  const box = skinnedBox(model);
-  const size = box.getSize(new THREE.Vector3());
+  // EVERY MEASUREMENT BELOW IS A PROPERTY OF THE FILE, not of this copy: the
+  // same entry rebuilt gives the same box, the same head match and the same
+  // foot depth, because the geometry, the skinOps and the rig are the same. A
+  // battle only ever rebuilds one when SAURION calls his pack — three clones,
+  // each paying ~50ms of vertex sweeps (skinnedBox walks 20k verts per rescale,
+  // calibrateFeet the whole 138k-vertex skinIndex per foot), which lands as
+  // three ~50ms hitches half a second apart. So the fit is measured ONCE per
+  // entry and replayed. Keyed on the ENTRY OBJECT: a manifest reload parses
+  // fresh objects, so the workbenches' re-read drops the cache by construction
+  // and never shows stale numbers for an edited model.
+  const fit = fitCache.get(entry) || { steps: [], head: null, foot: null };
+  fitCache.set(entry, fit);
+  const box = fit.steps.length ? null : skinnedBox(model);
+  const size = box ? box.getSize(new THREE.Vector3()) : null;
   // ---- FROZEN MODEL SCALE -------------------------------------------------
   // `modelScale` is the absolute scale applied to the GLB's native units, and
   // when it is set it is the ONLY thing that decides the model's size: both
@@ -606,7 +624,22 @@ function buildGlbMech(def, entry, gltf) {
   // carries offsets — Tripo's Armature does.) Used for the initial height
   // fit and every later rescale (head matches, heightScale); callers that
   // exist after the RigAdapter is built must also refresh adapter.hipsScale.
+  // Steps are replayed BY ORDINAL and only while the requested factor still
+  // matches what was recorded — a build that asks for a different k (a mech
+  // whose head match landed elsewhere) measures from that step on and re-records
+  // the tail, so the cache can never answer a question it wasn't asked.
+  let stepI = 0;
   const rescaleAndReground = (k) => {
+    const step = fit.steps[stepI];
+    if (step && Math.abs(step.k - k) < 1e-9) {
+      scale = step.scale;
+      model.scale.setScalar(scale);
+      model.position.set(step.px, step.py, step.pz);
+      container.updateMatrixWorld(true);
+      stepI++;
+      return;
+    }
+    fit.steps.length = stepI;
     scale *= k;
     model.scale.setScalar(scale);
     container.updateMatrixWorld(true);
@@ -615,8 +648,12 @@ function buildGlbMech(def, entry, gltf) {
     model.position.x -= c.x;
     model.position.y -= rb.min.y;
     model.position.z -= c.z;
+    fit.steps[stepI++] = {
+      k, scale, px: model.position.x, py: model.position.y, pz: model.position.z,
+    };
   };
-  rescaleAndReground(pinnedScale ?? (size.y > 0.01 ? targetH / size.y : 1));
+  rescaleAndReground(pinnedScale
+    ?? (size ? (size.y > 0.01 ? targetH / size.y : 1) : fit.steps[0].k));
   if (entry.yawOffset) container.rotation.y = entry.yawOffset * Math.PI / 180;
   root.add(container);
 
@@ -805,10 +842,19 @@ function buildGlbMech(def, entry, gltf) {
   // This is the pass that made size depend on the SKINNING (measureHeadTop
   // reads the verts the head bone owns), so it must not run once pinned.
   if (!pinnedScale && boneMap.head && !entry.noHeadMatch) {
-    mech.premadeAnimator.poseStatic(); // deterministic neutral pose + postAnimate
-    root.updateWorldMatrix(true, true);
-    const targetHeadY = proceduralHeadTop(def) ?? joints.head.getWorldPosition(new THREE.Vector3()).y;
-    const haveHeadY = measureHeadTop(mech);
+    // measured once per entry (see the fit cache above) — posing a frame and
+    // walking the head's verts costs the same on every rebuild and answers the
+    // same, so a re-build replays it
+    let head = fit.head;
+    if (!head) {
+      mech.premadeAnimator.poseStatic(); // deterministic neutral pose + postAnimate
+      root.updateWorldMatrix(true, true);
+      head = fit.head = {
+        target: proceduralHeadTop(def) ?? joints.head.getWorldPosition(new THREE.Vector3()).y,
+        have: measureHeadTop(mech),
+      };
+    }
+    const targetHeadY = head.target, haveHeadY = head.have;
     mech._headDebug = { target: +targetHeadY?.toFixed(3), have0: +haveHeadY?.toFixed(3) };
     if (haveHeadY > 0.05 && targetHeadY > 0.05) {
       // clamp the correction: the first (bind-bone) pass already gets close, so
@@ -846,7 +892,7 @@ function buildGlbMech(def, entry, gltf) {
   // foot (sole 0.32 * scale under the ankle). Measure this model's real boot now
   // that the retarget is live, so the walk pushes off the GROUND rather than
   // driving the sole through it. See Animator.calibrateFeet.
-  mech.premadeAnimator.calibrateFeet();
+  mech.premadeAnimator.calibrateFeet(fit);
 
   // ---- prone / dead floor clamp (GLB) -----------------------------------
   // The shared knockdown/death clips drop the hips by an amount tuned to the
