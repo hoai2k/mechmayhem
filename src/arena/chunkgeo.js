@@ -185,8 +185,12 @@ export const CHUNK_SHAPES = {
   // wind-packed snow: smooth, wide, low, and overlapping enough to lose the
   // cells entirely — a drift, not a stack
   snow: {
-    geo: () => boulderGeometry({ detail: 2, bump: 0.14 }),
-    tilt: Math.PI, spin: true, elong: [0.62, 0.92], swell: [1.45, 1.9],
+    // detail 1, not 2: a chunk is drawn nine times over (the wrap ghosts) and
+    // a drift is 600 of them, so 320 triangles each is a million and a half
+    // for a snow bank. The smoothness comes from the low bump and the heavy
+    // overlap, not from subdivision.
+    geo: () => boulderGeometry({ detail: 1, bump: 0.14 }),
+    tilt: Math.PI, spin: true, elong: [0.62, 0.92], swell: [1.5, 2.0],
   },
 };
 

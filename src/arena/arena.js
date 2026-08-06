@@ -5,8 +5,8 @@ import { DestructibleSystem } from './destructible.js';
 import { Terrain } from './terrain.js';
 import { generateMassing, THEME_MASSING } from './massing.js';
 import {
-  STRUCTURE_KINDS, structureMaterial, structureChunkShape,
-  assignStructures, themeStructureKinds,
+  STRUCTURE_KINDS, structureMaterial, structureChunkShape, structureMassing,
+  structSeed, assignStructures, themeStructureKinds,
 } from './structures.js';
 import { buildingDonors } from './buildglb.js';
 import { PROPS, PROP_MATS, placeProp, mergePropMeshes } from './props.js';
@@ -401,8 +401,21 @@ export class Arena {
         if (o.struct && STRUCTURE_KINDS[o.struct]) {
           const sys = this.structoFor(o.struct);
           if (sys) {
-            sys.addBuildingCells(o.x, o.z, o.cells || [], cw, ch, cd,
-              { tint: o.tint ?? 0xffffff, rng });
+            // A BAKED structure carries the exact cells it was built with. A
+            // HAND-PLACED one (dropped from the editor's palette) carries
+            // none, and an empty cell list is an invisible structure — so it
+            // grows its kind's own silhouette from a seed pinned to where it
+            // stands, which is what the editor drew its stand-in from.
+            if (o.cells?.length) {
+              sys.addBuildingCells(o.x, o.z, o.cells, cw, ch, cd,
+                { tint: o.tint ?? 0xffffff, rng });
+            } else {
+              const m = structureMassing(o.struct, makeRng(structSeed(o)));
+              if (m) {
+                sys.addBuildingCells(o.x, o.z, m.cells, o.cw || m.cw,
+                  o.ch || m.ch, o.cd || m.cd, { tint: o.tint ?? m.tint, rng });
+              }
+            }
             continue;
           }
         }
@@ -708,33 +721,17 @@ export class Arena {
 
   /** Build one structure of `kind` at (x,z). Returns its cells for the recipe. */
   addStructure(kind, x, z, rng, tall = false) {
-    const def = STRUCTURE_KINDS[kind];
     const sys = this.structoFor(kind);
     if (!sys) return null;
-    const m = generateMassing(def.style, rng, { hRange: def.hRange, tall });
-    const [c0, c1] = def.cell;
-    const cw = rng.range(c0, c1), cd = rng.range(c0, c1);
-    const ch = rng.range(c0, c1) * 1.15;
-    const tint = def.tints[rng.int(0, def.tints.length - 1)];
-    // the odd chunk lit differently — ember in the basalt, a bright facet in
-    // a crystal. Per-CELL tint, which addBuildingCells already honours.
-    const cells = def.accent
-      ? m.cells.map((c) => (rng.chance(def.accent.chance)
-        ? { ...c, tint: def.accent.color } : c))
-      : m.cells;
-    // A LANDFORM IS ALLOWED TO BE BIG. The building path clamps a wide
-    // silhouette to 19/nx so a tower never swallows the street — apply that
-    // to a mound eleven cells across and it comes out with 2.2-unit chunks,
-    // which is a pile of gravel where a hill was meant to be. A mound SHOULD
-    // be forty units across; the clamp here only stops the extreme.
-    const cwE = Math.min(cw, 58 / m.nx), cdE = Math.min(cd, 58 / m.nz);
-    sys.addBuildingCells(x, z, cells, cwE, ch, cdE, { tint, rng });
+    const m = structureMassing(kind, rng, tall);
+    if (!m) return null;
+    sys.addBuildingCells(x, z, m.cells, m.cw, m.ch, m.cd, { tint: m.tint, rng });
     this.recipe?.buildings.push({
       k: 'building', struct: kind, x: round1(x), z: round1(z),
-      cells, nx: m.nx, ny: m.ny, nz: m.nz,
-      cw: round2(cwE), ch: round2(ch), cd: round2(cdE), tint,
+      cells: m.cells, nx: m.nx, ny: m.ny, nz: m.nz,
+      cw: round2(m.cw), ch: round2(m.ch), cd: round2(m.cd), tint: m.tint,
     });
-    return cells;
+    return m.cells;
   }
 
   // ---- combat services ----
