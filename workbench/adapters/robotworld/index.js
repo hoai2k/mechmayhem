@@ -54,6 +54,8 @@ import { emptyLevel, LEVEL_VERSION, PLAYTEST_KEY } from '../../../src/arena/leve
 import { levelFromArena } from '../../../src/arena/bake.js';
 import { AUTHORED_ARENAS } from '../../../src/arena/authored.js';
 import { ARENA_PALETTE, ARENA_PALETTE_BY_ID, ARENA_SWATCHES } from './arenapalette.js';
+import { STRUCTURE_KINDS, structureMaterial } from '../../../src/arena/structures.js';
+import { generateMassing } from '../../../src/arena/massing.js';
 import { Engine } from '../../../src/core/engine.js';
 import { World } from '../../../src/game/world.js';
 import { Input } from '../../../src/game/input.js';

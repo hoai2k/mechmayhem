@@ -12,6 +12,8 @@ import { PROPS, PROP_MATS, placeProp, mergePropMeshes } from './props.js';
 import { roadTexture, chunkFacade, skyStarsTexture } from '../core/textures.js';
 import { propShell } from './propshell.js';
 import { arenaDesignSystem } from './designs/index.js';
+import { traitsFor } from './designs/proptraits.js';
+import { sunYawOf, frontClear } from './designs/util.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
@@ -532,7 +534,10 @@ export class Arena {
     } else {
       const buildAt = (spec, x, z, i, skyAnchored = false, ry) => {
         let opts = Array.isArray(spec.opts) ? spec.opts[i % spec.opts.length] : { ...(spec.opts || {}) };
-        opts = { ...opts, seed: rng.int(1, 99999) };
+        // a placement trait may carry build options of its own: a solar mount
+        // that has been AIMED at the sun stops sweeping past it
+        // (designs/proptraits.js `opts`)
+        opts = { ...opts, ...(traitsFor(spec.name).opts || {}), seed: rng.int(1, 99999) };
         const recOpts = { ...opts };            // before the ice-material swap
         // a designed placement may aim the prop (a row faces its street);
         // scattered props keep placeProp's random yaw. Set after recOpts —
@@ -564,6 +569,7 @@ export class Arena {
       // buildings are already built by here, so hand over their real boxes.
       const footprints = this.destructoAll
         .flatMap((d) => d.buildings.map((b) => b.aabb)).filter(Boolean);
+      const sunYaw = sunYawOf(theme);   // one azimuth, shared by every collector
       const propPlan = plan?.props
         ? plan.props({
           rng, terrain: this.terrain, sites: placedSites, footprints,
@@ -595,6 +601,15 @@ export class Arena {
           planned.forEach((pp, i) => buildAt(spec, pp.x, pp.z, i, false, pp.ry));
           continue;
         }
+        // A SOLAR COLLECTOR ANSWERS TO THE SUN WHEREVER IT IS PLACED. The
+        // design systems aim one through traitYaw, but a spec they found no
+        // room for — and every prop under the `fallback` design — falls
+        // through to this scatter, and three panels at three random angles
+        // read as a mistake however they got there. So the rule lives at the
+        // PLACEMENT level, not in the planners: one yaw for the whole arena,
+        // and a spot with a tower in the way is re-rolled (`clearFront`).
+        const tr = traitsFor(spec.name);
+        const sunRy = tr.face === 'sun' ? sunYaw - (tr.faceOffset || 0) : undefined;
         for (let i = 0; i < spec.count; i++) {
           const skyAnchored = spec.ring[1] <= 6; // aurora-style props place their visuals far away
           let a, r, x, z, tries = 0;
@@ -602,8 +617,11 @@ export class Arena {
             a = rng.range(0, Math.PI * 2);
             r = rng.range(spec.ring[0], spec.ring[1]) * 1.85; // rings scaled with arena
             x = Math.cos(a) * r; z = Math.sin(a) * r;
-          } while (!skyAnchored && !propSpotOk(x, z, FLAT_PROPS.has(spec.name)) && ++tries < 14);
-          buildAt(spec, x, z, i, skyAnchored);
+          } while (!skyAnchored
+            && (!propSpotOk(x, z, FLAT_PROPS.has(spec.name))
+              || !frontClear(tr, footprints, x, z, sunRy))
+            && ++tries < 14);
+          buildAt(spec, x, z, i, skyAnchored, sunRy);
           // `clump`: this placement is a NEST — scatter n-1 more of the same
           // prop around it (groves, container yards, boulder fields), giving
           // arenas real dense-vs-open texture instead of even sprinkle
@@ -615,7 +633,8 @@ export class Arena {
                 const cr = rng.range(3, spec.clump.spread ?? 9);
                 const cx = x + Math.cos(ca) * cr, cz = z + Math.sin(ca) * cr;
                 if (!propSpotOk(cx, cz, FLAT_PROPS.has(spec.name))) continue;
-                buildAt(spec, cx, cz, i + k + 1);
+                if (!frontClear(tr, footprints, cx, cz, sunRy)) continue;
+                buildAt(spec, cx, cz, i + k + 1, false, sunRy);
                 break;
               }
             }

@@ -176,6 +176,39 @@ export function laneTangent(terrain, lane, along) {
   return { dx: dx / n, dz: dz / n };
 }
 
+// The azimuth of the theme's own sun (`theme.sun.pos` is where the light
+// stands, so that vector IS the direction to it). A collector facing the sun
+// takes this yaw, minus whatever offset its model has between +Z and the
+// direction it actually collects from.
+export const sunYawOf = (theme) => {
+  const p = theme?.sun?.pos;
+  return p ? Math.atan2(p[0], p[2]) : 0;
+};
+
+/**
+ * Is the way this prop FACES clear of tall mass? Only buildings and
+ * structures are considered (they are what `footprints` holds), which is the
+ * rule we want: another panel — or anything low — standing in front of a
+ * solar collector is fine, a tower in front of it is not.
+ */
+export function frontClear(tr, footprints, x, z, ry) {
+  if (!tr?.clearFront || ry === undefined || ry === null) return true;
+  // WHICH WAY IS "IN FRONT" — the direction it COLLECTS from, not its +Z.
+  // `faceOffset` is the angle between the two and on both solar props it is
+  // very nearly a half turn, so reading the yaw raw checked the ground
+  // directly BEHIND the panel and passed every spot with a tower in the way.
+  const dir = ry + (tr.faceOffset || 0);
+  const dx = Math.sin(dir), dz = Math.cos(dir);
+  // Walked at 1.5 units rather than through sightlineClear's coarser sampling:
+  // that one spaces its samples ~3 apart for a general "can this be seen",
+  // and a building edge clipped between two of them is a panel staring at a
+  // wall. Cheap enough — this runs a handful of times per arena.
+  for (let t = 1.5; t <= tr.clearFront; t += 1.5) {
+    if (insideFootprint(footprints, x + dx * t, z + dz * t, 0)) return false;
+  }
+  return true;
+}
+
 /**
  * Resolve a placement's yaw from its traits. Returns undefined for "no
  * preference" (placeProp rolls a random yaw), which is the honest answer for
@@ -183,7 +216,12 @@ export function laneTangent(terrain, lane, along) {
  * `focal` is the region's focal point (the battle circle, or the pocket
  * plaza the prop belongs to).
  */
-export function traitYaw(tr, terrain, rng, x, z, { focal = { x: 0, z: 0 }, rowDir = null } = {}) {
+export function traitYaw(tr, terrain, rng, x, z,
+  { focal = { x: 0, z: 0 }, rowDir = null, sunYaw = 0 } = {}) {
+  // A COLLECTOR ANSWERS TO THE SUN AND NOTHING ELSE — not the row it stands
+  // in, not the grid. Every panel in the arena therefore lands on the same
+  // yaw, which is the point: three of them at three angles read as a mistake.
+  if (tr.face === 'sun') return sunYaw - (tr.faceOffset || 0);
   if (tr.face === 'center') return yawTo(x, z, focal.x, focal.z);
   if (tr.face === 'road') {
     const near = nearestLane(terrain, x, z);

@@ -32,6 +32,20 @@
 //   face: 'road'   — street furniture: +Z square-on to the nearest lane
 //         (billboards read from it, streetlight arms reach over it); far
 //         from any lane it faces the focal point instead
+//   face: 'sun'    — a SOLAR COLLECTOR: every one in the arena takes the
+//         SAME yaw, derived from the theme's own sun position, so a bank of
+//         them reads as one installation rather than three shrugs. Panels
+//         also refuse a spot with something tall in front (see clearFront)
+//   faceOffset     — radians between the prop's +Z and the direction it
+//         actually collects from, MEASURED off the built model
+//         (tools/scratch/solarprobe.mjs), because a panel's facing is its
+//         tilted normal and not its bounding box
+//   clearFront: n  — reject a spot with a BUILDING or a structure within n
+//         units of the way it faces. Props are not checked: another panel,
+//         or anything low, in front of a collector is fine — a tower is not
+//   opts: {…}      — placement options merged into the prop build. `spin: 0`
+//         is the one in use: a tracking mount that has FOUND the sun does
+//         not keep sweeping past it
 //   grid: true     — industrial: yaw snaps to the world grid
 //   row: true      — reads best in a rank/row even at counts the shape
 //         classifier would call "dressing" (pillars, colonnades, arrays)
@@ -111,8 +125,21 @@ export const PROP_TRAITS = {
   colonnade: { row: true, lane: true },
   ruinColumn: { row: true },
   glassRail: { row: true, lane: true },
-  solarArray: { grid: true, row: true },
-  solarWing: { grid: true, row: true },
+  // SOLAR COLLECTORS: one shared yaw off the theme's sun, a clear run in
+  // front, and no sweeping mount. faceOffset is measured, not guessed —
+  // `node tools/scratch/solarprobe.mjs "<battle url>"` reports it and checks
+  // the result (all panels one yaw, all within a few degrees of the sun).
+  // this one's panels lean the other way off the mast — measured 180.0 deg,
+  // i.e. it collects down its own -Z
+  solarArray: { face: 'sun', row: true, clearFront: 44, faceOffset: Math.PI },
+  solarWing: {
+    // 3.114 rad = 178.4 deg: where this model's collector points relative to
+    // its own +Z, measured with solarprobe (the imported GLB is turned by the
+    // prop manifest, so the number is not guessable from the builder — and it
+    // must be read AFTER the model has streamed in, or you measure the
+    // procedural stand-in and get a number that will not reproduce)
+    face: 'sun', row: true, clearFront: 44, faceOffset: 3.114, opts: { spin: 0 },
+  },
 
   // isolated by nature
   campfire: { solo: true },
