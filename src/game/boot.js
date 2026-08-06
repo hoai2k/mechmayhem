@@ -714,7 +714,11 @@ export async function bootGame() {
       if (!B.paused) {
         for (const h of B.humans) {
           if (h.fighter.alive && !h.fighter.controlsLocked) {
-            input.readIntent(h.device, h.fighter.intent, B.cameraSys.inputYawFor(h.fighter, h.idx));
+            // the warm-up screen has its own per-fighter camera, so it owns
+            // the control frame while it is up (see Warmup.inputYawFor)
+            const camYaw = (B.loading ? warmup.inputYawFor(B, h.fighter) : null)
+              ?? B.cameraSys.inputYawFor(h.fighter, h.idx);
+            input.readIntent(h.device, h.fighter.intent, camYaw);
             if (B.loading) {
               // warm-up playground: melee/movement only — no shots, no
               // specials, no ults before the bell

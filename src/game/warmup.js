@@ -136,6 +136,25 @@ export class Warmup {
     scene.background = new THREE.Color(0x0a0e18);
   }
 
+  // THE CAMERA YOU CAN SEE IS THIS ONE. Controls are camera-relative
+  // (input.readIntent rotates the stick by a world yaw), and on the warm-up
+  // screen the view is NOT cameraSys' — each fighter is framed by its own
+  // fixed warm-up eye standing in FRONT of him, looking back down his facing.
+  // Read through cameraSys, which is still lined up on the board, "forward"
+  // was some unrelated direction — most often straight at the lens, so the
+  // mech ran at the camera and backed away from it. This is the yaw from that
+  // fighter's warm-up eye to the fighter: forward walks him away from the
+  // viewer (turning him round to do it), back brings him toward it.
+  // Taken live off the camera position rather than the spawn yaw, since he
+  // romps about the stage while the eye stays put.
+  inputYawFor(B, fighter) {
+    const v = this.engine.views?.[B.fighters.indexOf(fighter)];
+    if (!v) return null;
+    const dx = fighter.pos.x - v.camera.position.x, dz = fighter.pos.z - v.camera.position.z;
+    if (dx * dx + dz * dz < 1e-6) return null;
+    return Math.atan2(dx, dz);
+  }
+
   update(B, dt) {
     const engine = this.engine;
     const L = B.loading;
