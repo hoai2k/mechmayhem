@@ -5,7 +5,8 @@ import { DestructibleSystem } from './destructible.js';
 import { Terrain } from './terrain.js';
 import { generateMassing, THEME_MASSING } from './massing.js';
 import {
-  STRUCTURE_KINDS, structureMaterial, assignStructures, themeStructureKinds,
+  STRUCTURE_KINDS, structureMaterial, structureChunkShape,
+  assignStructures, themeStructureKinds,
 } from './structures.js';
 import { buildingDonors } from './buildglb.js';
 import { PROPS, PROP_MATS, placeProp, mergePropMeshes } from './props.js';
@@ -690,8 +691,12 @@ export class Arena {
     let sys = this.structos.get(def.mat);
     if (!sys) {
       const mat = structureMaterial(def.mat, def.tex);
-      // one material for all six faces: a landform has no roof
-      sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 3600);
+      // one material for all six faces: a landform has no roof — and one
+      // CHUNK SHAPE for the family too (shards for crystal, boulders for
+      // rock, drifts for snow), which is what stops a landform reading as
+      // the pile of cubes it is made of. See chunkgeo.js.
+      sys = new DestructibleSystem(this.scene, [mat, mat, mat, mat, mat, mat], 3600,
+        structureChunkShape(def.mat));
       sys.world = this.world;
       if (this.wrapHalf) sys.setWrapPeriod(this.wrapHalf * 2);
       this.structos.set(def.mat, sys);

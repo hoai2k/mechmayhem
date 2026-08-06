@@ -84,6 +84,15 @@ export const STRUCTURE_KINDS = {
     accent: { color: 0x53c8ff, chance: 0.14, emissive: true },
     cell: [4.2, 5.2], hRange: [3, 4],
   },
+  snowDrift: {
+    // wind-packed snow: low, wide and smooth. It is the one structure here
+    // that should read as SOFT, which is entirely the chunk shape's doing —
+    // same mound silhouette as a rock outcrop, drawn as overlapping rounded
+    // lumps rather than boulders or shards
+    style: 'mound', mat: 'snow', tex: 'struct_snow_pack',
+    tints: [0xe8f2fa, 0xdcebf6, 0xf2f8ff],
+    cell: [5.2, 6.8], hRange: [2, 3],
+  },
   iceTower: {
     style: 'habitat', mat: 'iceGlass', tex: 'struct_ice_cut',
     tints: [0xa8dcf0, 0xc4e8f8],
@@ -140,11 +149,41 @@ const MAT_FAMILIES = {
   // be perfectly correct and completely invisible. Plain alpha blending with
   // depthWrite ON: chunks read as solid glass blocks and still sort sanely
   // against each other, which matters when a wall is 40 chunks deep.
+  // SNOW: bright, flat, faintly blue in shadow — the least shiny thing in
+  // the game, and deliberately smooth-shaded (no flatShading) so a drift
+  // reads as one soft mass rather than a heap of facets
+  snow: () => new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 1.0, metalness: 0.0, vertexColors: true,
+  }),
   iceGlass: () => new THREE.MeshStandardMaterial({
     color: 0xffffff, roughness: 0.1, metalness: 0.0, vertexColors: true,
     transparent: true, opacity: 0.6, depthWrite: true,
   }),
 };
+
+/**
+ * WHAT ONE CHUNK OF EACH FAMILY IS SHAPED LIKE (chunkgeo.js CHUNK_SHAPES).
+ *
+ * A structure's material said what it is MADE of; this says what it is
+ * shaped like, and without it every one of these read as exactly what it is
+ * built from — a stack of cubes on a lattice. Crystal grows in shards, rock
+ * weathers into rounded lumps, a berg fractures, a drift packs smooth, and
+ * cut ice is sawn slabs standing on end (the one man-made family here, so
+ * the one that keeps a regular look).
+ *
+ * The shape rides the DestructibleSystem, so it is per FAMILY — the same
+ * grouping the materials already use, and the same reason: one instanced
+ * mesh per look.
+ */
+const FAMILY_SHAPE = {
+  basalt: 'boulder',
+  stone: 'boulder',
+  crystal: 'crystal',
+  iceRock: 'icefall',
+  iceGlass: 'iceSlab',
+  snow: 'snow',
+};
+export const structureChunkShape = (family) => FAMILY_SHAPE[family] || 'box';
 
 /**
  * The material array a DestructibleSystem wants (box face order: px, nx, py,
