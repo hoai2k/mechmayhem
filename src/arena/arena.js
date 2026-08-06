@@ -17,7 +17,7 @@ import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
 
 // texture-pack material names per arena / building style
-const GROUND_TEX = {
+export const GROUND_TEX = {
   neon: 'ground_neon_asphalt', foundry: 'ground_foundry_ironplate',
   uptown: 'ground_uptown_paving', harbor: 'ground_harbor_concrete',
   skyterrace: 'ground_skyterrace_roofpanel', scrapyard: 'ground_scrapyard_dirt',
@@ -25,7 +25,7 @@ const GROUND_TEX = {
   frozen: 'ground_frozen_snowice', ruins: 'ground_ruins_sandstone',
   jungle: 'ground_jungle_mossstone', orbital: 'ground_orbital_deck',
 };
-const FACADE_TEX = {
+export const FACADE_TEX = {
   0: 'bldg_concrete_panel', 1: 'bldg_brick_industrial',
   2: 'bldg_glass_office', 3: 'bldg_steampunk_metal',
 };

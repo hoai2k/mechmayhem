@@ -17,8 +17,10 @@ import { preloadPropModels } from '../arena/propglb.js';
 import { preloadBuildingModels } from '../arena/buildglb.js';
 import { loadLevel, themeFromLevel } from '../arena/level.js';
 import { resolveArenaTheme } from '../arena/authored.js';
+import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
 
 export async function runBattleTest() {
+  checkDeclaredAssetsOnce();
   const params = new URLSearchParams(location.search);
   const themeId = params.get('battle') || 'neon';
   let theme = THEMES_BY_ID[themeId] || THEMES[0];

@@ -6685,3 +6685,48 @@ deg with no unexplained movement · propshell mean phantom skin unchanged at
 docs/ASSET_REQUESTS_STRUCTURES.md (struct_basalt_rock, struct_crystal_facet,
 struct_ice_glacier, struct_ice_cut, struct_rock_grey) — all hasTex-gated and
 already prefetched by arenaTexEntries, so they slot in on commit.
+
+## ONE HOME FOR TEXTURES, and a check that says when art goes missing (user request, 2026-08-05)
+
+The owner noticed generated textures being committed to `public/textures/`
+and asked which location was right. The answer: `src/textures/` — and the
+DOCS were the bug. `core/texload.js` globs `src/textures/**` at build time,
+which is what makes `hasTex()` synchronous (arena.js picks a building's
+material inline, pbrtex does the same per mech skin); `public/textures/` is
+never read. `docs/TEXTURE_GEN_PROMPT.md` had said "commit them to
+public/textures/" since the pack was written, and both of my asset-request
+documents repeated it — so ten delivered facades landed where nothing would
+ever look at them. All three documents now name `src/textures/`.
+
+MOVED: the ten delivered building facades/roofs into `src/textures/building/`
+(all 12 themes now resolve the facade they ask for — ruins in sandstone,
+jungle in mossy temple stone, orbital in station hull, volcano in basalt
+plate, frozen in arctic panel, quarry in rock-cut crystal, harbor in dock
+corrugated, scrapyard in rust patchwork), and `public/sprites/` into
+`src/textures/sprite/`. The sprites were the second texture area the owner
+was right to find odd: they are material textures, so they now live with the
+pack, their manifest is IMPORTED rather than fetched (the slot table needs no
+round trip and a sprite cannot 404) and the files resolve through a glob.
+All five slots verified loading.
+
+THE RULE, written down in ASSETS.md: an asset lives in `src/` when the code
+must ENUMERATE it at build time (textures, the soundtrack) and in `public/`
+when the code FETCHES it by name at runtime (models, levels, badges, thumbs,
+posters, sound — all addressed by identity, most with their own manifest).
+Applied to the tree, exactly one thing was in the wrong place, which is a
+good sign the rule fits.
+
+AND ART THAT GOES MISSING NOW SAYS SO (`src/core/assetcheck.js`, at boot and
+in the ?battle harness). The pack is deliberately optional — every lookup is
+hasTex-gated and falls back to procedural — and that tolerance means a
+texture that VANISHES looks exactly like one that was never made. So every
+name the data declares (per-theme sky, horizon, ground, facade, roof; every
+structure kind's material; every sprite slot) is checked once and missing
+ones are a console.error naming the file and the path. Requested-but-not-yet
+-delivered art is listed in PENDING_ASSETS, and a pending entry that TURNS UP
+is reported too, so the list cannot rot into crying wolf (the same
+both-directions rule tools/iconcheck.mjs uses for badges).
+`node tools/assetcheck.mjs` runs the same check from the command line and
+adds a stray scan of `public/textures` / `public/sprites`. Proven to fail in
+both directions before being trusted: hiding a delivered facade reports
+MISSING, and dropping a PNG back into public/textures reports STRAY.
