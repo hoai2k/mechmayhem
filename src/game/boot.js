@@ -843,7 +843,7 @@ export async function bootGame() {
     setTimeout(() => splash.remove(), 600);
   }));
 
-  window.__game = { S, engine, audio, music, menuMusic, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
+  window.__game = { S, engine, input, audio, music, menuMusic, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
   // A mistyped switch says so instead of looking like a dead knob, and every
   // tuning value is reachable live as `rw` (see core/knobs.js).
   warnUnknownParams();

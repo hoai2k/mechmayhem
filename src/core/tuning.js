@@ -237,7 +237,10 @@ export const TUNING = {
     shoulderUp: 0.7,   // ...and up
     leadPull: 0.62,    // how far the look target slides toward the crosshair
     zoomSens: 0.55,    // stick sensitivity multiplier at full zoom
-    holdTime: 0.2,     // seconds LB must be down to mean SNIPER rather than a lock tap
+    // A DELIBERATE TAP IS UNDER ~150ms, so this is the forgiving side of the
+    // line: overshoot it and you get a blink of zoom instead of the lock you
+    // asked for, which is a missed input rather than a wrong one.
+    holdTime: 0.25,    // seconds LB must be down to mean SNIPER rather than a lock tap
   },
 
   // ---- MELEE / HIT REACTIONS ----------------------------------------------
