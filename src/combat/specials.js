@@ -137,7 +137,7 @@ export const SPECIALS = {
         if (t === 'fire') {
           const w = f.world;
           w.groundShockwave(f, f.pos, sp.radius, sp.dmg * f.dmgMult(), sp.knock, 0xffb43c);
-          w.audio?.play('slam');
+          f.sfx('slam');
         } else if (t === 'shake') f.world.effects.addShake(a);
       },
     });
@@ -161,7 +161,7 @@ export const SPECIALS = {
         dmg: sp.dmg * f.dmgMult(), speed: 30, splash: 2.8, color: 0xff7040,
         homing: target, retarget: true, turnRate: 4.8, life: 4,
       });
-      f.world.audio?.play('missile');
+      f.sfx('missile');
     });
   },
 
@@ -177,7 +177,7 @@ export const SPECIALS = {
     // about its own face normal like an umbrella/top balanced on the raised
     // fist (set overrides the rest-carry, z is the face axis once tipped)
     f._spinFx = { joint: 'shield', axis: 'z', rate: 26, dur: RAISE, set: [Math.PI / 2, 0, 0], t: 0, acc: 0 };
-    w.audio?.play('whooshBig');
+    f.sfx('whooshBig');
     // whirl tell: tightening rings overhead
     volley(w, f, 3, 0.3, () => {
       w.effects.rings.spawn(f.pos, { from: 3.4, to: 1, dur: 0.28, color: 0x49b7ff, y: f.height * 0.95 });
@@ -221,7 +221,7 @@ export const SPECIALS = {
     // post-pose torso spin: the waist is a free bearing — head and blades
     // whirl while the gait below stays forward
     f._spinFx = { joint: 'torso', axis: 'y', rate: 21, dur: DUR, t: 0, acc: 0 };
-    w.audio?.play('dash');
+    f.sfx('dash');
     const hitAt = new Map(); // per-victim saw cadence: re-hit every 0.22s
     const ticks = Math.floor(DUR / 0.05);
     for (let i = 1; i <= ticks; i++) {
@@ -246,7 +246,7 @@ export const SPECIALS = {
           if ((hitAt.get(e) ?? -1) <= t - 0.22 && overlapsY(e, f.pos.y, f.height)) {
             hitAt.set(e, t);
             e.takeHit(sp.dmg * f.dmgMult(), f, { knock: 5, srcPos: f.pos });
-            w.audio?.play('slash');
+            f.sfx('slash');
             w.engine.addHitStop(0.03);
           }
         });
@@ -268,7 +268,7 @@ export const SPECIALS = {
             homing: target, retarget: true, turnRate: 4.0, life: 4.5,
             size: 1 + 0.7 * g,
           });
-          f.world.audio?.play('plasma');
+          f.sfx('plasma');
         });
       },
     });
@@ -279,7 +279,7 @@ export const SPECIALS = {
   // launch), or when the button is released.
   bullRush(f, sp) {
     cast(f, 'chargeLean', { stateT: 5.2 }); // held-charge ceiling; ended early on release
-    f.world.audio?.play('charge');
+    f.sfx('charge');
     f._chargeT = 0;
     f._rushStep = undefined;   // first tick only records the gait phase
     const endRush = (recovery) => {
@@ -318,7 +318,7 @@ export const SPECIALS = {
         const at = foot ? foot.getWorldPosition(_rushFoot) : f.pos;
         f.world.effects.dustPuff(at, 7, 0x9a9088);
         f.world.effects.addShake(0.12);
-        f.world.audio?.play('land');
+        f.sfx('land');
       }
       f._rushStep = step;
       for (const e of f.world.fighters) {
@@ -384,7 +384,7 @@ export const SPECIALS = {
           });
         }
         w.effects.rings.spawn(center, { from: 1, to: sp.radius * 2, dur: 0.55, color: 0x53e8ff, y: 0.5 });
-        w.audio?.play('thunder');
+        f.sfx('thunder');
         // coil show on the caster
         for (const cn of ['coilL', 'coilR']) {
           if (f.mech.anchors[cn]) {
@@ -412,7 +412,7 @@ export const SPECIALS = {
             w.effects.lightning.spawn(top, ground, { color: 0x9fdcff, dur: 0.26, jag: 2.2, thick: 0.12 });
             w.effects.glows.emit(gx, 1, gz, 0, 0, 0, { life: 0.25, size: 6, color: 0xbfefff, alpha: 1 });
             w.effects.rings.spawn(ground, { from: 0.4, to: 4.2, dur: 0.3, color: 0x9fdcff, y: 0.25 });
-            w.audio?.play('zap');
+            f.sfx('zap');
             w.effects.addShake(0.3);
             if (b.victim && b.victim.alive) {
               b.victim.takeHit(sp.dmg * f.dmgMult(), f, { knock: 14, srcPos: center, status: { slow: 0.6, slowT: 1.6 } });
@@ -433,7 +433,7 @@ export const SPECIALS = {
   // FENRIR: lunar pounce
   pounce(f, sp) {
     cast(f, 'lunge', { stateT: 0.75 });
-    f.world.audio?.play('howl');
+    f.sfx('howl');
     const e = f.nearestEnemy();
     if (e && f.isAI) {
       // AI leads the landing point — the leap is airborne ~0.7s.
@@ -457,7 +457,7 @@ export const SPECIALS = {
         // guardBreak chance (normal swings block like anyone else's)
         f.world.groundShockwave(f, f.pos, 5.5 * f.scale, sp.dmg * f.dmgMult(), 16, 0x6cd8ff, false,
           false, { guardBreak: f.def.stats.guardBreak || 0 });
-        f.world.audio?.play('slam');
+        f.sfx('slam');
         f.setState('normal');
       } else {
         f.world.schedule(0.05, check);
@@ -475,7 +475,7 @@ export const SPECIALS = {
     const gf = Math.max(1, f.scale / (f.def.body.scale || 1));
     if (gf > 1.4) f._oneArmLift = true;
     cast(f, 'grabReach', { stateT: 1.6 });
-    w.audio?.play('servo');
+    f.sfx('servo');
     w.schedule(0.2, () => {
       if (!f.alive || f.state !== 'special') return;
       // whoever's in the hands: close, in the front cone, near ground level
@@ -552,7 +552,7 @@ export const SPECIALS = {
             w.schedule(0.05, fly);
           };
           w.schedule(0.05, fly);
-          w.audio?.play('whooshBig');
+          f.sfx('whooshBig');
           w.effects.addShake(0.6);
           w.engine.addHitStop(0.1);
         }
@@ -580,7 +580,7 @@ export const SPECIALS = {
     const w = f.world;
     const LIFT = 0.55, DRIVE = 0.16;
     cast(f, 'grabReach', { stateT: 2.0 });
-    w.audio?.play('servo');
+    f.sfx('servo');
     w.schedule(0.2, () => {
       if (!f.alive || f.state !== 'special') return;
       let prey = null, best = Infinity;
@@ -626,7 +626,7 @@ export const SPECIALS = {
         by: f, t: LIFT + 0.5, roll: twoHanded ? 1.45 : Math.PI,
         x0: prey.pos.x, y0: prey.pos.y, z0: prey.pos.z, riseT: 0,
       };
-      w.audio?.play('hitHeavy');
+      f.sfx('hitHeavy');
 
       // THE DRIVE — straight down, at the floor in front of him
       w.schedule(LIFT + 0.02, () => {
@@ -683,8 +683,8 @@ export const SPECIALS = {
           w.effects.dustPuff(impact, 22, 0x8c8266);
           w.effects.addShake(0.9);
           w.engine.addHitStop(0.12);
-          w.audio?.play('slam');
-          w.audio?.play('explosionBig');
+          f.sfx('slam');
+          f.sfx('explosionBig');
           faceRoar(f, 0.6);
           clear();
           w.schedule(0.5, () => { if (f.state === 'special') f.setState('normal'); });
@@ -713,7 +713,7 @@ export const SPECIALS = {
           f.world.projectiles.spawn('mortar', f, from, new THREE.Vector3(0, 1, 0), {
             dmg: sp.dmg * f.dmgMult(), splash: 4, color: 0xffd23c, arcTo: to, arcTime,
           });
-          f.world.audio?.play('mortar');
+          f.sfx('mortar');
           f.animator.addImpulse('torso', [-0.12, 0, 0], 30, 10);
         });
       },
@@ -724,7 +724,7 @@ export const SPECIALS = {
   cloak(f, sp) {
     f.status.cloak = { t: sp.duration, spd: sp.speedBoost };
     f.setOpacity(0.16);
-    f.world.audio?.play('cloak');
+    f.sfx('cloak');
     f.world.effects.rings.spawn(f.pos, { from: 3, to: 0.5, dur: 0.4, color: 0xff3838, y: f.height * 0.5 });
   },
 
@@ -735,7 +735,7 @@ export const SPECIALS = {
   ghostWalk(f, sp) {
     const w = f.world;
     cast(f, 'aim', { stateT: (sp.duration || 5) + 0.4, speed: 0.5 });
-    w.audio?.play('cloak');
+    f.sfx('cloak');
 
     // build the spectre: bake the current pose into a throwaway shell (see
     // poseshell.js — the SkinnedMesh trap is documented there), then glide the
@@ -772,7 +772,7 @@ export const SPECIALS = {
       f.pos.z = tz;
       w.effects.dashTrail(f.pos, 0xbfe8ff, f.scale * 1.6);
       w.effects.rings.spawn(f.pos, { from: 0.5, to: 4, dur: 0.35, color: 0xbfe8ff, y: 1 });
-      w.audio?.play('dash');
+      f.sfx('dash');
       dropGhost();
       f.iframes = 0.35; // re-materialize grace
       f.animator.stop();
@@ -804,7 +804,7 @@ export const SPECIALS = {
           victims.add(e2);
           e2.takeHit(sp.dmg * f.dmgMult(), f, { knock: 6, srcPos: new THREE.Vector3(gx(), e2.pos.y, gz()) });
           w.effects.impactSparks(e2.center(), 0xbfe8ff, 12, 8);
-          w.audio?.play('slash');
+          f.sfx('slash');
         }
       }
       if (holding) w.schedule(dt, tick);
@@ -820,7 +820,7 @@ export const SPECIALS = {
       const pos = fwd(f, 6 + i * 4.5);
       pos.y = 0;
       f.world.addFirePatch(f, pos, 3, sp.duration, sp.dmg);
-      f.world.audio?.play('flame');
+      f.sfx('flame');
     });
   },
 
@@ -837,7 +837,7 @@ export const SPECIALS = {
         const e = f.nearestEnemy();
         const target = e ? leadPos(f, e, WARN + 0.45) : fwd(f, 14);
         target.y = 0;
-        w.audio?.play('cast');
+        f.sfx('cast');
         // the sim owns telegraph + eruption + collapse visuals; total show
         // length = warn + sustain + ~0.95s collapse = sp.duration. The
         // scald opts arm the world's damage tick: anyone in the column
@@ -852,8 +852,8 @@ export const SPECIALS = {
           { owner: f, dmg: sp.dmg, radius: sp.radius, launch: sp.launch });
         // damage: one big hit at the blowout moment, same as always
         w.schedule(WARN, () => {
-          w.audio?.play('wave');
-          w.audio?.play('explosionBig');
+          f.sfx('wave');
+          f.sfx('explosionBig');
           eachEnemy(w, f, target, sp.radius, (v) => {
             // the blowout reaches as high as the water goes and no higher —
             // it's a tall column, so this only spares someone truly above it
@@ -875,7 +875,7 @@ export const SPECIALS = {
     const e = f.nearestEnemy();
     cast(f, 'pounceLeap', { stateT: 2.2 });
     f.iframes = 0.4;
-    w.audio?.play('jump');
+    f.sfx('jump');
     // tall ballistic pounce — high enough to drop onto a mech's shoulders
     const VY = 21;
     const T = (2 * VY) / 34; // ~1.24s airtime
@@ -906,7 +906,7 @@ export const SPECIALS = {
       const RIDE = 0.72;
       cast(f, 'biteLatch', { stateT: RIDE + 0.3 });
       f.iframes = 0.5;
-      w.audio?.play('slash');
+      f.sfx('slash');
       w.engine.addHitStop(0.09);
       prey.takeHit(sp.dmg * f.dmgMult(), f, { knock: 2, srcPos: f.pos, heavy: true });
       prey.applyStatus({ burn: sp.bleed, burnT: 2.4 });
@@ -949,7 +949,7 @@ export const SPECIALS = {
         w.schedule(h.t, () => {
           if (!f.alive || !prey.alive) return;
           prey.takeHit(sp.dmg * 0.165 * f.dmgMult(), f, { knock: 1, srcPos: f.pos });
-          w.audio?.play('slash');
+          f.sfx('slash');
           if (h.claw) {
             // a rake tears DOWN the far side of the body it is dragged through:
             // sparks offset to that hand's side and low, and the arm carries
@@ -1024,7 +1024,7 @@ export const SPECIALS = {
         done = true;
         f.duckT = 1;
         w.effects.dustPuff(f.pos, 3, 0x9a8f80);
-        w.audio?.play('land');
+        f.sfx('land');
         f.animator.stop();
         f.setState('attack', 0.35);
         return;
@@ -1055,7 +1055,7 @@ export const SPECIALS = {
         status: { slow: 0.6, slowT: 1.8 }, goop: true, size: rand(0.9, 1.4),
       });
       f.world.effects.slime(from, 3, 2);
-      f.world.audio?.play('plasma');
+      f.sfx('plasma');
     });
   },
 
@@ -1083,8 +1083,8 @@ export const SPECIALS = {
     const spd = f.def.stats.speed * 4.4;
     f.vel.x = Math.sin(f.yaw) * spd;
     f.vel.z = Math.cos(f.yaw) * spd;
-    w.audio?.play('zap');
-    w.audio?.play('dash');
+    f.sfx('zap');
+    f.sfx('dash');
     w.effects.glitchBurst(f.center(), 14, 8, f.scale);
     const victims = new Set();
     volley(w, f, 9, 0.045, () => {
@@ -1119,7 +1119,7 @@ export const SPECIALS = {
       const end = from.clone().addScaledVector(dir, 24);
       f.world.effects.beams.spawn(from, end, { radius: 0.5, dur: 0.14, color: 0x9be8ff });
       f.world.effects.snowCone(from, dir);
-      if (i % 3 === 0) f.world.audio?.play('freeze');
+      if (i % 3 === 0) f.sfx('freeze');
       for (const e of f.world.fighters) {
         if (e === f || !e.alive) continue;
         const c = e.center();
@@ -1154,7 +1154,7 @@ export const SPECIALS = {
   chestBeat(f, sp) {
     const w = f.world;
     const dur = cast(f, 'chestBeat', { stateT: (d) => d * 0.9 });
-    w.audio?.play('charge');
+    f.sfx('charge');
     // the three drum-beats, on the clip's own hit frames
     const BEATS = [0.42, 0.58, 0.74];
     BEATS.forEach((bt, i) => {
@@ -1164,7 +1164,7 @@ export const SPECIALS = {
         w.effects.rings.spawn(f.pos, { from: 1.2, to: 5 + i * 1.6, dur: 0.34, color: f.def.colors.glow, y: 0.4 });
         w.effects.dustPuff(f.pos, 8, 0x9a8878);
         w.effects.addShake(0.28);
-        w.audio?.play('hitHeavy');
+        f.sfx('hitHeavy');
         // each crack shoves anyone in arm's reach; only the last one launches
         eachEnemy(w, f, at, (sp.radius || 9) * 0.55 * f.scale, (e, d) => {
           if (!overlapsY(e, f.pos.y, f.height)) return;
@@ -1178,7 +1178,7 @@ export const SPECIALS = {
     w.schedule(0.92, () => {
       if (!stillCasting(f)) return;
       faceRoar(f, 0.85);
-      w.audio?.play('howl');
+      f.sfx('howl');
       w.effects.addShake(0.65);
       w.engine.addHitStop(0.06);
       const R = (sp.radius || 9) * f.scale;
@@ -1222,7 +1222,7 @@ export const SPECIALS = {
   goreCharge(f, sp) {
     const w = f.world;
     cast(f, 'chargeLean', { stateT: 12 });
-    w.audio?.play('charge');
+    f.sfx('charge');
     faceRoar(f, 0.7);
     f._chargeT = 0;
     f._goreStep = undefined;
@@ -1251,7 +1251,7 @@ export const SPECIALS = {
         f.sprintEnergy -= GORE_DASH_COST;
         f._goreSurge = Math.min(GORE_SURGE_MAX, (f._goreSurge || 0) + GORE_SURGE);
         f.iframes = Math.max(f.iframes, 0.18);
-        w.audio?.play('dash');
+        f.sfx('dash');
         w.effects.dashTrail(f.pos, f.def.colors.glow || 0xff8a24, f.scale * 1.5);
         w.effects.rings.spawn(f.pos, { from: 0.6, to: 5, dur: 0.3, color: f.def.colors.glow, y: 0.4 });
       }
@@ -1286,7 +1286,7 @@ export const SPECIALS = {
         const at = foot ? foot.getWorldPosition(_rushFoot) : f.pos;
         w.effects.dustPuff(at, 9, 0x8c8266);
         w.effects.addShake(0.16);
-        w.audio?.play('land');
+        f.sfx('land');
       }
       f._goreStep = step;
       for (const e of w.fighters) {
@@ -1310,7 +1310,7 @@ export const SPECIALS = {
           w.effects.addShake(0.7 * k);
           w.effects.impactSparks(e.center(), f.def.colors.glow, 20, 13);
           w.effects.explosion(e.center(), 2.2, { color: 0xc8b08a, smoke: true, sparks: false });
-          w.audio?.play('hitHeavy');
+          f.sfx('hitHeavy');
           faceRoar(f, 0.5);
           endRush(0.5);
           return;
@@ -1651,7 +1651,7 @@ function hatchRaptor(f, u, egg) {
   }, () => { clone.controlsLocked = false; clone.group.scale.setScalar(SIZE); });
   summonFlash(w, clone.mech.group, 0xff8a5a, 0.55);
   w.effects.impactSparks(clone.center(), 0xff3826, 14, 8);
-  w.audio?.play('cast');
+  f.sfx('cast');
 }
 
 export const ULTS = {
@@ -1663,8 +1663,8 @@ export const ULTS = {
     cast(f, 'castRaise', {
       state: 'ult',
       onFire: () => {
-        w.audio?.play('powerup');
-        w.audio?.play('thunder');
+        f.sfx('powerup');
+        f.sfx('thunder');
         const center = fwd(f, u.radius * 0.85);
         center.y = 0;
         // the weather comes in from ONE quarter of the sky — every rock
@@ -1703,7 +1703,7 @@ export const ULTS = {
           w.scene.add(rock);
           const vel = new THREE.Vector3(-ox / FALL, -48 / FALL, -oz / FALL);
           const spin = rand(-7, 7);
-          w.audio?.play('whoosh');
+          f.sfx('whoosh');
           w.addUpdater((dt) => {
             rock.position.addScaledVector(vel, dt);
             rock.rotation.x += spin * dt;
@@ -1777,7 +1777,7 @@ export const ULTS = {
     // has to be released by hand once he stops turning — the storm lives on
     // without him from here.
     w.schedule(SPUN, () => { if (f.animator.isPlaying('hurricaneSpin')) f.animator.stop(0.3); });
-    w.audio?.play('powerup');
+    f.sfx('powerup');
     const geo = new THREE.SphereGeometry(0.24, 6, 5);
     const mat = new THREE.MeshBasicMaterial({
       color: 0xffd080, transparent: true, opacity: 0.95,
@@ -1817,7 +1817,7 @@ export const ULTS = {
       b.spd = -(f._spinFx?.vel || SPIN) * rand(0.9, 1.12);
       b.live = true;
       w.effects.muzzleFlash(_v);
-      if (Math.random() < 0.35) w.audio?.play('gatling');
+      if (Math.random() < 0.35) f.sfx('gatling');
     };
     let t = 0, mode = 'orbit', target = null, strikeT = 0, landed = 0;
     w.addUpdater((dt) => {
@@ -1831,7 +1831,7 @@ export const ULTS = {
           mode = 'strike';
           target = e;
           strikeT = 0;
-          w.audio?.play('charge');
+          f.sfx('charge');
         } else if (t > (u.duration || 9)) {
           return false; // storm spun itself out un-spent
         }
@@ -1870,7 +1870,7 @@ export const ULTS = {
             });
             if (landed % 6 === 0) {
               w.effects.impactSparks(target.center(), 0xffd080, 6, 7);
-              w.audio?.play('gatling');
+              f.sfx('gatling');
             }
           }
         }
@@ -1900,13 +1900,13 @@ export const ULTS = {
   judgment(f, u) {
     const w = f.world;
     cast(f, 'castRaise', { state: 'ult', stateT: 4.6, speed: 0.55 });
-    w.audio?.play('cast');
+    f.sfx('cast');
     w.effects.rings.spawn(f.pos, { from: 1, to: 9, dur: 0.8, color: 0xf6ecc2, y: 0.6 });
     volley(w, f, 10, 0.09, (i) => {
       const from = muzzle(f);
       const top = from.clone().add(new THREE.Vector3(rand(-8, 8), 78, rand(-8, 8)));
       w.effects.beams.spawn(from, top, { radius: rand(0.22, 0.42), dur: 1.5, color: 0xf6ecc2 });
-      if (i % 3 === 0) w.audio?.play('beam');
+      if (i % 3 === 0) f.sfx('beam');
     }, { start: 0.2 });
     const say = (text, color = null, hold = true) => w.events.emit('banner', { text, hold, color });
     w.schedule(1.0, () => f.alive && say(t('combat.judgement.0')));
@@ -1927,7 +1927,7 @@ export const ULTS = {
       if (Math.random() < 0.5) {
         say(t('combat.judgement.innocent'), '#7dff9a', false);
         w.effects.rings.spawn(v.pos, { from: 4, to: 0.5, dur: 0.6, color: 0x7dff9a, y: 0.5 });
-        w.audio?.play('uiConfirm');
+        f.sfx('uiConfirm');
         return;
       }
       say(t('combat.judgement.guilty'), '#ff4d5e', false);
@@ -1938,8 +1938,8 @@ export const ULTS = {
       w.effects.beams.spawn(top, gp, { radius: u.radius || 3.4, dur: 1.6, color: 0xfff3c8 });
       w.effects.beams.spawn(top, gp, { radius: (u.radius || 3.4) * 0.4, dur: 1.6, color: 0xffffff });
       w.effects.rings.spawn(gp, { from: 1, to: 10, dur: 0.6, color: 0xfff3c8, y: 0.4 });
-      w.audio?.play('beam');
-      w.audio?.play('thunder');
+      f.sfx('beam');
+      f.sfx('thunder');
       w.effects.addShake(1.0);
       v.setState('launched', 4);
       v.iframes = 2.5; // nothing interrupts an execution
@@ -1972,13 +1972,13 @@ export const ULTS = {
     const N = u.count || 60;
     f.setState('ult', 1.5);
     f.duckT = 1;
-    w.audio?.play('cast');
+    f.sfx('cast');
     w.schedule(0.35, () => {
       if (!f.alive) return;
       f.vel.y = 16;
       f.grounded = false;
       f.animator.play('launched');
-      w.audio?.play('jump');
+      f.sfx('jump');
       w.effects.rings.spawn(f.pos, { from: 0.5, to: 8, dur: 0.5, color: 0x5aff2e, y: 0.5 });
       // each snake is a chain of tapered ball segments — head down to tail
       // tip — that undulates as it moves; reads as a SNAKE, not a plank
@@ -2054,7 +2054,7 @@ export const ULTS = {
               s.state = 'lunge';
               s.prey = prey;
               s.lt = 0;
-              if (Math.random() < 0.25) w.audio?.play('dart');
+              if (Math.random() < 0.25) f.sfx('dart');
             } else if (t > SPREAD && prey) {
               // hunting: fast, tight pursuit (turn rate high enough to
               // actually close on a strafing mech, no more orbiting)
@@ -2105,10 +2105,10 @@ export const ULTS = {
                   status: { poison: (u.poison || 8) * f.dmgMult(), poisonT: u.poisonT || 3 },
                 });
                 w.effects.impactSparks(P.set(s.x, s.y, s.z), 0x5aff2e, 6, 5);
-                if (Math.random() < 0.35) w.audio?.play('slash');
+                if (Math.random() < 0.35) f.sfx('slash');
                 if (!pinUntil.has(prey)) {
                   pinUntil.set(prey, t + (u.paralyze || 2.4));
-                  w.audio?.play('dart');
+                  f.sfx('dart');
                 }
               } else if (s.lt > 0.7) {
                 s.state = 'slither'; // whiffed the leap — back to the hunt
@@ -2191,7 +2191,7 @@ export const ULTS = {
     const GROW = 1.3, SHRINK = 0.45;
     cast(f, 'burst', { state: 'ult', stateT: GROW + SHRINK + 0.5, speed: 0.7 });
     f.iframes = GROW + SHRINK + 0.6;
-    w.audio?.play('charge');
+    f.sfx('charge');
     // the flash
     w.effects.glows.emit(f.pos.x, f.pos.y + f.height * 0.6, f.pos.z, 0, 0, 0,
       { life: 0.28, size: 30, color: 0xffffff, alpha: 1 });
@@ -2268,8 +2268,8 @@ export const ULTS = {
     const DUR = (u.range || 46) / spd;
     cast(f, 'chargeLean', { state: 'ult', stateT: DUR + 0.25 });
     f.iframes = 0.5;
-    w.audio?.play('powerup');
-    w.audio?.play('charge');
+    f.sfx('powerup');
+    f.sfx('charge');
     const dirX = Math.sin(f.yaw), dirZ = Math.cos(f.yaw);
     const hitAt = new Map(); // herd-wide: nobody gets trampled twice in a beat
     let t = 0;
@@ -2312,7 +2312,7 @@ export const ULTS = {
           _v.set(g.position.x, 2.2, g.position.z), 0xffd23c, 10, 7);
         shells.push({ g, ph: rand(TAU) });
       }
-      w.audio?.play('cast');
+      f.sfx('cast');
       w.addUpdater((dt) => {
         t += dt;
         // the real Rhino gallops point
@@ -2360,7 +2360,7 @@ export const ULTS = {
         const center = f.pos.clone();
         center.y = 0;
         const R = u.radius, DECK = 20;
-        w.audio?.play('thunder');
+        f.sfx('thunder');
         w.effects.rings.spawn(center, { from: 1, to: R * 2, dur: 0.9, color: 0x53e8ff, y: 0.4 });
         // THE DECK: real meshes, not particles — a churning lid of black
         // cloud lumps that genuinely blots out the sky over the zone
@@ -2406,7 +2406,7 @@ export const ULTS = {
             });
             w.effects.staticCling(victim, 0.8);
           }
-          if (Math.random() < 0.45) w.audio?.play('zap');
+          if (Math.random() < 0.45) f.sfx('zap');
         };
         const DURN = u.duration || 3.4;
         let t = 0, tick = 0.25;
@@ -2476,7 +2476,7 @@ export const ULTS = {
   wildHunt(f, u) {
     const w = f.world;
     cast(f, 'castRaise', { state: 'ult', stateT: 1.2, speed: 1.1 });
-    w.audio?.play('howl');
+    f.sfx('howl');
     w.effects.rings.spawn(f.pos, { from: 0.5, to: u.radius, dur: 0.9, color: 0x6cd8ff, y: 0.8 });
     // drop into the hunting crouch right before the pack bakes off him
     w.schedule(0.45, () => { if (f.alive) f.animator.play('lunge', { speed: 0.6 }); });
@@ -2491,7 +2491,7 @@ export const ULTS = {
       // outer bound), and each rift keeps clear of Fenrir himself so the
       // pack reads as converging on the fight rather than pouring off him.
       const R = u.spread || Math.min(w.wrapHalf ? w.wrapHalf * 0.8 : 40, (w.arena?.bounds || 40) * 0.95);
-      w.audio?.play('cast');
+      f.sfx('cast');
       for (let i = 0; i < N; i++) {
         const g = bakeShell(f);
         g.userData.wildHunt = true;   // the pack is inspectable (tools/scratch/hunt.mjs)
@@ -2541,7 +2541,7 @@ export const ULTS = {
             wl.g.visible = true;
             summonFlash(w, wl.g, 0x9be8ff, 0.4);
             w.effects.impactSparks(wl.g.position, 0x6cd8ff, 8, 7);
-            if (Math.random() < 0.3) w.audio?.play('howl', { vol: 0.2, pitch: rand(1.1, 1.5) });
+            if (Math.random() < 0.3) f.sfx('howl', { vol: 0.2, pitch: rand(1.1, 1.5) });
           }
           if (wl.rise < 1) {
             wl.rise = Math.min(1, wl.rise + dt / 0.24);
@@ -2601,11 +2601,11 @@ export const ULTS = {
               wl.fed = true; // it has had its bite — it may leave at DUR now
               e.takeHit(u.dmg * f.dmgMult(), f, { knock: 3, srcPos: wl.g.position, soft: Math.random() < 0.7 });
               w.effects.impactSparks(e.center(), 0x6cd8ff, 6, 6);
-              if (Math.random() < 0.25) w.audio?.play('slash');
+              if (Math.random() < 0.25) f.sfx('slash');
             }
           }
         }
-        if (Math.random() < 0.02) w.audio?.play('howl', { vol: 0.3, pitch: rand(0.9, 1.3) });
+        if (Math.random() < 0.02) f.sfx('howl', { vol: 0.3, pitch: rand(0.9, 1.3) });
         return live > 0 && t <= HUNT + 1 && f.alive;
       }, () => {
         for (const wl of wolves) if (!wl.gone) w.scene.remove(wl.g);
@@ -2621,7 +2621,7 @@ export const ULTS = {
     const w = f.world;
     f._giantK = true;
     cast(f, 'burst', { state: 'ult', stateT: 1.3 });
-    w.audio?.play('powerup');
+    f.sfx('powerup');
     w.effects.rings.spawn(f.pos, { from: 1, to: 12, dur: 0.7, color: 0xffd23c, y: 0.5 });
     const base = { scale: f.scale, h: f.baseHeight, hr: f.baseHitRadius, r: f.radius };
     const S = u.scale || 4;
@@ -2676,7 +2676,7 @@ export const ULTS = {
             lastStep = step;
             w.effects.dustPuff(f.pos, 6, 0x9a9088);
             w.effects.addShake(0.3 * k);
-            w.audio?.play('slam', { vol: 0.35 });
+            f.sfx('slam', { vol: 0.35 });
           }
         } else {
           lastStep = null;   // re-seed on the next step so a stop doesn't fire one
@@ -2711,8 +2711,8 @@ export const ULTS = {
     const N = u.count || 150;
     const LOOM = u.loom || 1.5;   // how long he stands there as the apparition
     f.setState('ult', LOOM + 0.35);
-    w.audio?.play('howl');
-    w.audio?.play('cloak');
+    f.sfx('howl');
+    f.sfx('cloak');
     // the eye flares as he swells
     const eye = f.mech.anchors.eye?.getWorldPosition(new THREE.Vector3()) || f.center();
     w.effects.glows.emit(eye.x, eye.y, eye.z, 0, 0, 0,
@@ -2744,8 +2744,8 @@ export const ULTS = {
       onFire: () => {
         const pos = fwd(f, 5);
         pos.y = 0;
-        w.audio?.play('flame');
-        w.audio?.play('whooshBig');
+        f.sfx('flame');
+        f.sfx('whooshBig');
         let t = 0, r = 1.6, swept = null, sweptT = 0, fpT = 0.4;
         // the funnel itself is a FireTornadoFX (helical shader shells +
         // ember spiral + burning base); spawnTornado owns its lifecycle,
@@ -2795,7 +2795,7 @@ export const ULTS = {
           if (fpT <= 0) {
             fpT = 1.2;
             w.addFirePatch(f, new THREE.Vector3(pos.x + rand(-r, r) * 0.5, 0, pos.z + rand(-r, r) * 0.5), 2.0, 2.2, 8);
-            if (Math.random() < 0.6) w.audio?.play('flame');
+            if (Math.random() < 0.6) f.sfx('flame');
           }
           w.arena?.damageSphere(_v.set(pos.x, 2, pos.z), r * 1.2, 26 * dt * 8, null, true);
           if (!swept) {
@@ -2809,7 +2809,7 @@ export const ULTS = {
                 e.takeHit(u.dmg * f.dmgMult(), f, { unblockable: true,
                   knock: 3, launch: 14, srcPos: pos, heavy: true, status: { burn: 10, burnT: 3 },
                 });
-                w.audio?.play('explosionBig');
+                f.sfx('explosionBig');
                 w.effects.addShake(0.8);
                 break;
               }
@@ -2856,7 +2856,7 @@ export const ULTS = {
       onFire: () => {
         const center = fwd(f, u.radius * 0.75);
         center.y = w.arena?.terrainHeightAt?.(center.x, center.z) || 0;
-        w.audio?.play('freezeBig');
+        f.sfx('freezeBig');
         const geo = new THREE.CircleGeometry(u.radius, 44);
         const mat = new THREE.MeshStandardMaterial({
           color: 0xdceefc, roughness: 0.14, metalness: 0.05,
@@ -2902,7 +2902,7 @@ export const ULTS = {
                   e.vel.x = 0;
                   e.vel.z = 0;
                 }
-                w.audio?.play('freeze');
+                f.sfx('freeze');
                 w.effects.impactSparks(e.center(), 0x9be8ff, 10, 6);
               } else if (st.phase === 'frozen') {
                 st.t -= dt;
@@ -2950,15 +2950,15 @@ export const ULTS = {
   tsunami(f, u) {
     const w = f.world;
     cast(f, 'castRaise', { state: 'ult', stateT: 1.5 });
-    w.audio?.play('cast');
+    f.sfx('cast');
     const dirX = Math.sin(f.yaw), dirZ = Math.cos(f.yaw);
     const perpX = dirZ, perpZ = -dirX;
     const ox = f.pos.x, oz = f.pos.z;
     const W = u.width || 30, R = u.range || 48, H = 9, SPD = 17;
     w.schedule(0.45, () => {
       if (!f.alive) return;
-      w.audio?.play('wave');
-      w.audio?.play('explosionBig');
+      f.sfx('wave');
+      f.sfx('explosionBig');
       // the wall is a real TidalWaveFX in tsunami mode: breaking-wave
       // profile, foam-by-steepness, crest spray, and a flood rectangle
       // dragged behind the front. spawnWave owns its lifecycle; this
@@ -2973,7 +2973,7 @@ export const ULTS = {
       const P = new THREE.Vector3();
       w.addUpdater((dt) => {
         travel += SPD * dt;
-        if (Math.random() < 0.3) w.audio?.play('wave', { vol: 0.35 });
+        if (Math.random() < 0.3) f.sfx('wave', { vol: 0.35 });
         for (const e of w.fighters) {
           if (e === f || !e.alive || f.isAllyOf(e)) continue;
           const rx = w.wrapDelta(e.pos.x - ox), rz = w.wrapDelta(e.pos.z - oz);
@@ -3032,8 +3032,8 @@ export const ULTS = {
   raptorPack(f, u) {
     const w = f.world;
     cast(f, 'taunt', { state: 'ult', stateT: 1.1, speed: 1.3 });
-    w.audio?.play('howl');
-    w.audio?.play('powerup');
+    f.sfx('howl');
+    f.sfx('powerup');
     const n = u.count || 3;
     // the clutch is laid in an arc BEHIND him, out of his own way
     volley(w, f, n, 0.3, (i) => {
@@ -3058,8 +3058,8 @@ export const ULTS = {
     const w = f.world;
     cast(f, 'burst', { state: 'ult', stateT: 1.4, speed: 0.8 });
     f.duckT = 1;
-    w.audio?.play('howl', { pitch: 0.42, vol: 1 });
-    w.audio?.play('wave', { pitch: 0.6 });
+    f.sfx('howl', { pitch: 0.42, vol: 1 });
+    f.sfx('wave', { pitch: 0.6 });
     // ribbiting shock rings pour outward at throat height
     volley(w, f, 6, 0.12, (i) => {
       w.effects.rings.spawn(f.pos, {
@@ -3113,7 +3113,7 @@ export const ULTS = {
           w.effects.explosion(e.center(), 2.6, { color: 0x9ade2a, smoke: false });
         }
         if (caught.length) {
-          w.audio?.play('explosionBig');
+          f.sfx('explosionBig');
           w.effects.addShake(1.0);
         }
         return false;
@@ -3127,7 +3127,7 @@ export const ULTS = {
     const w = f.world;
     f.setState('ult', 1.0);
     f.duckT = 1; // the spring-crouch tell
-    w.audio?.play('powerup');
+    f.sfx('powerup');
     // THE VORTEX OPENS FIRST, under the crouch — the funnel is the ANNOUNCEMENT
     // and the colony is what comes out of it, so it has to be turning before
     // the first flea springs (they start 0.25s from here and are all out by
@@ -3138,13 +3138,13 @@ export const ULTS = {
       if (!f.alive) return;
       f.vel.y = 14;
       f.grounded = false;
-      w.audio?.play('jump');
+      f.sfx('jump');
       const N = u.count || 20;
       const clones = [];
       // THE COLONY BOILS OUT OF THE VORTEX opened above — no clean rift, a
       // churning funnel of black cloud turning over the floor with a few
       // embers dragged round in it, and every flea springs from inside it.
-      w.audio?.play('cast');
+      f.sfx('cast');
       for (let i = 0; i < N; i++) {
         const g = bakeShell(f);
         g.scale.setScalar(rand(0.55, 0.8));
@@ -3198,7 +3198,7 @@ export const ULTS = {
             c.vz = Math.cos(c.yaw) * sp;
             c.vy = rand(9, 17);
             if (Math.random() < 0.35) w.effects.dustPuff(c.g.position, 1, 0x9a8f80);
-            if (Math.random() < 0.1) w.audio?.play('jump', { vol: 0.25, pitch: rand(1.2, 1.8) });
+            if (Math.random() < 0.1) f.sfx('jump', { vol: 0.25, pitch: rand(1.2, 1.8) });
           }
           // a body to bump is a body to bite
           for (const e of w.fighters) {
@@ -3231,8 +3231,8 @@ export const ULTS = {
     const dur = cast(f, 'burst', {
       state: 'ult',
       onFire: () => {
-        w.audio?.play('explosionBig');
-        w.audio?.play('zap');
+        f.sfx('explosionBig');
+        f.sfx('zap');
         w.effects.glitchBurst(f.center(), 40, 16, 1.4 * f.scale);
         w.effects.addShake(1.2);
         // corrupt the renderer: harvest every arena material we can reach
@@ -3284,7 +3284,7 @@ export const ULTS = {
               w.effects.glitchFleck(
                 f.pos.x + rand(-40, 40), rand(0.5, 14), f.pos.z + rand(-40, 40), rand(1.2, 2.6));
             }
-            if (Math.random() < 0.2) w.audio?.play('zap', { vol: 0.3 });
+            if (Math.random() < 0.2) f.sfx('zap', { vol: 0.3 });
           }
           // floor de-rez: a corrupted TILE arms under an opponent and waits.
           // The moment they MOVE they trip the bug — and visibly SINK down
@@ -3321,7 +3321,7 @@ export const ULTS = {
                 fl.t = 0;
                 v.iframes = 1.0;
                 w.effects.glitchBurst(_v.set(v.pos.x, 0.5, v.pos.z), 16, 8, v.scale);
-                w.audio?.play('zap');
+                f.sfx('zap');
               } else if (fl.t > 5 || !v.grounded) {
                 falls.splice(i, 1); // trap expired (or they jumped clear of it)
               }
@@ -3420,10 +3420,10 @@ export const ULTS = {
 
     f.setState('ult', DUR);
     f._ultMove = true;                      // rule 2 — the legs stay his
-    w.audio?.play('ultReady');
+    f.sfx('ultReady');
     faceRoar(f, 1.4);
     w.effects.rings.spawn(f.pos, { from: 1.5, to: 9, dur: 0.4, color: col, y: 0.4 });
-    w.audio?.play('howl');
+    f.sfx('howl');
 
     // ONE BEAT: gather the fist, drive it into the road, and pay out both
     // kinds of damage from where it actually lands.
@@ -3442,7 +3442,7 @@ export const ULTS = {
           const hand = f.mech.rigBones?.['hand' + s] || f.mech.joints?.['hand' + s];
           const at = hand ? hand.getWorldPosition(new THREE.Vector3()) : f.pos.clone();
           at.y = f.pos.y;                   // the impact is on the FLOOR he stands on
-          w.audio?.play('slam');
+          f.sfx('slam');
           w.effects.dustPuff(at, 18);
           w.arena?.damageSphere(_v.set(at.x, at.y + 1, at.z), 4.5 * f.scale,
             u.dmg * 1.4, null, true);
@@ -3470,7 +3470,7 @@ export const ULTS = {
             w.effects.explosion(at, 3.2, { color: col, smoke: true, ring: true });
           }, (e) => e.hitRadius * 0.6);
           w.effects.addShake(crushed ? 0.9 : 0.5);
-          if (crushed) w.audio?.play('hitHeavy');
+          if (crushed) f.sfx('hitHeavy');
 
           // ---- rule 1: the wave goes out whether or not the fist found anyone
           poundWave(w, f, at, {
@@ -3530,7 +3530,7 @@ export const ULTS = {
     const SWEEP = u.sweep || 1.5;         // seconds for one 180° out-and-back
     const col = f.def.colors.glow || 0xff8a24;
     cast(f, 'tritoneBrace', { state: 'ult', stateT: DUR });
-    w.audio?.play('ultReady');
+    f.sfx('ultReady');
     faceRoar(f, 0.9);
     // planted: he does not move while the protocol runs
     const anchorX = f.pos.x, anchorZ = f.pos.z;
@@ -3581,7 +3581,7 @@ export const ULTS = {
           });
           w.effects.muzzleFlash?.(from, col);
         }
-        w.audio?.play('plasma', { vol: 0.35 });
+        f.sfx('plasma', { vol: 0.35 });
         f.animator.addImpulse?.('torso', [-0.05, 0, 0], 30, 10);
       }
       return el <= DUR;
@@ -3639,7 +3639,7 @@ const BAT_FRAG = /* glsl */`
 
 function deathFlock(f, u, N) {
   const w = f.world;
-  w.audio?.play('howl');
+  f.sfx('howl');
   const geo = new THREE.PlaneGeometry(1.3, 0.9);
   const cells = new THREE.InstancedBufferAttribute(new Float32Array(N), 1);
   const rots = new THREE.InstancedBufferAttribute(new Float32Array(N), 1);
@@ -3729,7 +3729,7 @@ function deathFlock(f, u, N) {
                 knock: 1, srcPos: P.set(b.x, b.y, b.z), soft: true,
               });
               if (Math.random() < 0.3) w.effects.impactSparks(c, 0x8a2030, 4, 5);
-              if (Math.random() < 0.12) w.audio?.play('howl', { vol: 0.2, pitch: rand(1.7, 2.2) });
+              if (Math.random() < 0.12) f.sfx('howl', { vol: 0.2, pitch: rand(1.7, 2.2) });
             }
             b.state = 'climb';
             b.vy = rand(9, 14);
@@ -3760,7 +3760,7 @@ function deathFlock(f, u, N) {
     im.instanceMatrix.needsUpdate = true;
     cells.needsUpdate = true;
     rots.needsUpdate = true;
-    if (Math.random() < 0.05) w.audio?.play('howl', { vol: 0.14, pitch: rand(1.5, 2.0) });
+    if (Math.random() < 0.05) f.sfx('howl', { vol: 0.14, pitch: rand(1.5, 2.0) });
     return t <= DUR + 1.1 && f.alive;
   }, () => { w.scene.remove(im); geo.dispose(); mat.dispose(); });
 }

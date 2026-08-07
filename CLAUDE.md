@@ -2439,6 +2439,45 @@ than silently falling back to procedural.
 
 ## Architecture map
 
+- SOUND FX ARE RECORDED NOW, and the synth is the fallback. `public/sfx/` (125
+  files, 8MB of mp3) is GENERATED from `docs/SOUND_PROMPTS.md` by `node
+  tools/sfxgen.mjs` — the document is the input, so each entry's prompt, take
+  count and duration are parsed out of its own prose and there is no second
+  copy to drift (`--dry-run`/`--tier P0`/`--only hit`/`--force`; a run skips
+  what is on disk, so it never pays for the same sound twice, and
+  `--transcode` re-encodes without re-generating). A recording SHADOWS the
+  synthesized sound of the same name, so `play('hit')` is the only call site
+  either way; nothing waits (manifest in the background, decode on first use,
+  synth until then) and a name with no file keeps its synth version forever,
+  which is what lets the set grow one sound at a time. `SETTINGS → SOUND FX:
+  RECORDED|SYNTH` (`CONFIG.sfxSamples`, `?sfx=0`) switches it back.
+  REPEATED SOUNDS ARE ONE FILE OF MANY TAKES: the generator stitches the takes
+  with exact silence and `GameAudio.loadSliced` splits them back apart by RMS
+  envelope, playing a different one each trigger — which is why a footstep
+  never machine-guns.
+  LEVELS ARE A CHAIN: the 🔊 master x `CONFIG.sfxMaster` x the sound's CATEGORY
+  in `CONFIG.sfxMix` (impact/movement/weapon/destruction/ui/character/surface/
+  loop/ambience). Tune the balance there, never per sound.
+  A MECH MAY HAVE ITS OWN VOICE: `<mech>_<name>` (`fenrir_taunt`,
+  `saurion_hitHeavy`) plays instead of the shared sound for that mech alone.
+  `Fighter.sfx()` tags every sound a fighter makes with which mech made it —
+  no table anywhere, dropping the file in is the whole of adding one, and a
+  mech without one is byte-identical to a plain `audio.play()`.
+  FOOTSTEPS ARE MEASURED, NOT SCHEDULED (`Fighter.footstepSfx`): nothing in
+  the game made one until now, and there is no foot-plant event, so a step is
+  the frame a sole crosses DOWN through a threshold of the same per-side
+  clearance the gait's own foot rules read (`Animator.soleClearanceBySide`).
+  That lands with the foot on screen at any speed, on a slope and under
+  sizeMul, where a phase window drifts out of step. The SURFACE under him is a
+  second quieter layer (`step_water`/`step_lava`/… off `terrain.onPatch`, the
+  same lobes the hazards read).
+  THE ARENA BED (`core/ambience.js`) is one looping recording per arena
+  (`amb_<theme>`), a media element rather than a WebAudio buffer — like the
+  soundtrack, and so it is off the bus the combat compressor is pumping (a bed
+  that ducks on every punch is exactly what a bed must not be). Judge the lot
+  with `node tools/sfxprobe.mjs` (decode + slice counts + per-mech resolution)
+  and `node tools/sfxlive.mjs` (drive the real menus into a real match and
+  tally what actually fires).
 - `src/core/` — engine (renderer/loop/post-FX), pbrtex (PBR skin synth),
   textures (canvas tex), audio (WebAudio synth), music (the battle
   soundtrack: every file in `src/music/` is a song, listed by the `rw-music`

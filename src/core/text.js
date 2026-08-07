@@ -143,6 +143,9 @@ export const MESSAGES = {
   'settings.reload': 'RELOAD PAGE',
   'settings.split.side': 'SPLIT: SIDE BY SIDE',
   'settings.split.stacked': 'SPLIT: STACKED',
+  // RECORDED sound FX (public/sfx/) vs the procedural synth in core/audio.js
+  'settings.sfx.on': 'SOUND FX: RECORDED',
+  'settings.sfx.off': 'SOUND FX: SYNTH',
   'settings.music.on': 'MUSIC: ON',
   'settings.music.off': 'MUSIC: OFF',
   // {bar} is the ten-block level readout with its own dim ←→ hint (markup)

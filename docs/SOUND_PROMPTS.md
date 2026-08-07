@@ -62,6 +62,7 @@ person doing the batch):
 | **P3** | Arena ambient beds | 12 | One per arena; the actual "soundscape" win. |
 | **P4** | Surfaces & hazards | 12 | Makes the arenas feel like places rather than skins. |
 | **P5** | Mech signatures | 14 | Character flourishes; the roster survives without them. |
+| **P6** | Roster voices | 36 | What each mech SOUNDS like — the howls, croaks, hisses and grunts that make a robot a character. |
 
 ---
 
@@ -1147,20 +1148,522 @@ transient, peaks near -6 dBFS.
 
 ---
 
-## After the files exist
+# P6 — Roster voices
 
-Roughly in this order:
+A mech's own voice for the three moments it has one: its TAUNT, its SPECIAL
+and its ULTIMATE — plus, for a few, the blow it lands. These are per-mech
+OVERRIDES: the file is named `<mech>_<sound>`, and core/audio.js plays it in
+place of the shared sound of that name whenever that mech is the one making
+it (`fenrir_taunt` instead of `taunt`, `konga_hitHeavy` instead of
+`hitHeavy`). A mech with no file of its own keeps the shared sound, so this
+tier can be filled in one robot at a time.
 
-1. `public/sfx/` + a loader that fetches and decodes on demand, keyed by the
-   `SFX` name so a file simply shadows the synth entry.
-2. The `SOUND FX: ON | OFF | FALLBACK` setting (`CONFIG.sfxMode`, persisted,
-   `?sfx=` for a session) — ON falls through to the synth per-sound, so the
-   set can land one file at a time.
-3. Wire the **NEW** entries: footsteps off the gait's foot-plant, surface
-   variants off the terrain patch under each foot, the ambient beds off
-   `startBattle`'s resolved theme (cross-faded like the music), and the loops
-   (`burn_loop`, `shock_loop`, `booster_loop`) off the status/jet flags that
-   already exist.
-4. Positional playback: hits, footsteps and weapons should pan and attenuate
-   from the emitter's world position. The synth path is mono-to-bus today; the
-   sample path is the natural place to add it.
+These are ROBOTS SHAPED LIKE ANIMALS, and that is the note to hold in every
+prompt below: the animal is unmistakable, but there is always metal in it.
+
+## FENRIR — the wolf
+
+### 90. Howl, taunt — `file: fenrir_taunt`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a huge robotic wolf
+throwing its head back and howling. A long, mournful, rising howl held at the
+top and falling away — unmistakably a wolf, but with a metallic synthetic
+resonance through it, as if the throat were a machine. Proud and challenging.
+No reverb tail, no music. Deliver 3 variations in ONE file, each 1.4-2.0 s,
+separated by about 0.8 seconds of silence. Mono, 48 kHz, dry, peaks near
+-4 dBFS.
+```
+
+### 91. Attack snarl — `file: fenrir_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a robotic wolf snarling
+as it launches into a pounce. A short vicious growl breaking into a barking
+snap — throaty, aggressive, with servo whine and the clack of metal jaws in
+it. Attacking, not warning. No reverb tail, no music. Deliver 5 variations in
+ONE file, each 400-700 ms, separated by about 0.5 seconds of silence. Mono,
+48 kHz, dry, trimmed to the transient, peaks near -4 dBFS.
+```
+
+### 92. The Wild Hunt — `file: fenrir_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a whole pack of robotic
+wolves answering a call across a wide space. Several howls layered at
+different distances and pitches, overlapping and answering each other, with
+snarls and barks weaving underneath and a low metallic resonance through all
+of it. Builds and then thins as the pack scatters. About two and a half
+seconds. No reverb tail, no music. Deliver 2 variations in ONE file, each
+2.2-3.0 s, separated by about 1 second of silence. Mono, 48 kHz, dry, peaks
+near -3 dBFS.
+```
+
+### 93. Bite — `file: fenrir_hitHeavy`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a robotic wolf's jaws
+closing on armour plate. A hard metallic crunch with a throaty growl behind
+it and the snap of steel teeth — the bite and the beast in one sound. No
+reverb tail, no music. Deliver 6 variations in ONE file, each 300-500 ms,
+separated by about 0.5 seconds of silence. Mono, 48 kHz, dry, trimmed to the
+transient, peaks near -3 dBFS.
+```
+
+## JERRY — the insect
+
+### 94. Twitching — `file: jerry_servo`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a giant robotic insect
+twitching its limbs. Rapid dry chitinous clicking and ticking — small hard
+plates knocking together in irregular bursts, with a faint servo whir under
+it. Nervous and constant, the sound of something that never quite holds
+still. Small and unobtrusive; this plays as it moves. No reverb, no music.
+Deliver 8 variations in ONE file, each 150-300 ms, separated by about 0.5
+seconds of silence. Mono, 48 kHz, dry, peaks near -8 dBFS.
+```
+
+### 95. Chitter, taunt — `file: jerry_taunt`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a giant robotic insect
+chittering at its opponent. A rattling burst of mandible clicks and a thin
+rising insect trill — dry, clattering and unpleasant, mechanical rather than
+wet. Mocking. No reverb tail, no music. Deliver 4 variations in ONE file, each
+600-900 ms, separated by about 0.6 seconds of silence. Mono, 48 kHz, dry,
+peaks near -5 dBFS.
+```
+
+### 96. Spit — `file: jerry_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a giant robotic insect
+hawking a glob of corrosive slime. A wet guttural hock from a chitinous
+throat, a pressurized spit, and a rattle of mandibles behind it. Gross and
+mechanical at once. No reverb tail, no music. Deliver 5 variations in ONE
+file, each 350-600 ms, separated by about 0.5 seconds of silence. Mono,
+48 kHz, dry, trimmed to the transient, peaks near -5 dBFS.
+```
+
+### 97. Swarm — `file: jerry_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a boiling swarm of small
+robotic insects pouring out of the ground. A dense mass of chitinous clicking
+and skittering, thousands of tiny hard legs, with a rising collective trill
+that swells and then spreads outward. Skin-crawling. About two seconds. No
+reverb tail, no music. Deliver 2 variations in ONE file, each 1.8-2.5 s,
+separated by about 1 second of silence. Mono, 48 kHz, dry, peaks near
+-4 dBFS.
+```
+
+## FROGGER — the amphibian
+
+### 98. Croak, taunt — `file: frogger_taunt`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a giant mechanical frog
+croaking at its opponent. A deep wet ribbit with a rubbery throat-sac
+resonance and a faint mechanical rattle inside it — smug and absurd, clearly
+an animal but built out of parts. No reverb tail, no music. Deliver 5
+variations in ONE file, each 400-700 ms, separated by about 0.5 seconds of
+silence. Mono, 48 kHz, dry, trimmed to the transient, peaks near -4 dBFS.
+```
+
+### 99. Gunk shot — `file: frogger_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a giant mechanical frog
+firing a burst of thick gunk. A short wet croak-grunt of effort, a
+pressurized wet launch, and a stringy slap as the glob leaves. Wet, low and
+comic. No reverb tail, no music. Deliver 5 variations in ONE file, each
+300-550 ms, separated by about 0.5 seconds of silence. Mono, 48 kHz, dry,
+trimmed to the transient, peaks near -4 dBFS.
+```
+
+### 100. The sonic boom croak — `file: frogger_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a colossal weaponized
+croak that becomes a shockwave. It starts as an enormous wet bellowing croak
+from a throat the size of a car, the sac inflating with a low creak, then
+tears into a distorted bass-heavy boom that rolls outward and shakes
+everything. Absurd and genuinely dangerous. About two seconds. No cinematic
+reverb tail, no music. Deliver 2 variations in ONE file, each 1.8-2.6 s,
+separated by about 1 second of silence. Mono, 48 kHz, dry, trimmed to the
+transient, peaks near -3 dBFS.
+```
+
+## INFERNO — fire
+
+### 101. Napalm launch — `file: inferno_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a mech launching a
+canister of napalm. A heavy gas-fed WHOOMPH of ignition, a pressurized thump
+as the canister leaves the tube, and a roaring tail of burning fuel trailing
+away. Hot and industrial. No reverb tail, no music. Deliver 4 variations in
+ONE file, each 500-800 ms, separated by about 0.6 seconds of silence. Mono,
+48 kHz, dry, trimmed to the transient, peaks near -3 dBFS.
+```
+
+### 102. Fire tornado — `file: inferno_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a towering tornado of
+fire spinning up. A vast roaring updraft with a deep rotating body to it,
+fuel igniting in waves, air being dragged inward, and a low rumble of heat
+under everything. Enormous and sustained, about three seconds, still building
+at the end. No reverb tail, no music. Deliver 2 variations in ONE file, each
+2.5-3.5 s, separated by about 1 second of silence. Mono, 48 kHz, dry, peaks
+near -3 dBFS.
+```
+
+## GLACIER — ice
+
+### 103. Freeze beam — `file: glacier_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a cryo beam firing in a
+sustained blast. A roaring jet of supercooled gas with a crystalline shimmer
+riding on it and the crackle of frost racing across a surface. Cold, focused
+and continuous, cutting off cleanly. No reverb tail, no music. Deliver 4
+variations in ONE file, each 600-900 ms, separated by about 0.6 seconds of
+silence. Mono, 48 kHz, dry, trimmed to the transient, peaks near -4 dBFS.
+```
+
+### 104. Absolute zero — `file: glacier_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: an ultimate that freezes
+an entire arena solid. A vast inrush of cold, a deep groaning crystallization
+spreading outward, ice sheets cracking and locking as they form, and a final
+heavy sub-bass settling thud. Immense, slow and cold. About three seconds. No
+reverb tail, no music. Deliver 2 variations in ONE file, each 2.5-3.5 s,
+separated by about 1 second of silence. Mono, 48 kHz, dry, peaks near
+-3 dBFS.
+```
+
+## TEMPEST — the storm
+
+### 105. Static field — `file: tempest_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a mech throwing up a
+crackling field of high-voltage static. A rising electrical hum bursting into
+dense arcing and snapping, with an unstable capacitor whine and the smell of
+ozone in the sound. Electrical, not explosive. No reverb tail, no music.
+Deliver 4 variations in ONE file, each 500-800 ms, separated by about 0.6
+seconds of silence. Mono, 48 kHz, dry, trimmed to the transient, peaks near
+-4 dBFS.
+```
+
+### 106. Thunderfall — `file: tempest_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a summoned storm
+breaking overhead. Howling wind rising fast, then several enormous lightning
+strikes landing in quick succession — blinding-close electrical cracks each
+followed by a rolling boom — with wind and rain roaring underneath the whole
+thing. Violent and elemental. About three seconds. No cinematic reverb tail,
+no music. Deliver 2 variations in ONE file, each 2.5-3.5 s, separated by
+about 1 second of silence. Mono, 48 kHz, dry, peaks near -3 dBFS.
+```
+
+## WRAITH — the ghost
+
+### 107. Ghost walk — `file: wraith_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a spectral machine
+phasing out of solidity and gliding forward. A cold reversed-sounding whoosh
+with a distant wailing voice buried inside it, a shimmer of dematerializing
+energy, and a faint hollow moan trailing behind. Ghostly and unsettling, not
+mechanical. No reverb tail, no music. Deliver 4 variations in ONE file, each
+600-900 ms, separated by about 0.6 seconds of silence. Mono, 48 kHz, dry,
+peaks near -5 dBFS.
+```
+
+### 108. Spectral blow — `file: wraith_hitHeavy`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a ghostly heavy strike
+landing. A dull cold impact with no metal in it — more implosion than
+collision — wrapped in a brief anguished wail that cuts off instantly. Wrong
+and otherworldly, but still a hit you feel. No reverb tail, no music. Deliver
+6 variations in ONE file, each 350-600 ms, separated by about 0.5 seconds of
+silence. Mono, 48 kHz, dry, trimmed to the transient, peaks near -3 dBFS.
+```
+
+## CRANKY — water and stone
+
+### 109. Geyser — `file: cranky_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a geyser erupting out of
+the ground. A deep subterranean rumble, then a violent burst of pressurized
+water and steam blasting upward, hissing hard as it goes, and heavy water
+falling back. Powerful and wet. No reverb tail, no music. Deliver 4
+variations in ONE file, each 700-1100 ms, separated by about 0.7 seconds of
+silence. Mono, 48 kHz, dry, trimmed to the transient, peaks near -3 dBFS.
+```
+
+### 110. Tsunami — `file: cranky_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a tidal wave rearing up
+and crashing across an arena. A vast rising roar of moving water, the hollow
+suck as the wave draws up, then an enormous crashing collapse and a long
+churning wash of foam and debris. Overwhelming and elemental. About three
+seconds. No cinematic reverb tail, no music. Deliver 2 variations in ONE
+file, each 2.5-3.5 s, separated by about 1 second of silence. Mono, 48 kHz,
+dry, peaks near -3 dBFS.
+```
+
+## KONGA — the ape
+
+### 111. Effort grunt — `file: konga_hitHeavy`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a cyborg gorilla
+grunting with the effort of a heavy blow, and the blow landing. A deep chesty
+ape grunt — short, guttural, forced out — over a heavy metallic impact on
+armour plate. The animal and the machine in one hit. No reverb tail, no
+music. Deliver 6 variations in ONE file, each 350-600 ms, separated by about
+0.5 seconds of silence. Mono, 48 kHz, dry, trimmed to the transient, peaks
+near -3 dBFS.
+```
+
+### 112. Roar, taunt — `file: konga_taunt`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a cyborg gorilla roaring
+a challenge. A huge chesty ape roar rising from a low growl, with a metallic
+resonance in the chest cavity and a hooting bark at the end. Territorial and
+enormous. No reverb tail, no music. Deliver 4 variations in ONE file, each
+900-1400 ms, separated by about 0.7 seconds of silence. Mono, 48 kHz, dry,
+peaks near -3 dBFS.
+```
+
+### 113. Fury — `file: konga_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a cyborg gorilla going
+berserk. A sustained furious roar breaking into barks and screams, chest
+beats hammering underneath, and hydraulics straining as the machine drives
+itself past its limits. Primal and frightening. About two and a half seconds.
+No reverb tail, no music. Deliver 2 variations in ONE file, each 2.2-3.0 s,
+separated by about 1 second of silence. Mono, 48 kHz, dry, peaks near
+-3 dBFS.
+```
+
+## VIPER — the serpent
+
+### 114. Blade hiss — `file: viper_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a serpentine mech
+spinning into a blade attack. A sharp snake hiss layered under a whirl of
+fast metal blades cutting air, rising as the spin accelerates. Reptilian and
+bladed at once. No reverb tail, no music. Deliver 5 variations in ONE file,
+each 500-800 ms, separated by about 0.6 seconds of silence. Mono, 48 kHz,
+dry, trimmed to the transient, peaks near -4 dBFS.
+```
+
+### 115. Serpent storm — `file: viper_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a summoned mass of
+snakes. Dozens of overlapping hisses swelling into one seething wall of
+sound, with dry scale-on-scale slithering, sharp warning rattles and a low
+threatening undertone. Venomous and dense. About two and a half seconds. No
+reverb tail, no music. Deliver 2 variations in ONE file, each 2.2-3.0 s,
+separated by about 1 second of silence. Mono, 48 kHz, dry, peaks near
+-4 dBFS.
+```
+
+## SAURION — the raptor
+
+### 116. Screech, taunt — `file: saurion_taunt`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a robotic velociraptor
+screeching a challenge, in the style of a 1990s dinosaur film. A piercing
+guttural screech that starts low in the throat and tears upward, with a
+rattling hiss at the end — birdlike, reptilian and mechanical all at once.
+Terrifying rather than comic. No reverb tail, no music. Deliver 4 variations
+in ONE file, each 900-1400 ms, separated by about 0.7 seconds of silence.
+Mono, 48 kHz, dry, peaks near -3 dBFS.
+```
+
+### 117. Bark — `file: saurion_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a robotic velociraptor
+barking as it lunges, in the style of a 1990s dinosaur film. A short
+guttural chuffing bark from deep in the chest, clipped and hard, with a
+throaty rattle behind it and a faint servo snap. Hunting, not warning. No
+reverb tail, no music. Deliver 6 variations in ONE file, each 300-550 ms,
+separated by about 0.5 seconds of silence. Mono, 48 kHz, dry, trimmed to the
+transient, peaks near -4 dBFS.
+```
+
+### 118. The pack — `file: saurion_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a pack of robotic
+velociraptors calling to each other as they close in, in the style of a
+1990s dinosaur film. Several guttural barks and screeches answering across a
+space at different distances, overlapping, with clicking throat rattles
+between them. Coordinated and predatory. About two and a half seconds. No
+reverb tail, no music. Deliver 2 variations in ONE file, each 2.2-3.0 s,
+separated by about 1 second of silence. Mono, 48 kHz, dry, peaks near
+-3 dBFS.
+```
+
+### 119. Jaws — `file: saurion_hitHeavy`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a robotic velociraptor
+biting down on armour. A hard metallic crunch of teeth on plate with a
+guttural throaty roar driving it and a wet snarl as the jaws release. Savage.
+No reverb tail, no music. Deliver 6 variations in ONE file, each 350-600 ms,
+separated by about 0.5 seconds of silence. Mono, 48 kHz, dry, trimmed to the
+transient, peaks near -3 dBFS.
+```
+
+## The rest of the roster
+
+### 120. Titanus, meteor breaker — `file: titanus_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a colossal war machine
+calling down a meteor. A deep rising rumble of gathering force, a howling
+descent through air, and a devastating impact that cracks the ground and
+rolls away as debris. Massive and seismic. About two and a half seconds. No
+cinematic reverb tail, no music. Deliver 2 variations in ONE file, each
+2.2-3.0 s, separated by about 1 second of silence. Mono, 48 kHz, dry, peaks
+near -3 dBFS.
+```
+
+### 121. Vulcan, spin-up — `file: vulcan_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a rotary gatling cannon
+spinning up and opening fire. Electric motors winding the barrels up to
+speed, then a brief ripping burst of fire as the rounds start leaving.
+Mechanical, heavy and industrial. No reverb tail, no music. Deliver 4
+variations in ONE file, each 600-900 ms, separated by about 0.6 seconds of
+silence. Mono, 48 kHz, dry, trimmed to the transient, peaks near -4 dBFS.
+```
+
+### 122. Nullbot, system crash — `file: nullbot_ult`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a holographic machine
+crashing an enemy's systems. A cascade of harsh digital corruption — bit-
+crushed screaming, sample-rate tearing, alarm tones bending out of tune and
+a final descending power-down whine. Purely digital, no analogue noise. About
+two seconds. No reverb tail, no music. Deliver 2 variations in ONE file, each
+1.8-2.5 s, separated by about 1 second of silence. Mono, 48 kHz, dry, peaks
+near -4 dBFS.
+```
+
+### 123. Tritone, gore charge — `file: tritone_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: an armoured
+three-horned beast bellowing and charging. A deep bovine-reptilian bellow
+from an enormous chest, hooves or feet hammering into a run, and armour
+plating rattling with each stride. Heavy and unstoppable. No reverb tail, no
+music. Deliver 4 variations in ONE file, each 700-1100 ms, separated by about
+0.7 seconds of silence. Mono, 48 kHz, dry, trimmed to the transient, peaks
+near -3 dBFS.
+```
+
+### 124. Rhino, bull rush — `file: rhino_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: an armoured rhinoceros
+machine snorting and breaking into a charge. A hard snort of exhaust through
+nostrils, a low bellow, and heavy feet slamming into an accelerating run with
+metal plating booming. Brutal and direct. No reverb tail, no music. Deliver 4
+variations in ONE file, each 700-1100 ms, separated by about 0.7 seconds of
+silence. Mono, 48 kHz, dry, trimmed to the transient, peaks near -3 dBFS.
+```
+
+### 125. Aegis, shield bash — `file: aegis_cast`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: a heavy shield being
+driven forward into an enemy. A servo-powered lunge, then an enormous flat
+metallic BOOM of a shield slab hitting armour, with the frame ringing behind
+it. Defensive weight turned into offence. No reverb tail, no music. Deliver 5
+variations in ONE file, each 400-700 ms, separated by about 0.5 seconds of
+silence. Mono, 48 kHz, dry, trimmed to the transient, peaks near -3 dBFS.
+```
+
+---
+
+## The set exists — how it is built and played
+
+`node tools/sfxgen.mjs` GENERATES every sound above from this document: it
+parses each entry's `file:` key, its prompt and — out of the prompt's own
+prose — how many takes and how long. **The document is the input**, so there
+is no second copy of the prompts to drift; edit an entry here, re-run, and
+what changes is what you changed.
+
+- `--dry-run` lists what it would make and costs nothing · `--tier P0` /
+  `--only hit,servo` narrow it · `--force` re-makes what exists (a run skips
+  anything already on disk, so it is resumable and never pays twice).
+- Takes are generated SEPARATELY and stitched here with exact silence between
+  them, trimmed to their transients and peak-normalized — better than hoping
+  one generation contains eight cleanly separated hits, and it is exactly the
+  layout `loadSliced` splits back apart.
+- Output is **MP3** (`--wav` keeps the uncompressed intermediate). The full
+  set is 8 MB as MP3 against 40 MB as WAV, and every one of these files is
+  fetched over the wire by a browser.
+- `--transcode` re-encodes WAVs already on disk without re-generating them: a
+  format change must never mean paying for the audio again.
+
+`public/sfx/manifest.json` (written by the same run) is what the game reads —
+which sounds have a recording, whether the file holds several takes, and each
+one's mixer category.
+
+**Playing them** (`core/audio.js`): a recording SHADOWS the synthesized sound
+of the same name, so `play('hit')` is the only call site either way. Nothing
+waits — the manifest loads in the background, each file decodes on first use,
+and until one has landed its synth version plays. A name with no file keeps
+its synth version forever, which is what lets the set grow one sound at a
+time. `SETTINGS → SOUND FX: RECORDED | SYNTH` (`CONFIG.sfxSamples`, default
+RECORDED, `?sfx=0` for a session) switches the whole thing back.
+
+**Levels are a chain** (`core/config.js`): the sound master (the 🔊 button) x
+`CONFIG.sfxMaster` x the sound's CATEGORY in `CONFIG.sfxMix` — impact,
+movement, weapon, destruction, ui, character, surface, loop, ambience. Tune
+the balance there, not per sound.
+
+**A mech may have its own voice**: `<mech>_<name>` (`fenrir_taunt`,
+`konga_hitHeavy`) plays instead of the shared sound for that mech alone —
+`Fighter.sfx()` tags every sound a fighter makes with which mech made it. No
+table anywhere; dropping the file in is the whole of adding one.
+
+**Judge it with**: `node tools/sfxprobe.mjs` (does the game's own audio layer
+decode each sound, how many takes did the slicer find in it, and does a mech
+with a voice resolve to it) and `node tools/sfxlive.mjs` (drive the real
+menus into a real match and tally every sound the game actually triggers,
+plus the arena bed's state).
+
+### Still to wire
+
+The files exist and the mixer knows about them; these have no trigger yet.
+
+- `burn_loop`, `shock_loop`, `booster_loop` — sustained states. The flags are
+  already there (burning status, the electrocution status, the hover jets);
+  each needs a start/stop pair rather than a one-shot.
+- `glassBreak`, `metalWreck` — prop destruction currently plays the generic
+  `crumble`/`explosion`; these want the prop's material at the break site.
+- Positional playback: hits, footsteps and weapons should pan and attenuate
+  from the emitter's world position. The synth path is mono-to-bus today; the
+  sample path is the natural place to add it.

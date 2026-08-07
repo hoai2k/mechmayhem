@@ -16,7 +16,7 @@ import { installKnobs, warnUnknownParams } from '../core/knobs.js';
 import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
-  CONFIG, setShowAllRobots, setReverseCameraY,
+  CONFIG, setShowAllRobots, setReverseCameraY, setSfxSamples,
   setArenaDesign, ARENA_DESIGN_MODES,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
@@ -24,6 +24,7 @@ import {
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
 import { MusicPlayer, MENU_TRACKS } from '../core/music.js';
+import { Ambience } from '../core/ambience.js';
 import { NowPlaying } from '../ui/nowplaying.js';
 import { Predictor } from './predict.js';
 import { createMech, preloadMechModels, loadManifest, is3dMode } from '../mechs/gltf.js';
@@ -105,6 +106,13 @@ export async function bootGame() {
   }
   function stopMenuMusic() { menuMusic.stop(); }
 
+  // ---- the arena bed (core/ambience.js): one looping recording per arena,
+  // under the fight. The manifest for the recorded SFX set is pulled down
+  // here too — nothing waits on either, and a sound with no file keeps its
+  // synthesized version (see core/audio.js).
+  const ambience = new Ambience(audio);
+  audio.loadSfxBank?.();
+
   // ---- idle prefetch (game/predict.js): while the player reads the title
   // screen and picks a robot, pull down what the fight is about to need. The
   // RANDOM arena, the RANDOM robots and the first song are pre-ROLLED here and
@@ -133,6 +141,7 @@ export async function bootGame() {
     audio.setMusicVolume(muted ? 0 : 0.35);
     music.setMuted(muted);
     menuMusic.setMuted(muted);
+    ambience.setMaster(muted ? 0 : 0.8);
     muteBtn.textContent = muted ? '🔇' : '🔊';
   }
   muteBtn.addEventListener('click', () => setMuted(!muted));
@@ -184,6 +193,13 @@ export async function bootGame() {
         secs: CONFIG.roundTime,
       }),
       slide: (d) => setRoundTime(CONFIG.roundTime + d * ROUND_STEP),
+    },
+    {
+      // RECORDED sound FX (public/sfx/) or the procedural synth in
+      // core/audio.js. Anything the recorded set doesn't cover keeps its
+      // synthesized version either way, so this is not an all-or-nothing swap.
+      label: () => t(CONFIG.sfxSamples ? 'settings.sfx.on' : 'settings.sfx.off'),
+      fn: () => { setSfxSamples(!CONFIG.sfxSamples); ambience.refresh(); },
     },
     {
       // which way the right stick pitches the battle camera (camera.js)
@@ -688,6 +704,7 @@ export async function bootGame() {
     S.battle = { world, arena, fighters, humans, ais, cameraSys, hud, match, paused: false, usesTouch, loading: null, arenaObjs };
     if (touchControls) touchControls.setVisible(false); // hidden until the bell
     stopMenuMusic();
+    ambience.setArena(theme.id);   // this arena's own bed, under the fight
     // this arena's own songs (src/music/arenas/) if it has any, else the
     // general pool — set BEFORE start(), which plays whatever is pre-rolled
     music.setArena(theme);
@@ -707,6 +724,7 @@ export async function bootGame() {
   function teardownBattle() {
     if (!S.battle) return;
     music.stop();
+    ambience.stop();
     nowPlaying.setVisible(false);
     touchControls?.setVisible(false);
     if (S.battle.loading) { // quit mid-warm-up: drop the overlay + cameras
@@ -729,9 +747,10 @@ export async function bootGame() {
     touchControls?.setVisible(false);
     audio.play('pause');
     music.pause();
+    ambience.pause();
     setScreen(new PauseScreen(uiRoot, {
       audio, hotButtons,
-      onResume: () => { S.battle.paused = false; setScreen(null); music.resume(); if (S.battle.usesTouch) touchControls?.setVisible(true); },
+      onResume: () => { S.battle.paused = false; setScreen(null); music.resume(); ambience.resume(); if (S.battle.usesTouch) touchControls?.setVisible(true); },
       onQuit: () => goTitle(),
       onFullscreen: toggleFullscreen,
       onSettings: () => openSettings(),
@@ -866,12 +885,13 @@ export async function bootGame() {
       audio.suspend();
       music.pause();
       menuMusic.pause();
+      ambience.pause();
     } else if (!muted) {
       audio.resume();
       if (S.mode !== 'battle') menuMusic.resume();
       // the fight itself does NOT auto-resume; the soundtrack only comes back
       // if the match was left running (results screen, mid-warm-up)
-      if (S.battle && !S.battle.paused) music.resume();
+      if (S.battle && !S.battle.paused) { music.resume(); ambience.resume(); }
     }
   });
 
@@ -888,7 +908,7 @@ export async function bootGame() {
     setTimeout(() => splash.remove(), 600);
   }));
 
-  window.__game = { S, engine, input, audio, music, menuMusic, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
+  window.__game = { S, engine, input, audio, music, menuMusic, ambience, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
   // A mistyped switch says so instead of looking like a dead knob, and every
   // tuning value is reachable live as `rw` (see core/knobs.js).
   warnUnknownParams();
