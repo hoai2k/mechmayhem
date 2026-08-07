@@ -852,6 +852,15 @@ export function climbStep(f, dt, mv) {
   orthonormalize(up, fwd);
   f._climbTilt = tilt;
 
+  // ---- IDLE: is he holding still on this surface? Poses hang off this, and
+  // it is a DAMPED fraction rather than a boolean, because the difference
+  // between climbing and resting is a body settling, not a switch. `drive` is
+  // the stick, so easing off the pad is what relaxes him and the first push
+  // takes it back — nothing waits on the body actually stopping.
+  const idleWant = drive > 0.15 ? 0 : 1;
+  f._climbIdle = f._climbIdle === undefined ? idleWant
+    : f._climbIdle + (idleWant - f._climbIdle) * (1 - Math.exp(-C.idleRate * dt));
+
   f.grounded = false;
   f.hovering = false;
   f.plunging = false;
@@ -947,27 +956,44 @@ export function applyClimbOrientation(f) {
 // dropping the belly toward the surface, because a mech STANDING on a wall is
 // not climbing it. It goes on the VIRTUAL joints, before fighter.js re-syncs
 // the GLB, because it is a pose and not a contact.
+// AND WHAT HE DOES WHEN HE STOPS, which is not the same body language for the
+// two climbers and should not be:
+//   `idleRelax` (0..1) fades the climbing carriage back OUT while he rests, so
+//     JERRY, whose climb pose is a crouch pinned to the wall, unfolds toward
+//     his ordinary standing pose and simply stands on the facade.
+//   `idlePose` is a second pose faded IN instead, which is how KONGA hangs:
+//     resting is not the absence of climbing for an ape, it is one arm
+//     straight overhead with his weight under it.
+// Both ride `_climbIdle`, so easing off the stick settles him and the first
+// push takes it straight back.
 export function applyClimbPose(f) {
-  const pose = f.def.climb?.pose;
-  const k = f._climbTilt || 0;
-  if (!pose || k < 0.01) return;
+  const D = f.def.climb;
+  const pose = D?.pose;
+  const tilt = f._climbTilt || 0;
+  if (!D || tilt < 0.01) return;
   const J = f.mech.joints;
   const s = f.mech.dims?.scale || 1;
-  for (const [name, v] of Object.entries(pose)) {
-    if (name === 'hipsPos') {
-      if (J.hips) {
-        J.hips.position.x += v[0] * s * k;
-        J.hips.position.y += v[1] * s * k;
-        J.hips.position.z += v[2] * s * k;
+  const idle = clamp01(f._climbIdle || 0);
+  const add = (block, k) => {
+    if (!block || k < 0.005) return;
+    for (const [name, v] of Object.entries(block)) {
+      if (name === 'hipsPos') {
+        if (J.hips) {
+          J.hips.position.x += v[0] * s * k;
+          J.hips.position.y += v[1] * s * k;
+          J.hips.position.z += v[2] * s * k;
+        }
+        continue;
       }
-      continue;
+      const j = J[name];
+      if (!j) continue;
+      j.rotation.x += v[0] * DEG * k;
+      j.rotation.y += v[1] * DEG * k;
+      j.rotation.z += v[2] * DEG * k;
     }
-    const j = J[name];
-    if (!j) continue;
-    j.rotation.x += v[0] * DEG * k;
-    j.rotation.y += v[1] * DEG * k;
-    j.rotation.z += v[2] * DEG * k;
-  }
+  };
+  add(pose, tilt * (1 - idle * clamp01(D.idleRelax || 0)));
+  add(D.idlePose, tilt * idle);
 }
 
 // ===========================================================================
@@ -1095,7 +1121,22 @@ const APE = {
 
 export function conformClimbLimbs(f, dt) {
   const S = C.step;
-  const ape = f.def.climb?.style === 'ape';
+  const D = f.def.climb || {};
+  const ape = D.style === 'ape';
+  // HOW FAR A LEADING LIMB THROWS ITS TIP, as a fraction of that limb's own
+  // full extension. This is what turns "touch everything" into "reach and move
+  // over": the home is placed AT this distance rather than wherever the
+  // nearest surface happens to be, so a face full of ledges is crossed by
+  // picking the one at arm's length and skipping the rest.
+  //
+  // It is per-mech because the two climbers are built differently and the
+  // owner's ask was about ABSOLUTE reach, not proportion. Measured: KONGA's
+  // arm is 5.23 units on a 6.65 body, JERRY's front limb 6.04 on 8.31 — the
+  // spider's arms are the LONGER ones. So the ape stretches out (0.95 of his
+  // extension, 4.97 units) and the spider is asked for the same 4.97, which
+  // on a longer limb is 0.82 of extension and therefore lands BENT. One dial,
+  // two bodies, one reach.
+  const grab = clamp01(D.grab ?? 0.9);
   // who owns the limbs this frame?
   const groundSpd = Math.hypot(f.vel.x, f.vel.z);
   const scuttle = !f.climb && f.grounded && f.alive && f.state === 'normal' &&
@@ -1229,10 +1270,15 @@ export function conformClimbLimbs(f, dt) {
           .add(_want);
         _tgt.addScaledVector(_limbN, -_tgt.dot(_limbN));
         _homeT.add(_tgt);
-        // ...and never further than the arm goes
+        // ...and now SET the distance rather than merely capping it. Capping
+        // means a hand takes whatever the geometry offered and only gets
+        // pulled in when it overreached — which is the touch-everything feel,
+        // because the nearest ledge always offers something. Setting it means
+        // every grab is thrown to the same arm's length, and the surface
+        // search below happens OUT THERE, so nearer holds are simply passed.
         _tgt.copy(_homeT).sub(_root);
         const hl = _tgt.length();
-        if (hl > reach * 0.9) _homeT.copy(_root).addScaledVector(_tgt, (reach * 0.9) / hl);
+        if (hl > 1e-4) _homeT.copy(_root).addScaledVector(_tgt, (reach * grab) / hl);
         const d = nearestSurface(f, _homeT.x, _homeT.y, _homeT.z, reach);
         if (d !== Infinity) {
           _tgt.copy(_limbCp).addScaledVector(_limbN, stand);
@@ -1256,7 +1302,16 @@ export function conformClimbLimbs(f, dt) {
       // question where the limb can actually answer it.
       _b.subVectors(_homeT, _root);
       const off = _b.length();
-      if (off > reach * 0.95) _homeT.copy(_root).addScaledVector(_b, (reach * 0.95) / off);
+      // A LEADING limb SETS its probe out at the grab distance (see `grab`) —
+      // it is reaching, so it asks the question at arm's length and takes what
+      // is nearest THERE, skipping the holds under its nose. A trailing one
+      // only ever gets CLAMPED down into what it can physically reach: splay,
+      // drop and lead can all point the same way, and then every rung of the
+      // ladder fails over perfectly good ground.
+      const cap = reach * (front ? grab : 0.95);
+      if (off > 1e-4 && (front || off > cap)) {
+        _homeT.copy(_root).addScaledVector(_b, cap / off);
+      }
       const d = nearestSurface(f, _homeT.x, _homeT.y, _homeT.z, reach * 1.25);
       if (d === Infinity) continue;
       // A GORILLA'S FOOT NEEDS A FLOOR. On a sheer face there is nothing to
