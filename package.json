@@ -19,6 +19,7 @@
     "three": "^0.166.0"
   },
   "devDependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@gltf-transform/core": "^4.1.0",
     "@gltf-transform/extensions": "^4.1.0",
     "@gltf-transform/functions": "^4.1.0",

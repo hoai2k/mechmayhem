@@ -261,6 +261,11 @@ const CHARGE_GLOW_SETS = {
 
 export { PLAYER_COLORS } from '../core/colors.js'; // compat re-export, remove after finisher.js migrates
 
+// Ground surfaces with a footstep layer of their own (public/sfx/step_*.mp3).
+// A patch kind not in here — road, stripe, pave — is just pavement, which is
+// what the footstep itself already sounds like.
+const STEP_SURFACES = new Set(['water', 'lava', 'ice', 'mud', 'oil', 'sand', 'grass', 'ash', 'crystal']);
+
 export class Fighter {
   constructor(world, def, { pos = new THREE.Vector3(), yaw = 0, playerIndex = 0, isAI = false, mech = null } = {}) {
     this.world = world;
@@ -620,7 +625,7 @@ export class Fighter {
       this.faceNearestEnemyIfClose(12);
       this.animator.play(this._punchIdx ? 'punchHold2' : 'punchHold1');
       this.setState('attack', 9);
-      this.world.audio?.play('servo');
+      this.sfx('servo');
       return;
     }
     // per-mech combo clips (sword forms, spear forms, haymakers...) — the
@@ -671,7 +676,7 @@ export class Fighter {
     this._moveAttack = true;  // keep walking/running through the jab (upper-body clip)
     this.comboIdx++;
     this.comboWindow = dur + 0.35;
-    this.world.audio?.play('servo');
+    this.sfx('servo');
   }
 
   // Which way the smash twists. The overhead pound family winds onto one
@@ -707,7 +712,7 @@ export class Fighter {
       this.vel.y = Math.min(this.vel.y, -14);
       this.animator.play(this.smashClip('heavy'), { speed: 1.5 });
       this.setState('attack', 9); // held until impact (cleared on landing/hit)
-      this.world.audio?.play('whooshBig');
+      this.sfx('whooshBig');
       return;
     }
     this.faceNearestEnemyIfClose(14);
@@ -984,7 +989,7 @@ export class Fighter {
     // hand takes the shot)
     if (mv.type === 'fist' && this._fistOut?.size >= 2) return;
     if (this.ammoMax !== undefined && this.ammo <= 0) {
-      this.world.audio?.play('uiBack'); // dry click — find an ammo crate
+      this.sfx('uiBack'); // dry click — find an ammo crate
       this.rangedCd = 0.4;
       return;
     }
@@ -1147,6 +1152,60 @@ export class Fighter {
     this.world.fireRanged(this, mv);
   }
 
+  /**
+   * Every sound this fighter makes, tagged with which mech made it — so a
+   * recording named `<mech>_<name>` (fenrir_taunt) plays instead of the
+   * shared one for that mech alone (core/audio.js). Mechs with no voice of
+   * their own are byte-identical to a plain audio.play().
+   */
+  sfx(name, opts = {}) {
+    this.world.audio?.play(name, { ...opts, mech: this.def.id });
+  }
+
+  /**
+   * FOOTSTEPS. Nothing in the game made one until the recorded set arrived —
+   * the walk cycle was silent — and there is no "foot planted" event to hang
+   * one on, so it is MEASURED off the same per-side sole clearance the gait's
+   * own foot rules read (Animator.soleClearanceBySide): a step is the frame a
+   * sole crosses DOWN through a threshold. That is the real plant, so it lands
+   * with the foot on screen at any speed, on a slope, and under sizeMul —
+   * rather than on a phase window that drifts out of step with the animation.
+   *
+   * Three guards, each of them a bug someone would otherwise report: a body
+   * in the AIR takes no steps, a body not MOVING does not march on the spot,
+   * and each side has to lift again before it can land again (no double
+   * trigger while a sole hovers on the threshold).
+   */
+  footstepSfx(dt) {
+    if (!this.grounded || this.state === 'knockdown' || this.dead) return;
+    const per = this.animator?.soleClearanceBySide?.();
+    if (!per) return;                       // uncalibrated body: no measurement
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    if (speed < 1.5) { this._stepUp = this._stepUp || {}; return; }
+    // …thresholds in fractions of HIS OWN HEIGHT, since a scout and a siege
+    // chassis lift a foot by very different absolute distances
+    const h = this.baseHeight || 6;
+    const down = 0.022 * h;                 // planted…
+    const up = 0.05 * h;                    // …and lifted enough to count again
+    this._stepUp = this._stepUp || { L: true, R: true };
+    const run = speed > (this.def.stats.speed || 20) * 0.72;
+    for (const side of ['L', 'R']) {
+      const c = per[side];
+      if (c == null) continue;
+      if (c > up) { this._stepUp[side] = true; continue; }
+      if (c > down || !this._stepUp[side]) continue;
+      this._stepUp[side] = false;
+      // the surface under the foot is a second, quieter layer UNDER the step
+      this.sfx(run ? 'footstepRun' : 'footstep', { vol: run ? 0.9 : 0.7 });
+      // …and WHAT he landed in, if it is one of the surfaces with a recording
+      // of its own. The terrain already answers this for the hazards, off the
+      // same lobes it paints (terrain.onPatch), so a step in a lava lake and a
+      // step in the fire that burns you are the same shape by construction.
+      const kind = this.world.arena?.terrain?.onPatch?.(this.pos.x, this.pos.z, -0.4)?.kind;
+      if (kind && STEP_SURFACES.has(kind)) this.sfx(`step_${kind}`, { vol: 0.8 });
+    }
+  }
+
   doSpecial() {
     if (this.specialCd > 0) return;
     const sp = this.def.moves.special;
@@ -1156,6 +1215,7 @@ export class Fighter {
     this.uncloak();
     this.specialCd = sp.cooldown;
     this.faceNearestEnemyIfClose(40, true);
+    this.sfx('cast');          // <mech>_cast where a mech has its own voice
     impl(this, sp);
     this.world.events.emit('special', { fighter: this, name: sp.name });
   }
@@ -1183,7 +1243,8 @@ export class Fighter {
     this.ultFlashT = 1.4;
     this.faceNearestEnemyIfClose(80, true);
     this.world.events.emit('ult', { fighter: this, name: u.name });
-    this.world.audio?.play('ultReady');
+    this.sfx('ultReady');
+    this.sfx('ult');           // <mech>_ult where a mech has its own voice
     impl(this, u);
   }
 
@@ -1216,12 +1277,12 @@ export class Fighter {
     this._dashDur = this.dashT;   // animator reads progress = 1 - dashT/dur
     this.iframes = Math.max(this.iframes, 0.26 + 0.28 * k);
     this.setState('dash', this.dashT);
-    this.world.audio?.play('dash');
+    this.sfx('dash');
     this.world.effects.rings.spawn(this.pos, {
       from: 0.5, to: 3.5 + 3 * k, dur: 0.3, color: PLAYER_COLORS[this.playerIndex % 4], y: 0.4,
     });
     if (k > 0.35) { // a wound-up release detonates off the line
-      this.world.audio?.play('whooshBig');
+      this.sfx('whooshBig');
       this.world.effects.dustPuff(this.pos, 6 + 8 * k);
     }
   }
@@ -1330,7 +1391,7 @@ export class Fighter {
 
   // melee hit event from animation
   onAttackEvent(type, arg, atk) {
-    if (type === 'sfx') { this.world.audio?.play(arg); return; }
+    if (type === 'sfx') { this.sfx(arg); return; }
     if (type === 'shake') { this.world.effects.addShake(arg || 0.4); return; }
     if (type === 'fx') { this.heavyChargeFx(atk); return; } // pre-impact charge beat
     if (type !== 'hit') return;
@@ -1450,7 +1511,7 @@ export class Fighter {
       w.effects.rings.spawn(p, { from: 0.6, to: 7 + 4 * g, dur: 0.5, color: 0xff3ce8, y: 0.35 });
       w.effects.explosion(new THREE.Vector3(cx, 1, cz), 3.5 + 2 * g, { color: 0xff5ce8, smoke: false });
       w.groundShockwave(this, p, 5.5 + 2 * g, atk.dmg * 0.35, 10, 0xff3ce8);
-      w.audio?.play('plasma');
+      this.sfx('plasma');
     } else if (atk.fx === 'wingLasers') {
       // WRAITH: every spread wing-tip fires a red beam converging on the mark
       const target = new THREE.Vector3(cx, Math.max(1.5, cy * 0.7), cz);
@@ -1463,7 +1524,7 @@ export class Fighter {
       w.effects.glows.emit(target.x, target.y, target.z, 0, 0, 0,
         { life: 0.35, size: 3.4, color: 0xff2030, alpha: 0.95 });
       w.effects.impactSparks(target, 0xff2030, 16, 10);
-      w.audio?.play('zap');
+      this.sfx('zap');
     } else if (atk.fx === 'apeQuake') {
       // KONGA: both fists land together — the floor answers. A tight crater
       // ring at the fists plus a wider ground shock that only staggers, so the
@@ -1480,7 +1541,7 @@ export class Fighter {
           Math.cos(a) * 5, rand(3, 8), Math.sin(a) * 5,
           { life: rand(0.5, 0.95), size: rand(1.0, 2.2), color: 0x9a8878, alpha: 0.6 });
       }
-      w.audio?.play('hitHeavy');
+      this.sfx('hitHeavy');
     } else if (atk.fx === 'hornQuake') {
       // TRITONE: the horns rip UP through the target, so the punctuation is a
       // vertical burst at the horn tips rather than a floor ring.
@@ -1498,7 +1559,7 @@ export class Fighter {
             { life: rand(0.4, 0.8), size: rand(0.7, 1.5), color: 0x8c8266, alpha: 0.55 });
         }
       }
-      w.audio?.play('hitHeavy');
+      this.sfx('hitHeavy');
     }
   }
 
@@ -1531,7 +1592,7 @@ export class Fighter {
       }
       if (k >= 1 && !this[o.fullSlot]) {
         this[o.fullSlot] = true;
-        this.world.audio?.play('powerup');
+        this.sfx('powerup');
         o.fullFx();
       }
       return null;
@@ -1573,7 +1634,7 @@ export class Fighter {
       }),
     });
     this.setState('attack', dur * 0.9);
-    if (k > 0.4) this.world.audio?.play('whooshBig');
+    if (k > 0.4) this.sfx('whooshBig');
     // banked charge also LUNGES the slam forward — a full wind steps deep
     // into (or through) where the target was standing. Mechs with their own
     // heavyDrive (aegis' lance lunge) already scale it via kBoost.
@@ -1706,7 +1767,7 @@ export class Fighter {
     });
     this.setState('attack', dur * 0.85);
     this.comboIdx++;
-    if (k > 0.4) this.world.audio?.play('whooshBig');
+    if (k > 0.4) this.sfx('whooshBig');
     // banked charge lunges the haymaker forward — distance scales with the
     // wind-up just like the damage does
     this._chargeLunge = { delay: dur * 0.08, t: dur * 0.5, speed: (2.5 + 11 * k) * this.scale };
@@ -1991,7 +2052,7 @@ export class Fighter {
       j.getWorldPosition(_v);
       this.world.effects.impactSparks(_v, this.def.colors.glow, 8, 5);
     }
-    this.world.audio?.play('servo');
+    this.sfx('servo');
   }
 
   // ---- thrown-weapon regrow: hide the weapon group, then rebuild it in the
@@ -2065,7 +2126,7 @@ export class Fighter {
     this.comboIdx = 0;
     this.setState('normal');
     this.animator.play('hangGrab');
-    this.world.audio?.play('servo');
+    this.sfx('servo');
     this.world.effects.dustPuff(_v.set(g.x, g.y, g.z), 4, 0xa8a8a8);
   }
 
@@ -2087,7 +2148,7 @@ export class Fighter {
     this.vel.x += (dirX / dLen) * push;
     this.vel.z += (dirZ / dLen) * push;
     this.world.effects.blockSpark(sparkPos, sparkColor);
-    this.world.audio?.play('block');
+    this.sfx('block');
   }
 
   // Odds a blow that just dealt `dmg` turns this mech clean over onto its back
@@ -2120,7 +2181,7 @@ export class Fighter {
     // spins him a full turn the wrong way on the handover (Animator.rewrap)
     this.animator.rewrap('hipsRot', 2, side > 0 ? Math.PI : -Math.PI);
     this.setState('getup', this.animator.play(side > 0 ? 'rollUpR' : 'rollUpL') * 0.92);
-    this.world.audio?.play('bodyfall');
+    this.sfx('bodyfall');
     this.world.effects.dustPuff(this.pos, 7);
   }
 
@@ -2171,7 +2232,7 @@ export class Fighter {
         // jolt of extra hitstun, orange spark
         this.world.effects.blockSpark(this.center(), 0xff5a3c);
         this.burstGuardShield();
-        this.world.audio?.play(shattered ? 'hitHeavy' : 'hit');
+        this.sfx(shattered ? 'hitHeavy' : 'hit');
         if (shattered) { knock *= 1.15; heavy = true; }
       }
     }
@@ -2213,7 +2274,7 @@ export class Fighter {
     if (status) this.applyStatus(status);
 
     this.world.events.emit('damage', { fighter: this, attacker, dmg, pos: this.center() });
-    this.world.audio?.play(heavy ? 'hitHeavy' : 'hit');
+    this.sfx(heavy ? 'hitHeavy' : 'hit');
     this.world.effects.impactSparks(this.center(), 0xffb060, heavy ? 18 : 10, heavy ? 13 : 9);
 
     if (this.hp <= 0) { this.die(attacker); return; }
@@ -2432,7 +2493,7 @@ export class Fighter {
       this.mech.joints[s.joint].localToWorld(_v);
       this.world.effects.glitchBurst(_v, 9, 5, 0.8 * this.scale);
     }
-    this.world.audio?.play('zap');
+    this.sfx('zap');
     if (this.glitchStacks >= GLITCH_OVERLOAD) this.glitchOverload();
   }
 
@@ -2470,8 +2531,8 @@ export class Fighter {
     this.world.effects.rings.spawn(this.pos, { from: 0.6, to: 6.5, dur: 0.45, color: 0xff2df2, y: 0.5 });
     this.world.effects.addShake(0.5);
     this.world.engine.addHitStop(0.08);
-    this.world.audio?.play('powerup');
-    this.world.audio?.play('zap');
+    this.sfx('powerup');
+    this.sfx('zap');
   }
 
   clearGlitch() {
@@ -2606,7 +2667,7 @@ export class Fighter {
     this._wound = null;
     this.clearWoundFlash();
     this.animator.play('dead');
-    this.world.audio?.play('explosionBig');
+    this.sfx('explosionBig');
     const c = this.center();
     this.world.effects.explosion(c, 6, { color: 0xff9040 });
     this.world.effects.addShake(0.9);
@@ -2812,7 +2873,7 @@ export class Fighter {
             this.animator.play('knockdown');
           }
           this.world.effects.dustPuff(this.pos, 10);
-          this.world.audio?.play('bodyfall');
+          this.sfx('bodyfall');
         }
         break;
       case 'knockdown':
@@ -2843,7 +2904,7 @@ export class Fighter {
           this.iframes = 0.9;
           this.setState('getup', 0.3);
           this.animator.play('getup', { speed: 2.4 });
-          this.world.audio?.play('jump');
+          this.sfx('jump');
           this.world.effects.dustPuff(this.pos, 8);
           this.world.effects.rings.spawn(this.pos, { from: 0.5, to: 4, dur: 0.35, color: PLAYER_COLORS[this.playerIndex % 4], y: 0.3 });
           break;
@@ -2871,7 +2932,7 @@ export class Fighter {
         this.vel.x = h.nx * 4;
         this.vel.z = h.nz * 4;
         this.grounded = false;
-        this.world.audio?.play('jump');
+        this.sfx('jump');
         this.world.effects.dustPuff(this.pos, 5);
       } else if (!I.lightHeld) {
         this.endHang();
@@ -2934,7 +2995,7 @@ export class Fighter {
         this.world.groundShockwave(this, this.pos, mv.range * this.scale * 1.6, dmg, mv.knock, 0xffc060);
         this.world.effects.addShake(0.7);
         this.world.engine.addHitStop(0.08);
-        this.world.audio?.play('slam');
+        this.sfx('slam');
         this.animator.play('groundPound', { speed: 2.2 });
         this.setState('attack', 0.35);
       } else {
@@ -2998,7 +3059,7 @@ export class Fighter {
         });
       }
       if (was < CHARGE_DASH_MAX && this._dashCharge >= CHARGE_DASH_MAX) {
-        this.world.audio?.play('powerup');
+        this.sfx('powerup');
         this.world.effects.rings.spawn(this.pos, { from: 0.5, to: 4.5, dur: 0.35, color: 0xffffff, y: 0.4 });
       }
     }
@@ -3055,7 +3116,7 @@ export class Fighter {
         if (this.grounded && this.alive) {
           this.vel.y = st.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1);
           this.grounded = false;
-          this.world.audio?.play('jump');
+          this.sfx('jump');
           this.world.effects.dustPuff(this.pos, 10);
           this.world.effects.rings.spawn(this.pos, { from: 0.6, to: 4.5, dur: 0.35, color: 0xff6a40, y: 0.3 });
         }
@@ -3090,7 +3151,7 @@ export class Fighter {
         } else {
           this.vel.y = st.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1);
           this.grounded = false;
-          this.world.audio?.play('jump');
+          this.sfx('jump');
           this.world.effects.dustPuff(this.pos, 6);
         }
       } else if (I.jump && this.climb) {
@@ -3101,13 +3162,13 @@ export class Fighter {
         // that's the release-then-jump climbing rhythm
         this._hangCoyote = 0;
         this.vel.y = st.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1);
-        this.world.audio?.play('jump');
+        this.sfx('jump');
       } else if (I.jump && !this.grounded && !this.hovering && !this._airRoll &&
                  this.hoverFuel > 0.2) {
         // second jump press in the air ignites the hover jets (never out of
         // the tuck — release the ball first, then the jets answer)
         this.hovering = true;
-        this.world.audio?.play('jump');
+        this.sfx('jump');
       }
       // (A used to have a FOURTH meaning down here — tank empty and falling,
       // press again to tuck into the descent ball. It is gone: one button
@@ -3448,6 +3509,7 @@ export class Fighter {
     // on the virtual joints and rides the retarget like any other) ----
     if (this._climbTilt > 0.01) applyClimbPose(this);
     if (this.mech.isGLB) this.mech.postAnimate?.();
+    this.footstepSfx(dt);
     // ---- POINT THE GUN AT WHAT HE IS SHOOTING AT (combat/gunaim.js) ----
     // A hand-held muzzle inherits the arm's animation, so the ARM is turned onto
     // the aim — the crosshair while targeting, straight ahead otherwise — and
@@ -3563,7 +3625,7 @@ export class Fighter {
       }
     }
     this._holoBuzz = (this._holoBuzz ?? 0) - 1;
-    if (this._holoBuzz <= 0) { this._holoBuzz = 2; this.world.audio?.play('neonZap'); }
+    if (this._holoBuzz <= 0) { this._holoBuzz = 2; this.sfx('neonZap'); }
   }
 
   // Is the taunt clip actually playing right now? Every taunt EFFECT below
@@ -3619,7 +3681,7 @@ export class Fighter {
       jag: rand(0.25, 0.6) * this.scale, thick: rand(0.04, 0.08) * this.scale });
     fx.glows.emit(b.x, b.y, b.z, 0, 0, 0,
       { life: 0.14, size: rand(0.6, 1.2) * this.scale, color: col, alpha: 0.7, grow: -1 });
-    if (Math.random() < 0.4) this.world.audio?.play('zap');
+    if (Math.random() < 0.4) this.sfx('zap');
   }
 
   // One arc endpoint: `{a:'stackL'}` is an anchor, `{j:'handR'}` a joint or
@@ -3678,7 +3740,7 @@ export class Fighter {
       this.disperseGiant(g, k, B);
       this.world.effects?.rings?.spawn(this.pos,
         { from: 0.4, to: this.radius * 2.6, dur: 0.45, color: 0x2a2438, y: 0.35 });
-      this.world.audio?.play('cloak');
+      this.sfx('cloak');
       this._growK = 0;
       this.group.scale.setScalar(B.g);
       this.scale = B.s; this.baseHeight = B.h; this.baseHitRadius = B.hr; this.radius = B.r;
@@ -3884,7 +3946,7 @@ export class Fighter {
       // starts as he settles, and is FULLY solid well before he has to hold it
       const ICE_IN = 0.55, ICE_DELAY = 0.38;
       k = clamp01(((act.t || 0) - ICE_DELAY) / ICE_IN);
-      if (k > 0 && !this._iceOn) { this._iceOn = true; this.world.audio?.play('freeze'); }
+      if (k > 0 && !this._iceOn) { this._iceOn = true; this.sfx('freeze'); }
     } else if (k > 0) {
       // IT DOES NOT MELT, IT GOES. One frame there, next frame a cloud of frost
       // where it was — a fade out would read as the ice becoming thin, and this
@@ -3898,7 +3960,7 @@ export class Fighter {
         // volume instead, which is the shape the eye was just looking at.
         this.frostBurst(90, 2.6);
         this.world.effects?.rings?.spawn(this.pos, { from: 0.5, to: 7 * this.scale, dur: 0.4, color: 0xbfe8ff, y: 0.4 });
-        this.world.audio?.play('shatter');
+        this.sfx('shatter');
       }
     }
     if (k === (this._iceK ?? 0) && k === 0) return;
@@ -4078,7 +4140,7 @@ export class Fighter {
   startAirRoll() {
     this._airRoll = { t: 0, spin: 0, ending: false, endAt: 0 };
     this.animator.play('ball'); // the tuck: curled tight around the hips
-    this.world.audio?.play('whoosh');
+    this.sfx('whoosh');
   }
 
   endAirRoll() {
@@ -4255,7 +4317,7 @@ export class Fighter {
         { life: rand(0.25, 0.5), size: rand(0.35, 0.8) * this.scale, color: i % 2 ? 0xff9a5c : 0x7fd8ff, alpha: 0.95, grow: -1 });
     }
     fx.impactSparks(c, 0xff7a4c, 10, 9);
-    this.world.audio?.play('hitHeavy');
+    this.sfx('hitHeavy');
     this.hideGuardShield();
   }
 
@@ -4572,7 +4634,7 @@ export class Fighter {
         this.group.updateWorldMatrix(true, true);
         stackToot(this.mech, sf, { fx, scale: this.scale, smoke, only: stacks,
           power: beats % 2 === 0 ? 1.15 : 0.85 });
-        this.world.audio?.play('whoosh');
+        this.sfx('whoosh');
       }
     }
     if (venting) {
@@ -4646,12 +4708,12 @@ export class Fighter {
           this.setState('knockdown', 0.9);
           this.animator.play('knockdown');
           this.world.effects.dustPuff(this.pos, 10);
-          this.world.audio?.play('bodyfall');
+          this.sfx('bodyfall');
           this.world.effects.addShake(0.25);
         }
         if (fallSpeed > 9) {
           this.world.effects.dustPuff(this.pos, Math.min(16, fallSpeed));
-          this.world.audio?.play('land');
+          this.sfx('land');
           // heavy mechs crack the ground
           if (this.def.stats.weight > 0.8 && fallSpeed > 16) {
             this.world.effects.rings.spawn(this.pos, { from: 1, to: 6, dur: 0.4, color: 0xcbb590 });
@@ -4727,7 +4789,7 @@ export class Fighter {
         });
         this.world.effects.impactSparks(this.center(), 0xffcf7a, 16, 12);
         this.world.effects.dustPuff(this.pos, 8);
-        this.world.audio?.play('crumbleBig');
+        this.sfx('crumbleBig');
         this.world.effects.addShake(0.5);
         this.vel.x *= 0.55; // punching through wreckage bleeds momentum
         this.vel.z *= 0.55;
