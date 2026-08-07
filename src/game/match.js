@@ -15,7 +15,7 @@ const GONE_T = 0.5;
 const RESPAWN_IFRAMES = 1.6;
 
 export class Match {
-  constructor({ engine, world, fighters, hud, onEnd }) {
+  constructor({ engine, world, fighters, hud, onEnd, humans = 0 }) {
     this.engine = engine;
     this.world = world;
     this.fighters = fighters;
@@ -27,15 +27,21 @@ export class Match {
     this.timeLeft = CONFIG.roundTime;
     this.unsub = world.events.on('ko', (e) => this.onKO(e));
     this.pendingWinner = null;
-    // ---- BRAWL RULES (3 or more robots) --------------------------------
+    // ---- BRAWL RULES (2+ PEOPLE in a fight of 3 or more) -----------------
     // A duel ends the moment somebody drops, which is right for a duel and
-    // wrong for a four-way: two players sit out the rest of the round because
-    // a fight they were not in ended. So with three or more, DEATH IS A
-    // RESPAWN — you fade out where you fell, come back at a spawn point, and
+    // wrong for a four-way: two PEOPLE sit out the rest of the round because
+    // a fight they were not in ended. So with three or more bodies AND more
+    // than one person holding a pad, DEATH IS A RESPAWN — you fade out where you fell, come back at a spawn point, and
     // the round runs to its clock. What wins it is not being the one who keeps
     // dying: the last CLEAN SHEET takes it outright, and at the bell it is
     // whoever died least (hp% breaks a tie, as it always did).
-    this.brawl = fighters.length >= 3;
+    //
+    // ONE PLAYER AGAINST A CROWD IS NOT A BRAWL, which is why this counts
+    // HUMANS and not fighters: a solo player against three CPUs is a gauntlet,
+    // and the thing that makes it one is that beating them ENDS it. Respawning
+    // CPUs would only deny the win. Two people plus a CPU is a party game, and
+    // there nobody should be sitting out half a round watching.
+    this.brawl = fighters.length >= 3 && humans >= 2;
     this.respawns = [];   // {f, t} — a wreck fading out on the floor
   }
 

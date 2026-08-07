@@ -1320,6 +1320,30 @@ audio). Progress history: `TASKS.md`.
   never show stale numbers for an edited model; every `tools/*.mjs` builds
   through `buildGlbForTool`, which spreads a new entry per call, so the tools
   always measure.
+  …AND THE PACK ARRIVES AS EGGS NOW (`src/combat/eggs.js`), which is what
+  finally took the cast frame to nothing. Three dinosaur EGGS warp in behind
+  him, 75% of his own height along the long axis, and hatch ONE AT A TIME with
+  at least `GAP` (2s) between them — so a body is built during the two seconds
+  before its own hatch instead of three at once, and the ult has a moment to it
+  rather than three robots appearing. An egg is a real rolling body (gravity,
+  ground contact, restitution, rolling friction, and a roll rate off its own
+  short radius, so it goes across the plaza like a barrel and settles on its
+  side). WHO HIT IT IS THE WHOLE DAMAGE MODEL: SAURION's own blows SHOVE it —
+  full impulse, no damage, no flash, so kicking one is how he says "go over
+  there" — and anybody else's WOUND it: red flash, a much smaller shunt (a hit
+  is a wound, not a delivery) and the SECOND one destroys the shell with nothing
+  hatching. The hatchling comes out CURLED (the `ball` clip) at half size and
+  unfolds into his stance as it grows. Three hooks feed it, one per damage path:
+  `world.explode`, the projectile sweep and the melee sweep, each handing over
+  the ATTACKER, which is the only thing the rule cares about. Measured with
+  `node tools/eggs.mjs`: cast 0.5ms, worst frame over the whole cast 2.1ms (from
+  51.7 before any of this work), eggs at 0.75 of his height, hatches at 2.93 /
+  4.95 / 6.95s — gaps of 2.02 and 2.00 — his own hit rolling one 9.5 units for
+  no damage against an enemy hit's 1.5 and a wound.
+  THE SHELL'S TEXTURE IS REQUESTED (`prop_dino_egg`, in
+  docs/ASSET_REQUESTS_STRUCTURES.md and listed in `PENDING_ASSETS`): until it
+  lands `eggMaterial()` paints one — cream, mottled, speckled — and the pack
+  wins automatically the day the images arrive.
   …AND A BODY BUILT BEFORE THE FIGHT COSTS NOTHING DURING IT. With every
   measurement cached, what is left of a clone is the scene graph, the rig and
   the animator — 1.4-3.6ms a body, three of them 0.22s apart, which is still
@@ -1673,10 +1697,13 @@ audio). Progress history: `TASKS.md`.
   count, crates, fountains, wrapHalf, and a fighter who still walks and stands
   on the new terrain) and `node tools/scratch/roundswap.mjs`, which does it in
   the REAL game through the menus.
-- THREE OR FOUR ROBOTS PLAY A DIFFERENT GAME (`Match.brawl`, and the reason it
-  exists is that a duel's rules are actively bad above two players): a KO ends
-  the round, so in a four-way two players sit out the rest of a round because a
-  fight they were not in ended. So with 3+, DEATH IS A RESPAWN — you fade out
+- TWO OR MORE PEOPLE IN A FIGHT OF THREE OR MORE PLAY A DIFFERENT GAME
+  (`Match.brawl` — it counts HUMANS, not fighters, and the reason it
+  because ONE PLAYER AGAINST A CROWD IS NOT A BRAWL: a solo player against three
+  CPUs is a gauntlet, and the thing that makes it one is that beating them ENDS
+  it — respawning CPUs would only deny the win. Two people plus a CPU is a party
+  game, and there a KO ends the round for players who were not even in that
+  fight. So with 3+, DEATH IS A RESPAWN — you fade out
   where you fell over ~1.9s, lie gone for a beat, and come back at the spawn
   point FURTHEST from whoever is still up (`respawnSpot`; coming back into the
   fight you just lost is not a second chance). THE FADE IS THE POINT: dying and
@@ -2046,6 +2073,33 @@ audio). Progress history: `TASKS.md`.
   `tools/groundprobe.mjs` reports 9 clips putting geometry under the floor
   instead of 8, all of them LIMBS a body is standing on, since the guard no
   longer over-lifts the body to rescue them.
+- POINT THE GUN AT WHAT YOU ARE SHOOTING AT (`src/combat/gunaim.js`, measured by
+  `node tools/scratch/barreltrace.mjs <mech>`). A hand-held muzzle inherits the
+  arm's animation, and there are two honest answers to that: fire along the aim
+  and ignore the barrel (correct, but the round leaves a gun visibly pointing
+  somewhere else), or AIM THE ARM. This is the second. THE SOLVE IS ONE RIGID
+  ROTATION: turning the SHOULDER carries the whole arm and the anchor hanging
+  off it, so the quaternion mapping the barrel's world direction onto the wanted
+  one, applied at the shoulder, lands the barrel exactly — measured, a 0.35 rad
+  turn moves the barrel 0.35 rad on every rig. It aims at the crosshair while
+  targeting and straight out along the facing otherwise.
+  THREE THINGS IT TOOK TO WORK, all measured. (1) IT MUST RUN AFTER THE RETARGET
+  AND SYNC AGAIN AFTER ITSELF: a muzzle rides a VIRTUAL joint on some mechs
+  (nullbot) and a MODEL bone on others (viper's elbow, vulcan's hands), and a
+  model bone only follows the virtual rig through `postAnimate` — running before
+  it measures last frame's barrel while writing into a pose applyPose has since
+  reset, which oscillates instead of converging (viper 55-79° off, nullbot 0).
+  (2) BOTH ARMS, when both hold a gun: which muzzle fires is decided per SHOT
+  and `_shotSide` flips between the servo running and the round leaving, so
+  aiming "the firing arm" aimed the LAST shot's arm — half of vulcan's burst
+  left an unpointed gatling, 63° off. (3) AN UNAIMED BARREL IS NEVER TRUSTED:
+  every early-out leaves `_gunAimErr` at "no idea" rather than zero, because
+  world.js reads it as permission for the barrel to steer the shot — with 0
+  there, the first round of a cold burst followed a gun that had not been
+  pointed at anything yet (31° off, against 2.7° on the second).
+  HOLDING THE TRIGGER COUNTS AS AIMING (the bumper's own convention), and so
+  does having the crosshair up: the arm is already on target when the round
+  leaves, which is the difference between 45° and ~1° at the shot.
 - A BARREL MAY ONLY STEER A SHOT IF IT IS A MOUNT, NOT A HAND
   (`barrelDeflect` in world.js). The deflection turns a finished aim onto the
   muzzle anchor's LIVE world +Z, which is right for something bolted to the hull

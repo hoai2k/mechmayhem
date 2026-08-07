@@ -439,6 +439,19 @@ export class ProjectileSystem {
       // ---- collision ----
       let dead = false;
 
+      // SAURION'S EGGS: a shell is a thing a round can hit, and WHO fired it
+      // decides whether that is a shove or a wound (combat/eggs.js)
+      if (!dead && world.eggs?.eggs.length) {
+        _sweepA.set(px, py, pz);
+        _sweepB.set(px + sdx, py + sdy, pz + sdz);
+        const egg = world.eggs.hitSegment(_sweepA, _sweepB, 0.35);
+        if (egg && !p.hitSet.has(egg)) {
+          p.hitSet.add(egg);
+          world.eggs.hit(egg, p.owner, _v2.set(sdx, 0, sdz), 0.8);
+          world.effects.impactSparks(p.mesh.position, p.color, 8, 6);
+          if (!p.pierce) dead = true;
+        }
+      }
       // fighters (nearest-image distance across the seam)
       for (const f of world.fighters) {
         if (f === p.owner || !f.alive || p.hitSet.has(f)) continue;

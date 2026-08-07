@@ -581,7 +581,7 @@ export async function bootGame() {
     world.camera = engine.camera;
 
     const match = new Match({
-      engine, world, fighters, hud,
+      engine, world, fighters, hud, humans: humans.length,
       onEnd: (winner) => {
         S.mode = 'results';
         touchControls?.setVisible(false);

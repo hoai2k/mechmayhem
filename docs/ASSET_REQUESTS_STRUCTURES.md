@@ -1,4 +1,4 @@
-# ASSET REQUESTS — arena STRUCTURES (ALL DELIVERED)
+# ASSET REQUESTS — arena STRUCTURES (all delivered) + one COMBAT prop
 
 **Status: nothing outstanding.** All six landform materials are in and
 wired; `PENDING_ASSETS` in `src/core/assetcheck.js` is empty, so every one
@@ -116,6 +116,35 @@ the glow as a mask, not as a colour.
    `struct_basalt_rock` kept for the mounds; the cliff also carries
    `shape: 'column'` (chunkgeo.js), because the texture only reads on
    geometry that is actually columnar.
+
+## OUTSTANDING — `prop_dino_egg` (combat, not scenery)
+
+One texture is currently requested, and it is not a structure: the shell of
+SAURION's clutch (`combat/eggs.js` — his ultimate lays three big eggs that
+roll, take hits and hatch the pack). It is a PROP-set entry rather than a
+struct one, because it dresses an object rather than a landform:
+
+**Where it goes:** `src/textures/prop/prop_dino_egg/prop_dino_egg_<map>.png`
+(`albedo` at minimum; `normal` and `rough` if you have them). It is claimed
+already — `eggMaterial()` asks `hasTex('prop', 'prop_dino_egg')` first and
+falls back to a painted shell — so committing the images IS the integration.
+While it is missing it belongs in `PENDING_ASSETS` (`src/core/assetcheck.js`),
+which is where it is now; take the line out when the art lands.
+
+**The prompt.** A REALISTIC DINOSAUR EGG SHELL, seamlessly tileable, PBR
+albedo. Warm bone/cream base (roughly #cdbb9a) with irregular olive-brown
+mottling in soft blotches 10-30% of the tile wide, and a fine dark speckle
+over the whole surface — the pattern of a real theropod egg, not a chicken's.
+Subtle pitting and hairline calcite ridges in the normal map; matte, no
+gloss, no wet look. NO cracks (the shell breaking is done in geometry, and a
+painted crack would sit there before it has broken), no cartoon dinosaur
+spots, no nest, no straw, no background — this is a surface, not a picture of
+an egg. Squarely lit, no baked shadows, no visible seams.
+
+**What it is drawn on:** a tapered ellipsoid about 4 units long, seen at
+fighting distance and often rolling, so the pattern should read at a glance
+and hold up moving. Fine detail at the tile level is fine; big single
+features (one giant blotch) will strobe as it rolls.
 
 ## What is NOT requested
 

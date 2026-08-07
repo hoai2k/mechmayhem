@@ -73,10 +73,16 @@ const out = await page.evaluate(async () => {
     const pr = w.projectiles.active[0];
     if (!pr) { moving.push({ label, none: true }); continue; }
     const v = pr.vel.clone().normalize();
+    // …and where the BARREL was pointing when it left (the gun-aim servo's job)
+    const a = p.mech.anchors[p.def.primaryMuzzle || 'muzzleR'] || p.mech.anchors.muzzleR;
+    const q = a ? a.getWorldQuaternion(new THREE.Quaternion()) : null;
+    const bf = q ? new THREE.Vector3(0, 0, 1).applyQuaternion(q) : null;
     moving.push({
       label,
       offFacingDeg: deg(wrapAng(Math.atan2(v.x, v.z) - p.yaw)),
       pitchDeg: deg(Math.asin(Math.max(-1, Math.min(1, v.y)))),
+      barrelOffShotDeg: bf ? deg(Math.acos(Math.max(-1, Math.min(1, bf.dot(v))))) : null,
+      aimErrDeg: deg(p._gunAimErr || 0),
     });
   }
 

@@ -12,6 +12,7 @@ import { bakePoseShell } from './poseshell.js';
 import { Fighter } from './fighter.js';
 import { AIController } from '../game/ai.js';
 import { cloneMech } from '../mechs/factory.js';
+import { warmEggAssets } from './eggs.js';
 import { stillCasting, cast, eachEnemy, volley, timedUpdater, overlapsY } from './movekit.js';
 import { driveCannons } from './cannonaim.js';
 import { faceRoar } from '../mechs/face.js';
@@ -1428,6 +1429,15 @@ function nearestEnemyTo(f, x, z, maxD = Infinity) {
 // Nothing else has to know: `takeSpare` returns null when the pool is empty and
 // raptorPack falls back to cloning on the spot, exactly as it used to.
 
+// The egg shell's texture and geometry, painted once and shared — warmed here
+// so the ult's own frame never pays for it (see eggs.js warmEggAssets).
+function warmEggs(f) {
+  if (f._eggsWarm || summonCount(f) === 0) return false;
+  f._eggsWarm = true;
+  warmEggAssets();
+  return true;
+}
+
 // How many bodies this fighter's ult will want, or 0 if it summons none.
 function summonCount(f) {
   const u = f?.def?.moves?.ult;
@@ -1445,6 +1455,7 @@ export function takeSpare(f) {
 export function prewarmSummons(f, budget = 1) {
   const want = summonCount(f);
   if (!want || !f.alive || !f.mech) return false;
+  if (warmEggs(f)) return true;   // one intro frame for the shell's own assets
   const pool = f._ultSpares || (f._ultSpares = []);
   let built = 0;
   while (pool.length < want && built < budget) {
@@ -1473,6 +1484,58 @@ function scheduleRefill(f) {
   // 1.5s apart: the cast is over, the pack is on the floor fighting, and one
   // body every second and a half is invisible next to that
   w.schedule(1.5, tick);
+}
+
+// ONE RAPTOR, OUT OF ONE EGG. Everything the old volley did to a clone, plus
+// the birth: he comes out CURLED (the `ball` clip, which is the air-tuck pose
+// and reads exactly like a hatchling) at half size, and unfolds into his stance
+// as he grows to full over `BIRTH`. The Fighter is real from the first frame —
+// the ball is just the shape he is in when he arrives.
+const BIRTH = 0.55;
+function hatchRaptor(f, u, egg) {
+  const w = f.world;
+  if (!f.alive || !w.fighters.includes(f)) return;
+  const mech = egg.body || takeSpare(f) || cloneMech(f.mech);
+  const pos = new THREE.Vector3(egg.pos.x, 0, egg.pos.z);
+  const clone = new Fighter(w, f.def, {
+    pos, yaw: f.yaw, playerIndex: f.playerIndex, isAI: true, mech,
+  });
+  clone.isMinion = true;
+  clone.allyOf = f;
+  clone.maxHp = clone.hp = Math.round(f.maxHp * (u.hpFrac || 0.35));
+  // runts of the litter: a shade smaller, darker plumage
+  const SIZE = 0.85;
+  clone.group.scale.setScalar(SIZE);
+  clone.scale *= SIZE;
+  clone.baseHeight *= SIZE;
+  clone.height *= SIZE;
+  clone.baseHitRadius *= SIZE;
+  clone.hitRadius *= SIZE;
+  clone.radius *= SIZE;
+  for (const m of Object.values(clone.mech.materials)) {
+    if (m && m.color) m.color.multiplyScalar(0.7);
+  }
+  w.addMinion(clone, new AIController(clone, 'ace'), u.duration || 18);
+  // ---- the birth: curled and small, unfolding as he stands up ----
+  clone.animator.play('ball');
+  clone.controlsLocked = true;
+  let t = 0;
+  w.addUpdater((dt) => {
+    t += dt;
+    const k = Math.min(1, t / BIRTH);
+    const e = k * k * (3 - 2 * k);
+    clone.group.scale.setScalar(SIZE * (0.45 + 0.55 * e));
+    if (k >= 1) {
+      clone.group.scale.setScalar(SIZE);
+      clone.animator.stop(0.18);      // out of the ball, into his stance
+      clone.controlsLocked = false;
+      return false;
+    }
+    return clone.alive;
+  }, () => { clone.controlsLocked = false; clone.group.scale.setScalar(SIZE); });
+  summonFlash(w, clone.mech.group, 0xff8a5a, 0.55);
+  w.effects.impactSparks(clone.center(), 0xff3826, 14, 8);
+  w.audio?.play('cast');
 }
 
 export const ULTS = {
@@ -2861,49 +2924,39 @@ export const ULTS = {
     });
   },
 
-  // SAURION: calls the pack — three full raptor clones drop in and fight
-  // alongside him with everything he has (specials, pounces, quills), each
-  // with a fraction of his plating and a timer on the visit
+  // SAURION: LAYS A CLUTCH. The pack does not arrive, it HATCHES — three
+  // dinosaur eggs warp in around him, roll like the heavy shells they are, and
+  // open one at a time (combat/eggs.js owns the egg; this owns the ult).
+  //
+  // WHY EGGS. Three finished raptors appearing inside a third of a second is
+  // both a frame-time problem (three bodies built at once — the reported ult
+  // lag) and a staging problem: the biggest move in his kit had no moment to
+  // it. An egg gives the fight something to react to — the enemy can go and
+  // BREAK one, and SAURION can kick one out of their way — and it gives the
+  // build a two-second window per body, which is a build nobody can feel.
+  //
+  // The bodies come from the same pool the old version used (takeSpare), so a
+  // warmed one hatches instantly and a cold one is built a second before its
+  // slot rather than at the cast.
   raptorPack(f, u) {
     const w = f.world;
     cast(f, 'taunt', { state: 'ult', stateT: 1.1, speed: 1.3 });
     w.audio?.play('howl');
     w.audio?.play('powerup');
-    volley(w, f, u.count || 3, 0.22, (i) => {
-      const a = f.yaw + Math.PI + (i - 1) * 0.85 + rand(-0.15, 0.15);
+    const n = u.count || 3;
+    // the clutch is laid in an arc BEHIND him, out of his own way
+    volley(w, f, n, 0.3, (i) => {
+      const a = f.yaw + Math.PI + (i - (n - 1) / 2) * 0.85 + rand(-0.15, 0.15);
       const pos = new THREE.Vector3(
-        f.pos.x + Math.sin(a) * 3.6, 0, f.pos.z + Math.cos(a) * 3.6);
-      // A BODY BUILT BEFORE THE FIGHT COSTS NOTHING DURING IT. cloneMech
-      // shares the boss's geometry and textures, and gltf.js caches everything
-      // a GLB build MEASURES — but what is left is still a scene-graph clone, a
-      // rig and an animator, ~5ms a body, landing as three separate hitches as
-      // the volley staggers the spawns. So the pack is built during the
-      // countdown (takeSpare / prewarmSummons below) and this is the fallback
-      // for a second cast, or a body that was not warmed.
-      const clone = new Fighter(w, f.def, {
-        pos, yaw: f.yaw, playerIndex: f.playerIndex, isAI: true,
-        mech: takeSpare(f) || cloneMech(f.mech),
+        f.pos.x + Math.sin(a) * 4.2, 0, f.pos.z + Math.cos(a) * 4.2);
+      w.eggs.spawn(f, pos, {
+        height: f.baseHeight,
+        // one every couple of seconds, and the queue in eggs.js keeps them
+        // from bunching up if one is knocked about and lands late
+        hatchIn: 2 + i * 0.4,
+        prepare: () => takeSpare(f) || cloneMech(f.mech),
+        onHatch: (egg) => hatchRaptor(f, u, egg),
       });
-      clone.isMinion = true;
-      clone.allyOf = f;
-      clone.maxHp = clone.hp = Math.round(f.maxHp * (u.hpFrac || 0.35));
-      // runts of the litter: a shade smaller, darker plumage
-      clone.group.scale.setScalar(0.85);
-      clone.scale *= 0.85;
-      clone.baseHeight *= 0.85;
-      clone.height *= 0.85;
-      clone.baseHitRadius *= 0.85;
-      clone.hitRadius *= 0.85;
-      clone.radius *= 0.85;
-      for (const m of Object.values(clone.mech.materials)) {
-        if (m && m.color) m.color.multiplyScalar(0.7);
-      }
-      w.addMinion(clone, new AIController(clone, 'ace'), u.duration || 18);
-      // dragged across from another dimension: white-hot flash burning off
-      summonFlash(w, clone.mech.group, 0xff8a5a, 0.55);
-      w.effects.rings.spawn(pos, { from: 3.5, to: 0.5, dur: 0.4, color: 0xff3826, y: 1 });
-      w.effects.impactSparks(clone.center(), 0xff3826, 12, 8);
-      w.audio?.play('cast');
     }, { start: 0.25 });
   },
 

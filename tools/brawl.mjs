@@ -8,6 +8,7 @@
 //   · the round ends the moment one robot is the only one with a clean sheet
 //   · at the bell it is fewest DEATHS, not most health
 //   · a duel is untouched: one KO still ends the round
+//   · ONE person against three CPUs is a gauntlet, not a brawl — no respawns
 //
 // usage: node tools/brawl.mjs [waitMs]
 import { chromium } from 'playwright-core';
@@ -31,8 +32,9 @@ const out = await page.evaluate(async () => {
   const R = {};
   // a HUD stand-in: the match only ever calls these three
   const hud = { announce() {}, callout() {}, setDeaths() {}, update() {} };
-  const mk = (fighters) => new Match({
-    engine: window.__engine, world: w, fighters, hud, onEnd: () => { R.ended = true; },
+  const mk = (fighters, humans = fighters.length) => new Match({
+    engine: window.__engine, world: w, fighters, hud, humans,
+    onEnd: () => { R.ended = true; },
   });
   const step = (n, m) => { for (let i = 0; i < n; i++) { w.update(dt); m.update(dt); } };
   const toFight = (m) => { m.begin(); for (let i = 0; i < 200 && m.state !== 'fight'; i++) { w.update(dt); m.update(dt); } };
@@ -77,6 +79,16 @@ const out = await page.evaluate(async () => {
   m.timeLeft = 0.001;
   step(3, m);
   R.timeout = { state: m.state, winner: m.pendingWinner?.def.id || null, expect: 'viper (1 death, 90% hp)' };
+  m.destroy();
+
+  // ---- 3b. ONE PERSON vs THREE CPUs IS A GAUNTLET, NOT A BRAWL ----
+  for (const f of F) { f.hp = f.maxHp; f.alive = true; f.deaths = 0; }
+  m = mk(F, 1);
+  toFight(m);
+  R.soloVsCpus = { brawl: m.brawl };
+  F[1].takeHit(99999, F[0], { srcPos: F[0].pos });
+  step(3, m);
+  R.soloVsCpusAfterKO = { state: m.state, respawning: m.respawns.length };
   m.destroy();
 
   // ---- 4. A DUEL IS UNTOUCHED ----

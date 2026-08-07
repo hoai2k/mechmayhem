@@ -44,11 +44,15 @@ import { GROUND_TEX, FACADE_TEX } from '../arena/arena.js';
  * cannot quietly go stale.
  */
 export const PENDING_ASSETS = new Set([
-  // Empty: every texture the game declares is present. Add a name here the
-  // moment something is DECLARED but not yet delivered, so the audit reports
-  // it quietly (INFO) instead of shouting about a gap somebody already knows
-  // about — and take it out again when the art lands, which the check itself
-  // will tell you to do (ARRIVED).
+  // DECLARED but not yet delivered — the audit reports these quietly (INFO)
+  // instead of shouting about a gap somebody already knows about. Take a line
+  // out when the art lands, which the check itself will tell you to do
+  // (ARRIVED).
+  //
+  // SAURION's egg shell (combat/eggs.js, requested in
+  // docs/ASSET_REQUESTS_STRUCTURES.md). Until it arrives the shell is painted
+  // procedurally — speckled cream, which is close enough to read as an egg.
+  'prop/prop_dino_egg',
 ]);
 
 /** Every [set, name, why] the game's own data declares. */
@@ -73,6 +77,9 @@ export function declaredAssets() {
     }
   }
   out.push(['building', 'bldg_roof_gravel', 'shared roof']);
+  // combat props that ask the pack for a skin: SAURION's egg shell
+  // (combat/eggs.js — painted procedurally until this lands)
+  out.push(['prop', 'prop_dino_egg', "SAURION's egg shell"]);
   // the VFX sprite overrides are bundled, so a missing file is a build-time
   // fact rather than a 404 — effects.js reports it per slot too
   for (const [slot, cfg] of Object.entries(SPRITE_MANIFEST)) {

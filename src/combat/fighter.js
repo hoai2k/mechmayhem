@@ -17,6 +17,7 @@ import {
 import { aimCannons, cannonRecoil, hasCannons, ON_TARGET } from './cannonaim.js';
 import { floorGuard, clearFloorGuard } from './floorguard.js';
 import { updateAim } from './aim.js';
+import { aimGun } from './gunaim.js';
 import { bakePoseShell } from './poseshell.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
@@ -38,6 +39,7 @@ const _strikeB = new THREE.Vector3();
 const _strikeS0 = new THREE.Vector3();
 const _strikeS1 = new THREE.Vector3();
 const _swept0 = new THREE.Vector3();
+const _eggDir = new THREE.Vector3();   // egg shove direction (combat/eggs.js)
 const _swept1 = new THREE.Vector3();
 const _white = new THREE.Color(0xf4faff);
 const _charBlack = new THREE.Color(0x14100d); // burnt-out carbon shell
@@ -989,6 +991,9 @@ export class Fighter {
     this.uncloak();
     const isChannel = mv.type === 'gatling' || mv.type === 'flame' || mv.type === 'hose';
     this.faceAim();
+    // hold the firing arm on the aim across the whole shot — the wind-up, the
+    // round leaving, and the recovery after it (combat/gunaim.js)
+    this._gunAimT = Math.max(this._gunAimT || 0, 0.45 + (mv.aimWindup || 0));
     // LB lock-aim: shots fired during a target lock fly at the crosshair
     if (this._lockAim) this._aimPoint = this._lockAim.clone();
 
@@ -1352,6 +1357,15 @@ export class Fighter {
     if (atk.fx) this.heavyImpactFx(atk, cx, cy, cz, reach);
     let hitAny = false;
     const stamp = this.world.time;
+    // SAURION'S EGGS take the swing as well — his own kick SHOVES one across
+    // the plaza, anybody else's WOUNDS it (combat/eggs.js owns that rule)
+    if (this.world.eggs?.eggs.length) {
+      const egg = this.world.eggs.hitSegment(_strikeS0, _strikeS1, swingR + 0.3);
+      if (egg) {
+        hitAny = true;
+        this.world.eggs.hit(egg, this, _eggDir.set(fwdX, 0, fwdZ), 1);
+      }
+    }
     for (const f of this.world.fighters) {
       if (f === this || !f.alive) continue;
       // the swept limb, moved into the victim's image across the seam (both
@@ -3412,6 +3426,12 @@ export class Fighter {
     this.updateRegrow(dt);
     // ---- poison bites: red flush + a flinch each time a wound opens ----
     this.updatePoisonWounds(dt);
+    // ---- POINT THE GUN AT WHAT HE IS SHOOTING AT (combat/gunaim.js) ----
+    // A hand-held muzzle inherits the arm's animation, so the ARM is turned
+    // onto the aim — the crosshair while targeting, straight ahead otherwise —
+    // and the round then leaves a barrel that is actually pointing at it. Here,
+    // with the other post-pose servos, and before the GLB re-sync below.
+    aimGun(this, dt);
     // GLB rigs: everything above (heavy spins, palm clamps, scripted whirls)
     // wrote to the VIRTUAL joints — but the adapter already synced the bones
     // inside animator.update(), so those writes never reached the model
@@ -3421,6 +3441,14 @@ export class Fighter {
     // on the virtual joints and rides the retarget like any other) ----
     if (this._climbTilt > 0.01) applyClimbPose(this);
     if (this.mech.isGLB) this.mech.postAnimate?.();
+    // ---- POINT THE GUN AT WHAT HE IS SHOOTING AT (combat/gunaim.js) ----
+    // A hand-held muzzle inherits the arm's animation, so the ARM is turned onto
+    // the aim — the crosshair while targeting, straight ahead otherwise — and
+    // the round then leaves a barrel that is actually pointing at it. AFTER the
+    // retarget above, because a muzzle riding a MODEL bone only follows the
+    // virtual rig through it; the servo re-syncs once it has written the
+    // shoulder, so the model carries the correction into this frame's render.
+    aimGun(this, dt);
     // ---- …and the hands and feet onto the surface they are crossing, AFTER
     // it: that one is a CONTACT, solved on the bones a rigged model renders,
     // and re-syncing over it would throw it away ----

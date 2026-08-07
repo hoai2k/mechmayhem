@@ -6,12 +6,14 @@ import { Effects, GOO_TINTS } from '../combat/effects.js';
 import { FlameFX, fireTint } from '../combat/flamefx.js';
 import { ProjectileSystem } from '../combat/projectiles.js';
 import { FleaSystem } from '../combat/fleas.js';
+import { EggSystem } from '../combat/eggs.js';
 import { overlapsY } from '../combat/movekit.js';
 import { bodyHitSegment } from '../combat/hurtbox.js';
 import { hasCannons } from '../combat/cannonaim.js';
 import { rand, clamp } from '../core/utils.js';
 
 const _v = new THREE.Vector3();
+const _v2 = new THREE.Vector3();   // egg-shove scratch
 // VIPER's thrown dagger: seconds the forearm stays visibly BARE before the
 // blade starts re-forging (Fighter.regrowWeapon's per-throw delay).
 const BLADE_REGROW_DELAY = 1.18;
@@ -52,6 +54,7 @@ export class World {
     this.flameJets = new Map(); // key -> {nozzle, impact, ttl} FlameFX pairs
     this.debris = [];       // finisher wreckage (frozen rubble): cleared each round
     this.pickups = [];      // ammo crates {mesh, pos, active, respawnT}
+    this.eggs = new EggSystem(this);   // SAURION's clutch (combat/eggs.js)
     // per-frame ultimate entities (orbit swarms, tornadoes, giant forms...):
     // {tick(dt) -> false when done, end()} — end() ALWAYS runs (natural
     // finish, finisher interrupt, or round sweep), so cleanup lives there
@@ -294,6 +297,7 @@ export class World {
     for (const f of this.fighters) f.update(dt);
     this.projectiles.update(dt);
     this.fleas.update(dt);
+    this.eggs.update(dt);
     this.effects.update(dt);
     this.arena?.update(dt);
     this.updatePickups(dt);
@@ -338,6 +342,11 @@ export class World {
     }
     this.arena?.damageSphere(pos, radius * 0.85, dmg * 2.2, null, true);
     this.arena?.hitExplosives?.(pos, radius);   // blasts cook off nearby tanks
+    // …and SAURION's clutch, where who threw it is the whole rule (eggs.js)
+    for (const egg of this.eggs.eggsNear(pos, radius)) {
+      _v2.set(egg.pos.x - pos.x, 0, egg.pos.z - pos.z);
+      this.eggs.hit(egg, owner, _v2, 1);
+    }
   }
 
   // expanding ground ring that hits grounded fighters (slams)
@@ -629,6 +638,7 @@ export class World {
     }
     this.debris.length = 0;
     this.fleas.clear();
+    this.eggs.clear();
   }
 }
 
@@ -725,30 +735,42 @@ function flamePartRadius(part) {
 
 const _bQ = new THREE.Quaternion(), _bOff = new THREE.Quaternion();
 const _bFwd = new THREE.Vector3(), _bFace = new THREE.Vector3();
+// How far past the aim an ARM-HELD barrel may still steer the shot: the residue
+// gunaim.js could not turn out (`f._gunAimErr`). Inside it, the round follows
+// the barrel; outside it, the arm plainly did not get there and the shot goes
+// where the player aimed instead.
+const ARM_SLOP = 0.28;   // rad (~16°)
+
 function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
   out.identity();
   if (!anchor?.userData?.aimRot) return out;
-  // A BARREL MAY ONLY STEER A SHOT IF IT IS A MOUNT, NOT A HAND.
+  // A BARREL MAY ONLY STEER A SHOT AS FAR AS IT IS AIMED.
   //
-  // The deflection reads the anchor's LIVE world orientation, which is right
-  // for something bolted to the hull and wrong for a gun held in a fist: a
-  // hand's orientation is whatever the animation is doing this frame, and the
-  // gait's arm swing is not an aiming system. Measured off live fights, firing
-  // while strafing left NULLBOT's bolt 75° off his own facing, VIPER's 86° and
-  // VULCAN's swinging between -35° and +17° — the reported "it flies off to the
-  // side", and under a target lock it threw the shot off the crosshair by the
-  // same angle.
+  // The deflection reads the anchor's LIVE world orientation, which is right for
+  // something bolted to the hull and was a disaster for a gun held in a fist: a
+  // hand's orientation is whatever the animation is doing this frame. Measured
+  // off live fights, firing while strafing left NULLBOT's bolt 75° off his own
+  // facing, VIPER's 86° and VULCAN's swinging between -35° and +17° — the
+  // reported "it flies off to the side", and under a target lock it threw the
+  // shot off the crosshair by the same angle.
   //
-  // So the deflection is opt-in, and both opts are explicit:
-  //   · `aimFlat` — the authored hull mounts (cranky's hose cannons, jerry's
-  //     pods, frogger's gunk guns), whose splay IS the design;
-  //   · a traversing-cannon mech (tritone), where the GUN does the aiming and
-  //     the live barrel direction is the firing solution (combat/cannonaim.js).
-  // Every other muzzle fires along the aim the rest of fireRanged worked out —
-  // straight ahead unlocked, at the crosshair while targeting. That is also
-  // what the straight-ahead muzzles were always supposed to do: their authored
-  // `rot` is identity in the REST pose, so nothing about a standing shot moves.
-  if (!anchor.userData.aimFlat && !hasCannons(f)) return out;
+  // The answer is not to ignore the barrel — a round leaving a gun that visibly
+  // points elsewhere is its own bug — it is to AIM THE ARM (combat/gunaim.js
+  // turns the shoulder so the barrel is on the crosshair, or straight ahead when
+  // nothing is targeted) and then follow the barrel out of the muzzle. So the
+  // deflection stays, bounded by how well that solve did:
+  //   · `aimFlat` hull mounts (cranky's hose cannons, jerry's pods, frogger's
+  //     gunk guns) deflect FULLY — their splay is the design, and they do not
+  //     animate;
+  //   · a traversing-cannon mech (tritone) deflects fully — the GUN is the
+  //     aiming system and its direction IS the firing solution;
+  //   · an ARM-HELD gun deflects up to `ARM_SLOP` past what the aim asked for,
+  //     so a solve that could not reach (a target behind him, a clamped
+  //     shoulder) bends the shot a little rather than throwing it away.
+  if (!anchor.userData.aimFlat && !hasCannons(f)) {
+    const err = f._gunAimErr || 0;
+    if (err > ARM_SLOP) return out;    // the arm never got there — fire on the aim
+  }
   anchor.getWorldQuaternion(_bQ);
   _bFwd.set(0, 0, 1).applyQuaternion(_bQ);
   if (_bFwd.lengthSq() < 1e-9) return out;
