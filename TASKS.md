@@ -6809,3 +6809,27 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
   Measured with the new `node tools/armaudit.mjs saurion` (hand and elbow
   against their own shoulder in the CHEST's frame, every clip he can play):
   14 of 23 clips carried an arm behind the shoulder before, 0 after.
+
+## Saurion rides with everything (Opus session, cont.)
+
+- BITELATCH IS NOW JAWS AND CLAWS. Perched on top of prey he used to peck with
+  his head while both hands hung idle; the loop is a four-beat cycle now —
+  hammer, right sickle, hammer, left sickle (`PERCH_BEATS`, animations.js) —
+  built from a small pose vocabulary (`perchCarry`/`perchChamber`/`perchRake`).
+  The rake is his own forehand SWIPE reshaped for a body he is standing on:
+  shoulder YAW carries the claw ACROSS what is under him while the elbow
+  EXTENDS. Pitching the shoulder out to the side was tried first and reads as
+  presenting the claw rather than opening anything with it.
+- BOTH USERS OF THE LOOP GOT IT. The SPECIAL (sickleRush) schedules its ride
+  hits ON those beats, so each blow lands on the frame the limb arrives — two
+  bites and two rakes, with the rake's sparks thrown to that hand's side and an
+  impulse on the arm for the drag. Chip damage is UNCHANGED in total (3 x 0.22
+  -> 4 x 0.165): he opens them up with more of himself, not for more.
+  Measured (`node tools/scratch/perchhits.mjs`): the latch lands 48.2, then
+  8.2 at 0.72 / 0.88 / 1.02 / 1.18 — four beats, all connecting.
+  The FINISHER's flurry is generated from the same beats (12 strikes over the
+  ride at clip speed 0.9) instead of a rhythm of its own, so every spark burst
+  is a limb actually arriving. finishaudit clean; armaudit still 0 of 23.
+- `foreCarry`'s elbow floor relaxed -45 -> -34, far enough to let a rake EXTEND
+  the arm and still short of a hanging limb (measured: hand stays in front of
+  the shoulder at every shoulder pitch in the band).

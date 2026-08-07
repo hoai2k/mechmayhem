@@ -31,6 +31,40 @@ const REST_UPPER = { torso: [0, 0, 0], hipsRot: [0, 0, 0], hipsPos: [0, 0, 0], h
 const BALL_TUCK = { hipsPos: [0, -0.12, 0], hipsRot: [14, 0, 0], torso: [52, 0, 0], head: [26, 0, 0], thighL: [-96, 0, -4], thighR: [-100, 0, 4], kneeL: [126, 0, 0], kneeR: [122, 0, 0], ankleL: [-30, 0, 0], ankleR: [-30, 0, 0], shoulderL: [-62, 18, 4], shoulderR: [-62, -18, -4], elbowL: [-112, 0, 0], elbowR: [-112, 0, 0], handL: [24, 0, 0], handR: [24, 0, 0] };
 const LAND_STRETCH = { hipsPos: [0, 0.12, 0], hipsRot: [0, 0, 0], torso: [6, 0, 0], head: [-6, 0, 0], thighL: [-6, 0, -3], thighR: [-6, 0, 3], kneeL: [6, 0, 0], kneeR: [6, 0, 0], ankleL: [-32, 0, 0], ankleR: [-32, 0, 0], shoulderL: [-38, 0, -58], shoulderR: [-38, 0, 58], elbowL: [-18, 0, 0], elbowR: [-18, 0, 0], handL: [0, 0, 0], handR: [0, 0, 0] };
 
+// ---------- SAURION's PERCH (biteLatch) ----------
+// The pose vocabulary for riding a kill: he does not just bite it, he HOLDS IT
+// DOWN and opens it up. A raptor's hands are hooked sickles carried in front —
+// on top of prey they chamber high and drag down through it, alternating, while
+// the jaws hammer the collar between rakes. Arm values are ABSOLUTE (only
+// legs/torso/head take the restPose bias) and every one of them sits inside his
+// `foreCarry` band, so the compile-time clamp leaves them exactly as authored.
+const perchCarry = (s) => ({            // claws hooked into what he is standing on
+  ['shoulder' + s]: [-74, 0, s === 'L' ? -20 : 20], ['elbow' + s]: [-58, 0, 0],
+  ['hand' + s]: [30, 0, s === 'L' ? 12 : -12],
+});
+// The rake is his own forehand SWIPE (saurionClawR) reshaped for a body he is
+// standing ON: the drive is shoulder YAW carrying the claw ACROSS the thing
+// under him while the elbow EXTENDS, not a shoulder pitched out to the side —
+// which is what the first version did, and it read as presenting the claw
+// rather than opening anything with it.
+const perchChamber = (s) => ({          // …cocked high and outboard
+  ['shoulder' + s]: [-116, s === 'L' ? -22 : 22, s === 'L' ? -28 : 28],
+  ['elbow' + s]: [-92, 0, 0], ['hand' + s]: [40, 0, s === 'L' ? 16 : -16],
+});
+const perchRake = (s) => ({             // …and DRAGGED down and across them
+  ['shoulder' + s]: [-44, s === 'L' ? 24 : -24, s === 'L' ? 6 : -6],
+  ['elbow' + s]: [-34, 0, 0], ['hand' + s]: [-12, 0, s === 'L' ? 6 : -6],
+});
+const PERCH_UP = { torso: [22, 0, 0], head: [-14, 0, 0], hipsRot: [20, 0, 0], hipsPos: [0, -0.55, 0] };
+const PERCH_BITE = { torso: [38, 0, 0], head: [55, 0, 0], hipsRot: [26, 0, 0], hipsPos: [0, -0.68, 0] };
+const PERCH_LEGS = { thighL: [-24, 0, -10], thighR: [-24, 0, 10], kneeL: [40, 0, 0], kneeR: [40, 0, 0],
+  ankleL: [-20, 0, 0], ankleR: [-20, 0, 0] };
+// THE FOUR BEATS, in clip seconds — bite, right rake, bite, left rake. The
+// hits are scheduled against these numbers (combat/specials.js sickleRush), so
+// the blow lands on the frame the limb arrives rather than near it.
+export const PERCH_BEATS = { bite1: 0.07, rakeR: 0.24, bite2: 0.37, rakeL: 0.54, loop: 0.6 };
+
+
 const CLIPS_RAW = {
   // ---------- personality ----------
   intro: {
@@ -1207,17 +1241,24 @@ const CLIPS_RAW = {
       { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [-10, 0, 0], shoulderL: [-98, 0, -22], shoulderR: [-98, 0, 22], elbowL: [-52, 0, 0], elbowR: [-52, 0, 0], handL: [32, 0, 12], handR: [32, 0, -12], thighL: [-28, 0, -4], thighR: [-28, 0, 4], kneeL: [24, 0, 0], kneeR: [24, 0, 0], ankleL: [-22, 0, 0], ankleR: [-22, 0, 0], hipsRot: [16, 0, 0] } },
     ],
   },
-  biteLatch: { // SAURION perched ON TOP of prey — legs clenched in a deep
-    // gripping crouch (talons in), body hunched low over them, head rearing
-    // back then HAMMERING down in fast bird-of-prey pecks, CLAWS PINNING the
-    // thing he is standing on (they hung back behind his shoulders before —
-    // a raptor holds its kill down with its hands). Leg/torso/head values are
-    // deltas over his raptor rest pose; arm values are absolute.
-    dur: 0.36, loop: true,
+  biteLatch: { // SAURION riding the kill — legs clenched in a deep gripping
+    // crouch (talons in), body hunched low over them, and a four-beat loop of
+    // JAWS AND CLAWS: head rears back and hammers the collar, the right sickle
+    // chambers and is dragged down through them, hammer again, left sickle. He
+    // used to only peck, with both hands hanging idle at his sides — a raptor
+    // on top of something uses everything it has. See PERCH_BEATS.
+    dur: PERCH_BEATS.loop, loop: true,
     keys: [
-      { t: 0, pose: { torso: [22, 0, 0], head: [-14, 0, 0], shoulderL: [-74, 0, -20], shoulderR: [-74, 0, 20], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0], handL: [30, 0, 12], handR: [30, 0, -12], thighL: [-24, 0, -10], thighR: [-24, 0, 10], kneeL: [40, 0, 0], kneeR: [40, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0], hipsRot: [20, 0, 0], hipsPos: [0, -0.55, 0] } },
-      { t: 0.16, ease: 'inCubic', pose: { torso: [38, 0, 0], head: [55, 0, 0], hipsRot: [26, 0, 0], hipsPos: [0, -0.68, 0] } },
-      { t: 0.36, ease: 'outCubic', pose: { torso: [22, 0, 0], head: [-14, 0, 0], hipsRot: [20, 0, 0], hipsPos: [0, -0.55, 0] } },
+      { t: 0, pose: { ...PERCH_UP, ...PERCH_LEGS, ...perchCarry('L'), ...perchCarry('R') } },
+      { t: PERCH_BEATS.bite1, ease: 'inCubic', pose: { ...PERCH_BITE, ...perchChamber('R') } },
+      { t: 0.14, ease: 'outCubic', pose: { ...PERCH_UP } },
+      // RIGHT RAKE — the shoulder rolls into it so the whole frame drives the claw
+      { t: PERCH_BEATS.rakeR, ease: 'inCubic', pose: { torso: [30, 0, -7], head: [-6, 0, 0], ...perchRake('R') } },
+      { t: 0.31, ease: 'outCubic', pose: { ...PERCH_UP, ...perchCarry('R') } },
+      { t: PERCH_BEATS.bite2, ease: 'inCubic', pose: { ...PERCH_BITE, ...perchChamber('L') } },
+      { t: 0.44, ease: 'outCubic', pose: { ...PERCH_UP } },
+      { t: PERCH_BEATS.rakeL, ease: 'inCubic', pose: { torso: [30, 0, 7], head: [-6, 0, 0], ...perchRake('L') } },
+      { t: PERCH_BEATS.loop, ease: 'outCubic', pose: { ...PERCH_UP, ...perchCarry('L') } },
     ],
   },
   grabReach: { // COLOSSUS: both hands lunge out low to seize the target

@@ -8,6 +8,7 @@ import { fireTint } from './flamefx.js';
 import { TidalWaveFX } from './wavefx.js';
 import { bakePoseShell } from './poseshell.js';
 import { batTexture } from '../core/textures.js';
+import { PERCH_BEATS } from '../mechs/animations.js';
 // deliberate cycle with fighter.js (and a reach into game/ai.js): both are
 // only touched at runtime, for SAURION's summoned raptor pack
 import { Fighter } from './fighter.js';
@@ -932,14 +933,40 @@ export const SPECIALS = {
           perch(); // stay perched wherever the struggle carries them
         });
       }
-      // three fast pecking strikes while riding
-      for (const bt of [0.2, 0.42, 0.62]) {
-        w.schedule(bt, () => {
+      // JAWS AND CLAWS while he rides. The clip is a four-beat loop — hammer,
+      // right sickle, hammer, left sickle (PERCH_BEATS, animations.js) — and
+      // each blow is scheduled ON its beat, so the hit lands on the frame the
+      // limb arrives rather than near it. The chip damage is the SAME total the
+      // three pecks carried (3 x 0.22 = 0.66, now 4 x 0.165): he opens them up
+      // with more of himself, he does not do more of it.
+      const RIDE_HITS = [
+        { t: PERCH_BEATS.bite1, claw: null },
+        { t: PERCH_BEATS.rakeR, claw: 'R' },
+        { t: PERCH_BEATS.bite2, claw: null },
+        { t: PERCH_BEATS.rakeL, claw: 'L' },
+      ];
+      for (const h of RIDE_HITS) {
+        w.schedule(h.t, () => {
           if (!f.alive || !prey.alive) return;
-          prey.takeHit(sp.dmg * 0.22 * f.dmgMult(), f, { knock: 1, srcPos: f.pos });
+          prey.takeHit(sp.dmg * 0.165 * f.dmgMult(), f, { knock: 1, srcPos: f.pos });
           w.audio?.play('slash');
-          w.effects.impactSparks(prey.center(), 0xff3826, 10, 8);
-          f.animator.addImpulse('head', [0.4, 0, 0], 26, 9);
+          if (h.claw) {
+            // a rake tears DOWN the far side of the body it is dragged through:
+            // sparks offset to that hand's side and low, and the arm carries
+            // the follow-through the clip's key cannot (an impulse rides on
+            // top of the pose, so the drag reads as effort)
+            const side = h.claw === 'R' ? 1 : -1;
+            const c = prey.center();
+            w.effects.impactSparks(
+              _v.set(c.x + Math.cos(ang) * side * prey.hitRadius * 0.5, c.y - prey.height * 0.12,
+                c.z - Math.sin(ang) * side * prey.hitRadius * 0.5),
+              0xff5a2a, 12, 9);
+            f.animator.addImpulse('shoulder' + h.claw, [0.5, 0, -0.35 * side], 22, 8);
+            f.animator.addImpulse('elbow' + h.claw, [0.4, 0, 0], 22, 8);
+          } else {
+            w.effects.impactSparks(prey.center(), 0xff3826, 10, 8);
+            f.animator.addImpulse('head', [0.4, 0, 0], 26, 9);
+          }
         });
       }
       // kick off the carcass and spring clear

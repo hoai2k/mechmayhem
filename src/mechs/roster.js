@@ -640,13 +640,15 @@ export const ROSTER = [
     // `foreCarry` is the floor that stops it — every clip's shoulder and elbow
     // pitch clamped into a measured band at compile time (animations.js
     // defClipVariants). The band's near end is where the elbow crosses in
-    // front of the shoulder (-30, with the elbow folded past -45 so the claws
-    // are up); its far end is where an arm raised high starts going back over
+    // front of the shoulder (-30, with the elbow folded past -34 so the claws
+    // are up — far enough to let a rake EXTEND the arm, not so far that the
+    // shared clips can straighten it into a hanging limb); its far end is
+    // where an arm raised high starts going back over
     // his own head (-150, which is what victory and groundPound were doing at
     // -165 and -168). His own forms are all inside it and come through
     // untouched, a chambered claw included — that being the one time a
     // forelimb legitimately travels back.
-    foreCarry: { pitch: [-132, -30], elbow: [-120, -45] },
+    foreCarry: { pitch: [-132, -30], elbow: [-120, -34] },
     lightClips: ['saurionKick1', 'saurionKick2', 'saurionKick3'],
     heavyClip: 'saurionBite',
     rangedClip: 'saurionQuillFan', // both arms slung forward — see animations.js
