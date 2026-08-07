@@ -6760,3 +6760,52 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
 - Structure DestructibleSystems sized 2800 (buildings keep 3600), from a
   15-roll seed sweep whose worst system was 2094 — and `&seed=<n>` now works
   on ?battle URLs, because auditing generation means sweeping layouts.
+
+## Ultimates + saurion's forelimbs (Opus session)
+
+- FENRIR's WILD HUNT rifts in ACROSS THE ARENA: twenty spawn points scattered
+  over the cell (spread = the toroidal half-period, sqrt-distributed so they
+  spread by area), each wolf tearing its OWN portal and coming up out of it,
+  and each one then RUNS THE NEAREST ENEMY DOWN (re-picked every 0.2-0.4s
+  against its own position, not the alpha's). TWO LIFETIMES: a wolf that has
+  bitten leaves at `duration` (4.5s), one that has not keeps hunting to
+  `huntMax` (10s) — it spawned across the block and should get there. Measured
+  (`node tools/scratch/hunt.mjs`): 20 wolves spawn 50-108 units from the enemy,
+  mean distance 80 -> 35 by t=4 with the first bites landing then, and the pack
+  is gone by 11.2s.
+- JERRY's FLEA CIRCUS boils out of a BLACK VORTEX (`darkVortex` in specials.js)
+  instead of a clean orange rift: a lightless ground disc, dim rim arcs turning
+  with it, and a funnel of near-black smoke whose emission ANGLE rotates while
+  each puff leaves with a tangential + inward velocity (particles fly straight
+  once emitted — the curve is in where and how they start). Opens under the
+  crouch, 0.25s before the first flea, and outlasts the spawn. Each clone drags
+  a wisp of it out with it. Measured: ~100 live puffs through the spawn window.
+- WRAITH's DEATH SWARM is his TAUNT, cashed in. It plays his own taunt clip, so
+  the loom (grow to 1.6, ghosting, wisps, the trickle of bats) and the handover
+  (frozen shell growing as it fades while he walks out of it, bats bursting)
+  are the taunt's own code, not a second copy — and then the flock STAYS and
+  hunts. The hunting bats are drawn off the taunt's bat atlas as camera-facing
+  sprites (instanced quads, billboard + atlas maths lifted from ParticlePool),
+  so the swarm that arrives is visibly the swarm he came apart into. Measured
+  (`node tools/scratch/deathswarm.mjs`): grow 1 -> 1.6 by 1.27s, back to 1 on
+  the handover at 1.5s with the pool jumping 10 -> 83 bats, flock of 150 up at
+  1.5s and winding out at 9.6s.
+  ONE ENGINE CHANGE FELL OUT OF IT: `cancelOnMove` no longer drops a clip while
+  the fighter is in the `ult` state. A held stick was ending the loom on its
+  first frame (measured: the taunt clip gone after ONE update). Taunts are in
+  the `attack` state, so nothing about them moved.
+- SAURION KEEPS HIS CLAWS IN FRONT. The shared clip library speaks humanoid —
+  its neutral is `shoulder: 0`, arms at the sides — so every shared clip that
+  returned an arm to neutral, or threw one back for balance, pointed a raptor's
+  weapons backwards. `foreCarry` (roster) clamps every clip's shoulder and
+  elbow pitch into a MEASURED band at compile time (animations.js
+  defClipVariants), the band's ends taken from `tools/scratch/armband.mjs`:
+  -30 is where the elbow crosses in front of the shoulder, -150 where a raised
+  arm starts going back over his own head. Clamped in the DATA, so the pose
+  workbench and the probes see what plays. `pounceLeap` and `biteLatch` were
+  re-authored outright (claws REACHING on the leap, PINNING the kill on the
+  latch) and he has his own `victory` — a rear-and-shriek holding the taunt's
+  claw carry, since the shared one punches a fist over the head.
+  Measured with the new `node tools/armaudit.mjs saurion` (hand and elbow
+  against their own shoulder in the CHEST's frame, every clip he can play):
+  14 of 23 clips carried an arm behind the shoulder before, 0 after.

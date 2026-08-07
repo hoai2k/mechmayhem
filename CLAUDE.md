@@ -2332,6 +2332,79 @@ audio). Progress history: `TASKS.md`.
   it stops a held one too. (Measured on tritone after a cannon volley, whose
   `tritoneBrace` keys hips, thighs, knees and ankles: 44 units of walking with
   0.000 rad of knee swing.)
+- SOME ARMS ARE WEAPONS HELD IN FRONT, and the shared clip library does not
+  know it (`foreCarry` in a roster def, applied by `defClipVariants` in
+  animations.js). Every shared clip is authored for a humanoid brawler, whose
+  NEUTRAL is `shoulder: 0` — arms hanging at the sides — and who throws an arm
+  back for balance whenever it crouches, lands, flinches or gets up. On a
+  RAPTOR that points the weapons backwards: measured on saurion
+  (`node tools/scratch/armband.mjs <mech>`, hand offset from its own shoulder),
+  the shared neutral put his hand 0.11 of a body height BEHIND the shoulder and
+  the intro/getup crouch 0.16 behind, against +0.26 for his own rest carry.
+  `foreCarry: { pitch: [lo, hi], elbow: [lo, hi] }` clamps every clip's
+  shoulder and elbow PITCH into a measured band — saurion's is [-150, -30] /
+  [-120, -45], where -30 is where the elbow crosses in front of the shoulder
+  and -150 where a raised arm starts travelling back over his own head (which
+  is what victory and groundPound were doing at -165 and -168).
+  CLAMPED IN THE DATA, AT COMPILE TIME, and that is the design: a runtime
+  clamp fights the clip silently, so the pose workbench shows one thing and the
+  body does another and every measurement taken off the clip is of something
+  that never plays. Clamped keys still interpolate (a clamped key is a key),
+  and a clip already inside the band comes back UNTOUCHED — the variant map
+  only carries clips that moved — so a mech's own forms are unaffected and a
+  claw CHAMBERED before a rake, the one time a forelimb legitimately travels
+  back, stays as authored. Judge it with `node tools/armaudit.mjs <mech>`,
+  which plays every clip the mech can play and measures the hand and elbow
+  against their own shoulder IN THE CHEST'S FRAME — a body pitched 60° forward
+  while dying has every forward-carried arm reading as behind it in world
+  terms, and that is the body falling over, not the arm going back. Saurion:
+  14 of 23 clips carried an arm behind before, 0 after.
+- AN ULT IS A COMMITMENT, so `cancelOnMove` does not apply in the `ult` state
+  (fighter.js). The flag exists so a held stick drops the intro or a taunt the
+  instant control returns; WRAITH's DEATH SWARM plays his own TAUNT CLIP on
+  purpose — the apparition, the ghosting and the bats are all driven off that
+  clip's name (growTaunt) — and any held direction ended the loom on its first
+  frame (measured: the clip gone after ONE update). The ult state already
+  refuses movement, so no control was taken away.
+- WRAITH'S ULT IS HIS TAUNT, CASHED IN (`deathSwarm`). Rather than a second
+  copy of the loom, it plays the taunt clip, waits `loom` seconds and lets go —
+  growTaunt does the growing, the ghosting, the trickle of bats and the
+  handover to a frozen shell, exactly as the taunt does. THE DIFFERENCE IS
+  WHAT THE BATS DO: the taunt's flock climbs away and thins, this one STAYS as
+  a gyre that stoops on whoever is nearest (`deathFlock`). A pooled particle
+  cannot hunt — it is ballistic once emitted — so the flock is instanced quads
+  with ParticlePool's billboard + 2x2 atlas maths lifted into their own shader
+  (BAT_VERT/BAT_FRAG), drawn off the taunt's own `batTexture` so the swarm that
+  arrives is visibly the swarm he came apart into. `node
+  tools/scratch/deathswarm.mjs` measures the whole sequence.
+- A SUMMON MAY ARRIVE ANYWHERE, AND MAY OUTLIVE ITS TIMER. FENRIR's WILD HUNT
+  tears twenty separate rifts scattered over the WHOLE CELL (the spread is the
+  toroidal half-period, sqrt-distributed so the pack spreads by area rather
+  than piling up in the middle) and every wolf runs down the enemy nearest to
+  ITSELF. It carries TWO lifetimes, because a pack that spawns across the block
+  is not a shockwave: `duration` is how long a wolf that has already bitten
+  sticks around, `huntMax` (10s) how long one that has NOT keeps hunting — so
+  landing a first bite past `duration` ends that wolf on the spot, which is
+  exactly "it stays until it gets an attack in". `node tools/scratch/hunt.mjs`
+  reports the spawn spread, the closing distance and both lifetimes.
+- A DARK VORTEX IS NOT A PORTAL (`darkVortex`, beside `summonPortal`). A rift
+  is a clean lit disc for something stepping through; JERRY's colony BOILS out
+  of the floor, so it gets a lightless disc, dim rim arcs turning with it and a
+  funnel of near-black smoke. TWO THINGS MAKE IT READ AS A VORTEX rather than
+  a puff: the emission ANGLE rotates, so successive puffs lie along a spiral
+  arm instead of a ring, and each puff leaves with a TANGENTIAL velocity plus a
+  little inward pull — particles fly straight once emitted, so the curve has to
+  be in where and how they start. It opens under the cast, before the first
+  clone, and outlasts the spawn. NOTE the sprite sizes: a pool sprite covers
+  roughly `size/2` WORLD units (the booster note in effects.js), so a funnel
+  around a 6-unit mech wants 4-8, not the 2-3 that looks right read as units.
+- PARTICLE POOLS DO NOT RENDER UNDER SWIFTSHADER. The headless renderer clamps
+  `gl_PointSize`, so every pooled effect — smoke, sparks, glows, flames, bats —
+  is invisible in `tools/shot.mjs` and every screenshot tool, while meshes,
+  instanced meshes and shader shells all draw normally. A screenshot showing
+  "no effect" is therefore not evidence: measure a particle effect
+  (`pool.liveCount()`, the emitted colours and positions) and save the pictures
+  for the geometry.
 
 ## Mech art pipeline — READ `docs/MECH_ART_GUIDE.md` FIRST
 

@@ -2634,7 +2634,14 @@ export class Fighter {
     // legs, sliding with no walk cycle. The first real input drops it. Only
     // clips marked `cancelOnMove` (intro, taunt) go; an attack is a
     // commitment and holds.
-    if (!this.controlsLocked && this.alive && this.animator.action?.clip.cancelOnMove &&
+    // …EXCEPT UNDER AN ULT, which IS a commitment. WRAITH's DEATH SWARM plays
+    // his own taunt clip on purpose — the apparition, the ghosting and the
+    // bats are all driven off that clip's NAME (growTaunt) — and a flourish
+    // that any held stick cancels would have ended the ult's loom on its first
+    // frame. The ult state already refuses movement (see `_ultMove`), so
+    // nothing here is a control the player has lost.
+    if (!this.controlsLocked && this.alive && this.state !== 'ult' &&
+        this.animator.action?.clip.cancelOnMove &&
         !this.animator.action.fadingOut && wantsAction(I)) {
       // A TAUNT IS NOT A COMMITMENT. It borrows the `attack` state to hold the
       // body still — the clip drives the legs, so something has to stop the
