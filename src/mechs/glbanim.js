@@ -651,6 +651,10 @@ export const GLB_ANIM = {
       saurionKick1: GLB_CLIP_VARIANTS.saurionKick1Glb,
       saurionKick2: GLB_CLIP_VARIANTS.saurionKick2Glb,
       taunt: GLB_CLIP_VARIANTS.saurionTaunt,
+      // the shared victory punches a fist over the head — a raptor cannot,
+      // and the claws end up behind him. His is a rear-and-shriek with the
+      // claws held where the taunt holds them (see animations.js).
+      victory: GLB_CLIP_VARIANTS.saurionVictory,
       block: GLB_CLIP_VARIANTS.saurionBlockGlb,
     },
   },

@@ -7,6 +7,7 @@ import { FireTornadoFX } from './nadofx.js';
 import { fireTint } from './flamefx.js';
 import { TidalWaveFX } from './wavefx.js';
 import { bakePoseShell } from './poseshell.js';
+import { batTexture } from '../core/textures.js';
 // deliberate cycle with fighter.js (and a reach into game/ai.js): both are
 // only touched at runtime, for SAURION's summoned raptor pack
 import { Fighter } from './fighter.js';
@@ -1396,6 +1397,94 @@ function summonPortal(w, x, z, { radius = 3.5, color = 0x6cd8ff, life = 1.6 } = 
   });
 }
 
+// DARK VORTEX: the other kind of arrival. A summonPortal is a clean rift with
+// a lit rim; this is a churning black funnel — a smoke column dragged round a
+// centre with a lightless disc under it — for a colony that does not so much
+// step through as BOIL out of the floor (JERRY's flea circus).
+//
+// Two things make it read as a VORTEX rather than a puff of smoke. The
+// emission ANGLE rotates (`swirl` rad/s), so successive puffs lie along a
+// spiral arm instead of a ring, and each puff leaves with a TANGENTIAL
+// velocity plus a little inward pull, so it is already travelling around the
+// centre when it is born. Particles fly straight once emitted — the curve is
+// in where and how they start, which is the only place a pooled sprite can
+// carry one.
+function darkVortex(w, x, z, { radius = 3.2, life = 1.3, color = 0x120e0c, rate = 42, swirl = 7.5 } = {}) {
+  const grp = new THREE.Group();
+  // the lightless hole itself: NORMAL-blended, because an additive black disc
+  // is nothing at all (the same trap wraith's bats document)
+  const discMat = new THREE.MeshBasicMaterial({
+    color: 0x05040a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+  });
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(radius, 36), discMat);
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.05;
+  grp.add(disc);
+  // a couple of dim arcs turning with the funnel, so the SPIN has an edge to
+  // be read against once the smoke thins
+  const rimMat = new THREE.MeshBasicMaterial({
+    color: 0x6a5a52, transparent: true, opacity: 0, depthWrite: false,
+  });
+  const spin = new THREE.Group();
+  const arcGeo = new THREE.TorusGeometry(radius * 0.92, 0.1, 6, 16, 2.1);
+  for (let i = 0; i < 2; i++) {
+    const arc = new THREE.Mesh(arcGeo, rimMat);
+    arc.rotation.z = (i / 2) * TAU;
+    spin.add(arc);
+  }
+  spin.rotation.x = -Math.PI / 2;
+  spin.position.y = 0.1;
+  grp.add(spin);
+  grp.position.set(x, 0, z);
+  w.scene.add(grp);
+  let ang = rand(TAU), acc = 0;
+  timedUpdater(w, life, (_k, dt, t) => {
+    const k = Math.min(t / 0.18, 1) * ss(clamp01((life - t) / 0.4));
+    discMat.opacity = 0.7 * k;
+    rimMat.opacity = 0.5 * k;
+    grp.scale.setScalar(0.35 + 0.65 * Math.min(t / 0.2, 1));
+    spin.rotation.z = -t * swirl;
+    ang -= swirl * dt;
+    // the funnel wall: puffs launched along the current spiral arm, each
+    // already moving AROUND the centre and drawn slightly into it
+    acc += rate * dt;
+    while (acc >= 1) {
+      acc -= 1;
+      const a = ang + rand(-0.5, 0.5);
+      const r = radius * rand(0.35, 1.05);
+      const tanX = -Math.sin(a), tanZ = Math.cos(a);   // around
+      const inX = -Math.cos(a), inZ = -Math.sin(a);    // and in
+      const sp = rand(5, 9) * k;
+      const climb = rand(3, 8);
+      // NOTE ON SIZE: a pool sprite covers roughly size/2 world units (see the
+      // booster note in effects.js), so a funnel that reads at combat range
+      // around a ~6-unit mech wants 4-8, not the 2-3 that looks right when you
+      // read the number as units.
+      w.effects.smoke.emit(
+        x + Math.cos(a) * r, rand(0.1, 2.2), z + Math.sin(a) * r,
+        tanX * sp + inX * sp * 0.35, climb, tanZ * sp + inZ * sp * 0.35,
+        {
+          life: rand(0.6, 1.3), size: rand(4, 7.5), color: 0x322c29, color2: color,
+          alpha: rand(0.6, 0.9), drag: 1.1, grow: rand(2, 4), spin: rand(0.6, 2.2),
+        });
+    }
+    // the odd ember dragged round with it, so the black has something to be
+    // black against
+    if (Math.random() < 0.5) {
+      const a = ang + rand(-0.8, 0.8), r = radius * rand(0.5, 1);
+      w.effects.sparks.emit(x + Math.cos(a) * r, rand(0.2, 1.6), z + Math.sin(a) * r,
+        -Math.sin(a) * rand(6, 11), rand(1, 5), Math.cos(a) * rand(6, 11),
+        { life: rand(0.25, 0.5), size: rand(0.4, 0.8), color: 0xff9a3c, drag: 1.6, gravity: 6 });
+    }
+  }, () => {
+    w.scene.remove(grp);
+    disc.geometry.dispose();
+    arcGeo.dispose();
+    discMat.dispose();
+    rimMat.dispose();
+  });
+}
+
 // nearest living opponent of `f` to an arbitrary world point
 function nearestEnemyTo(f, x, z, maxD = Infinity) {
   const w = f.world;
@@ -2345,8 +2434,18 @@ export const ULTS = {
     });
   },
 
-  // FENRIR: one howl at the sky — and a PACK of twenty low-running Fenrirs
-  // floods the block, tearing through everything they brush past
+  // FENRIR: one howl at the sky — and the PACK answers from EVERYWHERE. Twenty
+  // rifts tear open at random points across the whole arena, a low-running
+  // Fenrir comes up out of each one, and every one of them runs down the
+  // nearest enemy it can find.
+  //
+  // THE PACK IS NOT A SHOCKWAVE, IT IS A HUNT, and that is what the two
+  // lifetimes are for. A wolf that has drawn blood has done its job and leaves
+  // at `duration`; one that has NOT keeps hunting up to `huntMax` (10s), so a
+  // wolf that spawned on the far side of the block still arrives instead of
+  // evaporating halfway there. Landing the first bite past `duration` therefore
+  // ends that wolf on the spot, which is exactly "it stays until it gets an
+  // attack in".
   wildHunt(f, u) {
     const w = f.world;
     cast(f, 'castRaise', { state: 'ult', stateT: 1.2, speed: 1.1 });
@@ -2357,21 +2456,38 @@ export const ULTS = {
     w.schedule(0.62, () => {
       if (!f.alive) return;
       const N = u.count || 20;
+      const DUR = u.duration || 4.5;      // a wolf that has bitten leaves here
+      const HUNT = Math.max(DUR, u.huntMax || 10); // one that has not, here
       const wolves = [];
-      // the rift tears open under the alpha — the pack pours up out of it
-      summonPortal(w, f.pos.x, f.pos.z, { radius: 4.2, color: 0x6cd8ff, life: 1.9 });
+      // WHERE THE PACK COMES FROM: the whole cell, not the alpha's feet. The
+      // spread is the arena's own extent (the toroidal half-period is the
+      // outer bound), and each rift keeps clear of Fenrir himself so the
+      // pack reads as converging on the fight rather than pouring off him.
+      const R = u.spread || Math.min(w.wrapHalf ? w.wrapHalf * 0.8 : 40, (w.arena?.bounds || 40) * 0.95);
       w.audio?.play('cast');
       for (let i = 0; i < N; i++) {
         const g = bakeShell(f);
+        g.userData.wildHunt = true;   // the pack is inspectable (tools/scratch/hunt.mjs)
         g.rotation.x = 0.5; // pitched down onto all fours
         g.scale.setScalar(0.92);
-        const a = (i / N) * TAU + rand(-0.2, 0.2);
-        g.position.set(f.pos.x + Math.cos(a) * rand(1, 3), 0.2, f.pos.z + Math.sin(a) * rand(1, 3));
+        // scattered over the disc — sqrt keeps them evenly spread by AREA
+        // instead of piling up in the middle
+        const a = (i / N) * TAU + rand(-0.35, 0.35);
+        const r = R * (0.28 + 0.72 * Math.sqrt(Math.random()));
+        const x = Math.cos(a) * r, z = Math.sin(a) * r;
+        g.position.set(x, 0.2, z);
         g.visible = false; // still on the far side of the rift
         w.scene.add(g);
+        // face the hunt from the moment it lands
+        const prey = nearestEnemyTo(f, x, z);
+        const yaw = prey
+          ? Math.atan2(w.wrapDelta(prey.pos.x - x), w.wrapDelta(prey.pos.z - z))
+          : Math.atan2(w.wrapDelta(f.pos.x - x), w.wrapDelta(f.pos.z - z));
         wolves.push({
-          g, yaw: rand(TAU), turnT: rand(0, 0.2), spd: rand(16, 22), ph: rand(TAU),
-          delay: 0.04 + i * 0.045, rise: 0,
+          g, yaw, turnT: 0, spd: rand(16, 22), ph: rand(TAU), fed: false,
+          rift: 0.05 + i * 0.06,   // its own rift opens here…
+          delay: 0.35 + i * 0.06,  // …and it comes up out of it here
+          rise: 0, out: 0, gone: false,
         });
       }
       f.animator.stop(0.2);
@@ -2379,8 +2495,19 @@ export const ULTS = {
       let t = 0;
       w.addUpdater((dt) => {
         t += dt;
+        let live = 0;
         for (const wl of wolves) {
-          // staggered emergence: each wolf leaps out of the portal in turn
+          if (wl.gone) continue;
+          live++;
+          // every wolf tears its OWN rift, wherever it happens to be standing
+          if (wl.rift > 0) {
+            wl.rift -= dt;
+            if (wl.rift <= 0) {
+              summonPortal(w, wl.g.position.x, wl.g.position.z,
+                { radius: 2.4, color: 0x6cd8ff, life: 1.5 });
+            }
+          }
+          // staggered emergence: each wolf leaps up out of its own rift
           if (wl.delay > 0) {
             wl.delay -= dt;
             if (wl.delay > 0) continue;
@@ -2399,18 +2526,34 @@ export const ULTS = {
             wl.g.rotation.x = 0.5 - (1 - k) * 0.4; // nose-up as it clears the rift
             continue;
           }
+          // ---- its time is up: sink back into the ground it came out of ----
+          if (wl.out > 0 || t >= (wl.fed ? DUR : HUNT)) {
+            if (wl.out === 0) w.effects.impactSparks(wl.g.position, 0x6cd8ff, 8, 6);
+            wl.out += dt / 0.3;
+            const k = ss(clamp01(wl.out));
+            wl.g.position.x += Math.sin(wl.yaw) * wl.spd * dt * (1 - k);
+            wl.g.position.z += Math.cos(wl.yaw) * wl.spd * dt * (1 - k);
+            wl.g.position.y = 0.15 - 2.4 * k;
+            wl.g.scale.setScalar(0.92 * (1 - 0.25 * k));
+            if (wl.out >= 1) { wl.gone = true; w.scene.remove(wl.g); live--; }
+            continue;
+          }
           wl.turnT -= dt;
           const px = wl.g.position.x, pz = wl.g.position.z;
           if (wl.turnT <= 0) {
-            wl.turnT = rand(0.3, 0.7);
-            const homeDx = w.wrapDelta(f.pos.x - px), homeDz = w.wrapDelta(f.pos.z - pz);
-            const prey = Math.random() < 0.55 ? nearestEnemyTo(f, px, pz, u.radius * 1.3) : null;
-            if (Math.hypot(homeDx, homeDz) > u.radius) {
-              wl.yaw = Math.atan2(homeDx, homeDz) + rand(-0.6, 0.6); // stay with the hunt
-            } else if (prey) {
-              wl.yaw = Math.atan2(w.wrapDelta(prey.pos.x - px), w.wrapDelta(prey.pos.z - pz)) + rand(-0.4, 0.4);
+            // RUN AT THE NEAREST ENEMY. Not a wander with a bias — a hunt: the
+            // wolf re-picks whoever is closest to IT (not to the alpha) and
+            // takes the line to them, with just enough jitter that twenty of
+            // them do not travel as one arrow.
+            wl.turnT = rand(0.2, 0.4);
+            const prey = nearestEnemyTo(f, px, pz);
+            if (prey) {
+              wl.yaw = Math.atan2(w.wrapDelta(prey.pos.x - px), w.wrapDelta(prey.pos.z - pz)) + rand(-0.25, 0.25);
             } else {
-              wl.yaw = rand(TAU); // every which way
+              const homeDx = w.wrapDelta(f.pos.x - px), homeDz = w.wrapDelta(f.pos.z - pz);
+              wl.yaw = Math.hypot(homeDx, homeDz) > u.radius
+                ? Math.atan2(homeDx, homeDz) + rand(-0.6, 0.6) // circle back to the hunt
+                : rand(TAU);
             }
           }
           wl.g.position.x += Math.sin(wl.yaw) * wl.spd * dt;
@@ -2428,6 +2571,7 @@ export const ULTS = {
             if (Math.hypot(dx, dz) < e.hitRadius + 1.2 &&
                 overlapsY(e, wl.g.position.y, f.height * 0.7)) {
               hitAt.set(e, t);
+              wl.fed = true; // it has had its bite — it may leave at DUR now
               e.takeHit(u.dmg * f.dmgMult(), f, { knock: 3, srcPos: wl.g.position, soft: Math.random() < 0.7 });
               w.effects.impactSparks(e.center(), 0x6cd8ff, 6, 6);
               if (Math.random() < 0.25) w.audio?.play('slash');
@@ -2435,9 +2579,9 @@ export const ULTS = {
           }
         }
         if (Math.random() < 0.02) w.audio?.play('howl', { vol: 0.3, pitch: rand(0.9, 1.3) });
-        return t <= (u.duration || 4.5) && f.alive;
+        return live > 0 && t <= HUNT + 1 && f.alive;
       }, () => {
-        for (const wl of wolves) w.scene.remove(wl.g);
+        for (const wl of wolves) if (!wl.gone) w.scene.remove(wl.g);
       });
     });
   },
@@ -2518,130 +2662,50 @@ export const ULTS = {
     });
   },
 
-  // WRAITH: DEATH SWARM — the cloak tears apart into a shrieking flock of
-  // a hundred and fifty bats that wheel around him in a black gyre and take
-  // turns DIVE-BOMBING everything he hates, then pour back into the dark
+  // WRAITH: DEATH SWARM — THE LOOM, AND THEN THE FLOCK MEANS IT.
+  //
+  // This is his TAUNT, cashed in. The taunt is the whole apparition act — he
+  // draws himself up half-transparent to `tauntGrow` his own height, wisps
+  // coming off him and single bats peeling away the entire time, and then the
+  // giant is peeled off as a frozen shell that keeps growing as it fades while
+  // he walks out of it at his own size, coming apart into a burst of bats
+  // (Fighter.growTaunt / disperseGiant). Every bit of that is driven off the
+  // clip NAME, so the ult gets it by playing his taunt clip and then letting go
+  // of it — one implementation, not two, and a change to the taunt moves both.
+  //
+  // THE DIFFERENCE IS WHAT THE BATS DO. The taunt's flock is particles that
+  // climb away and thin out; this one is a real gyre that wheels around him
+  // and takes turns STOOPING on whatever he hates. Same bat, though — the
+  // flock is drawn with the taunt's own bat atlas as camera-facing sprites
+  // (see BAT_VERT), so the swarm that arrives is visibly the swarm he just
+  // came apart into.
   deathSwarm(f, u) {
     const w = f.world;
     const N = u.count || 150;
-    cast(f, 'burst', { state: 'ult', stateT: 1.0, speed: 0.8 });
+    const LOOM = u.loom || 1.5;   // how long he stands there as the apparition
+    f.setState('ult', LOOM + 0.35);
     w.audio?.play('howl');
     w.audio?.play('cloak');
-    // the eye flares, then the flock erupts off the cloak
+    // the eye flares as he swells
     const eye = f.mech.anchors.eye?.getWorldPosition(new THREE.Vector3()) || f.center();
     w.effects.glows.emit(eye.x, eye.y, eye.z, 0, 0, 0,
       { life: 0.4, size: 4, color: 0xff2030, alpha: 0.95 });
     w.effects.rings.spawn(f.pos, { from: 0.5, to: 9, dur: 0.6, color: 0x8a2030, y: f.height * 0.7 });
-    // bat: a flat two-triangle W silhouette, flapped via wingspan scale
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute([
-      0, 0, 0.1, 0, 0, -0.12, -0.6, 0.06, -0.34,   // left wing
-      0, 0, 0.1, 0.6, 0.06, -0.34, 0, 0, -0.12,    // right wing
-    ], 3));
-    geo.computeVertexNormals();
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x201018, side: THREE.DoubleSide, transparent: true, opacity: 0.96,
+    // THE LOOM. growTaunt/iceTaunt/arcTaunt all key on the clip being named
+    // `taunt`, which is exactly what makes "a hit interrupts it" free here too:
+    // a hit swaps the clip for the flinch and the giant hands itself over on
+    // its own next frame, with disperseGiant's minK guard covering a loom that
+    // never really got going.
+    f.animator?.play('taunt');
+    w.schedule(LOOM, () => {
+      if (!f.alive) return;
+      // let go of the taunt clip — the apparition comes apart into bats by
+      // itself (growTaunt sees `taunting()` go false and disperses)
+      if (f.taunting()) f.animator.stop(0.12);
+      deathFlock(f, u, N);
     });
-    const im = new THREE.InstancedMesh(geo, mat, N);
-    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    im.frustumCulled = false;
-    w.scene.add(im);
-    const M = new THREE.Matrix4();
-    const Q = new THREE.Quaternion();
-    const E = new THREE.Euler();
-    const P = new THREE.Vector3();
-    const S = new THREE.Vector3();
-    const bats = [];
-    for (let i = 0; i < N; i++) {
-      bats.push({
-        state: 'orbit',
-        a: rand(TAU), r: rand(4, 15), h: rand(2.5, 11),
-        spd: (Math.random() < 0.5 ? -1 : 1) * rand(1.6, 3.4),
-        ph: rand(TAU), born: rand(0, 0.5),
-        x: f.pos.x, y: f.pos.y + f.height * 0.7, z: f.pos.z,
-        vx: 0, vy: 0, vz: 0, tgt: null, sc: rand(1.4, 2.1),
-      });
-    }
-    const hitAt = new Map(); // swarm-wide bite cadence per victim
-    const DUR = u.duration || 7;
-    let t = 0;
-    w.addUpdater((dt) => {
-      t += dt;
-      const winding = t > DUR; // time up: the flock spirals up and thins out
-      mat.opacity = winding ? Math.max(0, 0.96 * (1 - (t - DUR) / 1.1)) : 0.96;
-      const cx = f.pos.x, cy = f.pos.y, cz = f.pos.z;
-      for (let i = 0; i < N; i++) {
-        const b = bats[i];
-        const grow = clamp01((t - b.born) / 0.45); // pours out over the first beats
-        let yaw;
-        if (winding) {
-          b.h += dt * 14; // up and away
-          b.a += b.spd * dt;
-          b.x = cx + Math.cos(b.a) * b.r;
-          b.z = cz + Math.sin(b.a) * b.r;
-          b.y = cy + b.h;
-          yaw = b.a + (b.spd > 0 ? Math.PI / 2 : -Math.PI / 2);
-        } else if (b.state === 'orbit') {
-          b.a += b.spd * dt;
-          b.x = cx + Math.cos(b.a) * b.r * grow;
-          b.z = cz + Math.sin(b.a) * b.r * grow;
-          b.y = cy + (b.h + Math.sin(t * 2.2 + b.ph) * 0.9) * grow + 0.8;
-          yaw = b.a + (b.spd > 0 ? Math.PI / 2 : -Math.PI / 2);
-          // pick a mark and STOOP
-          if (grow >= 1 && Math.random() < dt * 0.55) {
-            const prey = nearestEnemyTo(f, b.x, b.z, 46);
-            if (prey) { b.state = 'dive'; b.tgt = prey; }
-          }
-        } else if (b.state === 'dive') {
-          const prey = b.tgt;
-          if (!prey || !prey.alive) { b.state = 'orbit'; b.tgt = null; yaw = b.a; }
-          else {
-            const c = prey.center();
-            const dx = w.wrapDelta(c.x - b.x), dy = c.y - b.y, dz = w.wrapDelta(c.z - b.z);
-            const d = Math.hypot(dx, dy, dz) || 1;
-            const sp = 30;
-            b.x += (dx / d) * sp * dt;
-            b.y += (dy / d) * sp * dt;
-            b.z += (dz / d) * sp * dt;
-            yaw = Math.atan2(dx, dz);
-            if (d < prey.hitRadius + 0.9) {
-              // the STRIKE — raking claws on the way through
-              if (t - (hitAt.get(prey) ?? -9) > 0.1) {
-                hitAt.set(prey, t);
-                prey.takeHit(u.dmg * f.dmgMult(), f, { 
-                  knock: 1, srcPos: P.set(b.x, b.y, b.z), soft: true,
-                });
-                if (Math.random() < 0.3) w.effects.impactSparks(c, 0x8a2030, 4, 5);
-                if (Math.random() < 0.12) w.audio?.play('howl', { vol: 0.2, pitch: rand(1.7, 2.2) });
-              }
-              b.state = 'climb';
-              b.vy = rand(9, 14);
-            }
-          }
-        } else { // climb back into the gyre
-          b.y += b.vy * dt;
-          b.vy -= 6 * dt;
-          b.x += Math.sin(b.ph) * 4 * dt;
-          b.z += Math.cos(b.ph) * 4 * dt;
-          yaw = b.ph;
-          if (b.vy <= 0 || b.y > cy + b.h + 3) {
-            b.state = 'orbit';
-            b.a = Math.atan2(b.z - cz, b.x - cx);
-            b.r = clamp(Math.hypot(b.x - cx, b.z - cz), 4, 16);
-          }
-        }
-        // flap: wingspan pulses; a diving bat folds tighter and drops flatter
-        const flap = 0.55 + Math.abs(Math.sin(t * 15 + b.ph)) * 0.65;
-        const pitch = b.state === 'dive' ? 0.6 : Math.sin(t * 4 + b.ph) * 0.15;
-        Q.setFromEuler(E.set(pitch, yaw, Math.sin(t * 7 + b.ph) * 0.25));
-        M.compose(P.set(b.x, b.y, b.z), Q, S.set(flap * b.sc, b.sc, b.sc));
-        im.setMatrixAt(i, M);
-      }
-      im.instanceMatrix.needsUpdate = true;
-      if (Math.random() < 0.05) w.audio?.play('howl', { vol: 0.14, pitch: rand(1.5, 2.0) });
-      return t <= DUR + 1.1 && f.alive;
-    }, () => { w.scene.remove(im); geo.dispose(); mat.dispose(); });
   },
+
 
   // INFERNO: he conjures a FIRE TORNADO that wanders after his enemies,
   // belching flame and smoke, growing as it goes — and whoever it finally
@@ -3037,6 +3101,12 @@ export const ULTS = {
     f.setState('ult', 1.0);
     f.duckT = 1; // the spring-crouch tell
     w.audio?.play('powerup');
+    // THE VORTEX OPENS FIRST, under the crouch — the funnel is the ANNOUNCEMENT
+    // and the colony is what comes out of it, so it has to be turning before
+    // the first flea springs (they start 0.25s from here and are all out by
+    // ~0.95s, which is what the life covers).
+    darkVortex(w, f.pos.x, f.pos.z, { radius: 3.4, life: 1.9, swirl: 8.5 });
+    w.effects.rings.spawn(f.pos, { from: 0.4, to: 6, dur: 0.5, color: 0x2a2320, y: 0.2 });
     w.schedule(0.25, () => {
       if (!f.alive) return;
       f.vel.y = 14;
@@ -3044,8 +3114,9 @@ export const ULTS = {
       w.audio?.play('jump');
       const N = u.count || 20;
       const clones = [];
-      // the colony arrives through a rift in the floor, springing straight up
-      summonPortal(w, f.pos.x, f.pos.z, { radius: 2.6, color: 0xff9a3c, life: 1.4 });
+      // THE COLONY BOILS OUT OF THE VORTEX opened above — no clean rift, a
+      // churning funnel of black cloud turning over the floor with a few
+      // embers dragged round in it, and every flea springs from inside it.
       w.audio?.play('cast');
       for (let i = 0; i < N; i++) {
         const g = bakeShell(f);
@@ -3073,6 +3144,14 @@ export const ULTS = {
             c.g.position.y = 0.1;
             summonFlash(w, c.g, 0xffb36b, 0.35);
             w.effects.impactSparks(c.g.position, 0xff9a3c, 6, 6);
+            // each one drags a wisp of the funnel out with it
+            for (let s = 0; s < 3; s++) {
+              const a = rand(TAU);
+              w.effects.smoke.emit(c.g.position.x, rand(0.2, 1), c.g.position.z,
+                Math.cos(a) * rand(1, 4), rand(2, 5), Math.sin(a) * rand(1, 4),
+                { life: rand(0.4, 0.9), size: rand(3, 5.5), color: 0x1a1614, color2: 0x120e0c,
+                  alpha: 0.75, drag: 1.3, grow: 2.4 });
+            }
           }
           c.vy -= 34 * dt;
           c.g.position.x += c.vx * dt;
@@ -3485,3 +3564,176 @@ export const ULTS = {
     });
   },
 };
+
+
+// THE HUNTING FLOCK (WRAITH's DEATH SWARM, spawned once the apparition has
+// come apart). Bats wheel in a gyre around him and peel off to STOOP on
+// whoever is nearest, then climb back into it.
+//
+// They are drawn as camera-facing sprites off the SAME bat atlas the taunt's
+// particles use, so the flock that stays and the flock that blew away are one
+// creature. A pooled particle cannot hunt — it is ballistic once emitted — so
+// these are instanced quads with the pool's billboard and atlas maths lifted
+// into their own shader: the CPU writes each bat's position, wingspan and
+// roll, and the vertex stage turns that into a sprite facing the camera.
+const BAT_VERT = /* glsl */`
+  attribute float aCell;   // which atlas frame — the flap
+  attribute float aRot;    // roll, in screen space
+  varying vec2 vUv;
+  varying float vCell;
+  void main() {
+    vec4 mv = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+    // wingspan and body length come off the instance matrix's own scale, so
+    // the flap stays a plain scale write on the CPU side
+    float sx = length(instanceMatrix[0].xyz);
+    float sy = length(instanceMatrix[1].xyz);
+    float c = cos(aRot), s = sin(aRot);
+    vec2 p = vec2(position.x * sx, position.y * sy);
+    p = vec2(p.x * c - p.y * s, p.x * s + p.y * c);
+    vUv = uv;
+    vCell = aCell;
+    gl_Position = projectionMatrix * vec4(mv.xy + p, mv.zw);
+  }
+`;
+const BAT_FRAG = /* glsl */`
+  uniform sampler2D uTex;
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying vec2 vUv;
+  varying float vCell;
+  void main() {
+    // same cell maths as ParticlePool's FRAG, on a 2x2 atlas
+    vec2 cellXY = vec2(mod(vCell, 2.0), floor(vCell / 2.0));
+    vec4 t = texture2D(uTex, (cellXY + clamp(vUv, 0.004, 0.996)) * 0.5);
+    gl_FragColor = vec4(uColor * t.rgb, t.a * uOpacity);
+    if (gl_FragColor.a < 0.01) discard;
+  }
+`;
+
+function deathFlock(f, u, N) {
+  const w = f.world;
+  w.audio?.play('howl');
+  const geo = new THREE.PlaneGeometry(1.3, 0.9);
+  const cells = new THREE.InstancedBufferAttribute(new Float32Array(N), 1);
+  const rots = new THREE.InstancedBufferAttribute(new Float32Array(N), 1);
+  cells.setUsage(THREE.DynamicDrawUsage);
+  rots.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('aCell', cells);
+  geo.setAttribute('aRot', rots);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTex: { value: batTexture() },
+      uColor: { value: new THREE.Color(0x07070c) },  // the taunt bat's own black
+      uOpacity: { value: 0.96 },
+    },
+    vertexShader: BAT_VERT,
+    fragmentShader: BAT_FRAG,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const im = new THREE.InstancedMesh(geo, mat, N);
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  im.frustumCulled = false;
+  w.scene.add(im);
+  const M = new THREE.Matrix4();
+  const Q = new THREE.Quaternion();
+  const P = new THREE.Vector3();
+  const S = new THREE.Vector3();
+  const bats = [];
+  for (let i = 0; i < N; i++) {
+    bats.push({
+      state: 'orbit',
+      a: rand(TAU), r: rand(4, 15), h: rand(2.5, 11),
+      spd: (Math.random() < 0.5 ? -1 : 1) * rand(1.6, 3.4),
+      ph: rand(TAU), born: rand(0, 0.5),
+      x: f.pos.x, y: f.pos.y + f.height * 0.7, z: f.pos.z,
+      vx: 0, vy: 0, vz: 0, tgt: null, sc: rand(1.4, 2.1),
+      flapR: rand(5, 8.5),
+    });
+  }
+  const hitAt = new Map(); // swarm-wide bite cadence per victim
+  const DUR = u.duration || 7;
+  let t = 0;
+  w.addUpdater((dt) => {
+    t += dt;
+    const winding = t > DUR; // time up: the flock spirals up and thins out
+    mat.uniforms.uOpacity.value = winding ? Math.max(0, 0.96 * (1 - (t - DUR) / 1.1)) : 0.96;
+    const cx = f.pos.x, cy = f.pos.y, cz = f.pos.z;
+    for (let i = 0; i < N; i++) {
+      const b = bats[i];
+      const grow = clamp01((t - b.born) / 0.45); // pours out over the first beats
+      let yaw;
+      if (winding) {
+        b.h += dt * 14; // up and away
+        b.a += b.spd * dt;
+        b.x = cx + Math.cos(b.a) * b.r;
+        b.z = cz + Math.sin(b.a) * b.r;
+        b.y = cy + b.h;
+        yaw = b.a + (b.spd > 0 ? Math.PI / 2 : -Math.PI / 2);
+      } else if (b.state === 'orbit') {
+        b.a += b.spd * dt;
+        b.x = cx + Math.cos(b.a) * b.r * grow;
+        b.z = cz + Math.sin(b.a) * b.r * grow;
+        b.y = cy + (b.h + Math.sin(t * 2.2 + b.ph) * 0.9) * grow + 0.8;
+        yaw = b.a + (b.spd > 0 ? Math.PI / 2 : -Math.PI / 2);
+        // pick a mark and STOOP
+        if (grow >= 1 && Math.random() < dt * 0.55) {
+          const prey = nearestEnemyTo(f, b.x, b.z, 46);
+          if (prey) { b.state = 'dive'; b.tgt = prey; }
+        }
+      } else if (b.state === 'dive') {
+        const prey = b.tgt;
+        if (!prey || !prey.alive) { b.state = 'orbit'; b.tgt = null; yaw = b.a; }
+        else {
+          const c = prey.center();
+          const dx = w.wrapDelta(c.x - b.x), dy = c.y - b.y, dz = w.wrapDelta(c.z - b.z);
+          const d = Math.hypot(dx, dy, dz) || 1;
+          const sp = 30;
+          b.x += (dx / d) * sp * dt;
+          b.y += (dy / d) * sp * dt;
+          b.z += (dz / d) * sp * dt;
+          yaw = Math.atan2(dx, dz);
+          if (d < prey.hitRadius + 0.9) {
+            // the STRIKE — raking claws on the way through
+            if (t - (hitAt.get(prey) ?? -9) > 0.1) {
+              hitAt.set(prey, t);
+              prey.takeHit(u.dmg * f.dmgMult(), f, { 
+                knock: 1, srcPos: P.set(b.x, b.y, b.z), soft: true,
+              });
+              if (Math.random() < 0.3) w.effects.impactSparks(c, 0x8a2030, 4, 5);
+              if (Math.random() < 0.12) w.audio?.play('howl', { vol: 0.2, pitch: rand(1.7, 2.2) });
+            }
+            b.state = 'climb';
+            b.vy = rand(9, 14);
+          }
+        }
+      } else { // climb back into the gyre
+        b.y += b.vy * dt;
+        b.vy -= 6 * dt;
+        b.x += Math.sin(b.ph) * 4 * dt;
+        b.z += Math.cos(b.ph) * 4 * dt;
+        yaw = b.ph;
+        if (b.vy <= 0 || b.y > cy + b.h + 3) {
+          b.state = 'orbit';
+          b.a = Math.atan2(b.z - cz, b.x - cx);
+          b.r = clamp(Math.hypot(b.x - cx, b.z - cz), 4, 16);
+        }
+      }
+      // THE FLAP IS THE ATLAS, the way the taunt's bats do it — the wingspan
+      // pulse on top of it is what keeps a sprite-flap from reading as a
+      // flicker at arena distance. A bat banks with its turn, harder in a dive.
+      const flap = 0.55 + Math.abs(Math.sin(t * 15 + b.ph)) * 0.65;
+      cells.array[i] = (t * b.flapR + b.ph) % 4 | 0;
+      rots.array[i] = Math.sin(t * 7 + b.ph) * 0.22
+        + Math.sin(yaw) * (b.state === 'dive' ? 0.45 : 0.15);
+      M.compose(P.set(b.x, b.y, b.z), Q.identity(), S.set(flap * b.sc, b.sc, b.sc));
+      im.setMatrixAt(i, M);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    cells.needsUpdate = true;
+    rots.needsUpdate = true;
+    if (Math.random() < 0.05) w.audio?.play('howl', { vol: 0.14, pitch: rand(1.5, 2.0) });
+    return t <= DUR + 1.1 && f.alive;
+  }, () => { w.scene.remove(im); geo.dispose(); mat.dispose(); });
+}

@@ -294,7 +294,11 @@ export const ROSTER = [
       heavy: { dmg: 76, knock: 18, range: 3.7, launch: 8 },
       ranged: { name: 'Rend Wave', type: 'wave', dmg: 36, speed: 34, cooldown: 1.0, ammo: 18 },
       special: { id: 'pounce', name: 'Lunar Pounce', cooldown: 5.5, dmg: 65, leap: 14 },
-      ult: { id: 'wildHunt', name: 'WILD HUNT', dmg: 9, count: 20, radius: 20, duration: 4.5 },
+      // WILD HUNT: the pack rifts in all over the arena and runs the nearest
+      // enemy down. TWO lifetimes — `duration` is how long a wolf that has
+      // already bitten sticks around, `huntMax` how long one that has NOT
+      // keeps hunting (it spawned across the block; it should get there).
+      ult: { id: 'wildHunt', name: 'WILD HUNT', dmg: 9, count: 20, radius: 20, duration: 4.5, huntMax: 10 },
     },
   },
   {
@@ -626,6 +630,23 @@ export const ROSTER = [
     // springs the whole frame forward into a lunging BITE (heavyDrive);
     // ranged throws a fan of BLACK quills off both hands/forearms (his own
     // plumage — no ammo)
+    // HIS CLAWS ARE ALWAYS IN FRONT OF HIM. The shared clip library speaks
+    // humanoid — its neutral is `shoulder: 0`, arms hanging at the sides, and
+    // it throws an arm back for balance whenever a body is crouching, landing,
+    // flinching or getting up. On a raptor that points his weapons backwards:
+    // measured (`node tools/scratch/armband.mjs saurion`), the shared neutral
+    // put his hand 0.11 of a body height BEHIND its own shoulder, and the
+    // intro/getup crouch 0.16 behind.
+    // `foreCarry` is the floor that stops it — every clip's shoulder and elbow
+    // pitch clamped into a measured band at compile time (animations.js
+    // defClipVariants). The band's near end is where the elbow crosses in
+    // front of the shoulder (-30, with the elbow folded past -45 so the claws
+    // are up); its far end is where an arm raised high starts going back over
+    // his own head (-150, which is what victory and groundPound were doing at
+    // -165 and -168). His own forms are all inside it and come through
+    // untouched, a chambered claw included — that being the one time a
+    // forelimb legitimately travels back.
+    foreCarry: { pitch: [-132, -30], elbow: [-120, -45] },
     lightClips: ['saurionKick1', 'saurionKick2', 'saurionKick3'],
     heavyClip: 'saurionBite',
     rangedClip: 'saurionQuillFan', // both arms slung forward — see animations.js

@@ -1194,22 +1194,28 @@ const CLIPS_RAW = {
       { t: 1.06, type: 'shake', arg: 0.4 },
     ],
   },
-  pounceLeap: { // SAURION pounce airtime — legs cocked under the body, sickle claws
-    // raised to strike, arms swept back, head locked on prey (values are deltas
-    // over his raptor rest pose)
+  pounceLeap: { // SAURION pounce airtime — legs cocked under the body, head
+    // locked on prey, and the sickle claws REACHING: both arms thrown forward
+    // and slightly out, elbows part-folded so the hands lead the body into the
+    // target. (They used to sweep BACK, which is a diver's pose, not a
+    // predator's — the claws are the reason for the leap and they arrived
+    // last. See the foreCarry note in defClipVariants.) Leg/torso/head values
+    // are deltas over his raptor rest pose; arm values are absolute.
     dur: 0.6, hold: true,
     keys: [
       { t: 0, pose: {} },
-      { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [-10, 0, 0], shoulderL: [40, 0, -30], shoulderR: [40, 0, 30], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0], thighL: [-28, 0, -4], thighR: [-28, 0, 4], kneeL: [24, 0, 0], kneeR: [24, 0, 0], ankleL: [-22, 0, 0], ankleR: [-22, 0, 0], hipsRot: [16, 0, 0] } },
+      { t: 0.22, ease: 'outCubic', pose: { torso: [10, 0, 0], head: [-10, 0, 0], shoulderL: [-98, 0, -22], shoulderR: [-98, 0, 22], elbowL: [-52, 0, 0], elbowR: [-52, 0, 0], handL: [32, 0, 12], handR: [32, 0, -12], thighL: [-28, 0, -4], thighR: [-28, 0, 4], kneeL: [24, 0, 0], kneeR: [24, 0, 0], ankleL: [-22, 0, 0], ankleR: [-22, 0, 0], hipsRot: [16, 0, 0] } },
     ],
   },
   biteLatch: { // SAURION perched ON TOP of prey — legs clenched in a deep
     // gripping crouch (talons in), body hunched low over them, head rearing
-    // back then HAMMERING down in fast bird-of-prey pecks (leg/torso/head
-    // values are deltas over his raptor rest pose)
+    // back then HAMMERING down in fast bird-of-prey pecks, CLAWS PINNING the
+    // thing he is standing on (they hung back behind his shoulders before —
+    // a raptor holds its kill down with its hands). Leg/torso/head values are
+    // deltas over his raptor rest pose; arm values are absolute.
     dur: 0.36, loop: true,
     keys: [
-      { t: 0, pose: { torso: [22, 0, 0], head: [-14, 0, 0], shoulderL: [26, 0, -22], shoulderR: [26, 0, 22], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0], thighL: [-24, 0, -10], thighR: [-24, 0, 10], kneeL: [40, 0, 0], kneeR: [40, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0], hipsRot: [20, 0, 0], hipsPos: [0, -0.55, 0] } },
+      { t: 0, pose: { torso: [22, 0, 0], head: [-14, 0, 0], shoulderL: [-74, 0, -20], shoulderR: [-74, 0, 20], elbowL: [-58, 0, 0], elbowR: [-58, 0, 0], handL: [30, 0, 12], handR: [30, 0, -12], thighL: [-24, 0, -10], thighR: [-24, 0, 10], kneeL: [40, 0, 0], kneeR: [40, 0, 0], ankleL: [-20, 0, 0], ankleR: [-20, 0, 0], hipsRot: [20, 0, 0], hipsPos: [0, -0.55, 0] } },
       { t: 0.16, ease: 'inCubic', pose: { torso: [38, 0, 0], head: [55, 0, 0], hipsRot: [26, 0, 0], hipsPos: [0, -0.68, 0] } },
       { t: 0.36, ease: 'outCubic', pose: { torso: [22, 0, 0], head: [-14, 0, 0], hipsRot: [20, 0, 0], hipsPos: [0, -0.55, 0] } },
     ],
@@ -1498,6 +1504,66 @@ for (const [base, twin] of Object.entries(SMASH_MIRRORS)) CLIPS[twin] = compile(
 // Animator resolves these between profile clipOverrides and CLIPS (play()),
 // and the workbench adapter derives from the same function, so an edited
 // ballPose shows up everywhere with no hand-copying.
+// ---------- THE FORELIMB CARRY CLAMP (roster `foreCarry`) ----------
+//
+// SOME ARMS ARE WEAPONS HELD IN FRONT, and the shared clip library does not
+// know it. Every shared clip is authored for a humanoid brawler, where an arm
+// swung back is a windup, a balance counter, or simply where a hand ends up on
+// the way to the floor — and, crucially, where NEUTRAL is `shoulder: 0`, arms
+// hanging at the sides. A raptor's neutral is nothing like that: SAURION rests
+// at shoulder -52 with the elbow folded to -78, claws up under the chest. So
+// every shared clip that returned an arm "to neutral" dropped his claws behind
+// him, and every one that threw an arm back for balance pointed his weapons
+// at the wrong half of the world.
+//
+// Measured on saurion (`node tools/scratch/armband.mjs`, hand offset from its
+// own shoulder along his facing, fraction of body height):
+//
+//   shoulder   0  elbow -12  ->  hand -0.11   (the shared neutral: BEHIND him)
+//   shoulder +20 elbow -40   ->  hand -0.16   (the intro/getup crouch)
+//   shoulder -30 elbow -55   ->  hand +0.17
+//   shoulder -52 elbow -78   ->  hand +0.26   (his own rest — the carry)
+//   shoulder -165 elbow -30  ->  hand -0.02   (victory's raised arm, thrown
+//                                              back over his own head)
+//
+// The elbow crosses in front of the shoulder at about -20 of pitch and the
+// hand goes back again past about -155, which is the band: a def carrying
+// `foreCarry: { pitch: [lo, hi], elbow: [lo, hi] }` has EVERY clip's shoulder
+// and elbow pitch clamped into it at COMPILE time.
+//
+// CLAMPED IN THE DATA, not at playback, and that is the whole design. A
+// runtime clamp fights the clip silently: the pose workbench shows one thing
+// and the body does another, and every measurement taken off the clip is a
+// measurement of something that never plays. Clamping the compiled keys means
+// what is authored is what plays, the keys still interpolate smoothly between
+// each other (a clamped key is a key), and the workbenches, the probes and the
+// game all see one clip.
+//
+// It is a FLOOR, not a pose: a clip whose arms are already in front is
+// returned untouched (`byte-identical` — the variant map only carries clips
+// that actually moved), so a mech's own authored forms are unaffected and a
+// claw CHAMBERED high and outside before a rake — the one time a forelimb
+// legitimately travels back — is well inside the band and stays as authored.
+const ARM_PITCH = ['shoulderL', 'shoulderR'];
+const ARM_ELBOW = ['elbowL', 'elbowR'];
+function clampCarry(clip, carry) {
+  const pitch = carry.pitch ? carry.pitch.map((d) => d * D2R) : null;
+  const elbow = carry.elbow ? carry.elbow.map((d) => d * D2R) : null;
+  let hit = false;
+  const tracks = {};
+  for (const [joint, keys] of Object.entries(clip.tracks)) {
+    const band = ARM_PITCH.includes(joint) ? pitch : ARM_ELBOW.includes(joint) ? elbow : null;
+    if (!band) { tracks[joint] = keys; continue; }
+    tracks[joint] = keys.map((k) => {
+      const x = Math.min(Math.max(k.v[0], band[0]), band[1]);
+      if (x === k.v[0]) return k;
+      hit = true;
+      return { ...k, v: [x, k.v[1], k.v[2]] };
+    });
+  }
+  return hit ? { ...clip, tracks } : null;
+}
+
 const _defClips = new Map();
 export function defClipVariants(def) {
   if (_defClips.has(def.id)) return _defClips.get(def.id);
@@ -1511,6 +1577,13 @@ export function defClipVariants(def) {
         keys: [...raw.keys.slice(0, -1), { ...raw.keys[raw.keys.length - 1], pose: tuck }],
       }),
     };
+  }
+  if (def.foreCarry) {
+    // every clip, including a variant this def has already reshaped above
+    for (const [name, clip] of Object.entries(CLIPS)) {
+      const held = clampCarry(out?.[name] || clip, def.foreCarry);
+      if (held) (out ||= {})[name] = held;
+    }
   }
   _defClips.set(def.id, out);
   return out;
@@ -2275,6 +2348,43 @@ const SAURION_ALERT_HEAD = [2.2, 4.32, 6.94];
 // frame (a track a key is silent about keeps its last value) and the crossfade
 // out of the clip is what puts him down, which is the same way wraith's loom
 // ends.
+// SAURION's VICTORY — the shared one is a fist punched up over the head, which
+// on a raptor is the one thing his forelimbs cannot do: the arm goes back over
+// his own skull and the claws end up behind him (measured -0.09 of body height
+// behind the shoulder, in the chest's own frame). So he wins the way he hunts.
+// He rears up out of the hunting pitch, throws his head back and SHRIEKS
+// twice, with the claws held exactly where his taunt holds them — up under the
+// chest, in front — snapping once on each cry. Leg/torso/head values are
+// deltas over his raptor rest pose; arm values are absolute.
+const SAURION_SNAP = {
+  shoulderR: [-104, -9, 17], shoulderL: [-94, 9, -3],
+  elbowR: [-58, 11, -39], elbowL: [-62, 0, 28],
+  handR: [40, 19, 2], handL: [40, -19, -2],
+};
+const SAURION_VICTORY = {
+  dur: 2.6, hold: true,
+  keys: [
+    { t: 0, pose: {} },
+    // up out of the crouch, claws to the alert carry (his rest is a 27 degree
+    // forward pitch, so -34 stands him just past upright)
+    { t: 0.4, ease: 'outBack', pose: { torso: [-34, 0, 0], head: [8, 0, 0], hipsPos: [0, 0.3, 0],
+      thighL: [24, 0, 6], thighR: [20, 0, -6], kneeL: [-46, 0, 0], kneeR: [-40, 0, 0],
+      ankleL: [22, 0, 0], ankleR: [18, 0, 0], ...SAURION_ALERT, handL: [35, -19, -2] } },
+    // FIRST CRY — head thrown back, claws snap out and open
+    { t: 0.72, ease: 'outCubic', pose: { torso: [-40, 0, 0], head: [34, 0, 0], ...SAURION_SNAP } },
+    { t: 1.06, ease: 'inOutQuad', pose: { torso: [-34, 0, 0], head: [8, 0, 0],
+      ...SAURION_ALERT, handL: [35, -19, -2] } },
+    // …and again, harder
+    { t: 1.42, ease: 'outCubic', pose: { torso: [-42, 0, 0], head: [40, 0, 0], ...SAURION_SNAP } },
+    { t: 1.86, ease: 'inOutQuad', pose: { torso: [-34, 0, 0], head: [6, 0, 0],
+      ...SAURION_ALERT, handL: [35, -19, -2] } },
+    // held: standing tall over the kill, claws up
+    { t: 2.6, ease: 'inOutQuad', pose: { torso: [-32, 0, 0], head: [2, 0, 0], hipsPos: [0, 0.26, 0] } },
+  ],
+  events: [{ t: 0.4, type: 'sfx', arg: 'powerup' }, { t: 0.72, type: 'sfx', arg: 'howl' },
+    { t: 1.42, type: 'sfx', arg: 'howl' }],
+};
+
 const SAURION_TAUNT = {
   dur: 4.48, cancelOnMove: true,
   keys: [
@@ -2830,6 +2940,7 @@ export const GLB_CLIP_VARIANTS = {
   nullbotTaunt: compile('taunt', NULLBOT_TAUNT),
   rhinoTaunt: compile('taunt', RHINO_TAUNT),
   saurionTaunt: compile('taunt', SAURION_TAUNT),
+  saurionVictory: compile('victory', SAURION_VICTORY),
   // SAURION's guard, the owner's, set in the pose workbench. A PER-MECH variant
   // rather than an edit to CLIPS.block, because that clip is the whole roster's
   // guard and these angles are his: the shared one crosses two humanoid
