@@ -1655,13 +1655,22 @@ with a voice resolve to it) and `node tools/sfxlive.mjs` (drive the real
 menus into a real match and tally every sound the game actually triggers,
 plus the arena bed's state).
 
+**Sustained states** (`burn_loop`, `shock_loop`, `booster_loop`) are LOOPS,
+not one-shots on a timer: `audio.loop(key, name)` holds one open and
+`stopLoop(key)` fades it out. They are keyed by EMITTER, so two mechs burning
+at once are two loops and each ends with its own fire, and asking for a
+running loop is a no-op — which is why `Fighter.loopSfx()` can just restate
+"is this still true" every frame with no start/stop bookkeeping. It runs
+BEFORE the state machine, because several states (frozen, glitched, knocked
+down) return out of `update` long before the animation section. A loop is cut
+on death, on `resetForRound`, on teardown and when the tab goes away, since a
+loop whose owner stopped updating plays forever. `node tools/sfxloops.mjs`
+asserts all ten of those properties.
+
 ### Still to wire
 
 The files exist and the mixer knows about them; these have no trigger yet.
 
-- `burn_loop`, `shock_loop`, `booster_loop` — sustained states. The flags are
-  already there (burning status, the electrocution status, the hover jets);
-  each needs a start/stop pair rather than a one-shot.
 - `glassBreak`, `metalWreck` — prop destruction currently plays the generic
   `crumble`/`explosion`; these want the prop's material at the break site.
 - Positional playback: hits, footsteps and weapons should pan and attenuate
