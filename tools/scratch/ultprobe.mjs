@@ -31,6 +31,10 @@ const out = await page.evaluate(async () => {
     return (performance.now() - t0) / n;
   };
   const before = step(120);
+  // the pack is built during the round intro in a real match (match.js) —
+  // do the same here so the measurement is of what ships
+  const { prewarmSummons } = await import('/src/combat/specials.js');
+  for (let i = 0; i < 6; i++) prewarmSummons(f, 1);
   // fire the ult
   f.ult = 1; f.ultCharges = 1;
   const t0 = performance.now();
@@ -54,8 +58,21 @@ const out = await page.evaluate(async () => {
     sched.push(performance.now() - a);
   }
   const after = step(120);
+  // ...and the RENDER side, which a world-step measurement cannot see: three
+  // more skinned bodies are three more skinned draws, their bone textures and
+  // their shadow passes. engine.step() renders synchronously.
+  const eng = window.__engine;
+  const renderTimes = [];
+  eng.paused = true;
+  for (let i = 0; i < 20; i++) {
+    const a = performance.now(); eng.step(1 / 60); renderTimes.push(performance.now() - a);
+  }
+  renderTimes.sort((x, y) => x - y);
+  const draws = eng.renderer.info.render;
   return {
     before, castMs, after,
+    renderMedian: +renderTimes[10].toFixed(1), renderWorst: +renderTimes[19].toFixed(1),
+    drawCalls: draws.calls, tris: draws.triangles,
     minions: w.minions.length, fighters: w.fighters.length,
     peakFrame: Math.max(...sched), sortedTop: sched.slice().sort((a, b) => b - a).slice(0, 6),
     frameTop: frames.slice().sort((a, b) => b - a).slice(0, 4),

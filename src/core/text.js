@@ -107,6 +107,8 @@ export const MESSAGES = {
       <b style="color:#fff">AIM</b> — the crosshair IS your ranged target: every shot fired while it is up flies at it, height included. The RIGHT STICK MOVES IT — lead a strafing enemy and the camera follows your aim; let go and it eases back onto them. Unlocked shots fire along your facing<br>
       <b style="color:#fff">HOVER JETS</b> — press JUMP again in mid-air and HOLD to fly (lighter mechs fly higher)<br>
       <b style="color:#fff">CHARGED STRIKES</b> — TITANUS &amp; COLOSSUS: HOLD light (X) to keep the punch wound up, or heavy (Y) to keep the pound raised — release to strike with banked power<br>
+      <b style="color:#fff">3+ ROBOTS — BRAWL</b> — with three or four in the arena a KO is not the end of the round: you fade out where you fell and RESPAWN a couple of seconds later. The round goes to the last robot with a clean sheet, or at the bell to whoever went down fewest times<br>
+      <b style="color:#fff">ARENAS</b> — every round of a match is fought somewhere new<br>
       <b style="color:#fff">FINISHERS</b> — hold JUMP (A / SPACE) for 1s to skip the KO cinematic<br>
       <b style="color:#fff">DOWNED?</b> — press JUMP while knocked down to spring clear · every ranged weapon runs on AMMO — grab the yellow crates<br>
       <b style="color:#fff">WORLD</b> — the arena wraps: walk off any side and you come around the other<br>
@@ -239,6 +241,8 @@ export const MESSAGES = {
   'match.fight': 'FIGHT!',
   'match.ko': 'K.O.!',
   'match.timeUp': 'TIME UP',
+  // brawl (3+ robots): the round is won by the one robot who never went down
+  'match.lastStanding': 'LAST ONE STANDING',
   'match.roundWinner': '{mech} WINS THE ROUND',
   'match.draw': 'DRAW',
 

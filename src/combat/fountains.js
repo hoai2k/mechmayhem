@@ -163,6 +163,15 @@ export class UltFountains {
       { from: 0.4, to: 3.4, dur: 0.5, color: GOLD, y: spot.y + 0.25 });
   }
 
+  // Every fountain currently standing, taken off the stage with the arena it
+  // was placed on (a per-round arena swap — battle.js rebuildArena). They sit
+  // on ROOFS, so an arena change leaves them hanging in the air over nothing.
+  clear() {
+    for (const fn of this.active) this.world.scene.remove(fn.mesh);
+    this.active.length = 0;
+    this.bursts.length = 0;
+  }
+
   collect(fn, f) {
     const max = CONFIG.fountains?.maxCharges ?? 2;
     f.ultCharges = Math.min(max, f.ultCharges + 1);

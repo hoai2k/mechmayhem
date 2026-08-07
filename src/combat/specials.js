@@ -1408,6 +1408,73 @@ function nearestEnemyTo(f, x, z, maxD = Infinity) {
   return best;
 }
 
+
+// ---- SUMMON PREWARM ---------------------------------------------------------
+//
+// The only ult that builds BODIES mid-fight is SAURION's raptor pack (the flea
+// circus throws frozen shells, which are cheap). Even with every measurement a
+// GLB build makes now cached per manifest entry (gltf.js fitCache), a body is
+// still a scene-graph clone plus a rig plus an animator — ~5ms — and three of
+// them 0.22s apart is three separate hitches at the loudest moment of the
+// match. That is the ult lag, in its second and smaller form.
+//
+// So the bodies are built when a hitch costs nothing: during the ROUND INTRO,
+// while the announcement is up and nobody is being controlled. The pool refills
+// the same way after a cast — one body at a time, spaced out through the
+// world's own scheduler — so a second cast in the same round is warm too.
+//
+// A spare is a MECH, not a Fighter: it holds no world state and is not in the
+// scene, so keeping one costs a scene graph that was going to be built anyway.
+// Nothing else has to know: `takeSpare` returns null when the pool is empty and
+// raptorPack falls back to cloning on the spot, exactly as it used to.
+
+// How many bodies this fighter's ult will want, or 0 if it summons none.
+function summonCount(f) {
+  const u = f?.def?.moves?.ult;
+  return u && u.id === 'raptorPack' ? (u.count || 3) : 0;
+}
+
+export function takeSpare(f) {
+  const m = f._ultSpares?.pop() || null;
+  if (m) scheduleRefill(f);
+  return m;
+}
+
+// Build one body now if the pool is short. Called from the round intro (all of
+// them, over successive frames) and from the refill schedule after a cast.
+export function prewarmSummons(f, budget = 1) {
+  const want = summonCount(f);
+  if (!want || !f.alive || !f.mech) return false;
+  const pool = f._ultSpares || (f._ultSpares = []);
+  let built = 0;
+  while (pool.length < want && built < budget) {
+    try { pool.push(cloneMech(f.mech)); } catch (e) { return false; }
+    built++;
+  }
+  return built > 0;
+}
+
+// Drop the pool (a round ending, a mech swap — a spare built from a body that
+// is no longer his would spawn the wrong raptor).
+export function clearSpares(f) {
+  if (f._ultSpares) f._ultSpares.length = 0;
+  f._ultRefill = false;
+}
+
+function scheduleRefill(f) {
+  if (f._ultRefill) return;
+  f._ultRefill = true;
+  const w = f.world;
+  const tick = () => {
+    f._ultRefill = false;
+    if (!f.alive || !w.fighters.includes(f)) return;
+    if (prewarmSummons(f, 1)) scheduleRefill(f);
+  };
+  // 1.5s apart: the cast is over, the pack is on the floor fighting, and one
+  // body every second and a half is invisible next to that
+  w.schedule(1.5, tick);
+}
+
 export const ULTS = {
   // TITANUS: he reaches to the sky and a METEOR SHOWER hammers a broad zone
   // in front of him — burning rocks screaming down, each one a fire blast
@@ -2806,11 +2873,16 @@ export const ULTS = {
       const a = f.yaw + Math.PI + (i - 1) * 0.85 + rand(-0.15, 0.15);
       const pos = new THREE.Vector3(
         f.pos.x + Math.sin(a) * 3.6, 0, f.pos.z + Math.cos(a) * 3.6);
-      // cloneMech shares the boss's geometry/textures — spawning is
-      // near-free instead of a triple buildMech frame-stall
+      // A BODY BUILT BEFORE THE FIGHT COSTS NOTHING DURING IT. cloneMech
+      // shares the boss's geometry and textures, and gltf.js caches everything
+      // a GLB build MEASURES — but what is left is still a scene-graph clone, a
+      // rig and an animator, ~5ms a body, landing as three separate hitches as
+      // the volley staggers the spawns. So the pack is built during the
+      // countdown (takeSpare / prewarmSummons below) and this is the fallback
+      // for a second cast, or a body that was not warmed.
       const clone = new Fighter(w, f.def, {
         pos, yaw: f.yaw, playerIndex: f.playerIndex, isAI: true,
-        mech: cloneMech(f.mech),
+        mech: takeSpare(f) || cloneMech(f.mech),
       });
       clone.isMinion = true;
       clone.allyOf = f;

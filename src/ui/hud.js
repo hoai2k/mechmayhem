@@ -98,7 +98,8 @@ export class Hud {
         ${f.ammoMax !== undefined ? '<div class="ammo-count" style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:#ffd23c;margin-top:2px;"></div>' : ''}
         <div class="round-pips">
           <div class="round-pip"></div><div class="round-pip"></div>
-        </div>`;
+        </div>
+        <div class="death-count" style="display:none;font-size:11px;font-weight:800;letter-spacing:0.08em;color:#ff7d8a;margin-top:2px;"></div>`;
       this.el.appendChild(root);
       this.plates.push({
         root, f,
@@ -112,6 +113,7 @@ export class Hud {
         sprintFill: root.querySelector('.hud-bar.sprint .bar-fill'),
         pips: [...root.querySelectorAll('.round-pip')],
         ammoEl: root.querySelector('.ammo-count'),
+        deathEl: root.querySelector('.death-count'),
         ghostVal: 1,
       });
     });
@@ -224,6 +226,17 @@ export class Hud {
         sc.style.display = 'block';
       } else if (sc.style.display !== 'none') sc.style.display = 'none';
     }
+  }
+
+  // BRAWL MODE (3+ robots, match.js): how many times this robot has been put
+  // down this round — the thing the round is actually scored on, so it belongs
+  // on the plate beside the health. Hidden at zero and in a duel, where a death
+  // ends the round and a counter of it would only ever read 0 or 1.
+  setDeaths(fighter, n) {
+    const p = this.plates.find((x) => x.f === fighter);
+    if (!p?.deathEl) return;
+    p.deathEl.style.display = n > 0 ? 'block' : 'none';
+    p.deathEl.textContent = n > 0 ? '\u2620'.repeat(Math.min(n, 5)) + (n > 5 ? ` x${n}` : '') : '';
   }
 
   onDamage({ dmg, pos, attacker }) {

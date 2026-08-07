@@ -8,6 +8,7 @@ import { ProjectileSystem } from '../combat/projectiles.js';
 import { FleaSystem } from '../combat/fleas.js';
 import { overlapsY } from '../combat/movekit.js';
 import { bodyHitSegment } from '../combat/hurtbox.js';
+import { hasCannons } from '../combat/cannonaim.js';
 import { rand, clamp } from '../core/utils.js';
 
 const _v = new THREE.Vector3();
@@ -220,6 +221,17 @@ export class World {
       this.scene.add(grp);
       this.pickups.push({ mesh: grp, pos, baseY: pos.y, active: true, respawnT: 0, t: rand(0, 6) });
     }
+  }
+
+  // Take the crates away with the arena that placed them (a per-round arena
+  // swap — see battle.js rebuildArena). They are world objects, not arena
+  // ones, so nothing else removes them.
+  clearPickups() {
+    for (const p of this.pickups) {
+      this.scene.remove(p.mesh);
+      p.mesh.traverse?.((o) => { if (o.isMesh) o.geometry?.dispose?.(); });
+    }
+    this.pickups.length = 0;
   }
 
   updatePickups(dt) {
@@ -520,7 +532,12 @@ export class World {
       || (f.def.channelClipL && f._shotSide && anchors.muzzleL)
       || anchors[f.def.primaryMuzzle] || anchors.muzzleR;
     const from = muzzle.getWorldPosition(new THREE.Vector3());
-    const e = f.nearestEnemy();
+    // WHO THE WEAPON IS SHOOTING AT. Homing rounds, the bat swarm and every
+    // "is there a target down the barrel" test read this — and while the player
+    // is TARGETING, the answer is the mech under their crosshair, not whoever
+    // happens to be nearest. Aiming at one enemy and having your missiles turn
+    // toward another is the sharpest possible way to say the aim is not yours.
+    const e = (f.aiming && f.lockTarget?.alive) ? f.lockTarget : f.nearestEnemy();
     // AIMED shot (human held RB): fly straight at the crosshair's world
     // point — full manual control, including pitch. No assist.
     const aimP = f._aimPoint || null;
@@ -573,9 +590,16 @@ export class World {
       out.copy(baseDir).applyQuaternion(barrelDeflect(f, a, _bOff)).normalize();
     dirFrom(muzzle, dir);
 
+    // THE AIM'S OWN HEADING, for the handlers that build a SHAPE rather than
+    // fire a single round — a fan of bats, a thrown blade with no target, a
+    // lobbed shell's landing spot. They all used to spread around `f.yaw`, the
+    // BODY's facing, which quietly ignored the crosshair: aim a swarm at the
+    // mech beside you and it fanned out around wherever your hips pointed.
+    const aimYaw = Math.atan2(dir.x, dir.z);
+
     // per-weapon behavior lives in the WEAPONS table below — same
     // aiming context for every handler
-    WEAPONS[mv.type]?.(this, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom, muzzle });
+    WEAPONS[mv.type]?.(this, f, mv, { from, dir, aimYaw, e, aimP, barrelDot, flatDist, anchors, dirFrom, muzzle });
   }
 
 
@@ -704,6 +728,27 @@ const _bFwd = new THREE.Vector3(), _bFace = new THREE.Vector3();
 function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
   out.identity();
   if (!anchor?.userData?.aimRot) return out;
+  // A BARREL MAY ONLY STEER A SHOT IF IT IS A MOUNT, NOT A HAND.
+  //
+  // The deflection reads the anchor's LIVE world orientation, which is right
+  // for something bolted to the hull and wrong for a gun held in a fist: a
+  // hand's orientation is whatever the animation is doing this frame, and the
+  // gait's arm swing is not an aiming system. Measured off live fights, firing
+  // while strafing left NULLBOT's bolt 75° off his own facing, VIPER's 86° and
+  // VULCAN's swinging between -35° and +17° — the reported "it flies off to the
+  // side", and under a target lock it threw the shot off the crosshair by the
+  // same angle.
+  //
+  // So the deflection is opt-in, and both opts are explicit:
+  //   · `aimFlat` — the authored hull mounts (cranky's hose cannons, jerry's
+  //     pods, frogger's gunk guns), whose splay IS the design;
+  //   · a traversing-cannon mech (tritone), where the GUN does the aiming and
+  //     the live barrel direction is the firing solution (combat/cannonaim.js).
+  // Every other muzzle fires along the aim the rest of fireRanged worked out —
+  // straight ahead unlocked, at the crosshair while targeting. That is also
+  // what the straight-ahead muzzles were always supposed to do: their authored
+  // `rot` is identity in the REST pose, so nothing about a standing shot moves.
+  if (!anchor.userData.aimFlat && !hasCannons(f)) return out;
   anchor.getWorldQuaternion(_bQ);
   _bFwd.set(0, 0, 1).applyQuaternion(_bQ);
   if (_bFwd.lengthSq() < 1e-9) return out;
@@ -1179,10 +1224,12 @@ const WEAPONS = {
     w.audio?.play('zap');
   },
 
-  bats(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // WRAITH: a swarm of hunting bats fans out and homes in
-    const target = e && f.isAI ? e : (e && barrelDot > 0.6 ? e : null);
+  bats(w, f, mv, { from, dir, aimYaw, e, aimP, barrelDot, flatDist, anchors }) { // WRAITH: a swarm of hunting bats fans out and homes in
+    // the swarm hunts whoever is being AIMED at (aimP = the crosshair is up),
+    // and fans around the aim rather than around the hips
+    const target = e && (f.isAI || aimP || barrelDot > 0.6) ? e : null;
     for (let i = 0; i < (mv.count || 3); i++) {
-      const a = f.yaw + (i - ((mv.count || 3) - 1) / 2) * 0.22;
+      const a = aimYaw + (i - ((mv.count || 3) - 1) / 2) * 0.22;
       const bd = new THREE.Vector3(Math.sin(a), dir.y + 0.04, Math.cos(a));
       w.projectiles.spawn('bat', f, from, bd, {
         dmg: mv.dmg * f.dmgMult(), speed: (mv.speed || 24) * rand(0.9, 1.1),

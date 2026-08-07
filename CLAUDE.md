@@ -228,9 +228,21 @@ audio). Progress history: `TASKS.md`.
   onto the target after `hold` seconds. WITH NO LEAD IT IS EXACTLY THE OLD
   POINT — same head, same range — so nothing about an unsteered lock changed
   (measured: 0.00 units off the head at rest).
+  THE CROSSHAIR IS TIED TO THE TARGET AND YOU PULL AGAINST IT — the standard
+  console soft-lock, two forces. FRICTION: the stick's authority falls off as
+  the aim leaves the target (`1 - k²` over the leash), so the first degrees are
+  free and the last are heavy. MAGNETISM (`magnet`): a restoring pull toward the
+  target that never switches off, only weakens while the stick is live, firming
+  to `settle` the moment it lets go. The lead you can hold is therefore an
+  EQUILIBRIUM (~15° at full stick, measured) rather than a clamp, which is what
+  makes it read as elastic — and it is small on purpose: a couple of body widths
+  at fighting range, enough to lead a strafing target and not enough to lose
+  one. `maxLead` (0.32 rad) is only the hard stop behind it, for a target that
+  dashes or wraps. The first build gave 40° of free travel, which is not a
+  targeting system — it is a crosshair that happens to start on the enemy.
   THE PRICE, and it is deliberate: under a lock the right stick no longer
-  orbits the view by hand and the lead is bounded (`maxLead`, 40°). Tap out of
-  the lock and the camera is yours again exactly as before.
+  orbits the view by hand. Tap out of the lock and the camera is yours again
+  exactly as before.
   A HELD LB IS SNIPER MODE, and that is why the lock became a TAP toggle to
   release on: the toggle now fires on RELEASE and only for a press that never
   became a hold, so raising the scope cannot flip the lock (`node
@@ -1308,9 +1320,22 @@ audio). Progress history: `TASKS.md`.
   never show stale numbers for an edited model; every `tools/*.mjs` builds
   through `buildGlbForTool`, which spreads a new entry per call, so the tools
   always measure.
+  …AND A BODY BUILT BEFORE THE FIGHT COSTS NOTHING DURING IT. With every
+  measurement cached, what is left of a clone is the scene graph, the rig and
+  the animator — 1.4-3.6ms a body, three of them 0.22s apart, which is still
+  three hitches at the loudest moment of the match. So the pack is built during
+  the ROUND INTRO (`prewarmSummons` in specials.js, called one body per frame
+  from match.js while the announcement is up and nobody is being controlled) and
+  the cast TAKES one: 0.0-0.1ms. The pool refills the same way after a cast —
+  one body every 1.5s through the world's own scheduler — so a second cast in
+  the same round is warm too, and `takeSpare` returning null falls back to
+  cloning on the spot exactly as before. A spare is a MECH, not a Fighter: no
+  world state, nothing in the scene, and it is dropped at every round start
+  (`clearSpares`) because a round may have re-dealt that slot a different robot.
   `node tools/scratch/ultprobe.mjs <mech>` times a summon ult's two very
   different costs (the spawn frames vs the steady state with the minions in),
-  and `tools/scratch/ultprof.mjs` is the CDP profile behind it.
+  `tools/scratch/spawncost.mjs` breaks one spawn into clone / Fighter / AI, and
+  `tools/scratch/ultprof.mjs` is the CDP profile behind them.
 - A fighter grown at RUNTIME (colossus' COLOSSAL FORM ult scales him 4×) must
   tell the animation layer: `animator.sizeMul = <factor>`. Everything in
   animator.js is authored in the model's own local units, so without it the
@@ -1630,6 +1655,42 @@ audio). Progress history: `TASKS.md`.
   (ON -> fallback, OFF -> authored). The harness honours it too — a bare
   `?battle=neon` plays what the MENUS play, or a soak silently tests an arena
   nobody ships.
+- A MATCH IS FOUGHT IN THREE DIFFERENT CITIES (`CONFIG.arenaPerRound`,
+  `rebuildArena` in battle.js, wired in boot's `match.onRoundStart`). A
+  best-of-three in one arena is three fights on one stage, and the arenas are
+  half the game's content. The NEXT arena is resolved and preloaded WHILE the
+  current round is being fought — an authored level is a fetch and so are the
+  prop models it places — so the swap itself is synchronous and lands in the
+  round-end pause; if it is not ready, the round simply opens where it already
+  was. `rebuildArena` takes the whole old stage away with it: the crates it
+  scattered and the fountains standing on its ROOFS are WORLD objects, not arena
+  ones, so `world.clearPickups()` / `fountains.clear()` exist for exactly this
+  (without them the second round has twelve crates and three fountains hanging
+  in the air over nothing). Order matters: it runs from `onRoundStart`, which
+  `Match.startRound` calls BEFORE it reads spawn points, so every fighter is
+  reset onto the new arena's pads. Judge it with `node
+  tools/scratch/arenaswap.mjs` (three swaps under a live world: scene-object
+  count, crates, fountains, wrapHalf, and a fighter who still walks and stands
+  on the new terrain) and `node tools/scratch/roundswap.mjs`, which does it in
+  the REAL game through the menus.
+- THREE OR FOUR ROBOTS PLAY A DIFFERENT GAME (`Match.brawl`, and the reason it
+  exists is that a duel's rules are actively bad above two players): a KO ends
+  the round, so in a four-way two players sit out the rest of a round because a
+  fight they were not in ended. So with 3+, DEATH IS A RESPAWN — you fade out
+  where you fell over ~1.9s, lie gone for a beat, and come back at the spawn
+  point FURTHEST from whoever is still up (`respawnSpot`; coming back into the
+  fight you just lost is not a second chance). THE FADE IS THE POINT: dying and
+  reappearing in the same instant reads as a teleport, and a couple of seconds
+  watching your own wreck thin out is what makes it a cost. `resetForRound` is
+  the same full reset a new round gives, plus iframes, so a respawned body
+  carries nothing over and cannot be spawn-camped.
+  WHAT WINS IT is not being the one who keeps dying: the last CLEAN SHEET takes
+  the round outright the moment everybody else has a death against them, and at
+  the bell it is fewest DEATHS with hp% as the tiebreak (a duel is still decided
+  on hp% alone). The death count is on the HUD plate (`Hud.setDeaths`), hidden
+  in a duel where it could only ever read 0 or 1. No cinematic FINISHER plays in
+  a brawl — it assumes the round is over. `node tools/brawl.mjs` asserts all
+  five rules, including that a two-player match is byte-for-byte the old one.
 - NOT EVERY LARGE STRUCTURE IS A BUILDING (`src/arena/structures.js`, asset
   prompts in `docs/ASSET_REQUESTS_STRUCTURES.md`). A big destructible mass has
   a gameplay job — block sight, give cover, be climbed, come down — and every
@@ -1961,6 +2022,56 @@ audio). Progress history: `TASKS.md`.
   -> 2.0 and no better, because rotating the head can only raise the jaw to
   where the NECK is, and on these clips the neck is under the floor too. You
   cannot fix a buried body from the buried body's own joints.)
+  A SERVO WITH NO FEEDBACK IS AN INTEGRATOR, which is what "tritone floats while
+  walking" was. The guard ADDED each frame's error to the lift it was already
+  holding, on the assumption that `lowestRenderedY` reports the body as
+  corrected. It does not, reliably: a SkinnedMesh in AttachedBindMode carries
+  the container offset in its bone matrices AND in the `bindMatrixInverse` that
+  cancels them, so whether the lift shows up depends on which was refreshed last
+  — i.e. on whether a render has happened since. Inside the guard it had not, so
+  it read "still 1.5 under" every frame while holding him 3.4 up, and pinned at
+  MAX: measured on a WALKING tritone, held 3.43 with his lowest vertex 1.9 ABOVE
+  the road. It now MEASURES AT ZERO LIFT and makes the target an absolute
+  function of the pose (the same shape as the prone clamp next door), so the
+  servo only smooths the way there.
+  …AND THE FLOOR IS OPAQUE, which is the whole argument for `ALLOW` being big
+  (0.30 -> 1.3 x scale). A limb under the road cannot be seen; a body hoisted
+  off the road can be seen from anywhere in the arena. Tritone's ordinary walk
+  cycle puts a paw 1.25 units under — his legs are driven by a stride calibrated
+  for a humanoid — so a tight limb rule had the guard lifting him ~0.9 for the
+  whole walk, correcting an invisible problem with a visible one. `node
+  tools/scratch/floatdiag.mjs <mech>` traces the loop frame by frame (what it
+  measures, what it asks for, where the body ends up); after both changes the
+  lift is 0.00 for the entire walk. The cost is honest and left as found:
+  `tools/groundprobe.mjs` reports 9 clips putting geometry under the floor
+  instead of 8, all of them LIMBS a body is standing on, since the guard no
+  longer over-lifts the body to rescue them.
+- A BARREL MAY ONLY STEER A SHOT IF IT IS A MOUNT, NOT A HAND
+  (`barrelDeflect` in world.js). The deflection turns a finished aim onto the
+  muzzle anchor's LIVE world +Z, which is right for something bolted to the hull
+  and wrong for a gun held in a fist: a hand's orientation is whatever the
+  animation is doing this frame, and the gait's arm swing is not an aiming
+  system. Measured firing while STRAFING (`node tools/scratch/shotdiag.mjs
+  <mech>`): NULLBOT's bolt left 75° off his own facing, VIPER's 86°, VULCAN's
+  swung between -35° and +17° at a standstill — the reported "his ranged attack
+  flies off to the side" — and under a target lock the same angle threw the shot
+  off the CROSSHAIR. So the deflection is opt-in and both opts are explicit:
+  `aimFlat` (the authored hull mounts — cranky's hose cannons, jerry's pods,
+  frogger's gunk guns, whose splay IS the design) and a traversing-cannon mech
+  (tritone, where the GUN does the aiming and its live direction is the firing
+  solution). Every other muzzle fires along the aim: straight ahead unlocked, at
+  the crosshair while targeting. After: 0.0° at a standstill for all of them.
+  Nothing about a standing shot moved, because a straight-ahead muzzle's
+  authored `rot` was already identity in the REST pose — that was always the
+  intent, and the animated pose is what broke it.
+  …AND WHAT THE WEAPON IS SHOOTING AT IS THE CROSSHAIR'S TARGET. `fireRanged`
+  used `nearestEnemy()` for homing rounds, the bat swarm and every "is there a
+  target down the barrel" test; while the player is TARGETING it is the mech
+  under the crosshair (`f.aiming && f.lockTarget`). Aiming at one enemy and
+  having your missiles turn toward another is the sharpest possible way to say
+  the aim is not yours. The handlers that build a SHAPE rather than fire one
+  round (wraith's fan of bats) spread around `ctx.aimYaw` — the aim's own
+  heading — instead of `f.yaw`, the hips.
 - A HULL-MOUNTED BARREL AIMS IN YAW ONLY (`"aimFlat": true` on a manifest
   muzzle spec; `gltf.js applyRot` -> `world.js barrelDeflect`). The deflection
   exists so a barrel modelled splayed actually fires down its own line, and that

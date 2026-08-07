@@ -175,32 +175,50 @@ export function updateAim(f, dt) {
   const sens = 1 - (1 - A.zoomSens) * f.sniperK;
   const ax = T ? inp.x : 0;          // see the note on f.aimIn above
   const ay = pitchIn(inp.y);
-  if (Math.abs(ax) > 0.08 || Math.abs(ay) > 0.08) f._aimHold = A.hold;
+  const live = Math.abs(ax) > 0.08 || Math.abs(ay) > 0.08;
+  if (live) f._aimHold = A.hold;
   else f._aimHold = Math.max(0, (f._aimHold || 0) - dt);
-  // STICK RIGHT MOVES THE CROSSHAIR RIGHT ON SCREEN, which is a MINUS here and
-  // is the one sign in this file worth stating: the aim yaw is the game's own
-  // heading (atan2(x, z)), and a body facing +z has its right hand at -x — so
-  // screen-right is DECREASING yaw. Measured, not reasoned: tools/crosshair.mjs
-  // projects the crosshair and reports which way it went.
-  f.aimYaw -= ax * A.yawRate * sens * dt;
-  f.aimPitch = clamp(f.aimPitch - ay * A.pitchRate * sens * dt, -A.maxPitch, A.maxPitch);
 
-  // ---- re-settling onto the locked target ----
-  // Only once the stick has been still for `hold`: a lead that dissolves the
-  // instant you stop pushing is the auto-aim this replaced.
   if (T) {
-    if (f._aimHold <= 0) {
-      const r = 1 - Math.exp(-A.settle * dt);
-      f.aimYaw += angDelta(f.aimYaw, baseYaw) * r;
-      f.aimPitch += (basePitch - f.aimPitch) * r;
-    }
-    // ...and the lead is bounded either way, so the crosshair can never be
-    // steered somewhere the locked fight is not
+    // ---- THE LEASH: friction + magnetism, the standard soft-lock ----
+    //
+    // The console-shooter answer to "aim with a thumbstick" is not to hand the
+    // player a free-flying reticle; it is to tie the reticle to the target and
+    // let them pull against it. Two forces, both of them standard:
+    //
+    //   FRICTION (reticle slowdown) — the stick's authority FALLS OFF as the
+    //     aim leaves the target, so the first degrees are free and the last
+    //     ones are heavy. `1 - k²` where k is the fraction of the leash used.
+    //   MAGNETISM — a restoring pull toward the target that never switches
+    //     off, only weakens while the stick is live. Let go and the crosshair
+    //     comes home; hold, and it settles where push and pull balance.
+    //
+    // The lead you can hold is therefore an EQUILIBRIUM rather than a limit,
+    // which is what makes it feel elastic rather than clamped, and it is small
+    // on purpose: at the shipped numbers full stick holds ~15°, which is a
+    // couple of body widths at fighting range — enough to lead a strafing
+    // target, not enough to lose them. It was 40° of free travel before, which
+    // is a crosshair that happens to start on the enemy.
+    const off = angDelta(baseYaw, f.aimYaw);
+    const k = Math.min(1, Math.abs(off) / A.maxLead);
+    const friction = 1 - k * k;
+    f.aimYaw -= ax * A.yawRate * sens * friction * dt;
+    const pOff = f.aimPitch - basePitch;
+    const pk = Math.min(1, Math.abs(pOff) / A.maxLead);
+    f.aimPitch -= ay * A.pitchRate * sens * (1 - pk * pk) * dt;
+    // magnetism — weak under the thumb, firm the moment it lets go
+    const pull = 1 - Math.exp(-(live ? A.magnet : A.settle) * dt);
+    f.aimYaw += angDelta(f.aimYaw, baseYaw) * pull;
+    f.aimPitch += (basePitch - f.aimPitch) * pull;
+    // ...and a hard stop behind all of it, so a dropped frame or a target
+    // teleporting (a dash, a wrap) can never leave the crosshair adrift
     const lead = angDelta(baseYaw, f.aimYaw);
     if (Math.abs(lead) > A.maxLead) f.aimYaw = baseYaw + Math.sign(lead) * A.maxLead;
     f.aimPitch = clamp(f.aimPitch, basePitch - A.maxLead, basePitch + A.maxLead);
   } else {
-    // unlocked, the base heading follows the camera; the aim rides it exactly
+    // NOTHING LOCKED: no target to be tied to, so the aim is free — the base
+    // heading follows the camera and the pitch is the player's outright.
+    f.aimPitch = clamp(f.aimPitch - ay * A.pitchRate * sens * dt, -A.maxPitch, A.maxPitch);
     f.aimYaw = baseYaw;
   }
 

@@ -17,9 +17,13 @@ await cdp.send('Profiler.enable');
 await cdp.send('Profiler.setSamplingInterval', { interval: 100 });
 await cdp.send('Profiler.start');
 await page.evaluate(async () => {
-  const { cloneMech } = await import('/src/mechs/factory.js');
-  const f = window.__world.fighters[0];
-  for (let i = 0; i < 5; i++) cloneMech(f.mech);
+  // profile the CAST, prewarmed exactly as a real round is
+  const w = window.__world, f = w.fighters[0];
+  const { prewarmSummons } = await import('/src/combat/specials.js');
+  for (let i = 0; i < 6; i++) prewarmSummons(f, 1);
+  f.ult = 1; f.ultCharges = 1;
+  f.doUlt();
+  for (let i = 0; i < 90; i++) w.update(1 / 60);
 });
 const { profile } = await cdp.send('Profiler.stop');
 

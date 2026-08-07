@@ -219,15 +219,19 @@ export const TUNING = {
   // target lock (or in sniper mode) goes, so what the camera stick moves is
   // the AIM, and the camera follows it rather than the other way round.
   aim: {
-    yawRate: 1.5,      // rad/s of lead the stick can steer, at full deflection
-    pitchRate: 1.1,    // rad/s the stick raises/drops the aim
-    maxLead: 0.7,      // rad of lead off the locked target the stick may hold
-    maxPitch: 0.9,     // rad the aim may be raised/dropped from level
-    hold: 0.7,         // seconds after the stick stops before the aim re-settles
-    settle: 6,         // rate the aim eases back onto the locked target
-    // A LEAD MUST OUTLIVE THE SHOT THAT USES IT: `hold` is what makes leading
-    // possible at all, since an aim that re-acquires the instant you stop
-    // pushing is the auto-aim you were trying to get away from.
+    // THE CROSSHAIR IS TIED TO THE TARGET AND YOU PULL AGAINST IT — friction
+    // (the stick's authority falls off as the aim leaves the target) plus
+    // magnetism (a restoring pull that never switches off, only weakens while
+    // the stick is live). At these numbers full stick holds an equilibrium lead
+    // of ~15°: a couple of body widths at fighting range, enough to lead a
+    // strafing target and not enough to lose one.
+    yawRate: 1.9,      // rad/s the stick can push the aim, before friction
+    pitchRate: 1.3,    // rad/s the stick raises/drops the aim
+    maxLead: 0.32,     // rad of lead the leash allows at all (the hard stop)
+    maxPitch: 0.9,     // rad the aim may be raised/dropped from level (unlocked)
+    magnet: 2.6,       // pull back toward the target WHILE the stick is live
+    settle: 7,         // ...and once it lets go
+    hold: 0.35,        // seconds the camera treats the aim as "being steered"
     reach: 90,         // units the unlocked aim ray carries before it gives up
     // ---- sniper mode (LB HELD) ----
     zoomRate: 3.2,     // damp rate of the zoom blend — the whole feel of it

@@ -70,6 +70,12 @@ export const CONFIG = {
   // camera rises so you look down on your mech; ON gives the flight-sim
   // inversion. Persisted from the settings menu.
   reverseCameraY: readPref('rw.reverseCamY'),
+  // A NEW ARENA EVERY ROUND. A best-of-three in one city is three fights on
+  // one stage, and the arenas are half the game's content — so round 2 and
+  // round 3 each open somewhere new (boot.js prepares the next one while the
+  // current round is being fought, so the swap costs the round-end pause and
+  // nothing else). `rw.set('arenaPerRound', false)` keeps a match in one place.
+  arenaPerRound: true,
   // MENU FLOOR: dress the menu stage's floor with the Ironworks Foundry iron
   // plate instead of the flat dark disc. A LOOK CHOICE, deliberately one flag
   // wide — flip it to false here (or add ?menufloor=0) to get the plain floor

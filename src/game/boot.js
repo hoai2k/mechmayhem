@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Engine } from '../core/engine.js';
 import { Input } from './input.js';
-import { THEMES_BY_ID, themePropNames } from '../arena/themes.js';
+import { THEMES, THEMES_BY_ID, themePropNames } from '../arena/themes.js';
 import { resolveArenaTheme } from '../arena/authored.js';
 import { ROSTER_BY_ID, playableRoster } from '../mechs/roster.js';
 import { applyColorScheme, SCHEME_COUNT } from '../mechs/colorscheme.js';
@@ -34,7 +34,7 @@ import { isTouchDevice } from '../core/utils.js';
 import { MenuStage } from './menustage.js';
 import { PadPointers } from './padpointers.js';
 import { Warmup } from './warmup.js';
-import { createBattle } from './battle.js';
+import { createBattle, rebuildArena } from './battle.js';
 
 export async function bootGame() {
   const engine = new Engine(document.getElementById('game-canvas'));
@@ -511,7 +511,7 @@ export async function bootGame() {
     // shared world/arena/camera wiring (arenaObjs = everything the arena
     // adds, hidden behind the warm-up's neutral backdrop and revealed
     // fully-warmed later)
-    const { world, arena, arenaObjs, cameraSys } = createBattle(engine, {
+    let { world, arena, arenaObjs, cameraSys } = createBattle(engine, {
       theme, audio, input, seed: (Math.random() * 9999) | 0,
     });
 
@@ -600,7 +600,47 @@ export async function bootGame() {
     const randomIdx = active
       .map((a, i) => (S.picks[a.slotIdx] === 'random' ? i : -1))
       .filter((i) => i >= 0);
+    // ---- A NEW ARENA EVERY ROUND ----------------------------------------
+    // A best-of-three in one city is three fights on one stage; the arenas are
+    // half the game's content and a round change is the one moment there is
+    // room to swap one. The next arena is RESOLVED AND PRELOADED while the
+    // current round is being fought (an authored level is a fetch, and so are
+    // the prop models it places), so the swap itself is synchronous and lands
+    // in the round-end pause — and if it is not ready in time, the round simply
+    // opens in the arena it was already in.
+    let nextTheme = null, prepping = false;
+    function prepareNextArena() {
+      if (prepping || !CONFIG.arenaPerRound) return;
+      prepping = true;
+      const here = S.battle?.arena?.theme?.id;
+      const pool = THEMES.filter((t) => t.id !== here);
+      const pick = pool[(Math.random() * pool.length) | 0] || THEMES[0];
+      resolveArenaTheme(pick)
+        .then(async (rt) => {
+          await Promise.race([
+            preloadPropModels(themePropNames(rt)),
+            new Promise((r) => setTimeout(r, 6000)),
+          ]);
+          nextTheme = rt;
+        })
+        .catch(() => { /* keep the arena we have */ })
+        .finally(() => { prepping = false; });
+    }
+
     match.onRoundStart = (round) => {
+      if (round >= 2 && CONFIG.arenaPerRound && nextTheme) {
+        const t2 = nextTheme;
+        nextTheme = null;
+        const built = rebuildArena(engine, world, t2, (Math.random() * 9999) | 0);
+        arena = built.arena;
+        arenaObjs = built.arenaObjs;
+        if (S.battle) { S.battle.arena = arena; S.battle.arenaObjs = arenaObjs; }
+        cameraSys.init = false;          // reframe on the new stage
+        for (const ch of cameraSys.chase) ch.init = false;
+        music.setArena(t2);              // …and its own songs, if it has any
+        hud.announce(t2.name, true);
+      }
+      prepareNextArena();                // …the one after this
       if (round < 2 || !randomIdx.length) return;
       for (const i of randomIdx) {
         const old = fighters[i];
