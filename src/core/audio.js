@@ -40,6 +40,7 @@ export class GameAudio {
     this._sliced = {};   // recorded one-shots, cut into their own events
     this._bank = null;   // public/sfx/manifest.json once it has landed
     this._samples = {};  // name -> {buffer, category} | 'loading' | 'failed'
+    this._loops = {};    // key -> {src, gain} for sustained states
     this._available =
       typeof window !== 'undefined' &&
       !!(window.AudioContext || window.webkitAudioContext);
@@ -143,6 +144,7 @@ export class GameAudio {
    */
   suspend() {
     try {
+      this.stopAllLoops(0.05);   // a state's owner stops updating while we are away
       const ctx = this.ctx;
       if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
     } catch (e) {
@@ -357,6 +359,84 @@ export class GameAudio {
     g.connect(this._sfxBus);
     src.start(ctx.currentTime + 0.002);
     return true;
+  }
+
+  // ------------------------------------------------------------------------
+  // SUSTAINED LOOPS — a STATE rather than an event: burning, electrocuted,
+  // jets held. A one-shot cannot say "still happening", and retriggering one
+  // every frame is a machine gun, so these are looping buffer sources kept
+  // alive by whoever owns the state.
+  //
+  // KEYED BY EMITTER, not by sound: two mechs burning at once are two loops,
+  // and each stops when ITS fire goes out. The key is the caller's business
+  // (fighter.js uses `<sound>:<fighter>`); ask twice with the same key and
+  // the second ask is a no-op, which is what lets it be called every frame.
+  // ------------------------------------------------------------------------
+
+  /**
+   * Start (or keep) a looping sound under `key`. Safe to call every frame.
+   * Returns false while the file is still decoding — the caller keeps asking
+   * and it starts the frame it lands, which is what makes "no file yet" and
+   * "no recorded set at all" the same silent no-op.
+   */
+  loop(key, name, opts = {}) {
+    try {
+      if (!CONFIG.sfxSamples) return false;      // the synth has no loops
+      if (this._loops[key]) return true;
+      const ctx = this._init();
+      if (!ctx || ctx.state !== 'running') return false;
+      const own = opts.mech ? `${opts.mech}_${name}` : null;
+      const use = own && this._bank?.[own] ? own : name;
+      const s = this._sample(use);
+      if (!s || s.sliced || !s.buffer) return false;   // a loop is one take
+      const src = ctx.createBufferSource();
+      src.buffer = s.buffer;
+      src.loop = true;
+      src.playbackRate.value = opts.rate || 1;
+      const g = ctx.createGain();
+      const want = (opts.vol != null ? opts.vol : 1) * sfxGain(s.category);
+      const t = ctx.currentTime;
+      // faded in: a sustained sound appearing at full level reads as a click
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(want, t + (opts.fade || 0.12));
+      src.connect(g);
+      g.connect(this._sfxBus);
+      src.start(t + 0.002);
+      this._loops[key] = { src, gain: g, want };
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /** Stop the loop under `key`, fading out. Unknown keys no-op. */
+  stopLoop(key, fade = 0.18) {
+    const l = this._loops[key];
+    if (!l) return;
+    delete this._loops[key];
+    try {
+      const t = this.ctx.currentTime;
+      l.gain.gain.cancelScheduledValues(t);
+      l.gain.gain.setValueAtTime(l.gain.gain.value, t);
+      l.gain.gain.linearRampToValueAtTime(0.0001, t + fade);
+      l.src.stop(t + fade + 0.02);
+    } catch (e) { /* already gone */ }
+  }
+
+  /** Live level for a running loop (the state got stronger or weaker). */
+  setLoopVolume(key, vol, category = 'loop') {
+    const l = this._loops[key];
+    if (!l) return;
+    try {
+      l.gain.gain.setTargetAtTime(vol * sfxGain(category), this.ctx.currentTime, 0.05);
+    } catch (e) { /* ok */ }
+  }
+
+  /**
+   * Cut every loop. The round ended, the fight was torn down, the tab went
+   * away — whatever the reason, nothing that owned a loop is going to be
+   * updated again, and a loop with no owner plays forever.
+   */
+  stopAllLoops(fade = 0.1) {
+    for (const key of Object.keys(this._loops)) this.stopLoop(key, fade);
   }
 
   /** Fire-and-forget SFX. Unknown names silently no-op. opts: {vol, pitch}. */

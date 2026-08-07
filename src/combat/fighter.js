@@ -264,6 +264,10 @@ export { PLAYER_COLORS } from '../core/colors.js'; // compat re-export, remove a
 // Ground surfaces with a footstep layer of their own (public/sfx/step_*.mp3).
 // A patch kind not in here — road, stripe, pave — is just pavement, which is
 // what the footstep itself already sounds like.
+// every body gets one, so a loop is keyed to THIS mech and not to its slot —
+// minions, respawns and a mech that changes hands all keep their own
+let SFX_UID = 0;
+
 const STEP_SURFACES = new Set(['water', 'lava', 'ice', 'mud', 'oil', 'sand', 'grass', 'ash', 'crystal']);
 
 export class Fighter {
@@ -283,6 +287,7 @@ export class Fighter {
     // physique
     const s = def.body.scale;
     this.scale = s;
+    this._sfxUid = ++SFX_UID;
     this.radius = 1.15 * s;
     this.height = (this.mech.dims.hipHeight + this.mech.dims.torsoH + this.mech.dims.headSize * 2) * 1.02;
     // BROAD-PHASE ball: blast falloff, crowd sweeps, camera framing. Kept
@@ -1204,6 +1209,38 @@ export class Fighter {
       const kind = this.world.arena?.terrain?.onPatch?.(this.pos.x, this.pos.z, -0.4)?.kind;
       if (kind && STEP_SURFACES.has(kind)) this.sfx(`step_${kind}`, { vol: 0.8 });
     }
+  }
+
+  /**
+   * SUSTAINED SOUNDS FOR SUSTAINED STATES — burning, electrocuted, jets lit.
+   * Each is a LOOP held open while the state is true and faded out the frame
+   * it stops (core/audio.js loop/stopLoop), rather than a one-shot retriggered
+   * on a timer, which is the difference between a fire and a stutter.
+   *
+   * Called every frame: asking for a loop that is already running is a no-op,
+   * so "is this still true" is the whole of the logic and there is no
+   * start/stop bookkeeping to get out of step with the state.
+   */
+  loopSfx() {
+    const a = this.world.audio;
+    if (!a?.loop) return;
+    const set = (name, on, vol) => {
+      const key = `${name}:${this._sfxUid}`;
+      if (on) a.loop(key, name, { vol, mech: this.def.id });
+      else a.stopLoop(key);
+    };
+    const live = this.alive && !this.dead;
+    set('burn_loop', live && !!this.status.burn, 0.85);
+    // GLITCHED is this game's electrocution: servos locked, body tearing
+    set('shock_loop', live && this.state === 'glitched', 0.9);
+    set('booster_loop', live && this.hovering && !this.grounded, 0.7);
+  }
+
+  /** Every loop this body owns, cut. Death, round reset, teardown. */
+  stopLoopSfx() {
+    const a = this.world.audio;
+    if (!a?.stopLoop) return;
+    for (const n of ['burn_loop', 'shock_loop', 'booster_loop']) a.stopLoop(`${n}:${this._sfxUid}`);
   }
 
   doSpecial() {
@@ -2654,6 +2691,7 @@ export class Fighter {
   }
 
   die(attacker) {
+    this.stopLoopSfx();     // nothing a corpse owns keeps making noise
     this.hp = 0;
     this.alive = false;
     this.clearChargeGlow();
@@ -2686,6 +2724,11 @@ export class Fighter {
     // a fresh one after the pose. Physics, collision and combat therefore
     // never see it, and it can never accumulate.
     this.unrollPivot();
+    // BEFORE the state machine, deliberately: a sustained sound belongs to a
+    // STATE, and several states (frozen solid, glitched, knocked down) return
+    // out of update long before the animation section — a loop hung off the
+    // end of the frame would never start in exactly the states that need one.
+    this.loopSfx();
     const st = this.def.stats;
     const I = this.intent;
     // CONTROL IMPLIES ANIMATION CONTROL. The round-start intro runs 2.3s but
@@ -4798,6 +4841,7 @@ export class Fighter {
   }
 
   resetForRound(pos, yaw) {
+    this.stopLoopSfx();     // a new round starts silent, whatever the last one left
     this.hp = this.maxHp;
     this.alive = true;
     this.hanging = null;

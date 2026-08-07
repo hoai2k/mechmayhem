@@ -725,6 +725,7 @@ export async function bootGame() {
     if (!S.battle) return;
     music.stop();
     ambience.stop();
+    audio.stopAllLoops?.();   // a loop whose owner is gone plays forever
     nowPlaying.setVisible(false);
     touchControls?.setVisible(false);
     if (S.battle.loading) { // quit mid-warm-up: drop the overlay + cameras

@@ -2471,6 +2471,18 @@ than silently falling back to procedural.
   sizeMul, where a phase window drifts out of step. The SURFACE under him is a
   second quieter layer (`step_water`/`step_lava`/… off `terrain.onPatch`, the
   same lobes the hazards read).
+  A SUSTAINED STATE IS A LOOP, NOT A ONE-SHOT ON A TIMER (`audio.loop(key,
+  name)`/`stopLoop`, driven by `Fighter.loopSfx`): burning (`status.burn`),
+  electrocuted (the `glitched` stun) and the hover jets. Loops are keyed by
+  EMITTER — two mechs burning at once are two loops, each ending with its own
+  fire — and asking for a running loop is a no-op, which is what lets the
+  fighter simply restate "is this still true" every frame with no start/stop
+  bookkeeping to fall out of step. It runs BEFORE the state machine: frozen,
+  glitched and knocked-down all return out of `update` long before the
+  animation section, which is exactly where the loops were first (and so the
+  shock loop never played). A loop is cut on death, `resetForRound`, teardown
+  and tab-hide, because a loop whose owner stopped updating plays forever.
+  `node tools/sfxloops.mjs` drives all three through their real transitions.
   THE ARENA BED (`core/ambience.js`) is one looping recording per arena
   (`amb_<theme>`), a media element rather than a WebAudio buffer — like the
   soundtrack, and so it is off the bus the combat compressor is pumping (a bed
