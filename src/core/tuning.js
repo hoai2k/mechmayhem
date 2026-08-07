@@ -135,6 +135,9 @@ export const TUNING = {
     // is throttled: zero throttle at `turnSlow` rad of pending turn, never
     // below `turnFloor`. Stability over speed on complex territory.
     normRate: 11,
+    // how fast the body settles into (and out of) its RESTING carriage on a
+    // surface — the climb poses' idle blend, 1/s
+    idleRate: 3.5,
     turnSlow: 1.0,
     turnFloor: 0.3,
     // NOTHING TO HOLD IS NOT A PLACE TO BE. A surfaced body must be TOUCHING

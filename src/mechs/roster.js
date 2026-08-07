@@ -725,6 +725,18 @@ export const ROSTER = [
     //             flattens, and the head cranes back to look where he is going.
     climb: {
       speed: 0.72, reach: 0.3,
+      // HOW FAR A LEADING LIMB REACHES, x its own full extension. 0.82 of
+      // his 6.04-unit front limb is 4.95 units — the same absolute reach
+      // KONGA gets by stretching out (0.95 x 5.23 = 4.97), which is the
+      // point: the two climbers cover the same ground per grab. Jerry's
+      // limbs are the LONGER pair, so the same distance leaves them bent.
+      grab: 0.82,
+      // RESTING ON A WALL, he just stands on it: the crouch below is the
+      // climbing carriage, and holding it while parked reads as a mech
+      // permanently mid-scramble. Easing off the stick unfolds nearly all
+      // of it and he settles into his ordinary walking pose, still pinned
+      // to the facade by the limb stepper.
+      idleRelax: 0.85,
       pose: {
         hipsPos: [0, -2.3, 0],
         torso: [-30, 0, 0], head: [34, 0, 0],
@@ -853,6 +865,24 @@ export const ROSTER = [
     // radius has to cover the span he can actually grab across.
     climb: {
       speed: 0.66, reach: 0.42, style: 'ape',
+      // AS FAR AS THE ARM GOES. He is the short-armed one of the two
+      // (5.23 units to jerry's 6.04), so he spends all of it on every
+      // reach and arrives at the same 4.97 units jerry gets bent.
+      grab: 0.95,
+      // RESTING IS NOT THE ABSENCE OF CLIMBING for an ape — it is a HANG.
+      // The right arm goes straight overhead and the body drops under it,
+      // knees folded and loose, which is what a gorilla does on a wall
+      // with nowhere to stand. Faded in by `_climbIdle`, on top of the
+      // climbing carriage rather than instead of it (idleRelax stays 0:
+      // he never lets go of the wall to stand on nothing).
+      idlePose: {
+        hipsPos: [0, -1.1, 0],
+        torso: [8, 0, 0], head: [-16, 0, 0],
+        shoulderR: [-52, 0, 6], elbowR: [-14, 0, 0],
+        shoulderL: [26, 0, -12], elbowL: [40, 0, 0],
+        thighL: [26, 0, -8], thighR: [26, 0, 8],
+        kneeL: [40, 0, 0], kneeR: [40, 0, 0],
+      },
       // HE STAYS THE RIGHT WAY UP. `upright` is how much he refuses to lie
       // down on a surface (0 = become part of it, jerry's insect answer; 1 =
       // never tilt at all). An ape has shoulders: he climbs a facade standing
