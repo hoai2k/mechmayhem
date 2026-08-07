@@ -240,9 +240,18 @@ audio). Progress history: `TASKS.md`.
   one. `maxLead` (0.32 rad) is only the hard stop behind it, for a target that
   dashes or wraps. The first build gave 40° of free travel, which is not a
   targeting system — it is a crosshair that happens to start on the enemy.
-  THE PRICE, and it is deliberate: under a lock the right stick no longer
-  orbits the view by hand. Tap out of the lock and the camera is yours again
-  exactly as before.
+  UP AND DOWN IS THE CAMERA'S IN EVERY MODE BUT THE SCOPE. Raising and lowering
+  the view is how you see a fight at all, and taking that stick for a vertical
+  lead nobody asked for left the camera parked behind your own robot with the
+  enemy hidden behind it — the reported "stuck right behind your robot". So
+  while TARGETING, X leads the crosshair (and the orbit follows it) while Y is
+  the camera's, exactly as it is unlocked; the aim's pitch simply tracks the
+  target. Only SNIPER MODE takes Y, and there because the view IS the aim. The
+  routing lives in ONE place (boot.js) and aim.js applies the same rule, so the
+  two cannot disagree about who has the stick.
+  THE LEFT STICK MOVES THE ROBOT AND NOTHING ELSE — no target re-pick, no drift
+  on the crosshair (asserted: run about under a lock and the aim stays on the
+  same target, still on its head).
   A HELD LB IS SNIPER MODE, and that is why the lock became a TAP toggle to
   release on: the toggle now fires on RELEASE and only for a press that never
   became a hold, so raising the scope cannot flip the lock (`node
@@ -251,6 +260,26 @@ audio). Progress history: `TASKS.md`.
   the aim ray is TRACED into the world (enemy hurtboxes first, then the terrain
   under it), which is what lets a LOBBED shell land where the crosshair is drawn
   instead of at a fixed range.
+  SNIPER IS ALMOST FIRST PERSON. At full scope the eye is not on an orbit at
+  all: it sits BEHIND AND ABOVE HIS OWN HEAD (`headBack`/`headUp`/`headSide`, all
+  in units of his own height, so a scout and a siege chassis frame the same) and
+  looks straight down the aim, with the crown of his head just inside the bottom
+  edge — measured, head at ndc y -0.75 with the crosshair within 0.1 of centre.
+  You are sighting along the robot rather than watching him from across the
+  street, which is the only framing where the crosshair means what it says, and
+  the reticle GROWS with the zoom (it is the whole interface at that point)
+  instead of shrinking into the discreet lock dot it is over the shoulder.
+  AND THE SCOPE PICKS ITS TARGET. A hard shove on the stick is a different
+  question from a nudge, so it is answered first: every shootable thing —
+  enemy robots AND the arena's destructible props (`arena.propBodies`) — is
+  measured as an ANGLE off the current aim, everything on the wrong side is
+  dropped, and the nearest of what is left in the direction you pushed wins. A
+  target further away the way you asked beats a closer one you did not, which is
+  the whole point of being able to ask. Letting go of a PROP hands the aim back
+  to the nearest robot (a prop is somewhere you chose to point for a moment) —
+  but never while the trigger is down, or a prop would be impossible to actually
+  hit. The scope's pick outranks a LOCK's target while it is up, or the lock
+  would re-assert itself on the frame the switch happened.
   THE ZOOM IS ONE NUMBER (`Fighter.sniperK`, damped both ways at `zoomRate`),
   so raising and lowering the scope are the same move played in reverse and no
   part of it can arrive ahead of another: the FOV narrows (`zoomFov`, 46->24.8

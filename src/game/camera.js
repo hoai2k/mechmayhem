@@ -24,8 +24,13 @@ const _lift = new THREE.Vector3();   // per-frame scratch (was allocated per fig
 // fighter's raw `pos` orbits at the spin rate — every framing read below goes
 // through focusPos so the camera tracks the smooth falling base instead.
 const _fpA = new THREE.Vector3();
-const _scopeF = new THREE.Vector3();  // sniper scope scratch (view forward / right)
+const _scopeF = new THREE.Vector3();  // sniper scope scratch
 const _scopeR = new THREE.Vector3();
+const _scopeHead = new THREE.Vector3();
+const _scopeEye = new THREE.Vector3();
+const _scopeLook = new THREE.Vector3();
+const _scopeSide = new THREE.Vector3();
+const _scopeUp = new THREE.Vector3(0, 1, 0);
 // ---------------------------------------------------------------------------
 // THE CLIMB CAMERA (surface walking, combat/climb.js).
 //
@@ -339,36 +344,51 @@ export class CameraSystem {
     );
   }
 
-  // ---- SNIPER MODE: the view zooms in around the crosshair ----------------
+  // ---- SNIPER MODE: ALMOST FIRST PERSON ------------------------------------
   //
   // Everything here rides ONE number, the fighter's own `sniperK` (0..1, damped
   // by aim.js), so raising and lowering the scope is one smooth move in both
-  // directions and no part of it can arrive ahead of another:
-  //   · the FOV narrows to `zoomFov` — the magnification, and what actually
-  //     makes a distant mech aimable;
-  //   · the camera comes in a little (`zoomDist`), so the shot is not taken
-  //     from the back of the arena;
-  //   · the whole view slides OVER THE SHOULDER (`shoulder`/`shoulderUp`),
-  //     because a crosshair centred behind your own mech is a crosshair you
-  //     cannot see — this is the one thing a third-person scope must do;
-  //   · and the look target slides toward the crosshair (`leadPull`), so the
-  //     thing being aimed at drifts to the middle of the screen instead of
-  //     sitting out at the edge of a now-narrow frame.
-  // Position and target take the SAME lateral shift: the view translates, it
-  // does not swing, so the aim direction on screen is unchanged by the slide.
+  // directions and no part of it can arrive ahead of another.
+  //
+  // At full scope the eye is not on an orbit at all: it sits just BEHIND AND
+  // ABOVE HIS OWN HEAD and looks straight down the aim, with the crown of his
+  // head in frame at the bottom — you are sighting along the robot rather than
+  // watching him from across the street. That is the only framing in which the
+  // crosshair means what it says, and it is what makes target-switching legible:
+  // the thing you are about to shoot fills the middle of the screen.
+  //
+  // The orbit view is still what it blends FROM, so the way in and the way out
+  // are a camera move rather than a cut, and the ordinary chase framing is
+  // untouched at k = 0.
   applyScope(f, pos, target) {
     const k = f?.sniperK || 0;
     if (k < 0.001) return 0;
     const A = TUNING.aim;
     if (f._lockAim) target.lerp(f._lockAim, A.leadPull * k);
-    _scopeF.copy(target).sub(pos);
-    _scopeF.y = 0;
-    if (_scopeF.lengthSq() < 1e-6) return k;
-    _scopeF.normalize();
-    _scopeR.set(-_scopeF.z, 0, _scopeF.x);   // view-right, level with the world
-    const s = A.shoulder * k, up = A.shoulderUp * k;
-    pos.addScaledVector(_scopeR, s); pos.y += up;
-    target.addScaledVector(_scopeR, s); target.y += up;
+    // where he is looking: the aim if he has one, else his own facing
+    const fp = f.focusPos(_scopeF);
+    const headY = fp.y + f.height * 0.92;
+    _scopeHead.set(fp.x, headY, fp.z);
+    if (f._lockAim) _scopeR.copy(f._lockAim).sub(_scopeHead);
+    else _scopeR.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
+    if (_scopeR.lengthSq() < 1e-6) _scopeR.set(0, 0, 1);
+    _scopeR.normalize();
+    // the eye: back along the aim, up, and OVER THE SHOULDER — all three in
+    // units of his own height, so it sits the same on a scout and on a siege
+    // chassis. The sideways step is what keeps his own back and shoulder gear
+    // out of the shot: without it a big mech sights down a channel between his
+    // own exhaust towers.
+    _scopeSide.set(-_scopeR.z, 0, _scopeR.x).normalize();
+    _scopeEye.copy(_scopeHead)
+      .addScaledVector(_scopeR, -A.headBack * f.height)
+      .addScaledVector(_scopeUp, A.headUp * f.height)
+      .addScaledVector(_scopeSide, A.headSide * f.height);
+    pos.lerp(_scopeEye, k);
+    // …looking a long way down the aim FROM THE HEAD rather than from the
+    // shifted eye, so the crosshair's own line stays in the middle of the view
+    // however far the shoulder step moved the camera sideways
+    _scopeLook.copy(_scopeHead).addScaledVector(_scopeR, 60);
+    target.lerp(_scopeLook, k);
     return k;
   }
 

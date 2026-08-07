@@ -813,21 +813,26 @@ export async function bootGame() {
           // is an AIMING control — that is the whole point of it: you steer the
           // shot to where the target is GOING, and the camera follows the aim
           // (camera.js frames the aim point) instead of being framed by hand.
-          //   · locked  — both axes are the aim's; the lock orbit follows it.
-          //   · sniper, nothing locked — the aim's base heading IS the camera's,
-          //     so X still turns the view (which carries the crosshair with it)
-          //     and only Y is taken, as the aim's pitch.
+          //   · TARGETING (a lock, no scope) — X leads the crosshair and the
+          //     orbit follows it; Y IS STILL THE CAMERA'S. Being able to raise
+          //     and lower the view is how you see the fight past your own robot,
+          //     and taking that stick for a vertical lead is what left the
+          //     camera stuck behind his back with the enemy hidden.
+          //   · SNIPER — the view IS the aim (almost first person, down the
+          //     barrel), so BOTH axes are the aim's: X switches targets and
+          //     leads, Y pitches the shot.
           // camera-ADJUST (LS click, the zoom) always outranks it: it is how a
           // player changes the framing, and it never aims.
           const f = h.fighter;
           const aiming = f.aiming && !adjust;
+          const scoped = aiming && !!f.intent.sniper;
           if (aiming) {
             const inp = f.aimIn || (f.aimIn = { x: 0, y: 0 });
-            inp.x = f.lockTarget ? rx : 0;
-            inp.y = ry;
+            inp.x = (f.aimTarget || f.lockTarget) ? rx : 0;
+            inp.y = scoped ? ry : 0;
           }
-          const camX = aiming && f.lockTarget ? 0 : rx;
-          const camY = aiming ? 0 : ry;
+          const camX = aiming && (f.aimTarget || f.lockTarget) ? 0 : rx;
+          const camY = scoped ? 0 : ry;
           if (B.cameraSys.mode === 'split') {
             B.cameraSys.setLook(h.idx, camX, camY, adjust);
           } else if (camX || camY) {

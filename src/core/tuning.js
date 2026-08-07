@@ -235,13 +235,27 @@ export const TUNING = {
     magnet: 2.6,       // pull back toward the target WHILE the stick is live
     settle: 7,         // ...and once it lets go
     hold: 0.35,        // seconds the camera treats the aim as "being steered"
+    // ---- switching targets, in sniper mode (a shove, not a nudge) ----
+    switchPush: 0.72,  // stick deflection that means "the one over THERE"
+    switchArc: 1.15,   // rad either side of the aim a candidate may sit in
+    switchMin: 0.035,  // …and how far off it must be to count as a different one
+    switchRange: 110,  // units — past this it is scenery, not a target
+    switchCd: 0.4,     // seconds before another shove is heard
     reach: 90,         // units the unlocked aim ray carries before it gives up
     // ---- sniper mode (LB HELD) ----
     zoomRate: 3.2,     // damp rate of the zoom blend — the whole feel of it
-    zoomFov: 0.52,     // FOV multiplier at full zoom (≈2x magnification)
-    zoomDist: 0.82,    // camera-distance multiplier at full zoom
-    shoulder: 2.6,     // units the view slides sideways so the mech clears the shot
-    shoulderUp: 0.7,   // ...and up
+    // SNIPER IS ALMOST FIRST PERSON: the eye goes up behind his own head and
+    // looks down the aim, with the crown of his head just in frame at the
+    // bottom. `headBack`/`headUp` are in units of his HEIGHT, so it sits the
+    // same on a 4-unit scout and a 12-unit siege chassis.
+    zoomFov: 0.62,     // FOV multiplier at full zoom
+    headBack: 1.00,    // …how far behind the head the eye sits, x his height
+    headUp: 0.22,      // …and how far above it — the ratio of the two is what
+                       // puts the crown of his head just inside the bottom edge
+    headSide: 0.10,    // …and OVER THE SHOULDER by this much, which is what
+                       // keeps a big chassis' own backpack out of the shot
+                       // (titanus sights between two exhaust towers otherwise)
+    zoomDist: 0.82,    // (orbit distance multiplier while the scope blends in)
     leadPull: 0.62,    // how far the look target slides toward the crosshair
     zoomSens: 0.55,    // stick sensitivity multiplier at full zoom
     // A DELIBERATE TAP IS UNDER ~150ms, so this is the forgiving side of the

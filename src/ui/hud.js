@@ -204,10 +204,11 @@ export class Hud {
           const vp = cams.viewportRectFor(i);
           el.style.left = (vp.x + (_v.x * 0.5 + 0.5) * vp.w) * 100 + '%';
           el.style.top = (1 - (vp.y + (_v.y * 0.5 + 0.5) * vp.h)) * 100 + '%';
-          // scoped in, the reticle TIGHTENS: a smaller, brighter ring says the
-          // shot is a precise one, and the loose lock reticle would swamp a
-          // magnified target
-          el.style.transform = `translate(-50%,-50%) scale(${(1 - 0.42 * k).toFixed(3)})`;
+          // SCOPED IN, THE RETICLE IS BIG. The scope is almost first person and
+          // the crosshair is the whole interface at that point — which target is
+          // held, where the shot goes — so it grows into a proper sight instead
+          // of staying the discreet lock dot it is over the shoulder.
+          el.style.transform = `translate(-50%,-50%) scale(${(1 + 1.35 * k).toFixed(3)})`;
           el.style.borderColor = `rgba(255,255,255,${(0.55 + 0.4 * k).toFixed(2)})`;
           el.style.display = 'block';
           shown = true;

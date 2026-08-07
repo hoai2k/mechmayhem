@@ -107,6 +107,82 @@ const out = await page.evaluate(async () => {
   step(120, () => aimIn(0, 0));
   R.settledOnHead = headDist();
 
+  // ---- 4b. UP/DOWN IS THE CAMERA'S WHILE TARGETING ----
+  // (boot.js routes it, so drive the fighter the way boot does: aim gets X
+  // only, the camera gets Y)
+  place();
+  p.intent.lockOn = true; p.intent.sniper = false;
+  const camElBefore = cam.lookElOffset ?? 0;
+  const pitchBefore = p.aimPitch;
+  step(40, () => { aimIn(0, 0); cam.applyStick(0, -1, dt, false); });
+  R.targetingPitch = {
+    cameraMoved: Math.abs((cam.lookElOffset ?? 0) - camElBefore) > 0.05,
+    aimPitchHeld: Math.abs(p.aimPitch - pitchBefore) < 0.05,
+    stillOnHead: headDist() < 1.2,
+  };
+
+  // ---- 4c. SNIPER: the stick pitches the AIM instead ----
+  place();
+  p.intent.lockOn = true; p.intent.sniper = true;
+  step(40, () => aimIn(0, 0));
+  const sniperPitch0 = p.aimPitch;
+  step(30, () => aimIn(0, -1));
+  R.sniperPitch = { aimPitchMoved: Math.abs(p.aimPitch - sniperPitch0) > 0.05 };
+
+  // ---- 4d. SNIPER FRAMING: his own head, low in frame ----
+  step(90, () => aimIn(0, 0));
+  const headPt = new THREE.Vector3(p.pos.x, p.pos.y + p.height * 0.92, p.pos.z);
+  const hv = headPt.clone().project(cam.cameraFor(0));
+  R.scopeFraming = {
+    headNdcY: +hv.y.toFixed(2), headNdcX: +hv.x.toFixed(2),
+    headOnScreen: Math.abs(hv.x) < 1 && hv.y > -1.15 && hv.y < 0,
+    crosshairNdc: ndc(),
+    eyeToHead: +cam.cameraFor(0).position.distanceTo(headPt).toFixed(1),
+  };
+
+  // ---- 4e. SNIPER: a shove switches targets, and a prop is only held while
+  // the stick is over ----
+  place();
+  // put a second enemy off to one side, further away than the first
+  const foe2 = F[1];
+  R.switching = 'no second target';
+  if (foe2) {
+    const first = p.aimTarget;
+    step(20, () => aimIn(0, 0));
+    step(12, () => aimIn(1, 0));
+    R.switching = { switchedAway: p.aimTarget !== first, target: p.aimTarget?.prop ? 'prop' : (p.aimTarget?.def?.id || null),
+      props: (w.arena?.propBodies || []).filter((q) => q.alive).length,
+      inArc: (w.arena?.propBodies || []).filter((q) => {
+        if (!q.alive) return false;
+        const dx = q.x - p.pos.x, dz = q.z - p.pos.z;
+        if (Math.hypot(dx, dz) > 110) return false;
+        let d = (Math.atan2(dx, dz) - p.aimYaw) % (Math.PI * 2);
+        if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
+        return Math.abs(d) < 1.15;
+      }).length };
+    // …and letting go of a prop hands the aim back to a robot
+    step(90, () => aimIn(0, 0));
+    R.afterRelease = p.aimTarget?.prop ? 'still a prop' : (p.aimTarget?.def?.id || 'none');
+  }
+  p.intent.sniper = false;
+  step(30, () => aimIn(0, 0));
+
+  // ---- 4f. THE LEFT STICK MOVES THE ROBOT, NOT THE AIM ----
+  place();
+  p.intent.lockOn = true; p.intent.sniper = false;
+  step(40, () => aimIn(0, 0));
+  const beforeMove = { onHead: headDist(), target: p.aimTarget };
+  step(90, (i) => {
+    aimIn(0, 0);
+    p.intent.moveX = Math.sin(i / 15); p.intent.moveZ = 1;   // running about
+  });
+  R.leftStick = {
+    movedRobot: +Math.hypot(p.pos.x, p.pos.z).toFixed(1) > 2,
+    stillOnHead: headDist() < 1.5,
+    sameTarget: p.aimTarget === beforeMove.target,
+  };
+  p.intent.moveX = p.intent.moveZ = 0;
+
   // ---- 5. SNIPER MODE: smooth in, smooth out ----
   place();
   p.intent.lockOn = true;

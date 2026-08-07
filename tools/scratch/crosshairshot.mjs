@@ -37,7 +37,7 @@ const shot = async (name, setup, frames) => {
     const dt = 1 / 60;
     for (let i = 0; i < frames; i++) {
       f.intent.lockOn = cfg.lock; f.intent.sniper = cfg.sniper;
-      f.aimIn.x = cfg.lead || 0;
+      f.aimIn.x = cfg.lead || 0; f.aimIn.y = cfg.pitch || 0;
       w.update(dt); cam.update(dt, F, [f]);
       window.__hud.update(dt, window.__engine.camera, 60);
     }

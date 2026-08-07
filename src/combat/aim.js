@@ -48,15 +48,77 @@ export function aimOrigin(f, out = _o) {
   return out.set(f.pos.x, f.pos.y + f.height * 0.8, f.pos.z);
 }
 
-// Direction to the point a locked enemy is aimed AT — the head, so headshots
-// feel like aiming (this is the point the old servo damped onto, unchanged).
-function lockPoint(f, T, out = _t) {
+// WHAT THE CROSSHAIR IS ON. A target is a ROBOT or — in sniper mode, where the
+// player picks — anything else worth shooting: the arena's own destructible
+// props (`arena.propBodies`, the things that already carry hp and come down).
+// Both answer the same question: where do I aim to hit you.
+function targetPoint(f, T, out = _t) {
   const w = f.world;
+  if (T?.prop) {
+    const p = T.prop;
+    return out.set(
+      f.pos.x + w.wrapDelta(p.x - f.pos.x),
+      (w.arena?.terrainHeightAt?.(p.x, p.z) || 0) + p.h * 0.55,
+      f.pos.z + w.wrapDelta(p.z - f.pos.z)
+    );
+  }
+  // a robot is aimed at the HEAD, so headshots feel like aiming
   return out.set(
     f.pos.x + w.wrapDelta(T.pos.x - f.pos.x),
     T.pos.y + T.height * 0.88,
     f.pos.z + w.wrapDelta(T.pos.z - f.pos.z)
   );
+}
+
+const isLive = (f, T) => !!T && (T.prop ? T.prop.alive : (T.alive && !f.isAllyOf?.(T)));
+
+// The nearest robot worth shooting — the default target, and what a sniper
+// relaxes back onto when he lets go of a prop.
+function nearestRobot(f) {
+  let best = null, bestD = Infinity;
+  for (const e of f.world.fighters) {
+    if (e === f || !e.alive || f.isAllyOf(e)) continue;
+    const dx = f.world.wrapDelta(e.pos.x - f.pos.x), dz = f.world.wrapDelta(e.pos.z - f.pos.z);
+    const d = dx * dx + dz * dz;
+    if (d < bestD) { bestD = d; best = e; }
+  }
+  return best;
+}
+
+/**
+ * SWITCH TARGETS BY SHOVING THE STICK AT ONE (sniper mode only).
+ *
+ * Not "the next one round the circle" and not "the nearest": the one that lies
+ * the way you pushed. Every shootable thing is measured as an ANGLE off the
+ * current aim, everything on the wrong side is dropped, and the nearest of what
+ * is left in that direction wins — so a target further away in the direction
+ * you asked for beats a closer one you did not, which is the whole point of
+ * being able to ask.
+ */
+function switchTarget(f, push) {
+  const A = TUNING.aim;
+  const w = f.world;
+  // screen-right is DECREASING yaw (see the sign note below), so a push to the
+  // right is looking for a NEGATIVE angular delta
+  const wantSign = push > 0 ? -1 : 1;
+  let best = null, bestOff = Infinity;
+  const consider = (T) => {
+    if (!isLive(f, T) || T === f.aimTarget) return;
+    targetPoint(f, T, _p1);
+    const dx = _p1.x - f.pos.x, dz = _p1.z - f.pos.z;
+    if (Math.hypot(dx, dz) > A.switchRange) return;
+    const d = angDelta(f.aimYaw, yawOf(dx, dz));
+    if (Math.sign(d) !== wantSign) return;
+    const off = Math.abs(d);
+    if (off < A.switchMin || off > A.switchArc || off >= bestOff) return;
+    bestOff = off; best = T;
+  };
+  for (const e of w.fighters) if (e !== f) consider(e);
+  for (const p of w.arena?.propBodies || []) if (p.alive) consider({ prop: p });
+  if (!best) return false;
+  f.aimTarget = best;
+  w.audio?.play('uiMove', { vol: 0.5 });
+  return true;
 }
 
 // yaw/pitch of a direction in the game's own convention (yaw = atan2(x, z),
@@ -144,11 +206,31 @@ export function updateAim(f, dt) {
   }
 
   const origin = aimOrigin(f);
-  const T = locked ? f.lockTarget : null;
+  // ---- WHAT IS BEING AIMED AT ----
+  // A LOCK owns its target; that is what locking is. SNIPER MODE picks: it opens
+  // on the nearest robot and the stick throws it at anything else shootable,
+  // robot or prop — and letting go of a PROP hands the aim back to the nearest
+  // robot, because a prop is something you chose to shoot at for a moment, not
+  // somewhere to be left pointing.
+  if (sniping) {
+    // THE SCOPE PICKS, even over a lock — that is what the shove is for, and a
+    // lock re-asserting its own target every frame would undo the switch on the
+    // frame it happened.
+    if (!isLive(f, f.aimTarget)) f.aimTarget = (isLive(f, f.lockTarget) && f.lockTarget) || nearestRobot(f);
+    else if (f.aimTarget.prop && (f._aimHold || 0) <= 0 && !f.intent.rangedHeld) {
+      // a prop is somewhere you chose to point for a moment: let go and the aim
+      // hands itself back to the nearest robot. NOT while the trigger is down —
+      // that is a shot being taken, and pulling the aim off it mid-squeeze
+      // would make a prop impossible to actually hit.
+      f.aimTarget = nearestRobot(f) || f.aimTarget;
+    }
+  } else if (locked) f.aimTarget = f.lockTarget;
+  else f.aimTarget = null;
+  const T = isLive(f, f.aimTarget) ? f.aimTarget : null;
   // ---- the BASE direction: what the aim is measured against ----
   let baseYaw, basePitch, baseDist = 0;
   if (T) {
-    const p = lockPoint(f, T);
+    const p = targetPoint(f, T);
     _d.copy(p).sub(origin);
     baseDist = _d.length() || 1;
     baseYaw = yawOf(_d.x, _d.z);
@@ -175,7 +257,7 @@ export function updateAim(f, dt) {
   const sens = 1 - (1 - A.zoomSens) * f.sniperK;
   const ax = T ? inp.x : 0;          // see the note on f.aimIn above
   const ay = pitchIn(inp.y);
-  const live = Math.abs(ax) > 0.08 || Math.abs(ay) > 0.08;
+  const live = Math.abs(ax) > 0.08 || (sniping && Math.abs(ay) > 0.08);
   if (live) f._aimHold = A.hold;
   else f._aimHold = Math.max(0, (f._aimHold || 0) - dt);
 
@@ -199,13 +281,27 @@ export function updateAim(f, dt) {
     // couple of body widths at fighting range — enough to lead a strafing
     // target, not enough to lose them. It was 40° of free travel before, which
     // is a crosshair that happens to start on the enemy.
+    // A HARD SHOVE IS A DIFFERENT QUESTION FROM A NUDGE, so it is asked first:
+    // in sniper mode it switches targets rather than dragging the crosshair out
+    // into the empty space between two of them.
+    f._switchCd = Math.max(0, (f._switchCd || 0) - dt);
+    if (sniping && Math.abs(ax) > A.switchPush && f._switchCd <= 0
+        && switchTarget(f, ax)) { f._switchCd = A.switchCd; f._aimHold = A.hold; }
     const off = angDelta(baseYaw, f.aimYaw);
     const k = Math.min(1, Math.abs(off) / A.maxLead);
     const friction = 1 - k * k;
     f.aimYaw -= ax * A.yawRate * sens * friction * dt;
-    const pOff = f.aimPitch - basePitch;
-    const pk = Math.min(1, Math.abs(pOff) / A.maxLead);
-    f.aimPitch -= ay * A.pitchRate * sens * (1 - pk * pk) * dt;
+    // UP AND DOWN IS THE CAMERA'S IN EVERY MODE BUT THIS ONE. Raising and
+    // lowering the view is how you see the fight at all — taking that stick for
+    // a lead nobody asked for left the camera parked behind your own robot with
+    // the enemy hidden behind it. Only SNIPER MODE takes it, and there because
+    // the view IS the aim: you are looking down the barrel. boot.js routes the
+    // stick to match, so the two can never disagree about who has it.
+    if (sniping) {
+      const pOff = f.aimPitch - basePitch;
+      const pk = Math.min(1, Math.abs(pOff) / A.maxLead);
+      f.aimPitch -= ay * A.pitchRate * sens * (1 - pk * pk) * dt;
+    }
     // magnetism — weak under the thumb, firm the moment it lets go
     const pull = 1 - Math.exp(-(live ? A.magnet : A.settle) * dt);
     f.aimYaw += angDelta(f.aimYaw, baseYaw) * pull;
