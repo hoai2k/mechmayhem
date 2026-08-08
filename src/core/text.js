@@ -143,6 +143,9 @@ export const MESSAGES = {
   'settings.reload': 'RELOAD PAGE',
   'settings.split.side': 'SPLIT: SIDE BY SIDE',
   'settings.split.stacked': 'SPLIT: STACKED',
+  // {bar} is the ten-block level readout; the level belongs to whichever
+  // source (recorded / synth) is in use — see CONFIG.sfxVolume
+  'settings.sfxVol': 'SFX VOLUME {bar} {pct}%',
   // RECORDED sound FX (public/sfx/) vs the procedural synth in core/audio.js
   'settings.sfx.on': 'SOUND FX: RECORDED',
   'settings.sfx.off': 'SOUND FX: SYNTH',

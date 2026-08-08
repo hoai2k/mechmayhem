@@ -9,7 +9,7 @@
 // combat compressor is pumping — a bed ducking every time someone lands a
 // punch is exactly what a bed must not do.
 //
-// Levels: the sound master (the 🔊 button) x `sfxMaster` x the `ambience`
+// Levels: the sound master (the 🔊 button) x the SFX volume x the `ambience`
 // category, so it follows the same chain as everything else in the effects
 // mixer and can be tucked away without touching combat.
 //

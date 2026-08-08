@@ -69,6 +69,10 @@ function parseDoc() {
     if (t) { tier = t[1]; continue; }
     const h = lines[i].match(/^### \d+\.\s*(.+?)\s*—\s*`file:\s*([A-Za-z0-9_]+)`/);
     if (!h) continue;
+    // **SYNTH** on the heading: this sound stays procedural on purpose. Not
+    // generated, not put in the manifest — so core/audio.js never sees a
+    // recording for it and the synth keeps it.
+    if (/\*\*SYNTH\*\*/.test(lines[i])) continue;
     // the prompt is the next fenced block
     const start = lines.indexOf('```', i + 1);
     if (start < 0) continue;
@@ -371,7 +375,10 @@ if (DRY) {
 }
 
 fs.mkdirSync(OUT, { recursive: true });
-const done = await pool(work, CONCURRENCY, build);
+// --manifest rebuilds the index from what is on disk and generates nothing:
+// the way to retire a sound is to delete its file and re-index, never to pay
+// for the whole set again
+const done = flag('manifest') ? [] : await pool(work, CONCURRENCY, build);
 let ok = 0; let failed = 0; let skipped = 0; let total = 0;
 for (const r of done) {
   if (r.skipped) { skipped++; continue; }
