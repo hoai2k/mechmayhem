@@ -3185,7 +3185,16 @@ export class Fighter {
         // taunt borrows the `attack` state to keep the body still, and the
         // cancel above hands that state straight back — so without this a stick
         // held with the taunt button would launch and cancel it every frame.
-        this.setState('attack', this.animator.play('taunt') * 0.9);
+        // A TAUNT HAS EVENTS AND NOBODY WAS LISTENING. Every *_TAUNT clip
+        // carries its own sound (fenrir howls, konga beats his chest, glacier
+        // freezes) — but this call passed no `onEvent`, so the animator had
+        // nowhere to dispatch them and every taunt in the game was silent.
+        // Only VOICE and SHAKE are honoured: a taunt must never deal a hit.
+        this.setState('attack', this.animator.play('taunt', {
+          onEvent: (type, arg) => {
+            if (type === 'sfx' || type === 'shake') this.onAttackEvent(type, arg, {});
+          },
+        }) * 0.9);
       }
       if (I.jump && this.grounded && this.state === 'normal') {
         if (st.jumpWindup) {

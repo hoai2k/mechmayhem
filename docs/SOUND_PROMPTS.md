@@ -533,7 +533,14 @@ silence. Mono, 48 kHz WAV, dry, trimmed to the transient, peaks near -3 dBFS.
 These are the first sounds a player ever hears, and the UI ones fire on every
 menu keypress.
 
-### 39. Menu move — `file: uiMove`
+### 39. Menu move — `file: uiMove` — **SYNTH**
+
+> **Left to the synth on purpose.** Recorded menu blips were jarring — a
+> sampled click is a real object hitting something, and at one per cursor
+> press that reads as noise where the synth's short tone reads as an
+> interface. The prompt stays for the record; `tools/sfxgen.mjs` skips any
+> entry marked **SYNTH** and leaves it out of the manifest, so the game keeps
+> the procedural version.
 
 ```
 User-interface sound for a sci-fi mech fighting game: moving the cursor between
@@ -543,7 +550,7 @@ music, no melody. One shot, 50-90 ms. Mono, 48 kHz WAV, dry, trimmed to the
 transient, peaks near -8 dBFS.
 ```
 
-### 40. Menu confirm — `file: uiConfirm`
+### 40. Menu confirm — `file: uiConfirm` — **SYNTH**
 
 ```
 User-interface sound for a sci-fi mech fighting game: confirming a menu choice.
@@ -553,7 +560,7 @@ digital sheen. No reverb, no music, no melody beyond the two notes. One shot,
 -6 dBFS.
 ```
 
-### 41. Menu back — `file: uiBack`
+### 41. Menu back — `file: uiBack` — **SYNTH**
 
 ```
 User-interface sound for a sci-fi mech fighting game: backing out of a menu. A
@@ -562,7 +569,7 @@ clean. No reverb, no music. One shot, 150-250 ms. Mono, 48 kHz WAV, dry,
 trimmed to the transient, peaks near -8 dBFS.
 ```
 
-### 42. Heavy select — `file: uiSelect`
+### 42. Heavy select — `file: uiSelect` — **SYNTH**
 
 ```
 User-interface sound for a sci-fi mech fighting game: locking in a robot on the
@@ -1582,7 +1589,19 @@ music. Deliver 4 variations in ONE file, each 700-1100 ms, separated by about
 near -3 dBFS.
 ```
 
-### 124. Rhino, bull rush — `file: rhino_cast`
+### 124. Tritone, bellow — `file: tritone_taunt`
+
+```
+Game sound effect for a 3D robot-mech arena fighter: an armoured three-horned
+beast rearing up and bellowing a challenge. An enormous bovine-reptilian
+bellow from a chest the size of a truck, rising and breaking, with armour
+plating shifting and a deep servo groan as it rears. Ancient and heavy. No
+reverb tail, no music. Deliver 4 variations in ONE file, each 900-1400 ms,
+separated by about 0.7 seconds of silence. Mono, 48 kHz, dry, peaks near
+-3 dBFS.
+```
+
+### 125. Rhino, bull rush — `file: rhino_cast`
 
 ```
 Game sound effect for a 3D robot-mech arena fighter: an armoured rhinoceros

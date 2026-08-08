@@ -16,7 +16,7 @@ import { installKnobs, warnUnknownParams } from '../core/knobs.js';
 import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
-  CONFIG, setShowAllRobots, setReverseCameraY, setSfxSamples,
+  CONFIG, setShowAllRobots, setReverseCameraY, setSfxSamples, setSfxVolume, sfxVolume,
   setArenaDesign, ARENA_DESIGN_MODES,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
@@ -193,6 +193,21 @@ export async function bootGame() {
         secs: CONFIG.roundTime,
       }),
       slide: (d) => setRoundTime(CONFIG.roundTime + d * ROUND_STEP),
+    },
+    {
+      // ←→ the effects bed, under the 🔊 master. PER SOURCE: recordings and
+      // the synth sit at wildly different levels, so this reads and writes
+      // whichever one is playing — flip SOUND FX below and the slider jumps
+      // to that source's own remembered level.
+      label: () => t('settings.sfxVol', {
+        bar: volBar(sfxVolume()),
+        pct: Math.round(sfxVolume() * 100),
+      }),
+      slide: (d) => {
+        setSfxVolume(Math.min(1, Math.max(0, Math.round(sfxVolume() * 20 + d) / 20)));
+        ambience.refresh();
+        audio.play('uiMove');       // hear the level you are setting
+      },
     },
     {
       // RECORDED sound FX (public/sfx/) or the procedural synth in

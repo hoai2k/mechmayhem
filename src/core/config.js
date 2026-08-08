@@ -26,11 +26,18 @@ export const MENU_MUSIC_MIX_DEFAULT = 0.5;
 export const SFX_SAMPLES_DEFAULT = true;
 //
 // LEVELS ARE A CHAIN, not one number: the sound master (the 🔊 button's
-// 0/0.8) x `sfxMaster` x the CATEGORY's own level. So the whole effects bed
+// 0/0.8) x the SFX VOLUME x the CATEGORY's own level. So the whole effects bed
 // can be pulled down against the music without touching the balance inside
 // it, and one noisy family — footsteps at two a second, a gatling at twelve —
 // can be tucked under the sounds that carry the fight.
-export const SFX_MASTER_DEFAULT = 0.9;
+//
+// THE SFX VOLUME IS PER SOURCE, and that is the point: recordings and the
+// synth are mastered nowhere near each other (the recordings are real audio
+// normalized to -3 dBFS, the synth is a handful of oscillators at a fraction
+// of full scale), so one number cannot serve both — set a comfortable level
+// for the files, switch to SYNTH, and it is inaudible. Each keeps its own,
+// and the settings slider reads and writes whichever is in use.
+export const SFX_VOL_DEFAULT = { samples: 0.20, synth: 0.9 };
 export const SFX_MIX_DEFAULT = {
   impact: 1.0,        // hits, blocks, swings, bodies landing — the fight itself
   movement: 0.55,     // footsteps, servos, jets: constant, so deliberately under
@@ -157,9 +164,13 @@ export const CONFIG = {
   // synthesized version for anything that doesn't. Settings menu, persisted;
   // ?sfx=0 forces the synth for one session.
   sfxSamples: params.get('sfx') === '0' ? false : readPref('rw.sfxSamples', SFX_SAMPLES_DEFAULT),
-  // The effects bed as a whole, under the sound master. `rw.set('sfxMaster',
-  // 0.5)` from the console lands immediately — it is read at the point of use.
-  sfxMaster: readNum('rw.sfxMaster', SFX_MASTER_DEFAULT),
+  // The effects bed as a whole, under the sound master — one level per SOURCE
+  // (see above). `rw.set('sfxVolume.samples', 0.5)` from the console lands
+  // immediately: it is read at the point of use.
+  sfxVolume: {
+    samples: readNum('rw.sfxVol.samples', SFX_VOL_DEFAULT.samples),
+    synth: readNum('rw.sfxVol.synth', SFX_VOL_DEFAULT.synth),
+  },
   // …and per CATEGORY under that. Tune the balance here, not per sound.
   sfxMix: { ...SFX_MIX_DEFAULT },
   // Music bus level, independent of the SFX bus. Settings slider, persisted.
@@ -279,10 +290,20 @@ export function setSfxSamples(on) {
   try { localStorage.setItem('rw.sfxSamples', CONFIG.sfxSamples ? '1' : '0'); } catch (e) { /* ok */ }
 }
 
-/** The effects bed as a whole, under the sound master. Persisted. */
-export function setSfxMaster(v) {
-  CONFIG.sfxMaster = Math.min(1, Math.max(0, +v || 0));
-  try { localStorage.setItem('rw.sfxMaster', String(CONFIG.sfxMaster)); } catch (e) { /* ok */ }
+/**
+ * The effects bed as a whole, under the sound master — writing the level of
+ * whichever source is in use, so the slider a player drags is the one they
+ * can hear. Persisted per source.
+ */
+export function setSfxVolume(v) {
+  const key = CONFIG.sfxSamples ? 'samples' : 'synth';
+  CONFIG.sfxVolume[key] = Math.min(1, Math.max(0, +v || 0));
+  try { localStorage.setItem(`rw.sfxVol.${key}`, String(CONFIG.sfxVolume[key])); } catch (e) { /* ok */ }
+}
+
+/** The level in force right now: the one belonging to the source in use. */
+export function sfxVolume() {
+  return CONFIG.sfxVolume[CONFIG.sfxSamples ? 'samples' : 'synth'];
 }
 
 /**
@@ -292,7 +313,7 @@ export function setSfxMaster(v) {
  */
 export function sfxGain(category) {
   const c = CONFIG.sfxMix[category];
-  return CONFIG.sfxMaster * (c == null ? 1 : c);
+  return sfxVolume() * (c == null ? 1 : c);
 }
 
 /** The menu theme's share of the music bus, 0..1. Persisted. */

@@ -18,7 +18,7 @@
 // throws if AudioContext is unavailable or still suspended.
 // ============================================================================
 
-import { CONFIG, sfxGain } from './config.js';
+import { CONFIG, sfxGain, sfxVolume } from './config.js';
 
 const clamp01 = (v) => Math.min(1, Math.max(0, Number.isFinite(+v) ? +v : 0));
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12); // MIDI note -> Hz
@@ -465,7 +465,11 @@ export class GameAudio {
       }
       const fn = has(SFX, name) ? SFX[name] : null;
       if (typeof fn !== 'function') return;
-      fn(this, ctx.currentTime + 0.002, p, v);
+      // the SYNTH answers to the same mixer: its own source level (the two are
+      // mastered nowhere near each other, so each keeps its own) times the
+      // category, where the manifest knows one for this name
+      const cat = this._bank?.[name]?.category;
+      fn(this, ctx.currentTime + 0.002, p, v * (cat ? sfxGain(cat) : sfxVolume()));
     } catch (e) {
       /* never throw from combat code paths */
     }

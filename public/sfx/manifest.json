@@ -227,30 +227,6 @@
   "sliced": true,
   "loop": false
  },
- "uiMove": {
-  "file": "uiMove.mp3",
-  "category": "ui",
-  "sliced": false,
-  "loop": false
- },
- "uiConfirm": {
-  "file": "uiConfirm.mp3",
-  "category": "ui",
-  "sliced": false,
-  "loop": false
- },
- "uiBack": {
-  "file": "uiBack.mp3",
-  "category": "ui",
-  "sliced": false,
-  "loop": false
- },
- "uiSelect": {
-  "file": "uiSelect.mp3",
-  "category": "ui",
-  "sliced": false,
-  "loop": false
- },
  "pause": {
   "file": "pause.mp3",
   "category": "ui",
@@ -733,6 +709,12 @@
  },
  "tritone_cast": {
   "file": "tritone_cast.mp3",
+  "category": "impact",
+  "sliced": true,
+  "loop": false
+ },
+ "tritone_taunt": {
+  "file": "tritone_taunt.mp3",
   "category": "impact",
   "sliced": true,
   "loop": false

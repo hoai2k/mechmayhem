@@ -2024,7 +2024,7 @@ const TRITONE_TAUNT = {
       ankleL: [0, 0, 0], ankleR: [0, 0, 0],
       shoulderL: [0, 0, -10], shoulderR: [0, 0, 10], elbowL: [-12, 0, 0], elbowR: [-12, 0, 0] } },
   ],
-  events: [{ t: 0.62, type: 'sfx', arg: 'roar' },
+  events: [{ t: 0.62, type: 'sfx', arg: 'taunt' },
     { t: 1.62, type: 'sfx', arg: 'slam' }, { t: 1.63, type: 'shake', arg: 0.55 }],
 };
 
@@ -2149,7 +2149,7 @@ const FENRIR_TAUNT = {
     { t: 1.65, ease: 'inOutQuad', pose: { head: [-34, 0, 0], torso: [-12, 0, 0] } },
     { t: 2.0, ease: 'inOutQuad', pose: REST_FULL },
   ],
-  events: [{ t: 0.42, type: 'sfx', arg: 'howl' }],
+  events: [{ t: 0.42, type: 'sfx', arg: 'taunt' }],
 };
 
 // FROGGER — arms and cannons thrown out into an X, then a deep bounce: all the
@@ -2222,7 +2222,8 @@ const JERRY_TAUNT = {
     { t: 1.28, ease: 'outQuad', pose: { hipsPos: [0.03, 0.02, 0], torso: [1, 3, -2], head: [-4, -5, -2], shoulderL: [-159.12, 0.44, -32.62], elbowR: [24, 0, 0] } },
     { t: 1.7, ease: 'inOutQuad', pose: { hipsPos: [0, 0, 0], hipsRot: [0, 0, 0], torso: [0, 0, 0], head: [0, 0, 0], shoulderL: [0, 0, -10], elbowL: [-12, 0, 0], shoulderR: [0, 0, 10], elbowR: [-12, 0, 0], thighL: [0, 0, 0], kneeL: [0, 0, 0], ankleL: [0, 0, 0], thighR: [0, 0, 0], kneeR: [0, 0, 0], ankleR: [0, 0, 0] } },
   ],
-  events: [{ t: 0.10, type: 'sfx', arg: 'servo' }, { t: 0.44, type: 'sfx', arg: 'servo' },
+  events: [{ t: 0.05, type: 'sfx', arg: 'taunt' },
+    { t: 0.10, type: 'sfx', arg: 'servo' }, { t: 0.44, type: 'sfx', arg: 'servo' },
     { t: 0.84, type: 'sfx', arg: 'servo' }, { t: 1.16, type: 'sfx', arg: 'servo' }],
 };
 

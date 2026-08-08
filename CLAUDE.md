@@ -2455,11 +2455,33 @@ than silently falling back to procedural.
   with exact silence and `GameAudio.loadSliced` splits them back apart by RMS
   envelope, playing a different one each trigger — which is why a footstep
   never machine-guns.
-  LEVELS ARE A CHAIN: the 🔊 master x `CONFIG.sfxMaster` x the sound's CATEGORY
-  in `CONFIG.sfxMix` (impact/movement/weapon/destruction/ui/character/surface/
-  loop/ambience). Tune the balance there, never per sound.
+  LEVELS ARE A CHAIN: the 🔊 master x the SFX VOLUME x the sound's CATEGORY in
+  `CONFIG.sfxMix` (impact/movement/weapon/destruction/ui/character/surface/
+  loop/ambience). Tune the balance there, never per sound. THE SFX VOLUME IS
+  PER SOURCE (`CONFIG.sfxVolume.samples` 0.20 / `.synth` 0.9, each persisted):
+  recordings are real audio normalized to -3 dBFS and the synth is a handful
+  of oscillators at a fraction of full scale, so one number cannot serve both
+  — set a comfortable level for the files, switch to SYNTH and it is
+  inaudible. The SETTINGS → SFX VOLUME slider reads and writes whichever
+  source is in use, so flipping SOUND FX jumps it to that source's own level.
+  A SOUND MAY BE LEFT TO THE SYNTH ON PURPOSE: `**SYNTH**` on a prompt's
+  heading in SOUND_PROMPTS.md and sfxgen neither generates it nor puts it in
+  the manifest, so audio.js never sees a recording and the procedural version
+  keeps it forever. The MENU BLIPS are the worked example — a sampled click is
+  a real object hitting something, and at one per cursor press that reads as
+  noise where the synth's short tone reads as an interface.
   A MECH MAY HAVE ITS OWN VOICE: `<mech>_<name>` (`fenrir_taunt`,
   `saurion_hitHeavy`) plays instead of the shared sound for that mech alone.
+  A TAUNT'S SOUND IS AN EVENT IN ITS CLIP, AND NOBODY WAS LISTENING: every
+  `*_TAUNT` raw carries its own `{type:'sfx'}` keys, but the call that starts
+  one (`animator.play('taunt')`) passed no `onEvent`, so the animator had
+  nowhere to dispatch them and EVERY taunt in the game was silent — which is
+  what "I tried fenrir's taunt and heard no howling" was. It passes one now,
+  honouring VOICE and SHAKE only (a taunt must never deal a hit). Two clips
+  also named sounds nothing could play: fenrir's fired `howl`, which could
+  only ever be the shared one, and tritone's fired `roar`, which exists in
+  neither the synth bank nor the recorded set; both fire `taunt` now, so each
+  resolves to its own voice.
   `Fighter.sfx()` tags every sound a fighter makes with which mech made it —
   no table anywhere, dropping the file in is the whole of adding one, and a
   mech without one is byte-identical to a plain `audio.play()`.
