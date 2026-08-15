@@ -9,7 +9,8 @@
 //                     real numbers, colours, gait, and the CAPABILITIES that
 //                     body needs from an engine.
 //   characters.md     the same as a readable dossier per character.
-//   art/<id>/         the canonical images: badge, mech-select poster, thumbnail.
+//   art/<id>/         canonical.png (the concept art the model was built from),
+//                     plus the badge, the mech-select poster and the thumbnail.
 //
 // GEOMETRY.md — what the engine has to BUILD per body, with Titanus' rocket
 // fist as the worked example — is authored prose rather than generated, so it
@@ -99,6 +100,7 @@ const records = ROSTER.map((d) => ({
   gait: d.gait || 'standard',
   capabilities: capsOf(d),
   art: {
+    canonical: `art/${d.id}/canonical.png`,   // the concept the model was built from
     badge: `art/${d.id}/badge.png`,
     poster: `art/${d.id}/poster.png`,
     thumbnail: `art/${d.id}/thumb.png`,
@@ -124,7 +126,14 @@ let copied = 0;
 for (const d of ROSTER) {
   const dir = path.join(OUT, 'art', d.id);
   fs.mkdirSync(dir, { recursive: true });
+  // The CANONICAL image is the concept the model was built from — the one
+  // picture that says what this character is supposed to look like, as opposed
+  // to what this build of the model happens to render. It is the reference a
+  // new game should judge its own work against. `nullbot`'s is filed under its
+  // old short name.
+  const canon = d.id === 'nullbot' ? 'mech_null.png' : `mech_${d.id}.png`;
   for (const [src, dst] of [
+    [`docs/canonical/${canon}`, 'canonical.png'],
     [`public/badges/${d.id}.png`, 'badge.png'],
     [`public/posters/${d.id}.png`, 'poster.png'],
     [`public/thumbs/${d.id}.png`, 'thumb.png'],
@@ -173,6 +182,11 @@ for (const r of records) {
 }
 fs.writeFileSync(path.join(OUT, 'characters.md'), L.join('\n') + '\n');
 
+const specs = path.join(ROOT, 'docs/canonical/SPECS.md');
+if (fs.existsSync(specs)) {
+  fs.copyFileSync(specs, path.join(OUT, 'art', 'CANONICAL-SPECS.md'));
+  console.log('  art/CANONICAL-SPECS.md (the concept sheet the canonical images belong to)');
+}
 console.log(`characters.json + characters.md -> ${path.relative(ROOT, OUT)}`);
 console.log(`  ${records.length} characters · ${copied} art files copied into art/<id>/`);
 console.log(`  capabilities flagged: ${[...new Set(records.flatMap((r) => r.capabilities.map((c) => c.key)))].join(', ')}`);
