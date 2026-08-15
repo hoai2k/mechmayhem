@@ -320,16 +320,26 @@ function applyBoneNudges(boneMap, entry) {
 }
 
 // Finalization baker: produce the fully-EDITED scene subtree (mesh + skeleton +
-// skin, with reparent / custom-rig / skinOps / rig-posts / stretch / bonePos all
-// applied) at BIND POSE, ready to hand to GLTFExporter. This is the GEOMETRY
-// half of the load pipeline; the RUNTIME half (height scaling, virtual rig,
-// RigAdapter retarget, muzzles, glbanim gait) is NOT baked — it stays in the
-// manifest/code and re-applies on load, driving the baked bones by name. So the
-// finalized manifest keeps bindPose / yawOffset / heightScale / boneCorrections
-// / muzzles / profileKey and drops rig / skinOps / reparent / stretch / bonePos.
-// Returns { model, entry, boneMap, customRig } or null. tools/bake-glb.mjs +
-// src/dev/bake.js drive this. Uses the tool-path reader (bypasses the 3d gate).
-export async function bakeMechScene(id) {
+// skin) at BIND POSE, ready to hand to GLTFExporter.
+//
+// WHAT IT FOLDS IN, and the rule for what belongs here: anything that is a
+// PROPERTY OF THE MODEL — its geometry, its skeleton, its weights, which way it
+// faces and how big it is — is baked, because the file is the natural place for
+// it and a correction layer that describes it is a second copy to keep in step.
+// So: reparent, custom rig, skinOps, rig posts, dropGeo, seamCuts, dropBones,
+// stretch, bonePos, bone NAMES (below) and the model TRANSFORM (below).
+//
+// WHAT STAYS BEHIND is what is a property of the GAME rather than of the model:
+// the virtual rig and its retarget, the gait, the anchors combat spawns from,
+// and `boneCorrections` — which cannot be baked even in principle, because
+// applyCustomRig's rebindRest and RigAdapter's rest-offset capture
+// (offset = jointWorld⁻¹ · boneWorld) cancel a bind-pose rotation exactly, and
+// viper's is the RAMPING form anyway: a function of how far the joint has swung.
+//
+// Returns { model, entry, boneMap, customRig, renames, transform } or null.
+// tools/bake-glb.mjs + src/dev/bake.js drive this. Uses the tool-path reader
+// (bypasses the 3d gate).
+export async function bakeMechScene(id, opts = {}) {
   const m = await fetchRawManifest();
   const entry = m[id];
   if (!entry?.url) return null;
@@ -358,7 +368,14 @@ export async function bakeMechScene(id) {
       for (const j of JOINT_ORDER) if (byName[j]) boneMap[j] = byName[j];
       buildRigPosts(byName, customRig);
       if (entry.skinOps?.length) applySkinOps(sk, entry.skinOps);
+      // The drops and the cut, in the GAME'S OWN ORDER (see buildGlbMech):
+      // dropGeo names RAW VERTEX INDICES, which a seam cut invalidates by
+      // appending duplicates, so it goes first; dropBones names bones, is
+      // immune to renumbering, and goes last so a rim it opens is capped by
+      // its own fan rather than by the cut's.
+      applyGeoDrop(sk, entry.dropGeo);
       bakeSeamCuts(sk, entry);
+      applyBoneDrop(sk, entry.dropBones);
       // prune the now-orphaned original auto-rig skeleton so the baked GLB
       // carries ONLY the custom bones (no dead Tripo bones). Safe: the mesh was
       // rebound to the new skeleton, and the originals sit in a separate subtree
@@ -374,11 +391,137 @@ export async function bakeMechScene(id) {
     if (entry.skinOps?.length) {
       for (const mm of meshes) if (mm.isSkinnedMesh) applySkinOps(mm, entry.skinOps);
     }
-    for (const mm of meshes) if (mm.isSkinnedMesh) bakeSeamCuts(mm, entry);
+    for (const mm of meshes) if (mm.isSkinnedMesh) {
+      applyGeoDrop(mm, entry.dropGeo);       // same order as the branch above
+      bakeSeamCuts(mm, entry);
+      applyBoneDrop(mm, entry.dropBones);
+    }
   }
 
   applyBoneNudges(boneMap, entry);
-  return { model, entry, boneMap, customRig: !!customRig };
+  const renames = renameBonesToJoints(boneMap, customRig);
+  // THE TRANSFORM IS FOR THE EXPORT, NOT FOR THE GAME — see bakeModelTransform.
+  const transform = opts.transform ? bakeModelTransform(model, entry) : null;
+  return { model, entry, boneMap, customRig: !!customRig, renames, transform };
+}
+
+// ---- bone NAMES ------------------------------------------------------------
+// A custom rig's bones already ARE the game joints, name and all. An auto-rig's
+// are opaque (`bone_28`, `tripo0_Left_Limb_1`) and the manifest's
+// `boneOverrides` is the map that says which is which — a correction layer whose
+// whole content is "this bone is really the left shoulder". Baking it means
+// renaming the bone, after which every baked mech carries one skeleton naming
+// convention and `mapBones` finds all 15 by name alone.
+//
+// It returns the map it applied, because a bone NAME is referenced from outside
+// the skeleton: `muzzles[*].bone` is the one that matters (the house rule that
+// re-rigging never loses an anchor), plus `reparent`, `dropBones` and
+// `limpChains`. tools/bake-glb.mjs rewrites those through this map.
+//
+// A joint whose target name is already taken by a DIFFERENT bone is left alone
+// and reported: renaming it would make two bones answer to one name, and
+// mapBones would then pick by traversal order rather than by the mapping.
+function renameBonesToJoints(boneMap, customRig) {
+  if (customRig) return {};                       // already named as joints
+  const taken = new Map();                        // name -> bone
+  for (const [j, b] of Object.entries(boneMap)) if (b) taken.set(b.name, b);
+  const renames = {}, skipped = [];
+  for (const jname of JOINT_ORDER) {
+    const bone = boneMap[jname];
+    if (!bone || bone.name === jname) continue;
+    const clash = taken.get(jname);
+    if (clash && clash !== bone) { skipped.push(jname); continue; }
+    renames[bone.name] = jname;
+    taken.delete(bone.name);
+    taken.set(jname, bone);
+    bone.name = jname;
+  }
+  if (skipped.length) console.warn('bake: bone name already in use, left as-is:', skipped.join(', '));
+  return renames;
+}
+
+// ---- orientation and size --------------------------------------------------
+// `yawOffset` and `modelScale` x `heightScale` describe the MODEL — which way it
+// faces and how big it is — so they belong in the file rather than in a table
+// the loader has to consult.
+//
+// IT IS FOR THE EXPORT ONLY (`opts.transform`), and that is a finding rather
+// than a preference. The GAME derives live quantities from the model's runtime
+// `scale` — RigAdapter's `hipsScale` converts the virtual rig's hip travel into
+// bone-local units, calibrateFeet measures a boot depth against it, sizeMul
+// re-times the gait — so moving the size out of `modelScale` and into the file
+// leaves those reading 1 where they used to read 5.77. Measured on saurion: the
+// joints stayed correct to 0.0002 and his head and neck collapsed into his
+// shoulders (tools/scratch/bakeshot.mjs — the picture is what said so; every
+// number except the hips' own world position looked fine). Nothing downstream
+// of an EXPORT has that runtime, so there the fold is unambiguous and it is
+// exactly what another engine needs; in the game the three numbers cost nothing
+// and stay the artist's knobs.
+//
+// IT IS BAKED INTO THE DATA, NOT ONTO A NODE, and that is the other lesson.
+// A wrapper node is the obvious way to write a transform and it does not
+// survive: a glTF SCENE carries no transform of its own, and per the spec a
+// SKINNED MESH node's transform must be ignored, so the scale ends up applied
+// by some readers and not others — measured on saurion, 5.77 asked for and
+// 5.77² rendered, while the joint check happily reported 0.0001 because every
+// joint was in the right place RELATIVE TO THE HIPS. Re-capturing the inverse
+// binds did not fix it either. So the transform goes into the vertices, the
+// bone rest offsets and the inverse binds, leaving a file with NO wrapper node
+// and every bone scale at 1 — native units are game units, which is also
+// exactly what another engine wants to import.
+//
+// The mesh is NOT re-grounded here: buildGlbMech's rescaleAndReground centres
+// and grounds on the rendered box every build and is absolute rather than
+// cumulative, so it lands on the same place whether or not the file arrives
+// pre-grounded — and doing it here as well would bake a second, staler answer.
+function bakeModelTransform(model, entry) {
+  const yaw = entry.yawOffset ? entry.yawOffset * Math.PI / 180 : 0;
+  const S = (typeof entry.modelScale === 'number' && entry.modelScale > 0 ? entry.modelScale : 1)
+    * (entry.heightScale ?? 1);
+  if (!yaw && Math.abs(S - 1) < 1e-9) return null;
+  const R = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const M = new THREE.Matrix4().compose(new THREE.Vector3(), R, new THREE.Vector3(S, S, S));
+  const underBone = (o) => { for (let p = o.parent; p; p = p.parent) if (p.isBone) return true; return false; };
+
+  // 1) the geometry the SKIN deforms, in the mesh's own space. Shared geometry
+  //    is transformed once (`seen`) or a second user would double it.
+  const seen = new Set();
+  model.traverse((o) => {
+    if (!o.geometry || underBone(o) || seen.has(o.geometry)) return;
+    seen.add(o.geometry);
+    o.geometry.applyMatrix4(M);          // positions, normals and tangents
+  });
+
+  // 2) the skeleton. Every bone's rest OFFSET from its parent scales; only the
+  //    ROOT bones take the rotation, because a child's offset is already
+  //    expressed in its rotated parent's frame. The result is the whole
+  //    skeleton through M with every bone scale left at 1, which is the shape
+  //    an importer wants — a scale on a root bone would propagate to children
+  //    that have already been scaled here.
+  const bones = [];
+  model.traverse((o) => { if (o.isBone) bones.push(o); });
+  for (const b of bones) {
+    b.position.multiplyScalar(S);
+    if (!b.parent?.isBone) { b.position.applyQuaternion(R); b.quaternion.premultiply(R); }
+  }
+
+  // 3) geometry HANGING OFF a bone (custom-rig posts — jerry's back legs) rides
+  //    its bone through step 2, so it needs the scale only, on the node.
+  model.traverse((o) => {
+    if (o.isBone || !underBone(o)) return;
+    o.position.multiplyScalar(S);
+    o.scale.multiplyScalar(S);
+  });
+
+  model.updateMatrixWorld(true);
+  // 4) the inverse binds are BY DEFINITION the inverse of each bone's world
+  //    matrix at bind pose, and both sides of that have just moved.
+  model.traverse((o) => {
+    if (!o.isSkinnedMesh || !o.skeleton) return;
+    o.skeleton.calculateInverses();
+    o.bind(o.skeleton, o.matrixWorld);
+  });
+  return { yawOffset: entry.yawOffset ?? 0, scale: S };
 }
 
 // Preload the models for a set of mech ids (call during select/loading).
