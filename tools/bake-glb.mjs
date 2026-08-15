@@ -1,8 +1,25 @@
-// bake-glb — finalize a mech's GLB: bake every geometry/skeleton/skin edit
-// (custom rig, skinOps, reparent, rig posts, stretch, bonePos) into the .glb,
-// strip the now-redundant manifest fields, and (custom-rig) remove the mech's
-// rig file. Produces ONE reversible changelist: `git revert`/`checkout` restores
-// the exact prior state (the shared bake/rig engine is never removed).
+// bake-glb — finalize a mech's GLB: fold EVERYTHING THAT DESCRIBES THE MODEL
+// into the .glb, strip the now-redundant manifest fields, and (custom-rig)
+// remove the mech's rig file. Produces ONE reversible changelist:
+// `git revert`/`checkout` restores the exact prior state (the shared bake/rig
+// engine is never removed).
+//
+// WHAT GOES IN: custom rig, skinOps, reparent, rig posts, stretch, bonePos,
+// seamCuts, dropGeo, dropBones, and the BONE NAMES — an auto-rig's `bone_28`
+// becomes `shoulderR`, so `boneOverrides` goes with them and every baked mech
+// carries one skeleton naming convention.
+//
+// WHAT STAYS: `muzzles` (hand-placed anchors combat spawns from), `bindPose`,
+// `profileKey`, `limpChains`, `tailFloor`, `boneCorrections` — which no bake can
+// absorb, because rebindRest plus the adapter's rest-offset capture cancel a
+// bind rotation exactly, and viper's is a function of how far the joint swung —
+// and the model's ORIENTATION AND SIZE (`yawOffset`, `modelScale`,
+// `heightScale`). Those three describe the model and belong in a file, but the
+// GAME reads live quantities off the runtime scale (RigAdapter.hipsScale,
+// calibrateFeet, sizeMul), so folding them in leaves those reading 1 where they
+// read 5.77 — measured on saurion, joints correct to 0.0002 and his head
+// collapsed into his shoulders. They ARE folded by tools/export-mech.mjs, which
+// has no runtime to disturb and is where a portable model wants them.
 //
 //   node tools/bake-glb.mjs <mechId>            # DRY RUN (default)
 //   node tools/bake-glb.mjs <mechId> --apply    # write the changes
@@ -60,6 +77,17 @@ const TEST_POSES = {
 };
 const POSES = Object.keys(TEST_POSES);
 const FID_EPS = 0.01; // world-unit tolerance (mech ~7u tall)
+// The two things the joint check is blind to (see capturePoses / extras).
+const SIZE_EPS = 0.01;    // rendered extent, fraction — the file now carries the scale
+// Anchor tolerances are set from MEASURED NOISE, not from zero: the two captures
+// are separate page loads of a live match, so the animator has settled to
+// slightly different places even with every joint zeroed. Saurion's virtual-rig
+// anchors move 0.023 units / 0.64 deg between two runs of the SAME build. These
+// are still tight enough for what they are for — a lost anchor is reported as
+// missing, and an anchor left on a stale bone is a whole limb away.
+const ANCHOR_EPS = 0.06;  // world units an anchor may move at rest (~1% of height)
+const ANCHOR_DEG = 1.5;   // degrees an anchor's aim may turn at rest
+const FACE_DEG = 0.5;     // degrees the body may turn (a yaw baked a quarter turn out)
 
 const id = process.argv[2];
 const APPLY = process.argv.includes('--apply');
@@ -67,18 +95,65 @@ const RESTORE = process.argv.includes('--restore');
 if (!id) { console.error('usage: node tools/bake-glb.mjs <mechId> [--apply] [--restore]'); process.exit(1); }
 
 // ---- manifest entry cleaning (surgical, preserves the file's formatting) ----
-const BAKED_FIELDS = ['rig', 'skinOps', 'seamCuts', 'reparent', 'stretch', 'bonePos', 'alt'];
-function cleanEntry(text, mechId, customRig) {
+// EVERYTHING THAT DESCRIBES THE MODEL comes out, because the model now says it:
+// its skeleton and weights (rig/skinOps/seamCuts/reparent/stretch/bonePos), the
+// geometry it does not have (dropGeo/dropBones), what its bones are called
+// (boneOverrides).
+//
+// WHAT SURVIVES is what describes the GAME's use of it: `muzzles` (hand-placed
+// anchors combat spawns from), `profileKey`, `bindPose`, `limpChains`,
+// `tailFloor`, `boneCorrections` — which no bake can absorb, since a bind-pose
+// rotation is cancelled exactly by rebindRest + the adapter's rest offset, and
+// viper's is a function of how far the joint has swung anyway — and the
+// orientation/size trio, which the export folds instead (see the header).
+const BAKED_FIELDS = ['rig', 'skinOps', 'seamCuts', 'reparent', 'stretch', 'bonePos', 'alt',
+  'dropGeo', 'dropBones', 'boneOverrides'];
+
+// A BONE RENAME REACHES OUTSIDE THE SKELETON. `muzzles[*].bone` is the one that
+// matters — the house rule is that re-rigging never loses an anchor, and an
+// anchor naming `bone_36` after that bone became `handR` would silently fall
+// back to a joint. `limpChains` names bone PREFIXES the same way.
+function rewriteBoneNames(entry, renames) {
+  if (!renames || !Object.keys(renames).length) return { entry, moved: [] };
+  const moved = [];
+  const out = { ...entry };
+  if (out.muzzles) {
+    out.muzzles = Object.fromEntries(Object.entries(out.muzzles).map(([k, spec]) => {
+      if (spec?.bone && renames[spec.bone]) {
+        moved.push(`muzzles.${k}: ${spec.bone} -> ${renames[spec.bone]}`);
+        return [k, { ...spec, bone: renames[spec.bone] }];
+      }
+      return [k, spec];
+    }));
+  }
+  if (Array.isArray(out.limpChains)) {
+    out.limpChains = out.limpChains.map((c) => {
+      if (renames[c]) { moved.push(`limpChains: ${c} -> ${renames[c]}`); return renames[c]; }
+      return c;
+    });
+  }
+  return { entry: out, moved };
+}
+
+function cleanEntry(text, mechId, opts = {}) {
+  const { renames = {}, jointBones = {} } = opts;
   const m = JSON.parse(text);
-  const entry = m[mechId];
-  if (!entry) throw new Error(`no manifest entry "${mechId}"`);
+  const entry0 = m[mechId];
+  if (!entry0) throw new Error(`no manifest entry "${mechId}"`);
+  const { entry, moved } = rewriteBoneNames(entry0, renames);
   const removed = [];
   const clean = {};
   for (const [k, v] of Object.entries(entry)) {
     if (BAKED_FIELDS.includes(k)) { removed.push(k); continue; }
-    if (k === 'boneOverrides' && customRig) { removed.push(k); continue; } // bones now named as joints
     clean[k] = v;
   }
+  // Residual overrides: normally none (every bone answers to its joint name),
+  // but a joint whose target name was already taken keeps its mapping.
+  const residual = {};
+  for (const [j, boneName] of Object.entries(jointBones)) {
+    if (boneName && boneName !== j) residual[j] = boneName;
+  }
+  if (Object.keys(residual).length) clean.boneOverrides = residual;
   // locate the entry's line block and splice in the pretty-printed clean entry
   const lines = text.split('\n');
   const startIdx = lines.findIndex((l) => l.trimStart().startsWith(`"${mechId}":`));
@@ -94,7 +169,7 @@ function cleanEntry(text, mechId, customRig) {
     .map((l) => '  ' + l).join('\n');  // re-indent to top-level entry depth
   const replaced = body + (trailingComma ? ',' : '');
   const out = [...lines.slice(0, startIdx), replaced, ...lines.slice(endIdx + 1)].join('\n');
-  return { out, removed, clean };
+  return { out, removed, clean, moved };
 }
 
 // ---- browser helpers ----
@@ -149,7 +224,81 @@ async function capturePoses(browser, tag) {
       out[pose] = read();
     }
     const hy = bm.head ? +bm.head.getWorldPosition(new V()).y.toFixed(4) : null;
-    return { poses: out, mapped: Object.keys(bm).length, scale: +(f.scale || 0).toFixed(5), headY: hy };
+
+    // ---- what the joint check cannot see ----------------------------------
+    // Baking jerry once silently stopped his cannon pods aiming and the joint
+    // deviation was 0.0001, so the check now also reads the two things a bake
+    // is most likely to break without moving a joint:
+    //
+    //   SIZE — yawOffset/modelScale/heightScale now live in the file. If any of
+    //     them fails to survive the export, every joint stays exactly where it
+    //     is RELATIVE TO THE HIPS and the whole mech is the wrong size.
+    //   ANCHORS — the house rule (MECH_ART_GUIDE §5) is that re-rigging never
+    //     loses an anchor. A bone rename reaches muzzles, so every anchor's
+    //     rest transform is measured, in the HIPS' frame so a benign grounding
+    //     shift cannot inflate it.
+    for (const jn of JOINTS) J[jn]?.rotation.set(0, 0, 0);
+    if (J.hips) J.hips.rotation.set(0, 0, 0);
+    f.mech.postAnimate();
+    f.mech.group.updateMatrixWorld(true);
+    const hips = bm.hips ? bm.hips.getWorldPosition(new V()) : new V();
+    const anchors = {};
+    for (const [name, a] of Object.entries(f.mech.anchors || {})) {
+      if (!a) continue;
+      const p = a.getWorldPosition(new V());
+      const q = a.getWorldQuaternion(new (f.group.quaternion.constructor)());
+      anchors[name] = [+(p.x - hips.x).toFixed(4), +(p.y - hips.y).toFixed(4), +(p.z - hips.z).toFixed(4),
+        +q.x.toFixed(5), +q.y.toFixed(5), +q.z.toFixed(5), +q.w.toFixed(5)];
+    }
+    // Rendered extent, from REAL VERTICES rather than from the geometry's
+    // bounding box. The box is axis-aligned in the model's own space, so
+    // rotating its eight corners and re-boxing gives the AABB of an AABB —
+    // which inflates with any yaw and, once the yaw is baked INTO the vertices,
+    // stops inflating. That is a change in the measurement, not in the model,
+    // and it read as a 51% size error. Sampling the positions measures the same
+    // thing on both sides of the bake.
+    let bx = null;
+    try {
+      const V3 = Object.getPrototypeOf(f.pos).constructor;
+      const min = new V3(Infinity, Infinity, Infinity), max = new V3(-Infinity, -Infinity, -Infinity);
+      let n = 0;
+      const v = new V3();
+      f.mech.group.traverse((o) => {
+        const p = o.geometry?.attributes?.position;
+        if (!p || !o.visible) return;
+        const step = Math.max(1, Math.floor(p.count / 20000));
+        for (let i = 0; i < p.count; i += step) {
+          v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
+          min.min(v); max.max(v); n++;
+        }
+      });
+      // EXTENT ONLY, never a centroid: a bake PRUNES the dead auto-rig geometry a
+      // custom rig left behind, so the two builds do not share a vertex set and
+      // their means are not comparable (titanus: extent identical to 4 decimals,
+      // centroid 4.1 vs 8.6). An extent survives that; an average does not.
+      if (n) bx = [+(max.x - min.x).toFixed(4), +(max.y - min.y).toFixed(4), +(max.z - min.z).toFixed(4)];
+    } catch (e) { bx = null; }
+
+    // WHICH WAY THE BODY FACES, as two model-frame vectors: the shoulder line
+    // and the hip line. A yaw baked a quarter or a half turn out leaves every
+    // joint correct relative to the hips and turns the whole mech.
+    const dir = (a, b) => {
+      const A = bm[a], B = bm[b];
+      if (!A || !B) return null;
+      const p = A.getWorldPosition(new V()), q = B.getWorldPosition(new V());
+      return [+(p.x - q.x).toFixed(4), +(p.y - q.y).toFixed(4), +(p.z - q.z).toFixed(4)];
+    };
+
+    return { poses: out, mapped: Object.keys(bm).length, scale: +(f.scale || 0).toFixed(5),
+      headY: hy, anchors, box: bx,
+      shoulderLine: dir('shoulderL', 'shoulderR'), hipLine: dir('thighL', 'thighR'),
+      // where the body actually sits: the fighter's own y, the lowest rendered
+      // vertex (what the prone clamp and the floor guard read) and the grounding
+      // offset the load path applied inside the group.
+      posY: +(f.pos?.y ?? 0).toFixed(4),
+      lowY: (() => { try { return +f.mech.lowestRenderedY().toFixed(4); } catch (e) { return null; } })(),
+      modelY: (() => { const c = f.mech.group.children.find((k) => k.children?.length);
+        const mm = c?.children?.[0]; return mm ? +mm.position.y.toFixed(4) : null; })() };
   }, { TEST_POSES, JOINTS });
   await page.close();
   if (data.err) throw new Error(`${tag}: ${data.err}`);
@@ -179,6 +328,42 @@ function fidelity(a, b) {
   return { max: +max.toFixed(5), worst, ground: +ground.toFixed(4) };
 }
 
+// SIZE + ANCHOR fidelity — the half the joint check is blind to (see capturePoses).
+// Anchor position is compared in the hips' frame, in world units; orientation as
+// the angle between the two rest quaternions, in degrees. A dropped anchor is a
+// failure in its own right, not a zero.
+function extras(a, b) {
+  const sizeErr = a.box && b.box && a.box[1] > 0.01
+    ? Math.max(...[0, 1, 2].map((i) => Math.abs(b.box[i] - a.box[i]) / (a.box[i] || 1))) : null;
+  const names = Object.keys(a.anchors || {});
+  const missing = names.filter((n) => !b.anchors?.[n]);
+  const added = Object.keys(b.anchors || {}).filter((n) => !a.anchors?.[n]);
+  let posMax = 0, posWorst = null, angMax = 0, angWorst = null;
+  for (const n of names) {
+    const p = a.anchors[n], q = b.anchors?.[n];
+    if (!q) continue;
+    const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+    if (d > posMax) { posMax = d; posWorst = n; }
+    // angle between quaternions: 2*acos(|dot|)
+    const dot = Math.abs(p[3] * q[3] + p[4] * q[4] + p[5] * q[5] + p[6] * q[6]);
+    const ang = 2 * Math.acos(Math.min(1, dot)) * 180 / Math.PI;
+    if (ang > angMax) { angMax = ang; angWorst = n; }
+  }
+  // Facing: the angle between the pre- and post-bake shoulder (then hip) lines.
+  let facing = null;
+  for (const k of ['shoulderLine', 'hipLine']) {
+    const u = a[k], w = b[k];
+    if (!u || !w) continue;
+    const lu = Math.hypot(...u), lw = Math.hypot(...w);
+    if (lu < 1e-4 || lw < 1e-4) continue;
+    const c = (u[0] * w[0] + u[1] * w[1] + u[2] * w[2]) / (lu * lw);
+    const ang = Math.acos(Math.max(-1, Math.min(1, c))) * 180 / Math.PI;
+    facing = Math.max(facing ?? 0, +ang.toFixed(2));
+  }
+  return { sizeErr, count: names.length, missing, added, facing,
+    posMax: +posMax.toFixed(4), posWorst, angMax: +angMax.toFixed(2), angWorst };
+}
+
 // ---- rig-file removal (custom rig) ----
 function removeRigFile(mechId) {
   const rigPath = path.join(ROOT, `src/mechs/rigs/${mechId}.rig.js`);
@@ -203,7 +388,7 @@ function removeRigFile(mechId) {
 // the rig file is deleted, so "what is actually in this model?" would only be
 // answerable from git. Archive both next to the model instead — the untouched
 // GLB, and a JSON listing exactly what was folded into it.
-function archiveSource(entry, removedFields, manifestText) {
+function archiveSource(entry, removedFields, manifestText, report) {
   const dir = path.join(ROOT, 'public/models/source');
   fs.mkdirSync(dir, { recursive: true });
   // NAMED BY THE FILE, not by the mech: an entry's url is not always
@@ -229,6 +414,12 @@ function archiveSource(entry, removedFields, manifestText) {
       + 'copy it back, restore these manifest fields and the rig file below.',
     sourceGlb: `public/models/source/${base}${firstTime ? '' : ' (kept from an earlier bake)'}`,
     manifestFieldsFolded: edits,
+    // THE RENAME HAS TO COME BACK TOO. --restore puts the SOURCE glb back, whose
+    // bones still carry their auto-rig names, so a `muzzles` entry rewritten to
+    // the joint names would point at bones that no longer exist. Kept as the map
+    // the bake applied; the restore inverts it.
+    boneRenames: report?.renames && Object.keys(report.renames).length ? report.renames : null,
+    transform: report?.transform || null,
     rigFile: fs.existsSync(rigPath)
       ? { path: `src/mechs/rigs/${id}.rig.js`, text: fs.readFileSync(rigPath, 'utf8') }
       : null,
@@ -244,7 +435,7 @@ function archiveSource(entry, removedFields, manifestText) {
 // cannot edit: ?edit=rig only drags a hand-authored src/mechs/rigs/<id>.rig.js,
 // so a baked mech reports "no custom rig to edit". Restoring puts the editable
 // pipeline back (source asset + manifest fields + rig file); bake again after.
-function restoreEntry(text, mechId, fields) {
+function restoreEntry(text, mechId, fields, boneRenames) {
   const m = JSON.parse(text);
   const entry = m[mechId];
   if (!entry) throw new Error(`no manifest entry "${mechId}"`);
@@ -255,6 +446,14 @@ function restoreEntry(text, mechId, fields) {
   for (const [k, v] of Object.entries(fields)) {
     if (entry[k] !== undefined) { kept.push(k); continue; }
     merged[k] = v; back.push(k);
+  }
+  // Undo the bone rename: the source asset's bones answer to their auto-rig
+  // names again, so an anchor pointing at `handR` has to go back to `bone_36`.
+  if (boneRenames && Object.keys(boneRenames).length) {
+    const inverse = Object.fromEntries(Object.entries(boneRenames).map(([from, to]) => [to, from]));
+    const { entry: rewritten, moved } = rewriteBoneNames(merged, inverse);
+    Object.assign(merged, rewritten);
+    if (moved.length) back.push(`bone names (${moved.length})`);
   }
   const lines = text.split('\n');
   const startIdx = lines.findIndex((l) => l.trimStart().startsWith(`"${mechId}":`));
@@ -309,7 +508,8 @@ if (RESTORE) {
   const entry = JSON.parse(manifestText)[id];
   const base = path.basename(entry.url);
   const srcGlb = path.join(dir, base);
-  const { out, back, kept } = restoreEntry(manifestText, id, side.manifestFieldsFolded || {});
+  const { out, back, kept } = restoreEntry(manifestText, id, side.manifestFieldsFolded || {},
+    side.boneRenames);
   console.log(`\n== un-bake ${id} ${APPLY ? '(APPLY)' : '(dry run)'} ==`);
   console.log(`     baked at ${side.bakedAt}`);
   console.log(`     asset:    public/${entry.url}  <-  ${path.relative(ROOT, srcGlb)}`
@@ -354,10 +554,11 @@ try {
   console.log(`     ${(buffer.length / 1e6).toFixed(2)} MB · ${report.bones} bones · ${report.mappedJoints}/15 joints mapped · customRig=${report.customRig}`);
 
   // compute the cleaned manifest before mutating anything (for the diff report)
-  const { out: cleanManifest, removed } = cleanEntry(origManifest, id, customRig);
+  const { out: cleanManifest, removed, moved } = cleanEntry(origManifest, id,
+    { renames: report.renames, jointBones: report.jointBones });
 
   console.log('3/5  writing baked GLB + cleaned manifest (temporarily) for fidelity check…');
-  if (APPLY) archiveSource(entry, removed, origManifest);
+  if (APPLY) archiveSource(entry, removed, origManifest, report);
   fs.writeFileSync(glbPath, buffer);                 // overwrite (restored below if dry run)
   fs.writeFileSync(MANIFEST, cleanManifest);
   const rigChanged = customRig ? removeRigFile(id) : [];
@@ -376,11 +577,34 @@ try {
       return a && b ? `${j}:${Math.hypot((a[0]-ha[0])-(b[0]-hb[0]),(a[1]-ha[1])-(b[1]-hb[1]),(a[2]-ha[2])-(b[2]-hb[2])).toFixed(3)}` : `${j}:—`; });
     console.log('     rest per-joint Δ (rel. hips): ' + dev.join('  '));
   }
-  const ok = fid.max <= FID_EPS && after.mapped >= 10;
-  console.log(`     ${ok ? 'PASS ✓ baked mech is faithful' : 'FAIL ✗ deviation over tolerance — DO NOT COMMIT'}`);
+  const ex = extras(before, after);
+  console.log(`     rendered size: ${ex.sizeErr === null ? '(not measured)'
+    : (ex.sizeErr * 100).toFixed(2) + '% worst axis'}   tolerance ${(SIZE_EPS * 100).toFixed(0)}%`
+    + `   [${before.box?.join(' x ') || '?'} -> ${after.box?.join(' x ') || '?'}]`);
+  console.log(`     facing (shoulder/hip line): ${ex.facing === null ? '(not measured)' : ex.facing + '°'}`
+    + `   tolerance ${FACE_DEG}°`);
+  console.log(`     sits at: fighter y ${before.posY} -> ${after.posY}`
+    + `   lowest rendered ${before.lowY} -> ${after.lowY}`
+    + `   grounding offset ${before.modelY} -> ${after.modelY}`);
+  console.log(`     anchors (${ex.count}): worst rest offset ${ex.posMax} world-units`
+    + `${ex.posWorst ? ` (${ex.posWorst})` : ''}, worst aim ${ex.angMax}°`
+    + `${ex.angWorst ? ` (${ex.angWorst})` : ''}   tolerance ${ANCHOR_EPS} / ${ANCHOR_DEG}°`);
+  if (ex.missing.length) console.log(`     ANCHORS LOST: ${ex.missing.join(', ')}`);
+  if (ex.added.length) console.log(`     anchors added: ${ex.added.join(', ')}`);
+
+  const sizeOk = ex.sizeErr === null || ex.sizeErr <= SIZE_EPS;
+  const anchorOk = !ex.missing.length && ex.posMax <= ANCHOR_EPS && ex.angMax <= ANCHOR_DEG;
+  const faceOk = ex.facing === null || ex.facing <= FACE_DEG;
+  const ok = fid.max <= FID_EPS && after.mapped >= 10 && sizeOk && anchorOk && faceOk;
+  const why = [fid.max > FID_EPS && 'shape', !sizeOk && 'size', !anchorOk && 'anchors', !faceOk && 'facing',
+    after.mapped < 10 && 'joints'].filter(Boolean);
+  console.log(`     ${ok ? 'PASS ✓ baked mech is faithful (shape, size and anchors)'
+    : `FAIL ✗ ${why.join(' + ')} over tolerance — DO NOT COMMIT`}`);
 
   console.log('\n---- manifest entry: fields removed ----');
   console.log(`     ${removed.length ? removed.join(', ') : '(none)'}${customRig ? '   + rig file: ' + rigChanged.map((p) => path.relative(ROOT, p)).join(', ') : ''}`);
+  console.log(`     bones renamed to joints: ${Object.keys(report.renames || {}).length}`
+    + `${moved.length ? '\n     references rewritten: ' + moved.join(' · ') : ''}`);
 
   console.log('5/5  finalizing…');
   if (APPLY) {

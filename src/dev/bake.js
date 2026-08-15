@@ -15,7 +15,7 @@ export async function runBake(id) {
   try {
     const res = await bakeMechScene(id);
     if (!res) throw new Error(`no GLB manifest entry for "${id}"`);
-    const { model, boneMap, customRig } = res;
+    const { model, boneMap, customRig, renames, transform } = res;
 
     let meshes = 0, verts = 0;
     const boneNames = [];
@@ -37,7 +37,12 @@ export async function runBake(id) {
       base64: btoa(bin),
       byteLength: buf.byteLength,
       report: { id, customRig, bones: boneNames.length, meshes, verts,
-        mappedJoints: Object.keys(boneMap).length, boneNames },
+        mappedJoints: Object.keys(boneMap).length, boneNames, renames, transform,
+        // final joint -> bone NAME, after renameBonesToJoints. The tool writes
+        // the residual `boneOverrides` from this: normally empty (every bone now
+        // answers to its joint name), but a joint whose target name was already
+        // taken keeps its override rather than being silently unmapped.
+        jointBones: Object.fromEntries(Object.entries(boneMap).map(([j, b]) => [j, b?.name])) },
     };
     window.__bakeReady = true;
   } catch (e) {
