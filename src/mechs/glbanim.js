@@ -243,17 +243,6 @@ export const GLB_ANIM = {
   // The procedural mech keeps the shield squared to the front via a J.shield
   // joint the GLB lacks, so reproduce that intent here: while guarding, raise
   // and square the left forearm so the shield faces the enemy.
-  aegis: {
-    post(anim, dt, ctx, tgt) {
-      const guard = blocking(anim, ctx) ? 1 : (ctx.alwaysReady && !attacking(anim) ? 0.6 : 0);
-      if (guard > 0.01) {
-        tgt.shoulderL[0] = lerp(tgt.shoulderL[0], -0.55, guard);
-        tgt.shoulderL[2] = lerp(tgt.shoulderL[2], 0.40, guard); // across the chest
-        tgt.elbowL[0] = lerp(tgt.elbowL[0], -1.2, guard);       // forearm vertical
-        tgt.handL[2] = lerp(tgt.handL[2], 0, guard);
-      }
-    },
-  },
 
   // VIPER — twin energy blades are FUSED to the forearms as rigid extensions
   // of the arm (not held in the hands), so the blade axis IS the forearm axis:
@@ -329,7 +318,6 @@ export const GLB_ANIM = {
   // TAUNT: a beckoning hand means nothing on an ape, and a chest beat means
   // everything.
   konga: { clipOverrides: { taunt: GLB_CLIP_VARIANTS.kongaTaunt, block: GLB_CLIP_VARIANTS.kongaBlockGlb } },
-  nova: {},      // slender caster — direct map (halo is procedural-only)
   // RHINO — hand-mounted cannons (manifest muzzles ride the handR/handL BONES,
   // each with an authored `rot` = that barrel's own aim axis). This GLB's bind
   // hangs the arms straight down, so at rest those barrels point ~70° at the
@@ -706,7 +694,18 @@ export const GLB_ANIM = {
       for (const [key, name, aim] of [['R', 'strutMidR', -0.620], ['L', 'strutMidL', 0.515]]) {
         const b = bones[name];
         if (!b) continue;
-        const want = firing && side === key ? aim : 0;
+        // AIM IS RELATIVE TO THE POD'S REST, and it has to be stated that way.
+        // This used to servo toward absolute 0, which is the same thing ONLY
+        // while the bone rests unrotated — true of a custom rig by construction
+        // (applyCustomRig builds every bone at identity) and not true of a
+        // BAKED model, whose bones carry their rest rotation in the file. Baked,
+        // the hook drove jerry's pods off their splay every frame: measured 5.1%
+        // of body height of skin deviation and 45% of extra rendered height,
+        // with all 15 joints still perfect. Nothing else writes these bones, so
+        // the first frame's value IS the rest. Cranky's claws (`c.rx`) have
+        // always done it this way.
+        if (b.userData.rwRestY === undefined) b.userData.rwRestY = b.rotation.y;
+        const want = b.userData.rwRestY + (firing && side === key ? aim : 0);
         // snap ONTO the line (the fire event lands a beat into the clip), ease
         // off it — the pod should look like it recoils back, not springs
         b.rotation.y += (want - b.rotation.y) * (1 - Math.exp(-(want ? 26 : 7) * dt));
@@ -779,7 +778,6 @@ export const GLB_ANIM = {
   // shield-forward guard hook (raising that arm would hoist a banner).
   // Identity for now; a javelin-style ranged reinterpretation belongs here
   // if this model is promoted.
-  aegis_alt: {},
 
   // VULCAN (retired TRIPO auto-rig, manifest `alt` -> profileKey vulcan_tripo).
   // Every number here was measured against THAT skeleton and means nothing on

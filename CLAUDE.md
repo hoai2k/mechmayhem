@@ -300,8 +300,9 @@ audio). Progress history: `TASKS.md`.
   reasoned about. And the aim is off entirely for the AI and for keyboard/touch
   (no LB), so `f.aiming` false is the old code path everywhere it matters.
 - GAITS ARE DATA (`src/mechs/gaits.js`): the walk/run cycle is a NAMED table —
-  `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith,
-  nova), `arthropod` (jerry), `hexapod` (cranky) and `quad` (fenrir).
+  `standard` (the default), `sprint` (the fast tier: viper, tempest, wraith),
+  `arthropod` (jerry), `hexapod` (cranky), `quad` (fenrir), `knuckle` (konga)
+  and `trike` (tritone).
   A roster def names one with `gait: '<id>'` and mechs SHARE them, so tuning a
   gait moves every mech that runs it.
   A GAIT MAY BE A VARIANT OF ANOTHER: `base: '<id>'` makes it that gait plus the
@@ -898,9 +899,10 @@ audio). Progress history: `TASKS.md`.
   (`bone_43` was reported as `elbowR`, it is the left elbow), and the whole
   delta is one 11k-vertex neck/shoulder island of the auto-rig's welded shell
   flipping from a 137 stretch to a 196 pinch. Left as found.
-  STILL MIRRORED, left as found: AEGIS (all 12) and NOVA (4 of 12) — both
-  `hidden: true` work-in-progress mechs, which is why `rigmirror` exits 1 on a
-  clean tree today.
+  NOTHING IS MIRRORED TODAY and `rigmirror` exits 0 on a clean tree. AEGIS (all
+  12) and NOVA (4 of 12) were the last two, and rather than re-rig two hidden
+  work-in-progress bodies they were RETIRED — see `archive/mechs/README.md`,
+  which keeps their models, manifest entries, designs, finishers and icons.
 - BONE ROTATION: a rig file carries POSITIONS ONLY, and adding a rest rotation to
   one would change nothing — `applyCustomRig` rebinds the skin at rest
   (`rebindRest`) and `RigAdapter` captures a rest offset per bone
@@ -1490,8 +1492,10 @@ audio). Progress history: `TASKS.md`.
   ParticlePool.emit, `aMisc.z`), which moves the whole baked ramp together and
   keeps the hot core hot. 0 = untouched, so every untinted particle in the game
   is bit-identical.
-- Work-in-progress mechs: a roster def flagged `hidden: true` (currently
-  AEGIS + NOVA) is kept out of the GAME's roster — mech select, RANDOM
+- Work-in-progress mechs: a roster def flagged `hidden: true` (NONE today —
+  aegis and nova were the last two and are retired to `archive/mechs/`, so the
+  roster is 17 and every one is playable) is kept out of the GAME's roster —
+  mech select, RANDOM
   picks, CPU picks, title line-up — until SETTINGS → SHOW ALL ROBOTS is
   turned on (persisted in `rw.showAllRobots`). Every workbench (`?showcase`,
   `?rigedit`, pose/skin tools, `?battle=...`, the level editor) always sees
@@ -1552,21 +1556,68 @@ audio). Progress history: `TASKS.md`.
   poster-vs-model drift in pixels per slot at each player count. NOTE any
   harness that builds preview mechs must `await loadManifest()` first, or
   `manifestHasGlb()` answers false and the stage quietly shows procedural.
-- BAKING A MECH (`node tools/bake-glb.mjs <id> [--apply]`) folds every runtime
-  edit — custom rig, skinOps, `seamCuts`, reparent, stretch, bonePos, rig posts —
-  INTO the .glb, strips those manifest fields and deletes the rig file, leaving
-  one revertible commit. `--apply` first archives the untouched asset to
+- BAKING A MECH (`node tools/bake-glb.mjs <id> [--apply]`, or
+  `tools/bake-all.mjs` over the roster) folds EVERYTHING THAT DESCRIBES THE
+  MODEL — custom rig, skinOps, `seamCuts`, reparent, stretch, bonePos, rig
+  posts, `dropGeo`/`dropBones`, and the BONE NAMES (an auto-rig's `bone_28`
+  becomes `shoulderR`, so `boneOverrides` goes too) — INTO the .glb, strips
+  those manifest fields and deletes the rig file, leaving one revertible commit.
+  13 OF THE 17 ARE BAKED; titanus, tritone, jerry and nullbot are not, and
+  `--apply` REFUSES to write a mech whose check failed, rolling back just that
+  mech (it used to `git checkout` the whole tree, which threw away every mech
+  baked earlier in a batch).
+  ORIENTATION AND SIZE ARE NOT FOLDED (`yawOffset`, `modelScale`,
+  `heightScale`): they describe the model and belong in a file, but the GAME
+  derives live quantities from the runtime scale (`RigAdapter.hipsScale`,
+  `calibrateFeet`, `sizeMul`), so folding them leaves those reading 1 where they
+  read 5.77 — measured on saurion, joints correct to 0.0002 and his head
+  collapsed into his shoulders. `bakeMechScene`'s `transform` option does fold
+  them and is used by the EXPORT, which has no runtime to disturb. `--apply` first archives the untouched asset to
   `public/models/source/<file>.glb` (once — a re-bake never overwrites the true
   original) and writes `public/models/source/<id>.edits.json`: every folded field
   with its values, plus the rig file's text, so a baked model stays explainable
   without digging through git. Paths come from the entry's `url`, not from the
   mech id (jerry's primary model is `mech_jerry_alt.glb`). A dry run restores the
-  tree even if a step throws. THE BUILT-IN FIDELITY CHECK ONLY SEES THE 15
-  JOINTS — it cannot see skinning or a glbanim `post` hook that stopped firing,
-  so after a bake also run `tools/skindebug.mjs <id>` (same findings?),
-  `tools/weldmap.mjs <id> --list` (same welds?) and re-render the poster.
+  tree even if a step throws.
+  THE CHECK IS THE SKIN NOW, not 15 joints. It plays EVERY CLIP THE MECH CAN
+  PLAY, CPU-skins the mesh at 5 frames of each and compares the vertices
+  themselves, as a fraction of body height — plus rendered extent from real
+  vertices, the shoulder/hip lines as a facing check, and every anchor's rest
+  transform. The joint-only version read 0.0001 while jerry's cannon pods were
+  dead and again while saurion's head was inside his chest. A good bake now
+  measures 0.001-0.002%.
+  IT ONLY MEANS THAT BECAUSE THE HARNESS IS SEEDED. `Animator` seeds phase and
+  time from `Math.random()` on purpose and several signatures twitch off it, so
+  the same build measured twice disagreed by 4-5% of body height. The captures
+  install a seeded PRNG via `addInitScript` — BEFORE the page boots, or the
+  battle has already diverged — which takes the noise floor to exactly 0.000%.
+  `node tools/bake-glb.mjs <id> --noise` measures that floor on demand.
+  Still worth running after a bake: `tools/skindebug.mjs <id>` (same findings?)
+  and `tools/weldmap.mjs <id> --list` (same welds?).
   A baked model keeps its seam record as `rwSeam` mesh extras, so the skin audit
   still knows a deliberate split from a crack.
+- THE PORTABLE EXPORT (`node tools/export-mech.mjs --all`, then
+  `tools/export-bundle.mjs` + `tools/export-chars.mjs` + `tools/export-art.mjs`)
+  writes `public/models/export/` — gitignored, ~240MB, regenerate it. A bake
+  finalizes a model FOR THIS GAME and leaves the runtime half in the manifest
+  because the game is still there to apply it; an export has nothing behind it,
+  so it carries the lot plus three things no shipped GLB has ever contained: the
+  TRANSFORM (folded into vertices and bone rest offsets — native units are game
+  units, +z forward, feet on y=0), the ANCHORS (as empty `anchor_<name>` nodes
+  on the bone they ride), and the ANIMATION (every clip sampled at 30fps through
+  the REAL animator, plus the gait as `walk`/`run` loops — every shipped GLB has
+  `animations: 0`, the whole library being procedural). Alongside them:
+  `characters.json`/`.md` (stats, every attack's real numbers, personality, and
+  the engine CAPABILITIES each body needs), `GEOMETRY.md` (the behaviour a model
+  cannot carry — titanus' rocket-fist cut is the worked example), `art/<id>/`
+  (canonical concept art, badge, poster, thumb, a four-view turnaround and an
+  action pose rendered FROM THE EXPORT), `mechkit.js` (a runtime that imports
+  nothing — you hand it THREE and GLTFLoader) and `lib/` (the animation system
+  as the transitive closure of six entry modules; the bundler FAILS if that
+  closure ever reaches past `three`). `node tools/exportcheck.mjs --all` is the
+  proof: each file loaded cold with a bare GLTFLoader, checked for size, facing,
+  the 15 joints by name, every anchor on the right bone, and that every clip
+  MOVES bones rather than merely existing.
 - Model set: the GLBs in `public/models/manifest.json` are the DEFAULT for
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).

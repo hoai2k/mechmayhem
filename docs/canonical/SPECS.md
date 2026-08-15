@@ -36,18 +36,6 @@ visor strip, red crest (center blade + swept side antlers). Red hip skirt,
 layered white shin guards, red outer calf plates with "07X", broad two-toe
 feet. Wear: 0.4-0.48.
 
-## aegis — silver-white + polished gold, blue crystal glow (0x3f8cff)
-Cathedral knight, pristine. TWIN HERALDIC BANNER PODS above/behind the
-shoulders: tall flat white panels with gold border frames, gold cross
-emblems, cross finials, corner tassels (~1.4× head height above shoulders).
-Crowned helm: dome + glowing blue V-visor + tall thin central spire + crown
-ring of gold spikes. Chest: faceted glowing blue crystal (elongated
-octahedron) in gold ray housing; "AEGIS" decal upper-left. Long white/gold
-front TABARD to between the knees (gold cross). Grand layered tower shield
-on left forearm (elongated hex, 3-4 gold-bordered panels, cross, "AEGIS"
-text, blue gems) nearly torso+hips tall. Lance: dark segmented shaft, gold
-collar, large blue crystalline blade tip. Gold-trimmed greaves/sabatons.
-
 ## viper — purple (0x4a3566) + black, neon green (0x5aff2e) — Eva-01 energy
 Everything tapers to points. Arrowhead helm: pointed chin, green V-visor,
 TWO tall vertical crown horn-blades (~1.5 head heights) + side spikes.
@@ -58,19 +46,6 @@ Slim arms; LONG GREEN ENERGY DAGGERS mounted UNDER each forearm pointing
 down-forward past the clawed black hands (~2.2× forearm length, on the
 bladeL/R joints). Long digitigrade legs, knee spikes, "07" thigh plate,
 3-toed claw feet with steel talons + dew claw.
-
-## nova — white + DEEP teal (0x3e7a78) + gold filigree, magenta glow (0xff3ce8)
-Elegant oracle, near-pristine. TWO large CRESCENT halo panels (white/teal,
-gold trim) floating symmetrically behind/above the head, tips inward-up —
-built on the spinning `halo` joint. Featureless egg-dome head with only a
-thin vertical magenta slit; tall ornate crown spire (~1.5 head heights,
-gold+white, magenta gem); small teal temple fins. Slim chest with radiant
-MAGENTA STAR core (glow ball + 4 radiating blades + gold ring) in teal
-inlay. Floor-length flowing robe skirt: 6-8 large beveled panels, white/gold
-alternating with deep teal, longer at back, OPEN front showing slender inner
-frame. Staff taller than shoulder: silver shaft, head = gold ring containing
-a magenta starburst framed by two white crescents, spike finial, gem
-counterweight. Slender legs, heeled boots, articulated silver hands.
 
 ## rhino — dark gunmetal (0x5c6066) + oxide red (0x8c3a32), red glow (0xff2a20)
 Spiked siege beast, wrecked and riveted (wear 0.72+, rivet studs along all

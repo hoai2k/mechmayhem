@@ -15,8 +15,6 @@ import { colossus } from './colossus.js';
 import { saurion } from './saurion.js';
 import { viper } from './viper.js';
 import { vulcan } from './vulcan.js';
-import { aegis } from './aegis.js';
-import { nova } from './nova.js';
 import { rhino } from './rhino.js';
 import { tempest } from './tempest.js';
 import { fenrir } from './fenrir.js';
@@ -37,8 +35,6 @@ export const SCRIPTS = {
   saurion,
   viper,
   vulcan,
-  aegis,
-  nova,
   rhino,
   tempest,
   fenrir,

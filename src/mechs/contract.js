@@ -41,10 +41,6 @@ export const CONTRACT = {
     anchors: ['podL', 'podR'],          // missile special ripple-fires both
     glbAnchors: ['podL', 'podR'],       // manifest muzzles: podL/podR
   },
-  aegis: {
-    joints: ['shield'],                 // animator squares it while guarding
-    anchors: ['shield'],                // shield FX origin
-  },
   viper: {
     joints: ['bladeL', 'bladeR'],       // animator flares on attack
     anchors: ['bladeL', 'bladeR'],
@@ -54,9 +50,6 @@ export const CONTRACT = {
     // the anchor is what draws the blade trail.
     glbBones: ['bladeL', 'bladeR'],
     glbAnchors: ['bladeL', 'bladeR'],
-  },
-  nova: {
-    joints: ['halo'],                   // animator spins .z constantly
   },
   rhino: {
     anchors: ['horn'],                  // reserved (guide: preserve anyway)

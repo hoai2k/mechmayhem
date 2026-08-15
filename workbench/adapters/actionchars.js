@@ -8,17 +8,12 @@
 // discovered to differ between the procedural and GLB renderings of a mech.
 
 const NOTES = {
-  aegis: [
-    { a: '*', t: 'Tower shield squared to the front while guarding' },
-    { a: 'special', t: 'Bulwark bash — shield shoves the target' },
-  ],
   viper: [
     { a: '*', t: 'Twin energy blades fused to the forearms (arm extensions)' },
     { a: 'light', t: 'Hand roll/yaw damped so blades stay speared along the arm', v: 'glb' },
     { a: 'heavy', t: 'Hand roll/yaw damped so blades stay speared along the arm', v: 'glb' },
     { a: '*', t: 'Blades flare wider at rest', v: 'proc' },
   ],
-  nova: [{ a: '*', t: 'Broken halo spins; glow swells to a power apex tell', v: 'proc' }],
   vulcan: [
     { a: 'ranged', t: 'Gatling barrels spin up while firing', v: 'proc' },
     { a: 'ranged', t: 'Gun arm punched forward on its own channel clip (gatlingLoop)' },

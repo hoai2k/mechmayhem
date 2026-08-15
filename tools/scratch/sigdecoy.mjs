@@ -9,7 +9,7 @@ const base = process.env.RW_URL || 'http://localhost:5173';
 const list = ids.length ? ids : [
   'titanus', 'viper', 'vulcan', 'tempest', 'fenrir', 'colossus', 'wraith', 'inferno',
   'glacier', 'tide', 'saurion', 'frogger', 'jerry', 'cranky', 'konga', 'rhino',
-  'nullbot', 'aegis', 'nova', 'tritone',
+  'nullbot', 'tritone',
 ];
 
 const browser = await chromium.launch({

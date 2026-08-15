@@ -26,16 +26,15 @@ public/cards/<mechId>.jpg      portrait 4:5 · 2048×2560 preferred, 1280×1600 
 
 `public/` because these are fetched by name at runtime (the rule in
 `ASSETS.md`). JPG, not PNG — a card is full-bleed painted art with no
-transparency, and 19 lossless portraits is a menu nobody can load.
+transparency, and 17 lossless portraits is a menu nobody can load.
 
-The nineteen ids:
+The seventeen ids:
 
-`titanus vulcan aegis viper nova rhino tempest fenrir colossus wraith inferno
+`titanus vulcan viper rhino tempest fenrir colossus wraith inferno
 glacier cranky saurion frogger jerry nullbot konga tritone`
 
-(`aegis` and `nova` are `hidden: true` work-in-progress mechs. They still get
-cards — SETTINGS → SHOW ALL ROBOTS puts them in the game, and a mech that
-appears with no art is worse than one whose art was ready early.)
+(AEGIS and NOVA were retired — see `archive/mechs/README.md`. They are out of
+the roster entirely, so they need no card; their old art is archived with them.)
 
 ---
 
@@ -178,26 +177,7 @@ is the character direction, not decoration.
 
 ---
 
-### 3 · `aegis` — AEGIS · *The Bastion of Dawn*
-> A knight-errant forged from cathedral steel. Sworn to protect the innocent,
-> the outnumbered, and anyone standing behind that enormous shield.
-
-`#d0d4da` silver white · `#c9a542` gold · glow `#3f8cff` blue
-· canonical `…/docs/canonical/mech_aegis.png` · render `…/public/posters/aegis.png`
-· world: the cathedral-fortress he was forged in — style `…/public/arenas/ruins.jpg`
-
-> Knight-paladin mech in a battle pose, enormous layered tower shield braced
-> forward and low, energy lance drawn back over the shoulder with its blue
-> crystal tip flaring, silver-white armour with polished gold trim, crowned
-> helm with a glowing blue V-visor and tall central spire, twin heraldic
-> banner pods behind the shoulders, long white and gold tabard, blue crystal
-> core in a gold ray housing, standing in the nave of a ruined cathedral-
-> fortress at dawn, broken stone colonnade and shafts of gold morning light
-> behind him, cold blue key from his own crystal against warm dawn rim light
-
----
-
-### 4 · `viper` — VIPER · *The Whispering Fang*
+### 3 · `viper` — VIPER · *The Whispering Fang*
 > A prototype infiltration unit that developed a taste for theatrics. Strikes
 > from angles geometry teachers refuse to acknowledge.
 
@@ -215,26 +195,7 @@ is the character direction, not decoration.
 
 ---
 
-### 5 · `nova` — NOVA · *The Starborn Oracle*
-> Built around a fragment of a collapsed star. Speaks in riddles, fights in
-> constellations. Gravity is more of a suggestion to her.
-
-`#d2d6de` pearl white · `#3e7a78` teal · glow `#ff3ce8` magenta
-· canonical `…/docs/canonical/mech_nova.png` · render `…/public/posters/nova.png`
-· world: the orbital station she woke on — style `…/public/arenas/orbital.jpg`
-
-> Elegant lightweight caster mech in a battle pose, hovering just clear of the
-> deck with one hand raised and a magenta plasma lance forming above the palm,
-> loose debris and dust drifting upward around her feet, pearl-white and teal
-> armour with fine gold tracing, slender limbs, a magenta star fragment
-> burning in the chest, standing on the open landing deck of an orbital
-> station with the blue limb of a planet and a dense starfield behind her,
-> hard unfiltered sunlight from one side with pitch-black shadows, magenta
-> bounce from her own core
-
----
-
-### 6 · `rhino` — RHINO · *The Unstoppable Object*
+### 4 · `rhino` — RHINO · *The Unstoppable Object*
 > One horn. One direction. Zero brakes. RHINO once charged through four
 > buildings to win an argument he was already winning.
 
@@ -251,7 +212,7 @@ is the character direction, not decoration.
 
 ---
 
-### 7 · `tempest` — TEMPEST · *The Voltage Virtuoso*
+### 5 · `tempest` — TEMPEST · *The Voltage Virtuoso*
 > A weather-control unit that discovered showmanship. Every battle is a
 > concert, every lightning bolt a chord.
 
@@ -269,7 +230,7 @@ is the character direction, not decoration.
 
 ---
 
-### 8 · `fenrir` — FENRIR · *The Last Wild Thing*
+### 6 · `fenrir` — FENRIR · *The Last Wild Thing*
 > An autonomous hunter-frame that slipped its leash decades ago. Runs with no
 > pack, answers to no handler, howls at every full moon — and every explosion.
 
@@ -286,7 +247,7 @@ is the character direction, not decoration.
 
 ---
 
-### 9 · `colossus` — COLOSSUS · *The Patient Thunder*
+### 7 · `colossus` — COLOSSUS · *The Patient Thunder*
 > A firebase that learned to walk, then learned chess. Plays the long game:
 > every shell placed three moves ahead of where you plan to be.
 
@@ -303,7 +264,7 @@ is the character direction, not decoration.
 
 ---
 
-### 10 · `wraith` — WRAITH · *The Hollow Echo*
+### 8 · `wraith` — WRAITH · *The Hollow Echo*
 > Officially, this unit was scrapped years ago. Officially, nobody is picking
 > off mechs from 800 meters. Officially, you are perfectly safe.
 
@@ -320,7 +281,7 @@ is the character direction, not decoration.
 
 ---
 
-### 11 · `inferno` — INFERNO · *The Joyful Furnace*
+### 9 · `inferno` — INFERNO · *The Joyful Furnace*
 > A demolition unit whose safety governor "fell off" — twice. Finds fire
 > genuinely hilarious.
 
@@ -338,7 +299,7 @@ is the character direction, not decoration.
 
 ---
 
-### 12 · `glacier` — GLACIER · *The Cold Shoulder*
+### 10 · `glacier` — GLACIER · *The Cold Shoulder*
 > Guardian of a polar research station, promoted to war machine by boredom.
 
 `#9fb2c2` frost grey · `#4c5560` slate · glow `#7ce0ff` pale cyan
@@ -355,7 +316,7 @@ is the character direction, not decoration.
 
 ---
 
-### 13 · `cranky` — CRANKY · *The Abyssal Bulwark*
+### 11 · `cranky` — CRANKY · *The Abyssal Bulwark*
 > A deep-sea salvage rig that got tired of being salvaged. Waddled ashore
 > trailing kelp and grudges, shell first, questions never.
 
@@ -373,7 +334,7 @@ is the character direction, not decoration.
 
 ---
 
-### 14 · `saurion` — SAURION · *The Apex Prototype*
+### 12 · `saurion` — SAURION · *The Apex Prototype*
 > Unit MX-7, grown in a black-site lab by a corporation that wanted to end
 > wars by ending everything else. It ate the lab, filed itself as CEO, and
 > went hunting.
@@ -392,7 +353,7 @@ is the character direction, not decoration.
 
 ---
 
-### 15 · `frogger` — FROGGER · *The Gunk Gladiator*
+### 13 · `frogger` — FROGGER · *The Gunk Gladiator*
 > Vat-grown smart-slime poured into a bounce-frame with four gunk guns and no
 > indoor voice. Jumps like gravity is a suggestion, lands like a lawsuit.
 
@@ -410,7 +371,7 @@ is the character direction, not decoration.
 
 ---
 
-### 16 · `jerry` — JERRY · *The Tide-Bringer*
+### 14 · `jerry` — JERRY · *The Tide-Bringer*
 > Dredged from a flooded aquaculture lab, JERRY is a colony pretending to be a
 > mech. The cannons are full of something alive.
 
@@ -428,7 +389,7 @@ is the character direction, not decoration.
 
 ---
 
-### 17 · `nullbot` — NULLBOT · *The Fatal Exception*
+### 15 · `nullbot` — NULLBOT · *The Fatal Exception*
 > Nobody built NULLBOT. It was found in the arena's memory one morning,
 > already undefeated. Where it walks, textures tear and the scoreboard reads
 > NaN.
@@ -448,7 +409,7 @@ is the character direction, not decoration.
 
 ---
 
-### 18 · `konga` — KONGA · *The Silverback Siege*
+### 16 · `konga` — KONGA · *The Silverback Siege*
 > Half the mountain gorilla they started with, half the ordnance they bolted
 > on afterward. The engineers called the arm-graft a success. KONGA calls it
 > the smaller fist.
@@ -467,7 +428,7 @@ is the character direction, not decoration.
 
 ---
 
-### 19 · `tritone` — TRITONE · *The Walking Siege*
+### 17 · `tritone` — TRITONE · *The Walking Siege*
 > Three horns, two cannons, one direction. Rebuilt as a mobile gun platform,
 > but nobody told the animal underneath.
 

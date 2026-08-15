@@ -3,7 +3,7 @@
 import { chromium } from 'playwright-core';
 import { readFileSync, writeFileSync } from 'fs';
 
-const IDS = ['titanus', 'vulcan', 'aegis', 'viper', 'nova', 'rhino',
+const IDS = ['titanus', 'vulcan', 'viper', 'rhino',
   'tempest', 'fenrir', 'colossus', 'wraith', 'inferno', 'glacier',
   'cranky', 'saurion', 'frogger', 'jerry'];
 const src = process.argv[2];

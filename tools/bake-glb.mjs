@@ -92,6 +92,14 @@ const FACE_DEG = 0.5;     // degrees the body may turn (a yaw baked a quarter tu
 const id = process.argv[2];
 const APPLY = process.argv.includes('--apply');
 const RESTORE = process.argv.includes('--restore');
+// `--noise`: capture the UNBAKED build twice and report the skin deviation
+// between the two. That is the floor the real comparison has to clear — the
+// animator smooths toward its targets and two page loads do not settle
+// identically, so a fast clip's extremity can differ by a visible amount with
+// nothing whatever changed. A tolerance set below the floor reports every bake
+// as broken; one set above it reports nothing.
+const NOISE = process.argv.includes('--noise');
+const FORCE = process.argv.includes('--force');
 if (!id) { console.error('usage: node tools/bake-glb.mjs <mechId> [--apply] [--restore]'); process.exit(1); }
 
 // ---- manifest entry cleaning (surgical, preserves the file's formatting) ----
@@ -197,12 +205,34 @@ async function getBakedGlb(browser) {
 
 // Build the mech (current on-disk files) and read joint world positions across
 // a few deterministic poses. Uses the real ?debug=3d load path.
+const SEED_SCRIPT = `
+  let _seed = 0x2f6e2b1;
+  Math.random = () => {
+    _seed ^= _seed << 13; _seed ^= _seed >>> 17; _seed ^= _seed << 5;
+    return ((_seed >>> 0) % 1e6) / 1e6;
+  };`;
+
 async function capturePoses(browser, tag) {
   const page = await browser.newPage();
+  // BEFORE the page boots. Seeding inside page.evaluate is too late here — the
+  // battle harness has already built both fighters and run a few seconds of
+  // animation by the time the evaluate runs, so the random-seeded idles are
+  // already diverged. konga's `overhead` anchor read 0.061 between two runs of
+  // the same build with the late seed, and 0 with this one.
+  await page.addInitScript(SEED_SCRIPT);
   const errs = []; page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
   await page.goto(`http://127.0.0.1:${PORT}/?battle=neon&p1=${id}&p2=titanus&debug=3d`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(9000);
   const data = await page.evaluate(({ TEST_POSES, JOINTS }) => {
+    // Same seeding as captureSkin, and for the same reason: the anchors ride
+    // joints the signatures twitch off Math.random(), so konga's worst anchor
+    // read 0.070 between two runs of the SAME build and tripped a 0.06
+    // tolerance that exists to catch an anchor left on a stale bone.
+    let _seed = 0x2f6e2b1;
+    Math.random = () => {
+      _seed ^= _seed << 13; _seed ^= _seed >>> 17; _seed ^= _seed << 5;
+      return ((_seed >>> 0) % 1e6) / 1e6;
+    };
     const F = window.__fighters, f = F[0];
     if (!f?.mech?.isGLB) return { err: 'mech is not GLB (fell back to procedural?)' };
     F[1].controlsLocked = true; f.controlsLocked = true;
@@ -304,6 +334,155 @@ async function capturePoses(browser, tag) {
   if (data.err) throw new Error(`${tag}: ${data.err}`);
   if (errs.length) console.warn(`  (${tag} page errors:`, errs.slice(0, 2), ')');
   return data;
+}
+
+// ---- SKIN fidelity: the strong check -----------------------------------
+// Joints are 15 points. The skin is every vertex, and it is what a player sees:
+// a rebind, a weight change, a seam cut applied in the wrong order or a drop
+// that took the wrong triangles all leave the skeleton perfect. So play EVERY
+// CLIP THIS MECH CAN PLAY, step the animator deterministically (fixed dt from
+// t=0, so two runs sample the same instants), CPU-skin the mesh at several
+// frames of each, and compare the vertices themselves.
+//
+// It samples a fixed STRIDE through the position buffer rather than a region,
+// so the coverage is the whole body, and it reports deviation as a fraction of
+// the mech's own height — the only way a 5-unit raptor and a 9-unit siege
+// chassis can share a tolerance. Vertex COUNT is checked first and separately:
+// the drops and the seam cuts change it, and if the bake and the load path
+// disagree about those the two builds are not comparable at all, which is
+// itself the finding.
+const SKIN_VERTS = 160;   // sampled vertices per frame, evenly strided
+const SKIN_FRAMES = 5;    // frames per clip
+const SKIN_EPS = 0.004;   // 0.4% of body height
+
+async function captureSkin(browser, tag) {
+  const page = await browser.newPage();
+  await page.addInitScript(SEED_SCRIPT);
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+  // A build step that quietly declines leaves a console.warn and nothing else —
+  // that is how the fist split turned out to be missing on a baked titanus.
+  page.on('console', (m) => {
+    const t = m.text();
+    if (/fist split|falling back|manifest\[|no clip|failed/i.test(t)) errs.push('warn: ' + t.slice(0, 160));
+  });
+  await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(5000);
+  const data = await page.evaluate(async ({ id, NV, NF }) => {
+    // DETERMINISM FIRST, before anything is built. The Animator seeds
+    // `phase`/`t` from Math.random() on purpose (it desyncs two mechs' idles),
+    // and several signatures twitch antennae and fire head impulses off it too
+    // — so the same build measured twice disagreed by 4-5% of body height on
+    // fast clips, which is larger than anything a bake does and made the check
+    // useless. A seeded PRNG makes the whole pipeline reproducible while still
+    // RUNNING every hook: the jerry pod bug this check exists to catch lives in
+    // a profile `post` hook, so sampling the clips' authored poses directly
+    // instead would have walked straight past it.
+    let _seed = 0x2f6e2b1;
+    Math.random = () => {
+      _seed ^= _seed << 13; _seed ^= _seed >>> 17; _seed ^= _seed << 5;
+      return ((_seed >>> 0) % 1e6) / 1e6;
+    };
+    const THREE = await import('/node_modules/three/build/three.module.js');
+    const { ROSTER } = await import('/src/mechs/roster.js');
+    const { buildGlbForTool } = await import('/src/mechs/gltf.js');
+    const { profileFor } = await import('/src/mechs/glbanim.js');
+    const { mechClips } = await import('/workbench/adapters/mechclips.js');
+    const def = ROSTER.find((d) => d.id === id);
+    const { mech } = await buildGlbForTool(def);
+    if (!mech?.isGLB) return { err: 'not a GLB build (fell back to procedural?)' };
+    const sk = [];
+    mech.group.traverse((o) => { if (o.isSkinnedMesh) sk.push(o); });
+    if (!sk.length) return { err: 'no skinned mesh' };
+    const counts = sk.map((m) => m.geometry.attributes.position.count);
+
+    const anim = mech.premadeAnimator;
+    const v = new THREE.Vector3();
+    const grab = () => {
+      const out = [];
+      for (const m of sk) {
+        const n = m.geometry.attributes.position.count;
+        const step = Math.max(1, Math.floor(n / NV));
+        for (let i = 0; i < n; i += step) {
+          m.getVertexPosition(i, v);        // CPU skinning: the drawn position
+          v.applyMatrix4(m.matrixWorld);
+          out.push(+v.x.toFixed(4), +v.y.toFixed(4), +v.z.toFixed(4));
+        }
+      }
+      return out;
+    };
+    const ctx = { grounded: true, speed: 0, maxSpeed: 1, vy: 0, alwaysReady: true };
+    const dt = 1 / 60;
+    const clips = {};
+    const names = ['(rest)', ...mechClips(def, mech.animProfile || profileFor(id))];
+    for (const name of names) {
+      try {
+        // A CLIP MUST START FROM THE SAME PLACE EVERY RUN. The animator SMOOTHS
+        // toward its targets, so `cur` carries whatever the body was doing
+        // before — and between two page loads that is a different number of
+        // idle frames. Without this reset the same build compared against
+        // itself measured a 4.2% noise floor on fast clips, which is larger
+        // than anything a bake does. poseStatic() reseats `cur` on the rest
+        // target, which is a deterministic function of the mech alone.
+        anim.t = 0; anim.phase = 0; anim.action = null;
+        anim.poseStatic();
+        let dur = 0.6;
+        if (name !== '(rest)') { dur = anim.play(name, { fade: 0 }) || 0.6; }
+        const total = Math.max(2, Math.round(dur / dt));
+        const marks = new Set();
+        for (let k = 0; k < NF; k++) marks.add(Math.max(1, Math.round(total * (k + 1) / NF)));
+        const frames = [];
+        for (let i = 1; i <= total; i++) {
+          anim.update(dt, ctx);
+          mech.postAnimate();
+          if (marks.has(i)) { mech.group.updateMatrixWorld(true); frames.push(grab()); }
+        }
+        clips[name] = frames;
+        anim.stop(0);
+      } catch (e) { clips[name] = { err: String(e).slice(0, 90) }; }
+    }
+    // body height, so a deviation can be stated as a fraction of the mech
+    const box = new THREE.Box3().setFromObject(mech.group);
+    return { counts, clips, height: +box.getSize(new THREE.Vector3()).y.toFixed(4) };
+  }, { id, NV: SKIN_VERTS, NF: SKIN_FRAMES });
+  await page.close();
+  if (data.err) throw new Error(`${tag}: ${data.err}`);
+  if (errs.length) console.warn(`  (${tag} page errors:`, errs.slice(0, 2), ')');
+  return data;
+}
+
+function skinFidelity(a, b) {
+  const countsMatch = JSON.stringify(a.counts) === JSON.stringify(b.counts);
+  const missing = Object.keys(a.clips).filter((c) => !b.clips[c]);
+  const broken = Object.keys(a.clips).filter((c) => a.clips[c]?.err || b.clips[c]?.err);
+  let max = 0, worst = null, sum = 0, n = 0, spot = null;
+  const perClip = [];
+  if (countsMatch) {
+    for (const name of Object.keys(a.clips)) {
+      const A = a.clips[name], B = b.clips[name];
+      if (!Array.isArray(A) || !Array.isArray(B)) continue;
+      let cm = 0;
+      for (let f = 0; f < Math.min(A.length, B.length); f++) {
+        const fa = A[f], fb = B[f];
+        for (let i = 0; i + 2 < Math.min(fa.length, fb.length); i += 3) {
+          const d = Math.hypot(fa[i] - fb[i], fa[i + 1] - fb[i + 1], fa[i + 2] - fb[i + 2]);
+          if (d > cm) cm = d;
+          if (d > max) {
+            spot = { clip: name, frame: f, at: [fa[i], fa[i + 1], fa[i + 2]],
+              to: [fb[i], fb[i + 1], fb[i + 2]] };
+          }
+          sum += d; n++;
+        }
+      }
+      perClip.push({ name, max: cm });
+      if (cm > max) { max = cm; worst = name; }
+    }
+  }
+  const h = a.height || 1;
+  perClip.sort((x, y) => y.max - x.max);
+  return { countsMatch, counts: [a.counts, b.counts], missing, broken,
+    maxFrac: +(max / h).toFixed(5), meanFrac: n ? +((sum / n) / h).toFixed(5) : 0,
+    worst, spot, clips: perClip.length, top: perClip.slice(0, 3) };
 }
 
 // SHAPE fidelity: compare each joint RELATIVE TO HIPS, so a benign uniform
@@ -534,7 +713,32 @@ if (RESTORE) {
 // ---- main ----
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+
+if (NOISE) {
+  console.log(`\n== ${id}: skin NOISE FLOOR (same build, two captures) ==`);
+  const a = await captureSkin(browser, 'run 1');
+  const b = await captureSkin(browser, 'run 2');
+  const sk = skinFidelity(a, b);
+  console.log(`   ${sk.clips} clips x ${SKIN_FRAMES} frames x ~${SKIN_VERTS} verts`);
+  console.log(`   worst ${(sk.maxFrac * 100).toFixed(3)}% of height${sk.worst ? ` (${sk.worst})` : ''}`
+    + `   mean ${(sk.meanFrac * 100).toFixed(4)}%`);
+  console.log('   worst clips: ' + sk.top.map((c) => `${c.name} ${(c.max / (a.height || 1) * 100).toFixed(3)}%`).join(' · '));
+  console.log(`   current tolerance ${(SKIN_EPS * 100).toFixed(1)}%`);
+  await browser.close();
+  process.exit(0);
+}
+
 let mutated = false;
+let undo = null;
+function rollback() {
+  if (!undo) return;
+  fs.writeFileSync(undo.glbPath, undo.glb);
+  fs.writeFileSync(MANIFEST, undo.manifest);
+  fs.writeFileSync(path.join(ROOT, 'src/mechs/rigs/index.js'), undo.rigIndex);
+  const rp = path.join(ROOT, `src/mechs/rigs/${id}.rig.js`);
+  if (undo.rig !== null) fs.writeFileSync(rp, undo.rig);
+  else if (fs.existsSync(rp)) fs.rmSync(rp);
+}
 try {
   const origManifest = fs.readFileSync(MANIFEST, 'utf8');
   const entry = JSON.parse(origManifest)[id];
@@ -546,8 +750,10 @@ try {
   const customRig = !!entry.rig;
 
   console.log(`\n== bake ${id} ${APPLY ? '(APPLY)' : '(dry run)'} ==`);
-  console.log('1/5  capturing pre-bake joint positions…');
+  console.log('1/5  capturing pre-bake state (joints, size, anchors + every clip skinned)…');
   const before = await capturePoses(browser, 'pre-bake');
+  const beforeSkin = await captureSkin(browser, 'pre-bake');
+  console.log(`     ${Object.keys(beforeSkin.clips).length} clips · ${beforeSkin.counts.join('+')} verts · height ${beforeSkin.height}`);
 
   console.log('2/5  baking GLB…');
   const { buffer, report } = await getBakedGlb(browser);
@@ -558,6 +764,18 @@ try {
     { renames: report.renames, jointBones: report.jointBones });
 
   console.log('3/5  writing baked GLB + cleaned manifest (temporarily) for fidelity check…');
+  // WHAT THIS MECH TOUCHES, kept in memory so undoing it is surgical. The
+  // revert used to be `git checkout -- public/models src/mechs/rigs`, which is
+  // fine for one dry run and wrong in a batch: it also throws away every mech
+  // baked before this one. A run over the roster with four failures in it
+  // ended with nothing applied at all.
+  undo = {
+    glbPath, glb: fs.readFileSync(glbPath),
+    manifest: origManifest,
+    rig: fs.existsSync(path.join(ROOT, `src/mechs/rigs/${id}.rig.js`))
+      ? fs.readFileSync(path.join(ROOT, `src/mechs/rigs/${id}.rig.js`), 'utf8') : null,
+    rigIndex: fs.readFileSync(path.join(ROOT, 'src/mechs/rigs/index.js'), 'utf8'),
+  };
   if (APPLY) archiveSource(entry, removed, origManifest, report);
   fs.writeFileSync(glbPath, buffer);                 // overwrite (restored below if dry run)
   fs.writeFileSync(MANIFEST, cleanManifest);
@@ -565,9 +783,11 @@ try {
 
   mutated = true;    // from here on the tree is dirty; see the finally below
 
-  console.log('4/5  capturing post-bake joint positions (stock load path)…');
+  console.log('4/5  capturing post-bake state (stock load path)…');
   const after = await capturePoses(browser, 'post-bake');
+  const afterSkin = await captureSkin(browser, 'post-bake');
   const fid = fidelity(before, after);
+  const skin = skinFidelity(beforeSkin, afterSkin);
 
   console.log('\n---- fidelity (pre-bake custom-rig  vs  baked stock-path) ----');
   console.log(`     shape deviation (joints rel. hips): ${fid.max} world-units  (worst: ${fid.worst})  tolerance ${FID_EPS}`);
@@ -592,13 +812,31 @@ try {
   if (ex.missing.length) console.log(`     ANCHORS LOST: ${ex.missing.join(', ')}`);
   if (ex.added.length) console.log(`     anchors added: ${ex.added.join(', ')}`);
 
+  console.log(`     SKIN over ${skin.clips} clips x ${SKIN_FRAMES} frames x ~${SKIN_VERTS} verts:`
+    + `  worst ${(skin.maxFrac * 100).toFixed(3)}% of height`
+    + `${skin.worst ? ` (${skin.worst})` : ''}   mean ${(skin.meanFrac * 100).toFixed(4)}%`
+    + `   tolerance ${(SKIN_EPS * 100).toFixed(1)}%`);
+  console.log(`     vertex count: ${skin.countsMatch ? 'unchanged ' + skin.counts[0].join('+')
+    : `CHANGED ${skin.counts[0].join('+')} -> ${skin.counts[1].join('+')} — the bake and the load path disagree`}`);
+  if (skin.top.length > 1) {
+    console.log('     worst clips: ' + skin.top.map((c) => `${c.name} ${(c.max / (beforeSkin.height || 1) * 100).toFixed(3)}%`).join(' · '));
+  }
+  if (skin.spot && skin.maxFrac > 0) {
+    const f = (a) => a.map((v) => v.toFixed(2)).join(', ');
+    console.log(`     worst vertex: ${skin.spot.clip} frame ${skin.spot.frame + 1}`
+      + `   [${f(skin.spot.at)}] -> [${f(skin.spot.to)}]`);
+  }
+  if (skin.missing.length) console.log(`     CLIPS LOST: ${skin.missing.join(', ')}`);
+  if (skin.broken.length) console.log(`     clips that threw: ${skin.broken.join(', ')}`);
+
+  const skinOk = skin.countsMatch && !skin.missing.length && skin.maxFrac <= SKIN_EPS;
   const sizeOk = ex.sizeErr === null || ex.sizeErr <= SIZE_EPS;
   const anchorOk = !ex.missing.length && ex.posMax <= ANCHOR_EPS && ex.angMax <= ANCHOR_DEG;
   const faceOk = ex.facing === null || ex.facing <= FACE_DEG;
-  const ok = fid.max <= FID_EPS && after.mapped >= 10 && sizeOk && anchorOk && faceOk;
-  const why = [fid.max > FID_EPS && 'shape', !sizeOk && 'size', !anchorOk && 'anchors', !faceOk && 'facing',
+  const ok = fid.max <= FID_EPS && after.mapped >= 10 && sizeOk && anchorOk && faceOk && skinOk;
+  const why = [fid.max > FID_EPS && 'shape', !skinOk && 'SKIN', !sizeOk && 'size', !anchorOk && 'anchors', !faceOk && 'facing',
     after.mapped < 10 && 'joints'].filter(Boolean);
-  console.log(`     ${ok ? 'PASS ✓ baked mech is faithful (shape, size and anchors)'
+  console.log(`     ${ok ? 'PASS ✓ baked mech is faithful (skin, shape, size and anchors)'
     : `FAIL ✗ ${why.join(' + ')} over tolerance — DO NOT COMMIT`}`);
 
   console.log('\n---- manifest entry: fields removed ----');
@@ -607,6 +845,16 @@ try {
     + `${moved.length ? '\n     references rewritten: ' + moved.join(' · ') : ''}`);
 
   console.log('5/5  finalizing…');
+  // A FAILED CHECK MUST NOT LAND. --apply used to write whatever the bake
+  // produced and merely print the verdict, which puts the burden of noticing on
+  // whoever is reading the scrollback — and a batch run over the roster has no
+  // one reading. --force is the deliberate override.
+  if (APPLY && !ok && !FORCE) {
+    rollback();
+    console.log(`\nNOT APPLIED — the check failed (${why.join(' + ')}) and ${id} is back as it was.`);
+    console.log('Re-run with --force to write it anyway.');
+    process.exit(2);
+  }
   if (APPLY) {
     fs.writeFileSync(bakedPath, Buffer.alloc(0)); // no leftover
     fs.rmSync(bakedPath);
@@ -628,11 +876,8 @@ try {
   // fidelity check can run, so an exception in between used to leave the repo
   // half-baked and the next command working against it.
   if (!APPLY && mutated) {
-    const { execSync } = await import('node:child_process');
-    try {
-      execSync('git checkout -- public/models src/mechs/rigs', { cwd: ROOT });
-      console.log('(dry run: repo restored)');
-    } catch (e) { console.error('COULD NOT RESTORE — check git status:', e.message); }
+    try { rollback(); console.log(`(dry run: ${id} restored)`); }
+    catch (e) { console.error('COULD NOT RESTORE — check git status:', e.message); }
   }
   await browser.close();
 }
