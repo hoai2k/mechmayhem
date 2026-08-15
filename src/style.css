@@ -359,7 +359,10 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
   background: #0a1220;
 }
 .arena-card.selected { border-color: var(--hud-cyan); transform: scale(1.05); box-shadow: 0 0 28px rgba(56,232,255,0.45); }
-.arena-card .arena-art { width: 100%; aspect-ratio: 16/9; display: block; }
+/* One rule for both kinds of card art: the procedural canvas and the painted
+   <img> that replaces it when one exists (menus.js loadArt). object-fit keeps
+   a delivered image that is a hair off 16:9 from stretching. */
+.arena-card .arena-art { width: 100%; aspect-ratio: 16/9; display: block; object-fit: cover; }
 /* The title rides ON the art, pinned to the bottom of the CARD rather than
    sitting under it in flow: the grid sizes a card by how many rows fit the
    screen, which is routinely SHORTER than art + name + desc stacked, and the
