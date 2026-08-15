@@ -907,6 +907,12 @@ export class ArenaSelectScreen {
       art.width = 256; art.height = 144;
       this.drawArt(art, t);
       c.appendChild(art);
+      // PAINTED CARD ART (public/arenas/<id>.jpg) if the arena has one, with
+      // the canvas above as the BACKUP — the same ladder the mech badges use
+      // (src/ui/icons.js). The canvas is drawn and shown first and only
+      // REPLACED once the image has actually decoded, so a missing or broken
+      // file leaves the procedural art on screen rather than a broken image.
+      this.loadArt(art, t.id);
       c.appendChild(el('div', 'arena-name', t.name));
       c.appendChild(el('div', 'arena-desc', t.desc));
       c.title = t.desc;
@@ -952,6 +958,21 @@ export class ArenaSelectScreen {
     ctx.shadowColor = 'rgba(56,232,255,0.9)';
     ctx.shadowBlur = 18;
     ctx.fillText('?', W / 2, H / 2 + 3);
+  }
+
+  // Swap a card's procedural canvas for its painted art once that image has
+  // loaded. Nothing waits on it and nothing breaks without it: a 404, a decode
+  // failure or a card that has already left the screen all leave the canvas
+  // exactly where it is.
+  loadArt(canvas, id) {
+    const img = new Image();
+    img.src = `arenas/${id}.jpg`;
+    img.alt = '';
+    img.className = 'arena-art';
+    img.decoding = 'async';
+    img.addEventListener('load', () => {
+      if (canvas.parentNode) canvas.replaceWith(img);
+    });
   }
 
   drawArt(canvas, t) {
