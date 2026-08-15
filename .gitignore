@@ -10,3 +10,8 @@ release/
 
 # web distribution output (tools/dist.mjs)
 dist-web/
+
+# portable mech exports (tools/export-mech.mjs) — 214MB of DERIVED files.
+# Regenerate with `node tools/export-mech.mjs --all`; nothing in the game
+# reads them, and they are re-derivable from the model + the manifest.
+public/models/export/

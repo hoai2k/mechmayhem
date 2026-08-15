@@ -72,6 +72,10 @@ export function runDevMode(params) {
     import('./glbview.js').then(({ runGlbView }) => runGlbView(params.get('glbview')));
   } else if (params.has('bake')) {
     import('./bake.js').then(({ runBake }) => runBake(params.get('bake')));
+  } else if (params.has('export')) {
+    // the STANDALONE model — everything folded in, anchors as nodes, the whole
+    // procedural animation set as glTF tracks. tools/export-mech.mjs
+    import('./export.js').then(({ runExport }) => runExport(params.get('export')));
   } else if (params.has('rigtest')) {
     import('./rigtest.js').then(({ runRigTest }) => runRigTest());
   } else if (params.has('menupose')) {
