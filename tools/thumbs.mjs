@@ -20,7 +20,7 @@ const argv = process.argv.slice(2);
 const BASE = argv.find((a) => a.startsWith('http')) || 'http://localhost:5173';
 const ALL = argv.includes('--all');
 const NAMED = argv.filter((a) => !a.startsWith('http') && !a.startsWith('--'));
-const ROSTER = ['titanus', 'vulcan', 'aegis', 'viper', 'nova', 'rhino',
+const ROSTER = ['titanus', 'vulcan', 'viper', 'rhino',
   'tempest', 'fenrir', 'colossus', 'wraith', 'inferno', 'glacier',
   'cranky', 'saurion', 'frogger', 'jerry', 'nullbot', 'konga', 'tritone'];
 

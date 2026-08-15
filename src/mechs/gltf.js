@@ -399,10 +399,57 @@ export async function bakeMechScene(id, opts = {}) {
   }
 
   applyBoneNudges(boneMap, entry);
+  normalizeSkinnedNodes(model);
   const renames = renameBonesToJoints(boneMap, customRig);
   // THE TRANSFORM IS FOR THE EXPORT, NOT FOR THE GAME — see bakeModelTransform.
   const transform = opts.transform ? bakeModelTransform(model, entry) : null;
   return { model, entry, boneMap, customRig: !!customRig, renames, transform };
+}
+
+// ---- the skinned mesh's own node --------------------------------------------
+// A SKINNED MESH NODE'S TRANSFORM IS IGNORED BY THE glTF SPEC — a skin is
+// defined entirely by its joints and their inverse binds — so a non-identity
+// one is a transform that some readers apply and others drop. It survives in
+// the game only because nothing round-trips through a file: `applyCustomRig`
+// folds `mesh.matrix` into the bone root it installs ("Tripo SkinnedMeshes
+// usually sit at identity, but don't assume"), and the bind matrix carries it
+// too, so the two agree in memory and disagree the moment they are written out
+// and read back.
+//
+// JERRY IS THE ONE THAT HAS IT: his mesh node sits 4.42 up, and baked he
+// rendered 4.42 higher than his own skeleton — the rig posts under his thighs
+// stayed exactly put while the body floated off them, 45% of extra height with
+// all 15 joints still perfect to 0.0001.
+//
+// Fold it into the geometry and leave the node at identity, so there is nothing
+// left to disagree about.
+function normalizeSkinnedNodes(model) {
+  const I = new THREE.Matrix4();
+  const done = new Set();
+  const changed = [];
+  const skins = [];
+  model.updateMatrixWorld(true);
+  model.traverse((o) => { if (o.isSkinnedMesh) skins.push(o); });
+  for (const o of skins) {
+    const bind = o.bindMatrix.clone();
+    if (bind.equals(I) && o.matrix.equals(I)) continue;
+    // The geometry moves into the SKIN's space — which is what glTF stores —
+    // rather than staying in the node's. `bindMatrix` is exactly that mapping,
+    // and it is the piece with nowhere to live in a file.
+    if (!done.has(o.geometry)) { done.add(o.geometry); o.geometry.applyMatrix4(bind); }
+    // ...and the node itself goes to the model root with no transform of its
+    // own, so there is nothing left for a reader to apply or ignore.
+    model.add(o);
+    o.position.set(0, 0, 0);
+    o.quaternion.identity();
+    o.scale.set(1, 1, 1);
+    o.updateMatrix();
+    o.bind(o.skeleton, new THREE.Matrix4());
+    changed.push(o.name || 'mesh');
+  }
+  if (!changed.length) return null;
+  model.updateMatrixWorld(true);
+  return changed;
 }
 
 // ---- bone NAMES ------------------------------------------------------------

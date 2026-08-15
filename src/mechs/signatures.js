@@ -122,25 +122,6 @@ export const SIGNATURES = {
     if (J.gatlingL) J.gatlingL.rotation.z -= anim.spinVel * dt;
   },
 
-  nova(anim, dt, ctx, tgt) {
-    const J = anim.J, t = anim.t;
-    // the broken halo spins; its glow SWELLS as the crescents sweep
-    // toward apex alignment and dims past it. While lit, her whole glow
-    // kit brightens and her shots grow (novaGlow is read by fireRanged).
-    if (J.halo) {
-      J.halo.rotation.z += dt * (0.9 + (ctx.firing ? 4 : 0));
-      const g = 0.5 + 0.5 * Math.cos(2 * J.halo.rotation.z);
-      anim.novaGlow = g;
-      // UNMISTAKABLE power tell: the whole glow kit blazes toward apex —
-      // way past its dim floor — and the halo physically swells with it
-      const mats = anim.mech.materials;
-      if (mats?.glowSoft) mats.glowSoft.emissiveIntensity = 0.25 + 6.5 * g * g;
-      if (mats?.glow2) mats.glow2.emissiveIntensity = 2.4 * (0.4 + 2.0 * g);
-      if (mats?.glow) mats.glow.emissiveIntensity = 1.6 + 2.6 * g * g;
-      const hs = 1 + 0.12 * g * g;
-      J.halo.scale.set(hs, hs, hs);
-    }
-  },
 
   rhino(anim, dt, ctx, tgt) {
     const J = anim.J, t = anim.t;
@@ -188,31 +169,6 @@ export const SIGNATURES = {
     if (J.mortars) J.mortars.rotation.x = ctx.firing ? -0.25 : Math.sin(t * 0.4) * 0.03;
   },
 
-  aegis(anim, dt, ctx, tgt) {
-    const J = anim.J, t = anim.t;
-    // The tower shield rides the left forearm. While BLOCKING, cancel the
-    // whole arm chain's rotation so the face presents square to the
-    // front (never upside-down/backward); otherwise it settles back to
-    // the natural forearm carry.
-    const sh = J.shield;
-    if (!sh) return;
-    // the shield presents square to the front whenever AEGIS is in
-    // control of it — idling, marching, blocking, and through every
-    // aegis attack form. Only clips that wrench the shield away from
-    // guard duty (the bulwark whirl) or take control of the body from
-    // him (flinches, launches, intro, victory) let it ride the forearm.
-    const act = anim.action && !anim.action.fadingOut ? anim.action.clip.name : '';
-    const blocking = !act || act === 'block' || act.startsWith('aegis');
-    if (blocking) {
-      sh.parent.updateWorldMatrix(true, false);
-      sh.parent.getWorldQuaternion(_qa).invert();          // undo arm chain
-      anim.J.root.getWorldQuaternion(_qb).multiply(SHIELD_BRACE); // face mech-forward
-      _qa.multiply(_qb);
-      sh.quaternion.slerp(_qa, 1 - Math.exp(-18 * dt));
-    } else {
-      sh.quaternion.slerp(SHIELD_REST, 1 - Math.exp(-10 * dt));
-    }
-  },
 
   saurion(anim, dt, ctx, tgt) {
     const J = anim.J, t = anim.t;

@@ -69,49 +69,6 @@ export const ROSTER = [
     },
   },
   {
-    id: 'aegis', name: 'AEGIS', title: 'The Bastion of Dawn', icon: '🛡️', seed: 33, hidden: true,
-    blurb: 'A knight-errant forged from cathedral steel. Sworn to protect the innocent, the outnumbered, and anyone standing behind that enormous shield.',
-    quotes: { win: '"Honor is the finest armor. Yield with grace, friend."', intro: '"By dawn\'s light — I shall not falter!"' },
-    colors: { primary: 0xd0d4da, accent: 0xc9a542, glow: 0x3f8cff, stripes: false },
-    skin: {
-      primary: { base: 0xd0d4da, base2: 0xbcc1c9, metal: 0x9aa0a8, wear: 0.16, grime: 0.12, panelDepth: 3, roughPaint: 0.42, metalPaint: 0.42, normalStrength: 1.0 },
-      accent: { base: 0xc9a542, base2: 0xb08d32, metal: 0x9aa0a8, wear: 0.2, grime: 0.12, panelDepth: 3, roughPaint: 0.36, metalPaint: 0.7, normalStrength: 1.0 },
-    },
-    body: { scale: 1.15, torsoW: 1.08, torsoH: 1.05, headSize: 0.9, armLen: 1.05, legLen: 1.05, hipW: 1.0, bulk: 1.0 },
-    stats: { hp: 1100, speed: 8.4, jump: 12.5, weight: 0.78, armor: 0.16, blockMult: 0.06 },
-    ui: { power: 6, speed: 4, defense: 10 },
-    // spear-and-shield doctrine: the shield holds a squared low-front guard
-    // through EVERY form while the lance STABS forward around it, tip always
-    // on the target line (see the handR aim note in animations.js). The
-    // heavy is hold-to-charge: the overhead rotor-whirl LOOPS while Y is
-    // held, banking power (2.4s cap), and the lunge lands it on release
-    // signature combat stance — hoplite promachos: body BLADED behind the
-    // tower shield (lead-left, deep knees), shield arm crossed high so the
-    // shield covers chest-to-knee, and the lance LEVELED over its top rim,
-    // tip pointed straight at the enemy (handR holds the aim identity —
-    // see the note in animations.js)
-    combatPose: { hipsPos: [0, -0.18, 0], hipsRot: [0, 16, 0], torso: [6, -10, 0], head: [0, 8, 0], shoulderL: [-34, 24, 18], elbowL: [-52, 0, 0], shoulderR: [-56, 4, 10], elbowR: [-24, 0, 0], handR: [78, 0, 0], thighL: [-18, 0, -6], thighR: [6, 0, 6], kneeL: [24, 0, 0], kneeR: [16, 0, 0] },
-    // the tower shield is PASSIVE cover: hits arriving through its arc are
-    // taken on the shield even without a guard input (fighter.takeHit)
-    passiveShield: true,
-    lightClips: ['aegisStab1', 'aegisStab2', 'aegisPierce'],
-    rangedClip: 'aegisThrow',
-    chargeGlow: 'lance', // the whirling spear flickers red as power banks
-    heavyClip: 'aegisWhirlHold',
-    heavyHold: true,
-    heavyReleaseClip: 'aegisLunge',
-    heavySpin: { joint: 'handR', axis: 'y', rate: 30, t0: 0.12, t1: 999 },
-    heavyDrive: { clip: 'aegisLunge', t0: 0.02, t1: 0.24, speed: 14, kBoost: 0.7 },
-    bladeTrail: { anchors: ['muzzleR'], color: 0x9fd8ff },
-    moves: {
-      light: { dmg: [34, 36, 50], knock: [5, 5, 12], range: 3.6 },
-      heavy: { dmg: 88, knock: 20, range: 4.2, launch: 8 },
-      ranged: { name: 'Dawn Javelin', type: 'spear', dmg: 46, speed: 46, cooldown: 1.2 },
-      special: { id: 'shieldBash', name: 'Bulwark Bash', cooldown: 6, dmg: 60, knock: 22, guard: 2.2 },
-      ult: { id: 'judgment', name: 'JUDGEMENT', radius: 3.4 },
-    },
-  },
-  {
     id: 'viper', name: 'VIPER', title: 'The Whispering Fang', icon: '🗡️', seed: 44,
     blurb: 'A prototype infiltration unit that developed a taste for theatrics. Strikes from angles geometry teachers refuse to acknowledge.',
     quotes: { win: '"Ssso predictable. You never even sssaw me."', intro: '"Shall we dance? You won\'t hear the music."' },
@@ -151,31 +108,6 @@ export const ROSTER = [
       ranged: { name: 'Fang Throw', type: 'blade', dmg: 32, speed: 55, cooldown: 0.8 },
       special: { id: 'bladeCyclone', name: 'Blade Cyclone', cooldown: 6, dmg: 20 },
       ult: { id: 'serpentStorm', name: 'SERPENT STORM', dmg: 5, count: 60, paralyze: 2.4, poison: 8, poisonT: 3 },
-    },
-  },
-  {
-    id: 'nova', name: 'NOVA', title: 'The Starborn Oracle', icon: '✨', seed: 55, hidden: true,
-    blurb: 'Built around a fragment of a collapsed star. Speaks in riddles, fights in constellations. Gravity is more of a suggestion to her.',
-    quotes: { win: '"The stars foretold this. They usually do."', intro: '"Come — witness the light between worlds."' },
-    colors: { primary: 0xd2d6de, accent: 0x3e7a78, glow: 0xff3ce8, stripes: false },
-    skin: {
-      primary: { base: 0xd2d6de, base2: 0xc2c6ce, metal: 0x9aa0a8, wear: 0.12, grime: 0.1, panelDepth: 3, roughPaint: 0.4, metalPaint: 0.4, normalStrength: 1.0 },
-      accent: { base: 0x3e7a78, base2: 0x336562, metal: 0x9aa0a8, wear: 0.16, grime: 0.1, panelDepth: 3, roughPaint: 0.42, metalPaint: 0.4, normalStrength: 1.0 },
-    },
-    body: { scale: 1.05, torsoW: 0.9, torsoH: 1.05, headSize: 0.85, armLen: 1.0, legLen: 1.08, hipW: 0.88, bulk: 0.85 },
-    stats: { hp: 850, speed: 10, jump: 14, weight: 0.4, armor: 0.05, blockMult: 0.14 },
-    gait: 'sprint', // fast tier: the same long-strided run
-    ui: { power: 8, speed: 6, defense: 3 },
-    // heavy: starlight strikes the raised staff, then she hammers it down —
-    // the impact bursts in an area around the strike point
-    heavyClip: 'novaSmite',
-    heavyFx: 'starSmash',
-    moves: {
-      light: { dmg: [28, 30, 42], knock: [4, 4, 10], range: 3.4 },
-      heavy: { dmg: 72, knock: 17, range: 3.8, launch: 8 },
-      ranged: { name: 'Plasma Lance', type: 'plasma', dmg: 55, speed: 28, cooldown: 1.3, splash: 3, ammo: 14 },
-      special: { id: 'starfall', name: 'Starfall Trio', cooldown: 7, dmg: 34, count: 3 },
-      ult: { id: 'supernova', name: 'SUPERNOVA', dmg: 240, radius: 16 },
     },
   },
   {

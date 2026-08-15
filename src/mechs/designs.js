@@ -1,9 +1,7 @@
 // Barrel: the 19 mech designs, one file each in ./designs/.
 import { titanus } from './designs/titanus.js';
 import { vulcan } from './designs/vulcan.js';
-import { aegis } from './designs/aegis.js';
 import { viper } from './designs/viper.js';
-import { nova } from './designs/nova.js';
 import { rhino } from './designs/rhino.js';
 import { tempest } from './designs/tempest.js';
 import { fenrir } from './designs/fenrir.js';
@@ -20,7 +18,7 @@ import { konga } from './designs/konga.js';
 import { tritone } from './designs/tritone.js';
 
 export const DESIGNS = {
-  titanus, vulcan, aegis, viper, nova, rhino,
+  titanus, vulcan, viper, rhino,
   tempest, fenrir, colossus, wraith, inferno, glacier,
   cranky, saurion, frogger, jerry, nullbot,
   konga, tritone,

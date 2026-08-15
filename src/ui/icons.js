@@ -35,7 +35,6 @@ export const BADGES = new Set([
   // tools/badgekey.mjs writes both, tools/iconcheck.mjs fails on either
   // half being missing. This IS the roster's icon set; the thumbnails
   // are only the backup behind it.
-  'aegis',
   'colossus',
   'cranky',
   'fenrir',
@@ -44,7 +43,6 @@ export const BADGES = new Set([
   'inferno',
   'jerry',
   'konga',
-  'nova',
   'nullbot',
   'rhino',
   'saurion',

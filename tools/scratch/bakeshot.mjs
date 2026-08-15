@@ -13,8 +13,9 @@ const ROOT = process.cwd();
 const id = process.argv[2] || 'saurion';
 const out = process.argv[3] || `/tmp/claude-0/-home-user-robotworld/27a6bc4b-932a-5b1a-a1d9-b717cc420b05/scratchpad/${id}`;
 const MANIFEST = path.join(ROOT, 'public/models/manifest.json');
+// must mirror BAKED_FIELDS in tools/bake-glb.mjs
 const BAKED = ['rig', 'skinOps', 'seamCuts', 'reparent', 'stretch', 'bonePos', 'alt',
-  'dropGeo', 'dropBones', 'yawOffset', 'modelScale', 'heightScale', 'boneOverrides'];
+  'dropGeo', 'dropBones', 'boneOverrides'];
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
@@ -54,7 +55,6 @@ try {
   const m = JSON.parse(orig);
   const clean = {};
   for (const [k, v] of Object.entries(m[id])) if (!BAKED.includes(k)) clean[k] = v;
-  clean.modelScale = 1;
   m[id] = clean;
   fs.writeFileSync(MANIFEST, JSON.stringify(m, null, 2));
   const rigPath = path.join(ROOT, `src/mechs/rigs/${id}.rig.js`);

@@ -55,10 +55,10 @@ const ULT_CLIPS = {
 };
 // per-mech finisher cinematics (sound names already filtered out)
 const FINISHER_CLIPS = {
-  aegis: ['castRaise'], colossus: ['grabReach', 'liftHold', 'throwHeave'],
+  colossus: ['grabReach', 'liftHold', 'throwHeave'],
   cranky: ['clawSnap', 'castRaise', 'launched'], fenrir: ['lunge', 'flurry', 'launched'],
   frogger: ['spray', 'pounceLeap'], glacier: ['shootLoopL', 'frozenSurrender', 'daintyTap'],
-  inferno: ['shootLoop'], jerry: ['shootLoop'], nova: ['castRaise'],
+  inferno: ['shootLoop'], jerry: ['shootLoop'],
   nullbot: ['grabReach', 'light2'], rhino: ['chargeLean', 'launched'],
   saurion: ['pounceLeap', 'biteLatch'], tempest: ['burst'],
   titanus: ['grabReach', 'liftHold', 'throwHeave', 'pounceLeap'],
