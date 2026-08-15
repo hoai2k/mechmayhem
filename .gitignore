@@ -15,3 +15,6 @@ dist-web/
 # Regenerate with `node tools/export-mech.mjs --all`; nothing in the game
 # reads them, and they are re-derivable from the model + the manifest.
 public/models/export/
+
+# dry-run bake output (tools/bake-glb.mjs) — never committed
+public/models/*.baked.glb

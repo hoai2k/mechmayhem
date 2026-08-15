@@ -1,0 +1,219 @@
+{
+  "mech": "vulcan",
+  "bakedAt": "2026-08-15T15:13:24.874Z",
+  "note": "These edits were folded into public/models/mech_vulcan.glb by tools/bake-glb.mjs. The untouched service asset is mech_vulcan.glb in this directory. To start over: copy it back, restore these manifest fields and the rig file below.",
+  "sourceGlb": "public/models/source/mech_vulcan.glb",
+  "manifestFieldsFolded": {
+    "rig": "vulcan",
+    "alt": {
+      "profileKey": "vulcan_tripo",
+      "url": "models/mech_vulcan.glb",
+      "modelScale": 7.72826,
+      "bindPose": "native",
+      "yawOffset": 270,
+      "boneOverrides": {
+        "hips": "tripoRoot",
+        "torso": "tripo1_Left_Limb_1",
+        "head": "tripoHead_0",
+        "shoulderL": "tripo1_Left_Limb_3",
+        "elbowL": "tripo1_Left_Limb_4",
+        "handL": "tripo1_Left_Limb_5",
+        "shoulderR": "bone_5",
+        "elbowR": "bone_6",
+        "handR": "bone_7",
+        "thighL": "tripo0_Right_Limb_0",
+        "kneeL": "tripo0_Right_Limb_1",
+        "ankleL": "tripo0_Right_Limb_2",
+        "thighR": "tripo0_Left_Limb_0",
+        "kneeR": "tripo0_Left_Limb_1",
+        "ankleR": "tripo0_Left_Limb_2"
+      },
+      "heightScale": 1.1,
+      "muzzles": {
+        "R": {
+          "bone": "handR",
+          "offset": [
+            0.576,
+            1.552,
+            -0.042
+          ],
+          "rot": [
+            -90.34,
+            25.19,
+            81.6
+          ]
+        },
+        "L": {
+          "bone": "handL",
+          "offset": [
+            -0.109,
+            1.67,
+            0.837
+          ],
+          "rot": [
+            -67.36,
+            -11.51,
+            -13.87
+          ]
+        },
+        "podL": {
+          "joint": "torso",
+          "offset": [
+            -1.35,
+            2.2,
+            -0.2
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ]
+        },
+        "podR": {
+          "joint": "torso",
+          "offset": [
+            1.35,
+            2.2,
+            -0.2
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "skinOps": [
+        {
+          "sel": {
+            "comp": 14
+          },
+          "to": "tripo1_Left_Limb_2"
+        },
+        {
+          "purgeFar": true
+        },
+        {
+          "sel": {
+            "comp": 26
+          },
+          "to": "tripoRoot"
+        },
+        {
+          "sel": {
+            "comp": 17
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 18
+          },
+          "to": "tripo1_Left_Limb_2"
+        },
+        {
+          "sel": {
+            "comp": 21
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 22
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 24
+          },
+          "to": "tripo1_Left_Limb_2"
+        },
+        {
+          "sel": {
+            "comp": 25
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 28
+          },
+          "to": "bone_6"
+        },
+        {
+          "sel": {
+            "comp": 29
+          },
+          "to": "tripo1_Left_Limb_2"
+        },
+        {
+          "sel": {
+            "comp": 30
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 31
+          },
+          "to": "tripo0_Left_Limb_1"
+        },
+        {
+          "sel": {
+            "comp": 32
+          },
+          "to": "tripo1_Left_Limb_3"
+        },
+        {
+          "sel": {
+            "comp": 35
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 37
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 38
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 40
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 42
+          },
+          "to": "bone_5"
+        },
+        {
+          "sel": {
+            "comp": 47
+          },
+          "to": "tripo1_Left_Limb_0"
+        },
+        {
+          "sel": {
+            "comp": 48
+          },
+          "to": "tripoRoot"
+        }
+      ]
+    }
+  },
+  "boneRenames": null,
+  "transform": null,
+  "rigFile": {
+    "path": "src/mechs/rigs/vulcan.rig.js",
+    "text": "// VULCAN custom rig — a clean hand-placed skeleton for mech_vulcan.glb,\n// replacing a Tripo auto-rig that had scrambled the model badly enough to need\n// 30+ hand-written skinOps and STILL mis-owned whole assemblies: its\n// `tripoHead_0` drove the LEFT shoulder backpack pod (island 14, centroid\n// z +0.16) rather than the face, `bone_5`/`bone_6`/`bone_7` held pieces of the\n// right arm, and the actual horned head rode the chest shell.\n//\n// Positions are MESH-LOCAL (raw GLB bind space): +x FORWARD (the gatling\n// barrels and the toes), +y UP, +z LEFT / -z RIGHT. The model is 1.0 tall in\n// this space and its lateral centre line is z = 0. Tune live in\n// ?rigedit=vulcan and paste the export back (the editor emits only\n// name/parent/pos, so `skinSpan`/`bias` are re-attached here).\n//\n// SHAPE NOTES (measured off the raw mesh — y-slices of the bind geometry):\n//  • A short, deep torso: pelvis mass y 0.37-0.65, waist block y 0.58-0.71,\n//    chest y 0.64-0.85. `hips` sits at 0.47, just above where the thighs start.\n//  • The HEAD is the horned mask in the middle at y 0.85-0.96, sitting FORWARD\n//    of the spine (the central column's centroid runs from x +0.04 at y 0.80\n//    back to −0.08 at y 0.94 — that rearward mass is the backpack, not him).\n//    `head` is placed at the neck under the mask; `packL`/`packR` take the two\n//    shoulder-top pods so a head turn never swings them.\n//  • The ARMS hang out and DOWN, gatlings muzzle-first at the bottom: shoulder\n//    y 0.78 |z| 0.22, elbow y 0.63 |z| 0.30, wrist y 0.52 |z| 0.33, and the\n//    barrel cluster forward at x 0.16 y 0.44. `gunL`/`gunR` are leaf tips that\n//    keep the six-barrel mass on the hand instead of letting it fight the\n//    forearm span.\n//  • The LEGS are wide and short: hip y 0.44 |z| 0.14, knee y 0.25 |z| 0.17,\n//    ankle y 0.10 |z| 0.20, and a long foot reaching x +0.09.\n//\n// `skinSpan: 'child'`: each bone owns the slice BELOW it (shoulder→elbow is the\n// upper arm, knee→ankle the shin) — the slice three.js actually pivots about\n// that bone. See reskin.js.\n//\n// `cutWelds` is ON but cuts NOTHING here, and that is the point: unlike rhino,\n// this shell has no arm-to-hip membrane spanning the air gap. It only looked\n// like one while `skirtL/R` sat far enough outboard (z ±0.17) to claim the\n// INNER FOREARM PLATES — which split every triangle of those plates between a\n// hip bone and an arm bone, so the weld rule dutifully deleted them and the\n// orphan sweep took the rest: 534 triangles, a visible bite out of both inner\n// arms. Pulling the skirts in to ±0.13 and widening the elbow/hand win radius\n// (bias 0.95) gives the plates to the arm they belong to, and the cut count\n// falls to zero with no change to the tear numbers. The flag stays as a guard\n// for future rig edits.\n// `softSkin: 6` relaxes the REAL joints over 6 rings so shoulders and knees\n// bend rather than shear (4 rings left a visible gash on `dead`; 8 buys little\n// and starts to rubberise the plates).\n// Measured (tools/cliptear.mjs, all clips, every cross-bone seam): worst\n// stretch +0.082 mesh units / 38x, against the Tripo rig's +0.416 / 617x.\nexport const VULCAN_RIG = {\n  skinSpan: 'child',\n  softSkin: 6,\n  cutWelds: true,\n  bones: [\n    // ---- spine ---- pelvis low and deep, chest at the shoulder line.\n    // skirtL/R are kept INBOARD of the arm gap on purpose (see cutWelds above).\n    { name: 'hips', parent: null, pos: [0.05, 0.47, 0.00] },\n    { name: 'skirtL', parent: 'hips', pos: [0.02, 0.52, 0.13] },\n    { name: 'skirtR', parent: 'hips', pos: [0.02, 0.52, -0.13] },\n    { name: 'torso', parent: 'hips', pos: [0.03, 0.66, 0.00] },\n    { name: 'chest', parent: 'torso', pos: [0.02, 0.79, 0.00] },\n    // ---- head: the horned mask, forward of the spine ----\n    { name: 'head', parent: 'torso', pos: [0.03, 0.86, 0.00], bias: 0.7 },\n    { name: 'crest', parent: 'head', pos: [0.06, 0.94, 0.00] },\n    // ---- shoulder-top backpack pods: torso mass, never head or arm ----\n    { name: 'packL', parent: 'torso', pos: [-0.10, 0.90, 0.15] },\n    { name: 'packR', parent: 'torso', pos: [-0.10, 0.90, -0.15] },\n    // ---- LEFT arm (+z) ---- gatling hangs muzzle-down and forward\n    { name: 'shoulderL', parent: 'torso', pos: [0.00, 0.78, 0.22] },\n    { name: 'pauldronL', parent: 'shoulderL', pos: [-0.02, 0.80, 0.30] },\n    { name: 'elbowL', parent: 'shoulderL', pos: [0.02, 0.63, 0.30], bias: 0.95 },\n    { name: 'handL', parent: 'elbowL', pos: [0.05, 0.52, 0.33], bias: 0.95 },\n    { name: 'gunL', parent: 'handL', pos: [0.16, 0.44, 0.35] },\n    // ---- RIGHT arm (-z) ----\n    { name: 'shoulderR', parent: 'torso', pos: [0.00, 0.78, -0.22] },\n    { name: 'pauldronR', parent: 'shoulderR', pos: [-0.02, 0.80, -0.30] },\n    { name: 'elbowR', parent: 'shoulderR', pos: [0.02, 0.63, -0.30], bias: 0.95 },\n    { name: 'handR', parent: 'elbowR', pos: [0.05, 0.52, -0.33], bias: 0.95 },\n    { name: 'gunR', parent: 'handR', pos: [0.16, 0.44, -0.35] },\n    // ---- LEFT leg (+z) ---- long foot: ankle back at x 0.00, toes at +0.09.\n    //      Ankle y 0.043 = the top of the sole plate, so the gait's heel roll\n    //      pivots the foot and not the whole boot (tools/ankleprobe.mjs).\n    { name: 'thighL', parent: 'hips', pos: [0.03, 0.44, 0.14] },\n    { name: 'kneeL', parent: 'thighL', pos: [0.02, 0.25, 0.17], bias: 0.95 },\n    { name: 'ankleL', parent: 'kneeL', pos: [0.00, 0.043, 0.20] },\n    { name: 'footL', parent: 'ankleL', pos: [0.09, 0.02, 0.22] },\n    // ---- RIGHT leg (-z) ----\n    { name: 'thighR', parent: 'hips', pos: [0.03, 0.44, -0.14] },\n    { name: 'kneeR', parent: 'thighR', pos: [0.02, 0.25, -0.17], bias: 0.95 },\n    { name: 'ankleR', parent: 'kneeR', pos: [0.00, 0.043, -0.20] },\n    { name: 'footR', parent: 'ankleR', pos: [0.09, 0.02, -0.22] },\n  ],\n};\n"
+  }
+}

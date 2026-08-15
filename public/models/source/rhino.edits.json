@@ -1,0 +1,483 @@
+{
+  "mech": "rhino",
+  "bakedAt": "2026-08-15T15:05:42.616Z",
+  "note": "These edits were folded into public/models/mech_rhino.glb by tools/bake-glb.mjs. The untouched service asset is mech_rhino.glb in this directory. To start over: copy it back, restore these manifest fields and the rig file below.",
+  "sourceGlb": "public/models/source/mech_rhino.glb",
+  "manifestFieldsFolded": {
+    "boneOverrides": {
+      "hips": "tripoRoot",
+      "torso": "tripoSpine_2",
+      "head": "tripoHead_0",
+      "shoulderL": "tripo1_Right_Limb_0",
+      "elbowL": "tripo1_Right_Limb_1",
+      "handL": "tripo1_Right_Limb_2",
+      "shoulderR": "tripo1_Left_Limb_0",
+      "elbowR": "tripo1_Left_Limb_1",
+      "handR": "tripo1_Left_Limb_2",
+      "thighL": "tripo0_Right_Limb_0",
+      "kneeL": "tripo0_Right_Limb_1",
+      "ankleL": "tripo0_Right_Limb_2",
+      "thighR": "tripo0_Left_Limb_0",
+      "kneeR": "tripo0_Left_Limb_1",
+      "ankleR": "tripo0_Left_Limb_2"
+    },
+    "skinOps": [
+      {
+        "sel": {
+          "comp": 26
+        },
+        "to": "bone_18"
+      },
+      {
+        "sel": {
+          "comp": 24
+        },
+        "to": "tripo0_Right_Limb_4"
+      },
+      {
+        "sel": {
+          "comp": 1
+        },
+        "to": "tripo0_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 13
+        },
+        "to": "tripo0_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 19
+        },
+        "to": "tripo0_Right_Limb_4"
+      },
+      {
+        "sel": {
+          "comp": 27
+        },
+        "to": "tripo0_Right_Limb_3"
+      },
+      {
+        "purgeFar": true
+      },
+      {
+        "sel": {
+          "comp": 51
+        },
+        "to": "tripo0_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 84
+        },
+        "to": "tripo0_Right_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 49
+        },
+        "to": "tripo1_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 83
+        },
+        "to": "tripo1_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 66
+        },
+        "to": "tripo1_Left_Limb_3"
+      },
+      {
+        "sel": {
+          "comp": 41
+        },
+        "to": "tripo1_Left_Limb_3"
+      },
+      {
+        "sel": {
+          "comp": 20
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 23
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 35
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 36
+        },
+        "to": "bone_16"
+      },
+      {
+        "sel": {
+          "comp": 40
+        },
+        "to": "bone_13"
+      },
+      {
+        "sel": {
+          "comp": 42
+        },
+        "to": "tripo1_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 43
+        },
+        "to": "tripo1_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 45
+        },
+        "to": "bone_18"
+      },
+      {
+        "sel": {
+          "comp": 50
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 52
+        },
+        "to": "tripo0_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 53
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 55
+        },
+        "to": "tripo1_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 59
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 60
+        },
+        "to": "tripo1_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 61
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 62
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 63
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 64
+        },
+        "to": "tripo1_Right_Limb_4"
+      },
+      {
+        "sel": {
+          "comp": 65
+        },
+        "to": "tripo0_Right_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 67
+        },
+        "to": "tripo0_Left_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 69
+        },
+        "to": "bone_5"
+      },
+      {
+        "sel": {
+          "comp": 70
+        },
+        "to": "bone_5"
+      },
+      {
+        "sel": {
+          "comp": 71
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 72
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 73
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 74
+        },
+        "to": "tripo1_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 76
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 77
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 78
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 79
+        },
+        "to": "tripoHead_0"
+      },
+      {
+        "sel": {
+          "comp": 80
+        },
+        "to": "tripo1_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 81
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 82
+        },
+        "to": "tripo1_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 85
+        },
+        "to": "tripo0_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 86
+        },
+        "to": "tripo1_Right_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 87
+        },
+        "to": "tripo0_Left_Limb_2"
+      },
+      {
+        "sel": {
+          "comp": 89
+        },
+        "to": "bone_18"
+      },
+      {
+        "sel": {
+          "comp": 90
+        },
+        "to": "bone_5"
+      },
+      {
+        "sel": {
+          "comp": 91
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 92
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 93
+        },
+        "to": "tripo1_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 94
+        },
+        "to": "bone_18"
+      },
+      {
+        "sel": {
+          "comp": 95
+        },
+        "to": "tripoSpine_3"
+      },
+      {
+        "sel": {
+          "comp": 96
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 97
+        },
+        "to": "tripo1_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 99
+        },
+        "to": "tripo0_Right_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 103
+        },
+        "to": "tripo1_Left_Limb_3"
+      },
+      {
+        "sel": {
+          "comp": 104
+        },
+        "to": "tripo1_Left_Limb_3"
+      },
+      {
+        "sel": {
+          "comp": 30
+        },
+        "to": "tripo0_Right_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 38
+        },
+        "to": "tripo0_Left_Limb_1"
+      },
+      {
+        "sel": {
+          "comp": 34
+        },
+        "to": "tripoSpine_2"
+      },
+      {
+        "sel": {
+          "comp": 44
+        },
+        "to": "tripo0_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 47
+        },
+        "to": "tripo0_Left_Limb_0"
+      },
+      {
+        "sel": {
+          "comp": 39
+        },
+        "to": "tripo1_Right_Limb_2"
+      }
+    ],
+    "alt": {
+      "muzzles": {
+        "R": {
+          "bone": "handR",
+          "offset": [
+            0.1029,
+            0.1626,
+            0.0328
+          ],
+          "rot": [
+            95.33,
+            19.53,
+            -83.95
+          ]
+        },
+        "L": {
+          "bone": "handL",
+          "offset": [
+            -0.0592,
+            0.09,
+            -0.083
+          ],
+          "rot": [
+            84,
+            18.44,
+            -97.03
+          ]
+        }
+      },
+      "url": "models/mech_rhino.glb",
+      "modelScale": 8.12531,
+      "bindPose": "native",
+      "yawOffset": 270,
+      "rig": "rhino"
+    }
+  },
+  "boneRenames": {
+    "tripoRoot": "hips",
+    "tripoSpine_2": "torso",
+    "tripoHead_0": "head",
+    "tripo1_Right_Limb_0": "shoulderL",
+    "tripo1_Right_Limb_1": "elbowL",
+    "tripo1_Right_Limb_2": "handL",
+    "tripo1_Left_Limb_0": "shoulderR",
+    "tripo1_Left_Limb_1": "elbowR",
+    "tripo1_Left_Limb_2": "handR",
+    "tripo0_Right_Limb_0": "thighL",
+    "tripo0_Right_Limb_1": "kneeL",
+    "tripo0_Right_Limb_2": "ankleL",
+    "tripo0_Left_Limb_0": "thighR",
+    "tripo0_Left_Limb_1": "kneeR",
+    "tripo0_Left_Limb_2": "ankleR"
+  },
+  "transform": null,
+  "rigFile": {
+    "path": "src/mechs/rigs/rhino.rig.js",
+    "text": "// RHINO custom rig — a clean hand-placed skeleton for mech_rhino.glb, replacing\n// a Tripo auto-rig whose arm chains were BOTH mirrored (its \"Left_Limb\" chain\n// drives the mech's RIGHT arm) and whose weights needed 67 hand-written skinOps\n// to stop plates from tearing off. Rhino is a straightforward heavy humanoid —\n// two arms, two legs, one spine — so a proximity re-skin (reskin.js) off a\n// correctly-placed skeleton does the whole job.\n//\n// Positions are MESH-LOCAL (raw GLB bind space): +x FORWARD (horn/toes),\n// +y UP, +z LEFT / -z RIGHT. The model is 1.0 tall in this space and its\n// lateral centre line is z = 0. Tune live in ?rigedit=rhino and paste the\n// export back (the editor emits only name/parent/pos, so `skinSpan`/`bias`\n// are re-attached here).\n//\n// SHAPE NOTES (measured off the geometry, and per the model's own read):\n//  • His HEAD is not on top — it's the horned structure hung off the FRONT of\n//    the chest, ears flaring to |z|≈0.33 at y≈0.75-0.85, horn tip reaching\n//    x≈0.27. So `head` sits forward and low (a nod pivot at the neck), with\n//    `horn` and `earL/earR` as tips so the head owns that whole mass instead\n//    of leaving it to the torso.\n//  • The SHOULDERS sit at about EAR height (y≈0.80) — the arms hang from the\n//    top of a very short, wide torso, flare outboard to |z|≈0.43 at the\n//    forearm, and end in fists at y≈0.35.\n//  • `hump` holds the back/shoulder spike cluster (y 0.88-1.0, x<0), which is\n//    torso geometry no limb should ever carry.\n//\n// `skinSpan: 'child'`: each bone owns the slice BELOW it (shoulder→elbow is\n// the upper arm, knee→ankle the shin) — the slice three.js actually pivots\n// about that bone. See reskin.js.\n//\n// `cutWelds` / `cutPairs` / `softSkin` (all reskin.js, all opt-in) are what make\n// this model survive a rigid re-skin. The mesher shipped ONE closed shell: the\n// inner arms are welded to the hips through a membrane spanning the air gap,\n// and rigidly split that membrane fans out into a metre of shards the moment an\n// arm lifts (it is exactly what the uppercut used to drag). `cutWelds` drops\n// triangles whose ends sit on bones 3+ links apart — arm-to-hip, fist-to-knee —\n// which no joint can explain; `cutPairs` adds hips↔shoulder, only 2 links via\n// the torso but the same spurious weld. 631 triangles of 250k, plus the orphan\n// scraps left behind. `softSkin: 4` then relaxes the REAL joints over 4 rings\n// so knees and armpits bend instead of shearing.\n// Measured (tools/cliptear.mjs, all 80 clips, every cross-bone seam): worst\n// stretch +0.15 mesh units / 76x vs the old Tripo rig's +0.28 / 731x.\nexport const RHINO_RIG = {\n  skinSpan: 'child',\n  softSkin: 4,\n  cutWelds: true,\n  cutPairs: [['hips', 'shoulderL'], ['hips', 'shoulderR'], ['hipPadL', 'shoulderL'], ['hipPadR', 'shoulderR']],\n  bones: [\n    // ---- spine ---- (short and deep: pelvis at 0.47, chest at 0.72)\n    { name: 'hips', parent: null, pos: [-0.04, 0.47, 0.00], bias: 0.85 },\n    { name: 'belly', parent: 'hips', pos: [0.09, 0.50, 0.00] },\n    { name: 'hipPadL', parent: 'hips', pos: [-0.06, 0.48, 0.27] },\n    { name: 'hipPadR', parent: 'hips', pos: [-0.06, 0.48, -0.27] },\n    { name: 'torso', parent: 'hips', pos: [-0.03, 0.72, 0.00], bias: 0.8 },\n    { name: 'hump', parent: 'torso', pos: [-0.10, 0.93, 0.00] },\n    // ---- head: the FRONT horned structure, pivoting at the neck ----\n    { name: 'head', parent: 'torso', pos: [0.06, 0.70, 0.00] },\n    { name: 'horn', parent: 'head', pos: [0.26, 0.80, 0.00] },\n    { name: 'jaw', parent: 'head', pos: [0.17, 0.57, 0.00] },\n    { name: 'earL', parent: 'head', pos: [0.12, 0.79, 0.15] },\n    { name: 'earR', parent: 'head', pos: [0.12, 0.79, -0.15] },\n    // ---- LEFT arm (+z) ---- shoulder at ear height, fist low and wide\n    { name: 'shoulderL', parent: 'torso', pos: [-0.03, 0.78, 0.26] },\n    { name: 'pauldronL', parent: 'shoulderL', pos: [-0.06, 0.88, 0.32] },\n    { name: 'elbowL', parent: 'shoulderL', pos: [-0.07, 0.56, 0.36], bias: 1.1 },\n    { name: 'handL', parent: 'elbowL', pos: [0.00, 0.38, 0.36], bias: 1.1 },\n    { name: 'fistL', parent: 'handL', pos: [0.03, 0.33, 0.36] },\n    // ---- RIGHT arm (-z) ----\n    { name: 'shoulderR', parent: 'torso', pos: [-0.03, 0.78, -0.26] },\n    { name: 'pauldronR', parent: 'shoulderR', pos: [-0.06, 0.88, -0.32] },\n    { name: 'elbowR', parent: 'shoulderR', pos: [-0.07, 0.56, -0.36], bias: 1.1 },\n    { name: 'handR', parent: 'elbowR', pos: [0.00, 0.38, -0.36], bias: 1.1 },\n    { name: 'fistR', parent: 'handR', pos: [0.03, 0.33, -0.36] },\n    // ---- LEFT leg (+z) ---- long foot: ankle back at x≈-0.05, toes at +0.10\n    { name: 'thighL', parent: 'hips', pos: [-0.04, 0.46, 0.15] },\n    { name: 'kneeL', parent: 'thighL', pos: [-0.03, 0.27, 0.19], bias: 0.9 },\n    { name: 'ankleL', parent: 'kneeL', pos: [-0.05, 0.10, 0.20] },\n    { name: 'footL', parent: 'ankleL', pos: [0.10, 0.02, 0.21] },\n    // ---- RIGHT leg (-z) ----\n    { name: 'thighR', parent: 'hips', pos: [-0.04, 0.46, -0.15] },\n    { name: 'kneeR', parent: 'thighR', pos: [-0.03, 0.27, -0.19], bias: 0.9 },\n    { name: 'ankleR', parent: 'kneeR', pos: [-0.05, 0.10, -0.20] },\n    { name: 'footR', parent: 'ankleR', pos: [0.10, 0.02, -0.21] },\n  ],\n};\n"
+  }
+}

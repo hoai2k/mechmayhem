@@ -205,12 +205,34 @@ async function getBakedGlb(browser) {
 
 // Build the mech (current on-disk files) and read joint world positions across
 // a few deterministic poses. Uses the real ?debug=3d load path.
+const SEED_SCRIPT = `
+  let _seed = 0x2f6e2b1;
+  Math.random = () => {
+    _seed ^= _seed << 13; _seed ^= _seed >>> 17; _seed ^= _seed << 5;
+    return ((_seed >>> 0) % 1e6) / 1e6;
+  };`;
+
 async function capturePoses(browser, tag) {
   const page = await browser.newPage();
+  // BEFORE the page boots. Seeding inside page.evaluate is too late here — the
+  // battle harness has already built both fighters and run a few seconds of
+  // animation by the time the evaluate runs, so the random-seeded idles are
+  // already diverged. konga's `overhead` anchor read 0.061 between two runs of
+  // the same build with the late seed, and 0 with this one.
+  await page.addInitScript(SEED_SCRIPT);
   const errs = []; page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
   await page.goto(`http://127.0.0.1:${PORT}/?battle=neon&p1=${id}&p2=titanus&debug=3d`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(9000);
   const data = await page.evaluate(({ TEST_POSES, JOINTS }) => {
+    // Same seeding as captureSkin, and for the same reason: the anchors ride
+    // joints the signatures twitch off Math.random(), so konga's worst anchor
+    // read 0.070 between two runs of the SAME build and tripped a 0.06
+    // tolerance that exists to catch an anchor left on a stale bone.
+    let _seed = 0x2f6e2b1;
+    Math.random = () => {
+      _seed ^= _seed << 13; _seed ^= _seed >>> 17; _seed ^= _seed << 5;
+      return ((_seed >>> 0) % 1e6) / 1e6;
+    };
     const F = window.__fighters, f = F[0];
     if (!f?.mech?.isGLB) return { err: 'mech is not GLB (fell back to procedural?)' };
     F[1].controlsLocked = true; f.controlsLocked = true;
@@ -335,7 +357,15 @@ const SKIN_EPS = 0.004;   // 0.4% of body height
 
 async function captureSkin(browser, tag) {
   const page = await browser.newPage();
-  const errs = []; page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+  await page.addInitScript(SEED_SCRIPT);
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+  // A build step that quietly declines leaves a console.warn and nothing else —
+  // that is how the fist split turned out to be missing on a baked titanus.
+  page.on('console', (m) => {
+    const t = m.text();
+    if (/fist split|falling back|manifest\[|no clip|failed/i.test(t)) errs.push('warn: ' + t.slice(0, 160));
+  });
   await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(5000);
   const data = await page.evaluate(async ({ id, NV, NF }) => {
@@ -699,6 +729,16 @@ if (NOISE) {
 }
 
 let mutated = false;
+let undo = null;
+function rollback() {
+  if (!undo) return;
+  fs.writeFileSync(undo.glbPath, undo.glb);
+  fs.writeFileSync(MANIFEST, undo.manifest);
+  fs.writeFileSync(path.join(ROOT, 'src/mechs/rigs/index.js'), undo.rigIndex);
+  const rp = path.join(ROOT, `src/mechs/rigs/${id}.rig.js`);
+  if (undo.rig !== null) fs.writeFileSync(rp, undo.rig);
+  else if (fs.existsSync(rp)) fs.rmSync(rp);
+}
 try {
   const origManifest = fs.readFileSync(MANIFEST, 'utf8');
   const entry = JSON.parse(origManifest)[id];
@@ -724,6 +764,18 @@ try {
     { renames: report.renames, jointBones: report.jointBones });
 
   console.log('3/5  writing baked GLB + cleaned manifest (temporarily) for fidelity check…');
+  // WHAT THIS MECH TOUCHES, kept in memory so undoing it is surgical. The
+  // revert used to be `git checkout -- public/models src/mechs/rigs`, which is
+  // fine for one dry run and wrong in a batch: it also throws away every mech
+  // baked before this one. A run over the roster with four failures in it
+  // ended with nothing applied at all.
+  undo = {
+    glbPath, glb: fs.readFileSync(glbPath),
+    manifest: origManifest,
+    rig: fs.existsSync(path.join(ROOT, `src/mechs/rigs/${id}.rig.js`))
+      ? fs.readFileSync(path.join(ROOT, `src/mechs/rigs/${id}.rig.js`), 'utf8') : null,
+    rigIndex: fs.readFileSync(path.join(ROOT, 'src/mechs/rigs/index.js'), 'utf8'),
+  };
   if (APPLY) archiveSource(entry, removed, origManifest, report);
   fs.writeFileSync(glbPath, buffer);                 // overwrite (restored below if dry run)
   fs.writeFileSync(MANIFEST, cleanManifest);
@@ -798,9 +850,8 @@ try {
   // whoever is reading the scrollback — and a batch run over the roster has no
   // one reading. --force is the deliberate override.
   if (APPLY && !ok && !FORCE) {
-    const { execSync } = await import('node:child_process');
-    execSync('git checkout -- public/models src/mechs/rigs', { cwd: ROOT });
-    console.log(`\nNOT APPLIED — the check failed (${why.join(' + ')}) and the tree is back as it was.`);
+    rollback();
+    console.log(`\nNOT APPLIED — the check failed (${why.join(' + ')}) and ${id} is back as it was.`);
     console.log('Re-run with --force to write it anyway.');
     process.exit(2);
   }
@@ -825,11 +876,8 @@ try {
   // fidelity check can run, so an exception in between used to leave the repo
   // half-baked and the next command working against it.
   if (!APPLY && mutated) {
-    const { execSync } = await import('node:child_process');
-    try {
-      execSync('git checkout -- public/models src/mechs/rigs', { cwd: ROOT });
-      console.log('(dry run: repo restored)');
-    } catch (e) { console.error('COULD NOT RESTORE — check git status:', e.message); }
+    try { rollback(); console.log(`(dry run: ${id} restored)`); }
+    catch (e) { console.error('COULD NOT RESTORE — check git status:', e.message); }
   }
   await browser.close();
 }
