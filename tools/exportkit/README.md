@@ -4,11 +4,20 @@ Self-contained rigged, skinned, animated mechs. Nothing here needs the game.
 Copy this whole directory into another project and go.
 
 ```
-<id>.glb        the mech: geometry, materials, skeleton, anchors, animation
-<id>.json       what is in it — anchors, clips, and how it was folded
-index.json      all mechs at a glance, for picking one at runtime
-mechkit.js      a small runtime for three.js (below)
-lib/            the REAL animation system, source (below)
+<id>.glb          the mech: geometry, materials, skeleton, anchors, animation
+<id>.json         what is in it — anchors, clips, and how it was folded
+index.json        all mechs at a glance, for picking one at runtime
+characters.json   who they are and what they do — stats, every attack with its
+                  real numbers, personality, and the engine capabilities each
+                  body needs
+characters.md     the same as a readable dossier per character
+GEOMETRY.md       what the ENGINE has to build per body (the rocket fist, the
+                  seam cuts, the burners, surface walking) — the behaviour a
+                  model cannot carry
+mechkit.js        a small runtime for three.js (below)
+lib/              the REAL animation system, source (below)
+art/<id>/         badge, poster, thumbnail, a four-view turnaround and one
+                  action pose, all rendered FROM THE EXPORT
 ```
 
 ## What an exported mech guarantees
@@ -86,7 +95,9 @@ From the game repo, with the dev server running:
 
 ```
 node tools/export-mech.mjs --all     # the .glb + .json per mech
-node tools/export-bundle.mjs         # lib/, mechkit.js, index.json, this file
+node tools/export-bundle.mjs         # lib/, mechkit.js, index.json, the docs
+node tools/export-chars.mjs          # characters.json/.md + badge/poster/thumb
+node tools/export-art.mjs            # turnarounds + an action pose per mech
 node tools/exportcheck.mjs --all     # verify: loads each one with a bare
                                      # GLTFLoader and checks size, facing,
                                      # joints, anchors and that clips move bones
