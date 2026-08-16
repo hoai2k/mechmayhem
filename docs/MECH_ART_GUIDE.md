@@ -3,8 +3,8 @@
 **Audience: any AI (or human) continuing this work in a fresh session.**
 This is the entry point for turning a concept image of a mech into a
 well-rigged, animated, textured in-game character. It routes between the two
-implemented pipelines, records the craft knowledge learned building the first
-12 mechs, and lists the contracts that must survive any rebuild.
+implemented pipelines, records the craft knowledge learned building the
+roster, and lists the contracts that must survive any rebuild.
 
 Read this first. Deep dives: [IMAGE_TO_MECH.md](IMAGE_TO_MECH.md) (hand-built
 route), [CHARACTER_PIPELINE.md](CHARACTER_PIPELINE.md) (rigged-GLB route),
@@ -19,7 +19,7 @@ Given a concept image of a mech, three routes exist. All are implemented.
 | Route | Fidelity | Cost | Time | When |
 |---|---|---|---|---|
 | **A. Service GLB** (Meshy/Tripo image→3D + auto-rig) | highest (microsurface detail from the image) | ~$1–3 credits/model + API key | minutes | hero-quality assets; credits available |
-| **B. Hand-sculpted in-engine** (parts-kit geometry + synthesized PBR skins) | high silhouette/palette/wear fidelity, reduced greeble density | free | 1–3 h/mech | no credits; full control; all 12 mechs currently use this |
+| **B. Hand-sculpted in-engine** (parts-kit geometry + synthesized PBR skins) | high silhouette/palette/wear fidelity, reduced greeble density | free | 1–3 h/mech | no credits; full control; today this is every mech's FALLBACK body rather than its shipped one |
 | **C. Hybrid** | — | — | — | Route A for hero mechs, B for the rest; both coexist per-mech via the manifest |
 
 Route A models **override** route B automatically: any mech with an entry in
@@ -245,21 +245,42 @@ just silently loses firepower or personality. Treat as required.
 **Every mech** (factory auto-creates fallbacks at the hands if the design
 doesn't place them): `anchors.muzzleR` (ALL ranged fire + most specials
 originate here — put it at the weapon tip), `anchors.muzzleL` (dual-weapon
-mechs), `anchors.core` (chest; carries the colored point light).
+mechs), `anchors.core` (chest; carries the colored point light), and
+`boostL`/`boostR` under the soles (every anchor whose name starts with `boost`
+burns a booster flame while the hover jets are lit — so moving a mech's
+thrusters is anchor work, not code).
+
+**THE TABLE BELOW IS A SUMMARY. `src/mechs/contract.js` IS THE CONTRACT** —
+the same data as executable form, checked on every mech build, which warns
+loudly instead of failing silently. When you add an engine-driven joint or
+anchor to a design, add it there in the same commit; this prose is a reading
+aid and will drift, that file cannot.
+
+It also draws a distinction this table can't: on the **GLB** route `design()`
+never runs, so design-created extras can't exist. Only the universal anchors
+plus each mech's `glbAnchors` (reinstated through the manifest `muzzles` block)
+are *required* there; `glbBones` are design joints a custom rig reinstates as
+real bones of the same name. Anything else is reported as a KNOWN LOSS — made
+visible rather than treated as a violation.
 
 | Mech | Extra joints (engine-driven) | Extra anchors | Driven by |
 |---|---|---|---|
-| vulcan | `gatlingL`, `gatlingR` (+ alias `J.gatling = J.gatlingR`) | `podL` (missile special origin) | animator spins both while firing |
-| colossus | `mortars` (child of torso) | `muzzleR`+`muzzleL` ON `J.mortars` at tube mouths | animator pitches when firing; barrage alternates tubes |
-| nova | `halo` (child of torso; geometry centered on it) | — | animator spins `.z` constantly |
-| fenrir | `tail0→tail1→tail2` chain (tail0 child of hips) | `clawL/clawR` | animator wags tails |
-| viper | `bladeL`/`bladeR` (children of hands) | `bladeL/bladeR` | animator flares blades |
-| wraith | `rifle` (child of handR; on the GLB a custom-rig BONE on handL — the gun is in the model's left hand) | `muzzleR`+`scope` on the rifle, `eye` in the hood | railgun fires from muzzleR; the GLB levels the muzzle-down barrel on the shot (glbanim `levelBarrel`) |
-| tempest | — | `coilL`/`coilR` at coil tips | static-field lightning FX |
-| nullbot | — | `muzzleR` at right palm; `core` behind the chest sigil | animator strobes the `glow2` corruption shards; fighter.updateNullbotAura pops glitch flecks off the joints |
-| aegis | `shield` (child of elbowL) | `shield` | reserved for shield FX |
+| vulcan | `gatlingL`, `gatlingR` | `podL`, `podR` | animator spins both while firing; missile special ripple-fires the pods |
+| viper | `bladeL`, `bladeR` (GLB: real bones off the forearms) | `bladeL`, `bladeR` | animator flares them; the bone is what `regrowWeapon` collapses on a thrown dagger, the anchor draws the blade trail |
 | rhino | — | `horn` (tip) | reserved |
-| titanus/inferno/glacier | — | inferno needs `muzzleL` too | dual flamethrowers |
+| tempest | — | `coilL`, `coilR` at coil tips | static-field lightning FX; the manifest also hangs `stackL`/`stackR` for the chimney spark crackle |
+| fenrir | `tail0→tail1→tail2` (tail0 child of hips) | `clawL`, `clawR` | the gait's own `tail` dial group wags the chain |
+| colossus | `mortars` (child of torso) | — | animator pitches when firing; barrage alternates tubes |
+| wraith | `rifle` (GLB: a rigid bone on handL — the gun is in the model's left hand) | `scope`, `eye` | railgun fires from `muzzleR` on the rifle; `eye` is the DEATH SWARM flare origin |
+| cranky | `jawL`, `jawR` | — | pincer gape/snap |
+| saurion | `tail0→tail1→tail2` | — | raptor tail S-wave |
+| frogger | `shoulderL2/R2`, `elbowL2/R2` | — | the second (cannon) arm pair, counter-swung by the animator |
+| jerry | `antL/antR`, `armS0-2L/R`, `legDL/legDR` | — | antenna snaps, claw-arm nest ripple, rear strut-leg creep |
+| nullbot | — (material slot `glow2`) | — | animator strobes the corruption shards; `updateNullbotAura` pops glitch flecks off the joints |
+| konga | `jaw`, `browL/R` (the face layer), `podL/podR` | `podL`, `podR`, `fistL`, `fistR` | the pods are what the ranged attack and the ult fire from, and the animator aims them |
+| tritone | `jaw`, `browL/R`, `frill`, `tail0-2`, `cannonL/R` | `hornL`, `hornR`, `hornNose`, `frillPods` | frill flares on the brace, the tail rides the gait's tail layer, the cannons traverse and recoil |
+| inferno | — | manifest `stackL`/`stackR` (chimneys) | dual flamethrowers off the universal muzzles; `stackFx` burns the chimneys and the hand torches |
+| titanus / glacier | — | — | the universal anchors suffice |
 
 Also preserve: the function signature `(A, D, J, anchors, def)`, the mech's
 `restPose` in roster (digitigrade mechs: viper, fenrir, wraith), and roster
@@ -329,17 +350,34 @@ those to ADVISORY (titanus, wraith, and the different-model alts aegis/jerry).
   point its parent's span already ends at, so it can never win a vertex. End
   every driven chain in a static tip bone (see `rigs/titanus.rig.js`).
 
-## 7. Current state (2026-07-06)
+## 7. Current state
 
-All 12 mechs: hand-sculpted route B, with PBR skin recipes, verified.
-VULCAN and TITANUS are matched to user-provided canonical images; the other
-10 await canonical images (prompts in canonical-prompts.md — regenerate →
-commit to `docs/canonical/` → re-run §1–§4 per mech to tighten likeness).
-Route A is fully built and tested (`?rigtest`), and NULLBOT now ships on it:
-`public/models/mech_nullbot.glb` (rigged, no animations — the game's clips
-are retargeted onto it) with a custom bind pose + `yawOffset: 180` in the
-manifest. Its glow2 corruption shards + strobing glitch lamp are re-applied
-over the model by `nullbotGlbDress` (`designs/nullbot.js`, wired through
-`GLB_DRESS` in `designs.js`), so the animator strobe contract (§5) holds.
-`?showcase` now builds through `createMech`, so GLB overrides appear in the
-judging views too. The other mechs remain hand-sculpted route B.
+**The roster is 17, every one of them playable, and every one of them ships
+on Route A.** All 17 have an entry in `public/models/manifest.json`, so the
+GLB is what a player sees; the hand-sculpted Route B body survives underneath
+as the automatic fallback (`?debug=fallback` forces it, and it is also what a
+broken or missing GLB falls back to). AEGIS and NOVA were retired rather than
+re-rigged — their models, manifest entries, designs, finishers and icons are
+kept in `archive/mechs/` (see its README).
+
+All 17 have canonical concept art committed under `docs/canonical/`.
+
+None of the shipped GLBs carries a baked animation clip — the game's clips are
+retargeted onto every one of them, which is what makes one animation library
+serve seventeen very different bodies.
+
+**13 of the 17 are BAKED** (`tools/bake-glb.mjs` — the custom rig, skinOps,
+seam cuts, drops and bone names folded into the .glb, those manifest fields
+stripped, the untouched original archived to `public/models/source/`). The
+four that are not, and still carry live manifest edits, are **titanus**
+(`rig`, `skinOps`), **jerry** (`rig`, `skinOps`, `boneOverrides`, `seamCuts`),
+**tritone** (`rig`, `skinOps`) and **nullbot** (`skinOps`, `boneOverrides`).
+Orientation and size (`yawOffset`, `modelScale`, `heightScale`) are never
+folded — the game derives live quantities from the runtime scale. See
+[BAKE_GLB.md](BAKE_GLB.md).
+
+NULLBOT was the first Route A intake and is still the worked example of
+dressing one: its `glow2` corruption shards and strobing glitch lamp are
+re-applied over the model by `nullbotGlbDress` (`designs/nullbot.js`, wired
+through `GLB_DRESS`), so the animator strobe contract (§5) holds on a body
+whose `design()` never runs.

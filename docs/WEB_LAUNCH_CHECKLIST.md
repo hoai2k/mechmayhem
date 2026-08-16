@@ -4,8 +4,14 @@ Everything below was measured or read out of this repo, not assumed. Items are
 grouped by *what stops a launch* rather than by subsystem.
 
 **Status: the section 1 blockers are done.** What remains is section 2 polish,
-the section 3 QA gate, and the store page. Two decisions are still the owner's:
-the project's own license, and whether AEGIS/NOVA ship or stay hidden.
+the section 3 QA gate, and the store page. One decision is still the owner's:
+the project's own license.
+
+*(The AEGIS/NOVA question below is settled — both were RETIRED to
+`archive/mechs/` rather than finished. The roster is 17, no mech carries
+`hidden: true`, and SHOW ALL ROBOTS therefore un-hides nothing today. The
+toggle is harmless as shipped, and the notes are left in place because they
+still describe what to do the next time a WIP mech exists.)*
 
 ## Building the thing you upload
 
@@ -151,19 +157,31 @@ exist in a static build.
 
 ### 2.2 Clean up the shipped SETTINGS menu
 
-`src/game/boot.js:83-96` offers four items: SOUND, **INFINITE ULTIMATES**,
-**SHOW ALL ROBOTS**, RELOAD.
+The menu (`settingsItems()` in `src/game/boot.js`) has since grown and been
+cleaned up. It now offers: MUSIC VOLUME (only when a player is available),
+ROUND TIME, SFX VOLUME, SOUND FX (RECORDED/SYNTH), REVERSE CAMERA Y,
+SPLIT-SCREEN FX, SHOW ALL ROBOTS and ARENA DESIGN.
 
-- INFINITE ULTIMATES is a debug cheat. Keep it deliberately (labelled as a
-  cheat/party option) or hide it.
-- SHOW ALL ROBOTS un-hides AEGIS and NOVA, which are unfinished. If they ship
-  hidden, a player who finds this toggle gets a WIP mech and blames the game.
-  Hide the toggle in production builds, or finish both mechs.
-- Missing and wanted: a **graphics quality option**. There is none today —
-  `engine.js` hard-codes `pixelRatio` clamp 1–1.75, soft shadows, bloom, FXAA
-  and a PMREM environment for everyone. A single LOW/MED/HIGH switch (pixel
-  ratio, shadows off, bloom off) is the difference between "runs badly on my
-  laptop, 2 stars" and "runs fine."
+- **INFINITE ULTIMATES is no longer a menu item** — the cheat survives only
+  behind `?debug=ultimates` / the `rw.infiniteUlts` pref, so a player cannot
+  stumble into it. (Its `settings.infiniteUlts.*` strings in `core/text.js`
+  are now orphaned, along with `settings.sound.*`, `settings.music.*` and
+  `settings.reload` — harmless, but they are dead ids.)
+- SOUND: ON/OFF is deliberately *not* here: the speaker button beside the gear
+  is the one control for it.
+- ~~SHOW ALL ROBOTS un-hides AEGIS and NOVA, which are unfinished.~~ **Settled:
+  both were retired to `archive/mechs/`.** No mech carries `hidden: true`, so
+  the toggle reveals nothing and is safe to ship. The rule it protects still
+  stands for the next WIP mech: hide the toggle in production builds, or
+  finish the mech.
+- Still missing and wanted: a **general graphics quality option**. SPLIT-SCREEN
+  FX landed since and is a partial one — it drops bloom / distance haze / FXAA
+  in split-screen, and its DEFAULT mode drops them automatically for the
+  session when the frame rate actually suffers — but it only covers the split
+  view. The rest is still hard-coded in `engine.js` for everyone: `pixelRatio`
+  clamp 1–1.75, soft shadows, bloom, FXAA and a PMREM environment. A single
+  LOW/MED/HIGH switch is the difference between "runs badly on my laptop, 2
+  stars" and "runs fine."
 
 ### 2.3 Teach the controls ✅ (landed separately)
 
@@ -284,8 +302,8 @@ three.js notice all shipped, and HOW TO PLAY landed separately. What is left:
    surprise you.
 2. A graphics quality option — §2.2. The difference between "runs badly on my
    laptop, 2 stars" and "runs fine".
-3. Decide AEGIS/NOVA: finish them, or hide the SHOW ALL ROBOTS toggle so
-   players cannot reach two unfinished mechs — §2.2.
+3. ~~Decide AEGIS/NOVA~~ — done: both retired to `archive/mechs/`, so SHOW ALL
+   ROBOTS reaches no unfinished mech — §2.2.
 4. Pick a license for your own code — §1.5.
 
 Everything else is polish that can land in a post-launch update.

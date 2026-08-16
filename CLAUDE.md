@@ -1,9 +1,10 @@
 # ROBOTWORLD — agent onboarding
 
 Browser 3D mech arena fighter (Three.js + Vite, plain ES modules, no TS).
-12 mechs, 12 destructible arenas, 4-player local multiplayer (KB + Xbox
-pads), AI opponents, procedural everything (models, textures, animation,
-audio). Progress history: `TASKS.md`.
+17 mechs (all playable — no `hidden` ones today), 12 destructible arenas,
+4-player local multiplayer (KB + Xbox pads), AI opponents. Models are rigged
+GLBs over a procedural parts-kit fallback; ANIMATION, textures and the SFX
+fallback bank are all generated. Progress history: `TASKS.md`.
 
 ## Commands
 
@@ -2484,9 +2485,11 @@ nothing behind it. Art that is requested-but-not-delivered is listed in
 guarding it; a pending entry that turns up IS reported, so the list cannot rot
 into crying wolf. `node tools/assetcheck.mjs` is the same check from the
 command line, plus a stray scan of the directories nothing reads.
-`PENDING_ASSETS` IS EMPTY TODAY — every texture the game declares is present,
-so every one of them is guarded and a rename or a deletion is reported rather
-than silently falling back to procedural.
+`PENDING_ASSETS` CARRIES EXACTLY ONE ENTRY TODAY — `prop/prop_dino_egg`,
+saurion's egg shell, painted procedurally until the art lands. Every other
+texture the game declares is present, so every one of those is guarded and a
+rename or a deletion is reported rather than silently falling back to
+procedural.
 
 ## Architecture map
 
@@ -2607,7 +2610,10 @@ than silently falling back to procedural.
   here), designs/<id>.js (one file per mech; parallel-agent-safe), parts.js
   (sculpting vocabulary + Assembler), factory.js (rig + materials),
   animations.js + animator.js (pose-blend engine), gltf.js + rigadapter.js
-  (GLB loading + humanoid retargeting), roster `skin` blocks drive pbrtex
+  (GLB loading + humanoid retargeting), signatures.js (per-mech motion applied
+  last, over the shared gait/clip pipeline), colorscheme.js (the 11 paint jobs
+  + the fire tint rule), contract.js (MECH_ART_GUIDE §5 as executable data,
+  checked on every mech build), roster `skin` blocks drive pbrtex
 - PER-ROUTE animation: when a move only works on ONE of a mech's two models,
   author it as a `GLB_CLIP_VARIANTS` entry compiled under the SHARED clip's name
   and point the mech's glbanim profile `clipOverrides` at it. The roster keeps the
@@ -2617,7 +2623,8 @@ than silently falling back to procedural.
   a clip in `SMASH_MIRRORS` needs its `*Mirror` name overridden too, or half the
   swings fall through to the shared clip
 - `src/combat/` — fighter.js (state machine), specials.js (24 specials/ults
-  by id), projectiles.js, effects.js (pooled VFX), poseshell.js (a mech FROZEN
+  by id), movekit.js (the shared move-building vocabulary the specials draw
+  on), projectiles.js, effects.js (pooled VFX), poseshell.js (a mech FROZEN
   AND DETACHED — a throwaway copy of the body exactly as drawn this frame, free
   to be moved, scaled and faded while the real one keeps fighting. Both callers
   are wraith's: Ghost Protocol's gliding spectre and the loom taunt's departing
@@ -2626,18 +2633,25 @@ than silently falling back to procedural.
   vertex by vertex; copying the matrix floats the copy metres off the ground)
 - `src/arena/` — themes.js (12 arena configs), arena.js, destructible.js
   (instanced chunk buildings), props.js
-- `src/game/` — boot.js (screen flow), world.js, match.js, camera.js
-  (combine/split), input.js, ai.js, predict.js (menu-idle prefetch: pre-ROLLS
+- `src/game/` — boot.js (screen flow), world.js, battle.js (the match's own
+  setup/teardown, incl. the per-round arena swap), match.js, camera.js
+  (combine/split), input.js, ai.js, finisher/<id>.js (one cinematic finisher
+  per mech; parallel-agent-safe), predict.js (menu-idle prefetch: pre-ROLLS
   the RANDOM arena / robots / next song so the menus can consume the same
   values it downloaded — `?prefetch=0` off); `src/ui/` — menus.js, hud.js
+- `src/core/text.js` — EVERY user-facing string, under a dotted id, pulled out
+  with `t(id, params)`. Never write a player-visible literal in game code; mech
+  and arena text is applied onto ROSTER/THEMES at import time, so gameplay code
+  keeps using `def.name`. Also the whole translation surface.
 - `public/models/manifest.json` — drop rigged GLBs here to override any
   mech's procedural model (auto-fallback if missing/broken)
 
 ## House rules
 
 - Before committing: `git config user.email noreply@anthropic.com && git config user.name Claude`.
-- Parallel agents may only fan out over `src/mechs/designs/<id>.js` and
-  `src/arena/{themes,props}.js` — everything else is shared, single-writer.
+- Parallel agents may only fan out over `src/mechs/designs/<id>.js`,
+  `src/game/finisher/<id>.js` and `src/arena/{themes,props}.js` — everything
+  else is shared, single-writer.
 - Verify visually (screenshots) before claiming art changes work; verify
   `npx vite build` + a soak before claiming combat changes work.
 - RE-RIGGING NEVER LOSES ANCHORS. Muzzles/anchors in `manifest.json` are

@@ -4,6 +4,13 @@ All elemental particle textures are generated procedurally (fractal noise
 flame flipbook, billowy smoke cells, glinting droplet, glossy goop blobs,
 ice sparkles) — the game needs NO image files to look right.
 
+> **Overrides HAVE been delivered and are in use today**: `src/textures/sprite/`
+> ships `fire_atlas.png`, `smoke_atlas.png`, `slime_atlas.png`, `droplet.png`
+> and `ice_sparkle.png` with a `manifest.json`. The procedural generators are
+> still there behind them — delete a file (and its manifest entry) and that
+> effect falls back to its generated texture. The rest of this page is how to
+> add or replace one.
+
 To swap in hand-made / AI-generated sprites, drop PNGs into
 `src/textures/sprite/` plus a `src/textures/sprite/manifest.json`:
 

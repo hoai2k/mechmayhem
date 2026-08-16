@@ -1,4 +1,15 @@
-# Canonical Character Prompt Sheets — the 12 mechs
+# Canonical Character Prompt Sheets
+
+> **State of the set: every one of the 17 roster mechs has canonical art
+> committed under `docs/canonical/`.** This sheet is the recipe for the next
+> one, not a list of outstanding work.
+>
+> **The numbered sheets below are the ORIGINAL 12-mech run.** Two of them —
+> **§3 AEGIS** and **§5 NOVA** — are RETIRED mechs kept in `archive/mechs/`,
+> and the seven added since (CRANKY, SAURION, FROGGER, JERRY, NULLBOT, KONGA,
+> TRITONE) have no sheet here; their canonical images and specs live in
+> `docs/canonical/` and `docs/canonical/SPECS.md`. The shared style block is
+> the part that still applies to everything.
 
 Style-locked prompts for generating the canonical images (Midjourney, DALL-E,
 SDXL, Flux, etc.). The style block keeps the whole roster coherent: MechWarrior
