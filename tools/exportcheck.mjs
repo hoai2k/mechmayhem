@@ -93,18 +93,50 @@ for (const id of ids) {
     const gotShoulder = bones.shoulderL && bones.shoulderR
       ? bones.shoulderL.getWorldPosition(new V()).sub(bones.shoulderR.getWorldPosition(new V())).normalize() : null;
 
-    // ---- anchors ----
-    const anchorMiss = [], anchorOff = [];
+    // ---- anchors: present, on the right bone, AND IN THE RIGHT PLACE ----
+    // The placement half is not a formality. An anchor is a rigid child of its
+    // bone, so the pose-independent quantity is the LENGTH of its offset from
+    // that bone, and comparing it as a fraction of body height cancels the
+    // units — which is what makes the export and the posed game build
+    // comparable at all. Folding the transform into the skeleton used to divide
+    // every one of these by the model scale (titanus: all four at 0.111x, i.e.
+    // 1/9.044, muzzleR arriving 1.2% of a body height from the palm instead of
+    // 10.9%) and this check reported "all present, on the right bones".
+    const anchorMiss = [], anchorOff = [], anchorMoved = [];
+    const offsetOf = (node, host, H) => node.getWorldPosition(new V())
+      .distanceTo(host.getWorldPosition(new V())) / H;
     for (const a of wantAnchors) {
       const n = nodes[a.node];
       if (!n) { anchorMiss.push(a.name); continue; }
       const host = n.parent;
-      if (!host || host.name !== a.bone) anchorOff.push(`${a.name}: on ${host?.name || '?'} not ${a.bone}`);
+      if (!host || host.name !== a.bone) { anchorOff.push(`${a.name}: on ${host?.name || '?'} not ${a.bone}`); continue; }
+      // the same anchor on the live build, against its own host bone
+      const refNode = mech.anchors?.[a.name];
+      if (!refNode) continue;
+      let refHost = null;
+      for (let p = refNode.parent; p; p = p.parent) if (p.isBone) { refHost = p; break; }
+      if (!refHost) continue;             // rides the virtual rig; nothing to compare
+      const want = offsetOf(refNode, refHost, ref.size.y);
+      const have = offsetOf(n, host, got.size.y);
+      if (Math.abs(want - have) > 0.005) {
+        anchorMoved.push(`${a.name}: ${(have * 100).toFixed(1)}% of height from ${a.bone}, authored at ${(want * 100).toFixed(1)}%`);
+      }
     }
 
-    // ---- animation: does playing one MOVE anything? ----
+    // ---- animation ----
+    // TWO questions, and the second is the one an importer actually depends on.
+    //
+    //   Does playing a clip MOVE anything? A track that binds to nothing is
+    //   silent, not an error.
+    //   Does the clip STATE THE WHOLE SKELETON? An AnimationMixer writes the
+    //   bones a clip has tracks for and leaves every other bone where the last
+    //   clip left it, so a clip that names only the joints it moves is not a
+    //   pose — it is a delta onto whatever came before, and an attack imports
+    //   as an upper body welded onto the previous animation. Inside this game
+    //   the animator supplies the rest every frame; nothing outside it does.
     const clipReport = [];
     const mixer = new THREE.AnimationMixer(scene);
+    const boneNames = Object.keys(bones);
     for (const clip of g.animations) {
       const before = Object.values(bones).map((b) => b.quaternion.clone());
       const act = mixer.clipAction(clip);
@@ -114,7 +146,10 @@ for (const id of ids) {
       let moved = 0;
       Object.values(bones).forEach((b, i) => { if (b.quaternion.angleTo(before[i]) > 1e-4) moved++; });
       act.stop();
-      clipReport.push({ name: clip.name, dur: +clip.duration.toFixed(2), tracks: clip.tracks.length, moved });
+      const driven = new Set(clip.tracks.map((t) => t.name.split('.')[0]));
+      const uncovered = boneNames.filter((n) => !driven.has(n));
+      clipReport.push({ name: clip.name, dur: +clip.duration.toFixed(2), tracks: clip.tracks.length, moved,
+        uncovered: uncovered.length, missing: uncovered.slice(0, 4) });
     }
     mixer.setTime(0);
 
@@ -127,15 +162,17 @@ for (const id of ids) {
       minY: +got.min.y.toFixed(3),
       facingDeg: refShoulder && gotShoulder
         ? +(Math.acos(Math.max(-1, Math.min(1, refShoulder.dot(gotShoulder)))) * 180 / Math.PI).toFixed(2) : null,
-      anchorMiss, anchorOff,
+      anchorMiss, anchorOff, anchorMoved,
       clips: clipReport, animations: g.animations.length,
     };
   }, { id, rel, JOINTS, wantAnchors: side.anchors });
 
   const sizeErr = Math.max(...[0, 1, 2].map((i) => Math.abs(r.size[i] - r.refSize[i]) / (r.refSize[i] || 1)));
   const dead = r.clips.filter((c) => c.moved === 0).map((c) => c.name);
+  const partial = r.clips.filter((c) => c.uncovered > 0);
   const ok = r.jointsMissing.length === 0 && sizeErr <= 0.01 && (r.facingDeg ?? 0) <= 1
-    && !r.anchorMiss.length && !r.anchorOff.length && r.animations > 0 && !dead.length;
+    && !r.anchorMiss.length && !r.anchorOff.length && !r.anchorMoved.length
+    && r.animations > 0 && !dead.length && !partial.length;
   if (!ok) bad++;
 
   console.log(`\n== ${id} ==`);
@@ -144,13 +181,18 @@ for (const id of ids) {
   console.log(`   size:     ${r.size.join(' x ')}   game builds ${r.refSize.join(' x ')}`
     + `   (${(sizeErr * 100).toFixed(2)}% off)   feet at y ${r.minY}`);
   console.log(`   facing:   ${r.facingDeg === null ? '(no shoulders)' : r.facingDeg + '° from the game build'}`);
+  const anchorsOk = !r.anchorMiss.length && !r.anchorOff.length && !r.anchorMoved.length;
   console.log(`   anchors:  ${side.anchors.length} declared`
     + `${r.anchorMiss.length ? `   MISSING: ${r.anchorMiss.join(', ')}` : ''}`
     + `${r.anchorOff.length ? `   WRONG BONE: ${r.anchorOff.join('; ')}` : ''}`
-    + `${!r.anchorMiss.length && !r.anchorOff.length ? '   all present, on the right bones' : ''}`);
+    + `${r.anchorMoved.length ? `   MOVED: ${r.anchorMoved.join('; ')}` : ''}`
+    + `${anchorsOk ? '   all present, on the right bones, where they were authored' : ''}`);
   console.log(`   clips:    ${r.animations}`
     + `   ${r.clips.reduce((s, c) => s + c.tracks, 0)} tracks`
     + `   ${dead.length ? `SILENT: ${dead.join(', ')}` : 'every clip moves bones'}`);
+  console.log(`   coverage: ${partial.length ? `${partial.length} clip(s) DO NOT state the whole skeleton — `
+    + partial.slice(0, 3).map((c) => `${c.name} (${c.uncovered} bones adrift: ${c.missing.join(', ')}…)`).join('; ')
+    : `every clip states all ${r.bones} bones — a clip is a pose, not a delta`}`);
   console.log(`   ${ok ? 'PASS ✓ stands up with no game around it' : 'FAIL ✗'}`);
 }
 await page.close();

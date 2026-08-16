@@ -22,10 +22,13 @@ art/<id>/         badge, poster, thumbnail, a four-view turnaround and one
 
 ## What an exported mech guarantees
 
-- **Native units are game units, `+z` is forward, the feet rest on `y = 0`.**
-  Import it and it stands up the right way round at the right size. (In the
-  game these live in a manifest as a yaw and two scale factors; they are folded
-  into the vertices and bone rest offsets here.)
+- **World units are game units, `+z` is forward, the feet rest on `y = 0`.**
+  Import it and it stands up the right way round at the right size. In the game
+  the yaw and the two scale factors live in a manifest; here they ride an
+  `Armature` NODE above the joints — the same layout Blender emits — so the
+  mesh, the skeleton and the clips are all in the model's own frame and the
+  transform applies rigidly on top. **The consequence to know: bone-local units
+  are NOT world units.** See "Gotchas" below.
 - **The skeleton carries the 15 game joints by name** — `hips`, `torso`,
   `head`, `shoulderL/R`, `elbowL/R`, `handL/R`, `thighL/R`, `kneeL/R`,
   `ankleL/R` — plus whatever else that body has: tails, claws, chimneys,
@@ -37,9 +40,44 @@ art/<id>/         badge, poster, thumbnail, a four-view turnaround and one
   (`bladeL/R`, `podL/R`, `stackL/R`, `scope`, `eye`). They are hand-placed, and
   they ride the bone they belong to, so they follow the animation.
 - **Every animation is a real glTF clip.** `walk` and `run` are looping gait
-  cycles; the rest are one-shot actions named for what they are — `light1`,
-  `heavy`, `block`, `taunt`, `knockdown`, `getup`, `dead`, and each mech's own
-  moves. 22–30 clips per mech.
+  cycles; `battleIdle`, `jumpRise`, `jumpFall`, `hover` and `crouch` are held
+  poses (in the game these are animator *layers*, not clips, so they are
+  sampled and held); the rest are one-shot actions named for what they are —
+  `light1`, `heavy`, `block`, `taunt`, `knockdown`, `getup`, `dead`, and each
+  mech's own moves. 27–35 clips per mech.
+- **Every clip states the WHOLE skeleton.** A clip is a complete pose, not a
+  delta: play any one on a bare `AnimationMixer` from any previous state and
+  you get the same result. That is deliberate and it is what makes a plain
+  mixer enough — see "Gotchas".
+
+## Gotchas
+
+Three things that are true of this export and have bitten a real integration.
+
+**Bone-local units are not world units.** The yaw and scale ride the `Armature`
+node above the joints, so the skeleton is in the model's own (smaller) frame.
+Reading is fine — `getWorldPosition()` on a bone or an anchor answers in world
+units. *Writing* is where it bites: anything you measure in world units and
+assign to a bone-local `position` must be divided by the armature scale first
+(`mech.scale` in mechkit), **and by only that** — dividing by the camera's zoom
+as well is the same mistake twice, and either one puts the mech through the
+floor.
+
+**You still have to ground the feet per state.** The bind pose rests on `y = 0`,
+but a mech's carriage sits some way above its own floor line and each pose sits
+differently — a crouch is lower than an idle, a jump leaves the ground
+entirely. Nothing in a glTF can settle a body onto its ground line for you;
+measure the lowest point of the posed skin (or of the ankle bones) and lift.
+
+**`+z is forward` is a promise about the FILE, not about a clip.** It says which
+way the model is built. Which way the body is *turned* partway through a given
+clip is a separate question — a dodge rolls, a knockdown ends face-down — so if
+your game needs a particular view of the mech, measure the facing rather than
+assuming it holds frame by frame.
+
+And one that is not a gotcha but is worth knowing: `<id>.json` carries a
+`failed` list. It names the states that could not be sampled for that mech, and
+it is the only way to learn that a mech has no clip for something.
 
 ## Route A — mechkit.js (start here)
 

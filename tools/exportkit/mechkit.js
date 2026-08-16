@@ -85,6 +85,30 @@ class Mech {
 
   bone(name) { return this._bones.get(name) || null; }
   anchor(name) { return this._anchors.get(name) || null; }
+
+  /**
+   * The ARMATURE SCALE — the factor between this mech's bone-local units and
+   * world units.
+   *
+   * The file's yaw and size ride a node ABOVE the joints (see the README), so
+   * the skeleton and the clips are in the model's own smaller units while
+   * everything you measure in your scene is in world ones. Anything you measure
+   * in WORLD units and then write to a BONE-LOCAL position — a foot-grounding
+   * correction, an IK target, a recoil offset — has to be divided by this
+   * first, and by ONLY this: dividing by the camera zoom as well is the other
+   * half of the same mistake, and both put a mech through the floor.
+   *
+   * `bone.getWorldPosition()` and `anchor.getWorldPosition()` already answer in
+   * world units, so reading needs none of this. It is writing that does.
+   */
+  get scale() {
+    const s = new this.THREE.Vector3();
+    this.object.updateMatrixWorld(true);
+    (this._bones.values().next().value || this.object).matrixWorld.decompose(
+      new this.THREE.Vector3(), new this.THREE.Quaternion(), s);
+    return s.x || 1;
+  }
+
   get boneNames() { return [...this._bones.keys()]; }
   get anchorNames() { return [...this._anchors.keys()]; }
   get clipNames() { return [...this._byName.keys()]; }
