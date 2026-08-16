@@ -1603,10 +1603,11 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   finalizes a model FOR THIS GAME and leaves the runtime half in the manifest
   because the game is still there to apply it; an export has nothing behind it,
   so it carries the lot plus three things no shipped GLB has ever contained: the
-  TRANSFORM (folded into vertices and bone rest offsets — native units are game
+  TRANSFORM (on the `Armature` NODE above the joints — world units are game
   units, +z forward, feet on y=0), the ANCHORS (as empty `anchor_<name>` nodes
   on the bone they ride), and the ANIMATION (every clip sampled at 30fps through
-  the REAL animator, plus the gait as `walk`/`run` loops — every shipped GLB has
+  the REAL animator, plus the gait as `walk`/`run` loops and the jump / hover /
+  crouch / battleIdle animator LAYERS as held poses — every shipped GLB has
   `animations: 0`, the whole library being procedural). Alongside them:
   `characters.json`/`.md` (stats, every attack's real numbers, personality, and
   the engine CAPABILITIES each body needs), `GEOMETRY.md` (the behaviour a model
@@ -1617,8 +1618,50 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   as the transitive closure of six entry modules; the bundler FAILS if that
   closure ever reaches past `three`). `node tools/exportcheck.mjs --all` is the
   proof: each file loaded cold with a bare GLTFLoader, checked for size, facing,
-  the 15 joints by name, every anchor on the right bone, and that every clip
-  MOVES bones rather than merely existing.
+  the 15 joints by name, every anchor on the right bone AND at the offset it was
+  authored at, that every clip MOVES bones rather than merely existing, and that
+  every clip STATES THE WHOLE SKELETON. All 17 pass.
+- EXPORTING A PROCEDURAL ANIMATION SYSTEM has four rules, and three of them were
+  learned by shipping a broken asset to another game
+  (`src/dev/export.js`). They are worth restating because
+  every one of them is invisible from inside this repo, where the animator is
+  always there to paper over the gap.
+  ONE FRAME FOR THE MODEL, THE SKELETON AND THE ANIMATION. The transform used to
+  be FOLDED into the vertices and bone rests while the clips were sampled from
+  the unfolded live build, which is two frames in one file: the skin deformed
+  through a rotation its vertices never took (reported as "even his normal punch
+  causes his geometry to do all sorts of weird things"), and every anchor came
+  out with its offset divided by the model scale — measured on titanus, all four
+  at 0.111x, i.e. exactly 1/9.044, muzzleR arriving 1.2% of a body height from
+  the palm it was authored on instead of 10.9%. Folding the sample TOO is
+  arithmetic that must be repeated in every sampler and whose "which bones are
+  roots" test reads the BUILD's hierarchy while the fold read the BAKED one —
+  two different trees. So nothing is folded: IF A TRANSFORM HAS TO BE APPLIED,
+  APPLY IT ABOVE THE JOINTS (`installArmature`), where glTF has a place for it,
+  every importer honours it (it is the layout Blender emits) and it applies
+  rigidly AFTER the skin has deformed, so it cannot deform anything.
+  AN EXPORTED CLIP IS A COMPLETE POSE, NOT A DELTA. Dropping the tracks that
+  never move is free INSIDE this game — the animator is a pose function over the
+  whole body and the base writes every joint every frame — and outside it there
+  is no base. An `AnimationMixer` leaves the bones a clip does not name exactly
+  where the last clip left them, so pruning did not compress the clip, it
+  deleted the standing half of it and attacks imported as an upper body welded
+  onto whatever was playing before. Every sampler passes `keep`, the BAKED bone
+  set, which also drops tracks for build-only bones (titanus carries 66 bones
+  against the baked 26) — GLTFExporter discards THE WHOLE CLIP on the first
+  track that binds to nothing, which is how saurion once exported 25 clips and
+  arrived with `animations: 0`.
+  SAMPLE FROM A SETTLED ANIMATOR, NEVER A COLD ONE. It is a smoother over an
+  integrator — `cur` eases toward the target, the pelvis follows measured sole
+  clearance, the carriage damps in — so frame 0 of a cold sample is the PREVIOUS
+  clip still sliding, and an importer cross-fading idle into an attack saw the
+  legs snap on the first frame of every strike. `settle()` runs 90 frames at
+  `NEUTRAL_CTX` first, and every sampler must use the SAME neutral or the clips
+  disagree about what standing is.
+  AND SAMPLE THE SKELETON, NOT THE CLIP DATA. The tables in `animations.js` name
+  a handful of joints per key; the pose is all of them, plus `postAnimate()` —
+  signature layers, chain settling, foot placement — which is in the body the
+  player sees and so must be in the sample.
 - Model set: the GLBs in `public/models/manifest.json` are the DEFAULT for
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).

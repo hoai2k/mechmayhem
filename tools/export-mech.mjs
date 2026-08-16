@@ -10,16 +10,20 @@
 // the game is still there to apply it. Nothing is there for an export, so this
 // carries the lot — and three things the shipped asset has never contained:
 //
-//   · the TRANSFORM (yawOffset x modelScale x heightScale), folded into the
-//     vertices and bone rest offsets, so native units are game units and the
-//     model faces the game frame. Import it anywhere and it stands up right.
+//   · the TRANSFORM (yawOffset x modelScale x heightScale), on the `Armature`
+//     node above the joints, so the model imports game-sized and facing the
+//     game frame. It is NOT folded into the vertices: the mesh, the skeleton
+//     and the clips all stay in one frame, which is the only arrangement in
+//     which they cannot disagree. See src/dev/export.js installArmature.
 //   · the ANCHORS, as empty nodes named `anchor_<name>` parented to the bone
 //     they ride — muzzles, boosters, core, overhead. They are built at runtime
 //     from the manifest today and exist in no file.
 //   · the ANIMATION. Every shipped GLB has `animations: 0` — the library is
 //     procedural — so every clip this mech can actually play is sampled at
 //     30fps through the REAL animator and written as glTF keyframe tracks,
-//     plus the gait as `walk` and `run` loops.
+//     plus the gait as `walk` and `run` loops and the animator's own jump /
+//     hover / crouch / idle LAYERS as held poses. Every clip states the whole
+//     skeleton, so a plain AnimationMixer reproduces the game's pose.
 //
 // It WRITES NOTHING INTO THE GAME: the exports land in their own directory and
 // no manifest, model or rig in the repo is touched. Run it whenever a mech's
@@ -82,15 +86,23 @@ try {
     fs.writeFileSync(glb, Buffer.from(res.base64, 'base64'));
     fs.writeFileSync(path.join(OUT, `${id}.json`), JSON.stringify({
       mech: id,
-      note: 'Standalone export from ROBOTWORLD (tools/export-mech.mjs). Native units are '
+      note: 'Standalone export from ROBOTWORLD (tools/export-mech.mjs). WORLD units are '
         + 'game units and +z is forward; anchors are empty nodes named anchor_<name>; '
-        + 'every animation is a real glTF clip. Nothing here needs the game to load it.',
-      transform: { yawOffsetFolded: r.yawOffset, scaleFolded: r.scale },
+        + 'every animation is a real glTF clip and states the whole skeleton. Nothing '
+        + 'here needs the game to load it.',
+      // The yaw and scale ride the named NODE above the joints rather than
+      // being folded into the vertices, so the mesh, the skeleton and the clips
+      // share one frame. `scale` is therefore the factor between BONE-LOCAL and
+      // WORLD units: divide by it before writing a world-measured correction
+      // into a bone's local position.
+      transform: { node: r.transformNode, yawOffset: r.yawOffset, scale: r.scale,
+        appliedTo: 'the node above the joints, not folded into the data' },
       bones: r.bones, vertices: r.verts,
       anchors: r.anchors, clips: r.clips, failed: r.failed,
     }, null, 2) + '\n');
     console.log(`   ${(res.byteLength / 1e6).toFixed(2)} MB · ${r.bones} bones · ${r.verts} verts`);
-    console.log(`   folded transform: yaw ${r.yawOffset}° · scale ${r.scale.toFixed(5)}`);
+    console.log(`   transform: yaw ${r.yawOffset}° · scale ${r.scale.toFixed(5)}`
+      + `  (on the '${r.transformNode}' node, above the joints)`);
     console.log(`   anchors: ${r.anchors.length ? r.anchors.map((a) => a.name + '@' + a.bone).join(', ') : '(none)'}`);
     console.log(`   clips:   ${r.clips.length}  (${r.clips.slice(0, 8).map((c) => c.name).join(', ')}${r.clips.length > 8 ? ' …' : ''})`);
     if (r.failed.length) console.log(`   NOT SAMPLED (${r.failed.length}): ${r.failed.slice(0, 8).join(', ')}`);
