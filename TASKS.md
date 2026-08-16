@@ -1,12 +1,18 @@
 # ROBOTWORLD — 3D Mech Battle Game — Task Tracker
 
 Browser-based 3D mech arena fighter in the spirit of **Override: Mech City Brawl**.
-12 unique mechs, destructible city arenas, local multiplayer (keyboard + Xbox
+17 unique mechs, 12 destructible city arenas, local multiplayer (keyboard + Xbox
 controllers via Gamepad API), AI opponents.
 
 > **Process note:** This file is the source of truth for progress. Update the
 > checkboxes and the "Current status" section after every phase and commit it,
 > so work can resume cleanly if a session is interrupted.
+>
+> **It is also an APPEND-ONLY HISTORY.** Entries below record what was true
+> when they were written — a 2026-07 entry saying "all 12 mechs" is correct
+> about that day and must not be retro-edited. For what is true NOW, read
+> `README.md` (the player-facing description) and `CLAUDE.md` (the engineering
+> one); only this header and "Current status" track the present.
 
 ## Current status
 

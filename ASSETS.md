@@ -39,6 +39,8 @@ the large-structure materials) · `prop` (`prop_*`) · `mech` (`mech_*`) ·
 | `public/badges/` | hand-made mech emblems | `<img src="badges/<id>.png">` |
 | `public/thumbs/` | auto-captured mech icons (`tools/thumbs.mjs`) | `<img>` fallback under badges |
 | `public/posters/` | mech-select posters + `posters.json` (`tools/posters.mjs`) | `<img>` / fetch |
+| `public/arenas/` | painted arena-select card art (`<id>.jpg`) | `<img src="arenas/<id>.jpg">` |
+| `public/sfx/` | the recorded sound effects + arena ambience beds + `manifest.json` (`tools/sfxgen.mjs`) | manifest fetched in the background, each file decoded on first use |
 | `public/sound/` | the menu theme and the neon buzz | `<audio>` by URL |
 
 These share a shape: a TOOL or the owner drops a file in, it is addressed by
@@ -59,6 +61,15 @@ None of them needs the code to know the full set up front.
 - **Generation prompts** live in `docs/TEXTURE_GEN_PROMPT.md` (the original
   pack) and `docs/ASSET_REQUESTS_*.md` (later requests). They all name
   `src/textures/...` paths.
+
+## If you are adding a sound
+
+A recording in `public/sfx/<name>.mp3` **shadows** the synthesized sound of the
+same name — `play('<name>')` is the only call site either way, and a name with
+no file keeps its synth version forever. That is what lets the set grow one
+sound at a time. The prompts are `docs/SOUND_PROMPTS.md`, and that document is
+the *input*: `node tools/sfxgen.mjs` parses each entry's prompt, take count and
+duration out of its own prose, so there is no second copy to drift.
 
 ## Check it
 

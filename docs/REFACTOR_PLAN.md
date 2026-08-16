@@ -230,9 +230,11 @@ clean, colossus giant-camera ace soaks crash:null.
   ctor into the raptor summon, or move it to a neutral module); then drop
   fighter.js's PLAYER_COLORS compat re-export (import core/colors.js
   directly wherever it's still consumed via fighter.js).
-- CLAUDE.md/MECH_ART_GUIDE say "12 mechs" — roster is 17; refresh docs
-  (architecture map should also mention: movekit.js, signatures.js,
-  colorscheme.js, contract.js, core/colors.js, game/battle.js,
-  game/finisher/<id>.js being parallel-agent-safe).
+- ~~CLAUDE.md/MECH_ART_GUIDE say "12 mechs" — roster is 17; refresh docs~~ —
+  done in the docs accuracy pass (README, CLAUDE.md, ASSETS.md,
+  MECH_ART_GUIDE, WEB_LAUNCH_CHECKLIST). Still outstanding from this item:
+  the CLAUDE.md architecture map should also mention movekit.js,
+  signatures.js, colorscheme.js, contract.js, core/colors.js, game/battle.js,
+  and `game/finisher/<id>.js` being parallel-agent-safe.
 - Consider stable skinOps island keys (bone+centroid hash) if GLBs ever
   get re-exported; today's ordinals silently rebind on re-export.

@@ -1,6 +1,6 @@
 # Custom levels
 
-Authored arenas built with the level editor (`?edit=level`). Each `.json` here
+Authored arenas built with the level editor (`/workbench/?edit=level`). Each `.json` here
 is an explicit placement list layered over a base theme.
 
 ## Play a level
@@ -24,19 +24,22 @@ is most of them.
 export const AUTHORED_ARENAS = { neon: 'neon-district' };
 ```
 
-SETTINGS → **PROCEDURAL ARENAS** (off by default) ignores that table entirely
-and generates every arena, which is how the generated cities stay reachable
-once an arena has been authored. `?procedural=1` is the same thing for one
-session, and it works on `?battle=` too — a bare `?battle=neon` otherwise plays
-whatever the menus would play, so a soak or a screenshot tests the real arena.
+SETTINGS → **ARENA DESIGN** decides whether that table is consulted at all.
+Only **AUTHORED** (the default) reads it; **CITY WARDS**, **GRAND AXIS**,
+**COLOSSEUM** and **FALLBACK** each generate every arena with that design
+system instead, which is how the generated cities stay reachable once an arena
+has been authored. `?design=<mode>` is the same thing for one session (the old
+`?procedural=1` still means `fallback`, and the retired on/off pref migrates),
+and it works on `?battle=` too — a bare `?battle=neon` otherwise plays whatever
+the menus would play, so a soak or a screenshot tests the real arena.
 
 ## Make one
 
-1. Open `?edit=level`.
+1. Open `/workbench/?edit=level`.
 2. Pick a theme, place buildings / props / terrain, drop spawn points.
 3. **▶ Playtest** launches a live battle immediately, or **Export** downloads
    the JSON — save it here as `public/levels/<name>.json`.
-4. Re-open it any time with `?edit=level&load=<name>`, or pick it from the
+4. Re-open it any time with `/workbench/?edit=level&load=<name>`, or pick it from the
    **📂 Open level…** dropdown in the editor's top bar.
 
 To make a level show up in that dropdown, add its name to `manifest.json`

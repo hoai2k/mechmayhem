@@ -1,10 +1,20 @@
 # Character badge-icon generation prompts
 
-Prompts for generating EMBLEM badges for the 16 mechs with an image
-generator (Midjourney / DALL-E / Ideogram / Stable Diffusion etc.). These
-are NOT pictures of the mechs — each badge is a SYMBOL of that mech's power
-and personality, like a faction crest the mech would wear painted on its
-shoulder plate.
+Prompts for generating EMBLEM badges with an image generator (Midjourney /
+DALL-E / Ideogram / Stable Diffusion etc.). These are NOT pictures of the
+mechs — each badge is a SYMBOL of that mech's power and personality, like a
+faction crest the mech would wear painted on its shoulder plate.
+
+> **State of the set: DONE — all 17 roster mechs have a badge**, declared in
+> `BADGES` (`src/ui/icons.js`) with a file in `public/badges/`. This sheet is
+> kept as the recipe for the next one.
+>
+> **The numbered key below is the ORIGINAL 16-tile grid run and does not match
+> the roster.** The numbers are load-bearing for the grid prompt, so they are
+> left as they were: `3 aegis` and `5 nova` are RETIRED mechs (see
+> `archive/mechs/`), and **nullbot, konga and tritone** were badged later and
+> never appeared in this grid. For a new badge, use the single-badge prompt
+> with its own symbol concept rather than this key.
 
 ## How to use
 
