@@ -1,12 +1,8 @@
-# 🤖 ROBOTWORLD — Mech Battle Arena
+# 🤖 MECH MAYHEM —  3D Robot Battle Arena
 
-A fully featured browser-based 3D mech arena fighter in the spirit of
-*Override: Mech City Brawl*. **12 unique mechs**, **12 destructible city
+A fully featured browser-based 3D mech arena fighter. **12 unique mechs**, **12 destructible city
 arenas**, local multiplayer for up to **4 players** (keyboard + Xbox
 controllers), and AI opponents across three difficulty tiers.
-
-Everything — 3D models, textures, animation, VFX, music and sound — is
-generated procedurally in code. No asset files, no downloads.
 
 ![Title](docs/title.png)
 ![Mech select](docs/mech-select.png)
