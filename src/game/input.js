@@ -270,7 +270,11 @@ export class Input {
 
   // aggregated menu nav from every device (single-consumer screens)
   menuEvents() {
-    const ev = { up: false, down: false, left: false, right: false, confirm: false, back: false, pause: false, lb: false, rb: false, any: false };
+    // `start` is PAD START ONLY, and is not the same question as `pause`.
+    // Escape sets `pause` too, and the title screen starts the game on this —
+    // so a screen that wants "the player pressed the START BUTTON" must ask for
+    // it, or Escape would launch a match.
+    const ev = { up: false, down: false, left: false, right: false, confirm: false, back: false, pause: false, start: false, lb: false, rb: false, any: false };
     const anyKey = this.keysPressed.size > 0;
     // include the per-frame edge set so a tap shorter than one frame
     // (slow machines) still registers as held for that frame
@@ -295,7 +299,7 @@ export class Input {
       if (this._navRepeat(src, 'right', this.padHeld(i, 'DR') || this.padsCur[i].lx > 0.6)) ev.right = true;
       if (this.padPressed(i, 'A')) ev.confirm = true;
       if (this.padPressed(i, 'B')) ev.back = true;
-      if (this.padPressed(i, 'START')) ev.pause = true;
+      if (this.padPressed(i, 'START')) { ev.pause = true; ev.start = true; }
       if (this.padPressed(i, 'LB')) ev.lb = true;
       if (this.padPressed(i, 'RB')) ev.rb = true;
       for (const b of ['A', 'B', 'X', 'Y', 'START']) if (this.padPressed(i, b)) anyPad = true;

@@ -134,6 +134,27 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 
+/* THE TITLE'S PROMPT sits where the menu used to, for the reason the menu sat
+   there: the middle band belongs to the line-up. It is a real click target, so
+   it says so — and the padding is what makes it one on a phone, where a line of
+   text 24px tall is not something anybody can reliably hit. */
+.title-screen .press-start {
+  position: absolute; bottom: 7vh; margin-top: 0;
+  font-family: var(--font-display); font-weight: 700;
+  padding: 14px 40px; cursor: pointer;
+}
+.title-screen .press-start:hover,
+.title-screen .press-start:focus-visible {
+  animation: none; opacity: 1; outline: none;
+  text-shadow: 0 0 14px rgba(56,232,255,0.95), 0 0 40px rgba(56,232,255,0.5);
+  transform: scale(1.06);
+}
+/* A prompt that blinks is the one thing on this screen that MUST stay readable
+   with motion turned down — it is the only instruction there is. */
+@media (prefers-reduced-motion: reduce) {
+  .press-start { animation: none; }
+}
+
 .menu-list { display: flex; flex-direction: column; gap: 10px; margin-top: 5vh; align-items: center; }
 .menu-item {
   font-family: var(--font-display);

@@ -29,6 +29,11 @@ export const MESSAGES = {
   // ------------------------------------------------------------------- title
   'title.game': 'MECH MAYHEM',
   'title.tagline': 'ROBOT BATTLE ARENA',
+  // The title screen is one prompt now (see ui/menus.js TitleScreen). The two
+  // menu strings below are no longer shown anywhere; they are kept because the
+  // pause and results screens are built from the same MenuList vocabulary and
+  // a translator reading this file should see what BATTLE used to say.
+  'title.pressStart': 'PRESS START',
   'title.menu.battle': 'BATTLE',
   'title.menu.fullscreen': 'FULLSCREEN',
   'title.hint.html': '<b>↑↓</b> select&nbsp;&nbsp;<b>ENTER / A</b> confirm&nbsp;&nbsp;·&nbsp;&nbsp;<b>LB / RB</b> (Q/E) settings · sound&nbsp;&nbsp;·&nbsp;&nbsp;pad <b>SELECT</b> mouse pointer&nbsp;&nbsp;·&nbsp;&nbsp;P1 <b>WASD</b> + <b>F G H R T Y</b> · <b>SPACE</b> jump · <b>SHIFT</b> dash',

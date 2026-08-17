@@ -149,6 +149,29 @@ export function playNeonBuzz(audio, opacity = 0.25) {
   return vol;
 }
 
+// ONE WAY IN: PRESS START.
+//
+// The title screen used to be a two-item menu, BATTLE and FULLSCREEN. That is
+// two decisions on a screen that has one — nobody arrives at an arena fighter
+// wanting to browse — and it put a display setting in the same list as the
+// game. It is a single prompt now, and going fullscreen rides along with the
+// press instead of being asked for.
+//
+// THE MOUSE IS THE EXCEPTION, DELIBERATELY. A pad or a keyboard is somebody
+// sitting back to play, so START/A takes the fullscreen with it; a CLICK is
+// somebody at a desk with other windows, who did not ask to lose them. So the
+// pointer goes straight to the select screen and leaves the display alone.
+//
+// AND A GAMEPAD CANNOT ACTUALLY GRANT FULLSCREEN. `requestFullscreen` needs
+// TRANSIENT USER ACTIVATION, which the Gamepad API does not produce — it is
+// polled state, not an event — so the request is rejected unless the player
+// happens to have clicked or typed in the last few seconds. That is a browser
+// rule and there is no way around it from here. What this does is take every
+// route the browser DOES honour: the keyboard path runs off a real `keydown`
+// listener (an activating event, handled synchronously, so Enter/Space
+// genuinely goes fullscreen) and the pad path asks anyway and accepts no for
+// an answer. The one thing it must never do is let a refusal cost the player
+// the press, so the screen change never waits on the display change.
 export class TitleScreen {
   constructor(root, { onPlay, onFullscreen, audio, hotButtons }) {
     this.el = el('div', 'screen fade-in title-screen');
@@ -176,20 +199,69 @@ export class TitleScreen {
     this.tubes = [...this.el.querySelectorAll('.neon-title .tube')];
     this.lit = this.tubes.map(() => true);
     audio?.loadSliced?.('neonBuzz', new URL('sound/neon_buzz.mp3', document.baseURI).href);
+    // The MenuList is kept for its CORNER RING alone — LB/RB still walk the
+    // settings and sound buttons — so it is built with no items, its element is
+    // never added to the page, and `nav()` is never called on it (an empty list
+    // has nothing to select, and its modulo arithmetic would be NaN).
     this.list = new MenuList({ audio, hot: hotButtons });
-    this.el.appendChild(this.list.build([
-      { t: t('title.menu.battle'), fn: onPlay },
-      { t: t('title.menu.fullscreen'), fn: onFullscreen },
-    ]));
-    // no hint bar here: the title screen is two menu items, and the controls
-    // live behind the ⓘ button (the catalogue keeps title.hint.html for
-    // anyone who wants it back)
+    this.list.build([]);
+
+    this.onPlay = onPlay;
+    this.onFullscreen = onFullscreen;
+    this.started = false;      // this screen is used exactly once
+
+    this.prompt = el('div', 'press-start', t('title.pressStart'));
+    this.prompt.setAttribute('role', 'button');
+    this.prompt.setAttribute('tabindex', '0');
+    // POINTER ONLY — no fullscreen. `click` also fires for a keyboard
+    // activation on a focused element in some browsers, so it is gated on a
+    // real pointer having produced it (`detail` is 0 for a synthetic one).
+    this.prompt.addEventListener('click', (e) => { if (e.detail !== 0) this.start(false); });
+    this.el.appendChild(this.prompt);
+
+    // THE KEYBOARD PATH, on a real listener rather than the polled one. This is
+    // the only route on which the fullscreen request carries user activation,
+    // so it has to be handled in the event and not one frame later. It runs
+    // BEFORE the polled `update` sees the same key, and `started` is what stops
+    // the two of them acting on one press.
+    // The key set is the one `menuEvents` already calls confirm (plus
+    // NumpadEnter), so every keyboard route into the game gets the activation
+    // and none of them falls through to the polled path for a second opinion.
+    this._onKey = (e) => {
+      if (this.started) return;
+      if (!['Enter', 'NumpadEnter', 'Space', 'KeyF', 'Numpad1'].includes(e.code)) return;
+      e.preventDefault();
+      this.start(true);
+    };
+    window.addEventListener('keydown', this._onKey);
+
+    // no hint bar here: the title screen is one prompt, and the controls live
+    // behind the ⓘ button (the catalogue keeps title.hint.html for anyone who
+    // wants it back)
     root.appendChild(this.el);
   }
+
+  // `wantFullscreen` is about the DEVICE, not about whether it will work: a
+  // rejected request must still leave the player on the select screen, which is
+  // why the fullscreen call cannot be awaited and its failure is not an error.
+  start(wantFullscreen) {
+    if (this.started) return;
+    this.started = true;
+    this.audio?.play('uiSelect');
+    if (wantFullscreen) { try { this.onFullscreen?.(); } catch (e) { /* the browser said no */ } }
+    this.onPlay();
+  }
+
   update(ev) {
     this.buzz();
     if (this.list.hotNav(ev)) return;
-    this.list.nav(ev);
+    // A (confirm) and START both start the game — the prompt says START and a
+    // player reaching for it should not have to find out which button the
+    // screen meant. `ev.start` is PAD START specifically, NOT `ev.pause`, which
+    // Escape also sets: the keyboard is the listener's business above, and
+    // Escape on the title screen must not launch a match. `started` keeps a
+    // press that arrives down both routes from counting twice.
+    if (ev.confirm || ev.start) this.start(true);
   }
 
   // one buzz per drop-out, per tube: the deeper the dip, the harder the tube
@@ -204,6 +276,7 @@ export class TitleScreen {
   }
 
   destroy() {
+    window.removeEventListener('keydown', this._onKey);
     this.list.destroy();
     this.el.remove();
   }
