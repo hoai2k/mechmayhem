@@ -386,9 +386,18 @@ export async function bootGame() {
     engine.scene.background = new THREE.Color(0x0a0e18);
   }
 
+  // A REFUSAL IS NOT AN ERROR. Both of these return a PROMISE, and the request
+  // is rejected whenever the call has no TRANSIENT USER ACTIVATION behind it —
+  // which is every request made from POLLED input, the gamepad included, since
+  // the Gamepad API is state rather than events. The title screen asks on the
+  // player's behalf (menus.js TitleScreen) and must not print a stack trace at
+  // them when the browser says no, so the rejection is swallowed here rather
+  // than at each call site.
   function toggleFullscreen() {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else document.documentElement.requestFullscreen?.();
+    const p = document.fullscreenElement
+      ? document.exitFullscreen?.()
+      : document.documentElement.requestFullscreen?.();
+    p?.catch?.(() => {});
   }
   window.addEventListener('keydown', (e) => {
     if (e.code === 'F10') { e.preventDefault(); toggleFullscreen(); }
