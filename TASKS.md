@@ -6839,3 +6839,26 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
 - `foreCarry`'s elbow floor relaxed -45 -> -34, far enough to let a rake EXTEND
   the arm and still short of a hanging limb (measured: hand stays in front of
   the shoulder at every shoulder pitch in the band).
+
+## Saurion's clutch: two damage rules, one pacing fix — and the 3-player HUD
+
+- AN EGG BREAKS TO ONE MELEE BLOW, TWO BULLETS. `hit()` takes what the blow is
+  worth (`EGG_DMG_MELEE` / `EGG_DMG_SHOT`), each of the three damage paths
+  states its own: the melee sweep and `world.explode` take a shell outright, a
+  projectile takes half. SAURION's own hits still only shove, at any damage.
+- THE BUILD IS PACED BY THE HATCH SLOT, not by the egg's own clock. The bodies
+  were built at `hatchAt - BUILD_LEAD`, and `hatchIn` is deliberately only 0.4s
+  apart, so a COLD pool built all three inside 0.8s while the hatches were 2s
+  apart — measured 1.22 / 1.53 / 1.92s. Only the front egg of the queue builds,
+  and only within `BUILD_LEAD` of the slot it is actually waiting on: 1.23 /
+  3.27 / 5.28s now, warm pool or cold. Everything else about the pacing was
+  measured and left alone — cast 0.1-0.6ms, hatches 2.93 / 4.93 / 6.93s, worst
+  hatch frame 4.1ms, 0.9ms a step with three minions in.
+  `tools/scratch/eggpace.mjs` and `tools/scratch/hatchcost.mjs` are the probes.
+- THREE PLAYERS STAND IN AN L AND THE STATS TAKE THE SPARE QUADRANT. P1 top
+  left, P2 and P3 along the bottom, every HUD plate and the round clock in a
+  panel top right — so no plate covers a viewport, which is what the old
+  two-up/one-under layout could not avoid. `tools/scratch/split3.mjs` asserts
+  the panel is exactly the quadrant camera.js leaves free, that no plate falls
+  outside it, that four plates still fit, and that switching layout puts them
+  back in their corners.

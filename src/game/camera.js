@@ -171,12 +171,26 @@ function readZoom() {
 }
 
 // viewport rects are in engine coords: x/y from bottom-left, 0..1
+//
+// THREE PLAYERS LEAVE A QUADRANT SPARE, AND THE STATS GO IN IT. The old 3-way
+// put two views across the top and one centred underneath, which uses the whole
+// screen and leaves the HUD nowhere to live: every plate then sat ON somebody's
+// viewport, and with four plates (three humans plus a CPU) the top two views
+// carried two plates each. Standing the three views in an L — one top-LEFT, two
+// along the bottom — costs nothing (every view is the same quarter-screen it
+// was) and buys the whole TOP-RIGHT quadrant as a dedicated stats panel, which
+// is where hud.js stacks all of them. Nobody's view is covered.
 const LAYOUTS = {
   lr: [{ x: 0, y: 0, w: 0.5, h: 1 }, { x: 0.5, y: 0, w: 0.5, h: 1 }],
   tb: [{ x: 0, y: 0.5, w: 1, h: 0.5 }, { x: 0, y: 0, w: 1, h: 0.5 }], // P1 top
-  3: [{ x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.25, y: 0, w: 0.5, h: 0.5 }],
+  3: [{ x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0, y: 0, w: 0.5, h: 0.5 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 }],
   4: [{ x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, { x: 0, y: 0, w: 0.5, h: 0.5 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 }],
 };
+
+// The quadrant a 3-player split leaves empty — the stats panel's home, in the
+// same 0..1 bottom-left-origin coords as a viewport rect. hud.js reads it, so
+// the panel cannot drift from the layout that made room for it.
+export const STATS_PANEL_RECT = { x: 0.5, y: 0.5, w: 0.5, h: 0.5 };
 
 export class CameraSystem {
   constructor(engine, world) {
@@ -823,7 +837,10 @@ export class CameraSystem {
     let html = '';
     if (kind === 'lr') html = vLine(50, 0, 100);
     else if (kind === 'tb') html = hLine(50);
-    else if (kind === '3') html = hLine(50) + vLine(50, 0, 50); // vertical split only in the top half
+    // 3-way: the full cross — the vertical line in the TOP half is the stats
+    // panel's own edge rather than a divider between two views, and drawing it
+    // is what makes the panel read as part of the layout instead of an overlay
+    else if (kind === '3') html = hLine(50) + vLine(50, 0, 100);
     else html = vLine(50, 0, 100) + hLine(50);
     this.dividerEl.innerHTML = html;
   }

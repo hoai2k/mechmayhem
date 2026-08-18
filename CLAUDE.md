@@ -1360,18 +1360,38 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   rather than three robots appearing. An egg is a real rolling body (gravity,
   ground contact, restitution, rolling friction, and a roll rate off its own
   short radius, so it goes across the plaza like a barrel and settles on its
-  side). WHO HIT IT IS THE WHOLE DAMAGE MODEL: SAURION's own blows SHOVE it —
-  full impulse, no damage, no flash, so kicking one is how he says "go over
-  there" — and anybody else's WOUND it: red flash, a much smaller shunt (a hit
-  is a wound, not a delivery) and the SECOND one destroys the shell with nothing
-  hatching. The hatchling comes out CURLED (the `ball` clip) at half size and
-  unfolds into his stance as it grows. Three hooks feed it, one per damage path:
-  `world.explode`, the projectile sweep and the melee sweep, each handing over
-  the ATTACKER, which is the only thing the rule cares about. Measured with
-  `node tools/eggs.mjs`: cast 0.5ms, worst frame over the whole cast 2.1ms (from
-  51.7 before any of this work), eggs at 0.75 of his height, hatches at 2.93 /
-  4.95 / 6.95s — gaps of 2.02 and 2.00 — his own hit rolling one 9.5 units for
-  no damage against an enemy hit's 1.5 and a wound.
+  side). WHO HIT IT IS THE WHOLE DAMAGE MODEL, AND WITH WHAT: SAURION's own
+  blows SHOVE it — full impulse, no damage, no flash, so kicking one is how he
+  says "go over there" — and anybody else's BREAK it. A SHELL IS NOT ARMOUR:
+  getting a fist to one means closing on the clutch with SAURION standing over
+  it, so a MELEE blow or a BLAST takes the whole shell in ONE (`EGG_DMG_MELEE`),
+  while a BULLET — which anybody can send from across the plaza — takes TWO
+  (`EGG_DMG_SHOT`). Either way it flashes red and takes a much smaller shunt
+  than the kick. The hatchling comes out CURLED (the `ball` clip) at half size
+  and unfolds into his stance as it grows. Three hooks feed it, one per damage
+  path: `world.explode`, the projectile sweep and the melee sweep, each handing
+  over the ATTACKER and what the blow is worth, which is all the rule cares
+  about. Measured with `node tools/eggs.mjs`: cast 0.6ms, worst frame over the
+  whole cast 3.8ms (from 51.7 before any of this work), eggs at 0.75 of his
+  height, hatches at 2.93 / 4.93 / 6.93s — gaps of 2.00 and 2.00 — his own hit
+  rolling one 10.3 units for no damage, an enemy's shot rolling it 1.7 and
+  wounding it, and one enemy melee blow ending it outright.
+  THE BUILD IS PACED BY THE HATCH SLOT, NOT BY THE EGG'S OWN CLOCK, and for a
+  while it was not — which is the one place the staggering did not actually
+  hold. `hatchIn` is 2 + 0.4i so the clutch does not crack in unison, and the
+  body was built at `hatchAt - BUILD_LEAD`; with a COLD pool (a second cast in
+  the round, or a mech swap that dropped the spares) that put all three
+  `cloneMech` calls inside 0.8s while the hatches were a full 2s apart —
+  measured at 1.22 / 1.53 / 1.92s, the exact bunching eggs exist to prevent.
+  Only the egg at the FRONT OF THE QUEUE may build, and only within
+  `BUILD_LEAD` of the slot it is really waiting on, so the builds inherit the
+  hatches' spacing: 1.23 / 3.27 / 5.28s, warm pool or cold. An egg broken out
+  of the queue hands the front to the next one at once, so nothing stalls
+  behind a shell the enemy took away. `node tools/scratch/eggpace.mjs` is the
+  check (build times, hatch times and every frame over threshold across four
+  casts) and `tools/scratch/hatchcost.mjs` breaks one hatch into its parts —
+  cast 0.1-0.6ms, hatch frames 4.1 / 0.9 / 1.0ms, and 0.9ms a step in the
+  steady state with three minions in against 0.3ms with none.
   THE SHELL'S TEXTURE IS REQUESTED (`prop_dino_egg`, in
   docs/ASSET_REQUESTS_STRUCTURES.md and listed in `PENDING_ASSETS`): until it
   lands `eggMaterial()` paints one — cream, mottled, speckled — and the pack
@@ -1842,6 +1862,30 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   in a duel where it could only ever read 0 or 1. No cinematic FINISHER plays in
   a brawl — it assumes the round is over. `node tools/brawl.mjs` asserts all
   five rules, including that a two-player match is byte-for-byte the old one.
+- THREE PLAYERS LEAVE A QUADRANT SPARE, AND THE STATS GO IN IT
+  (`LAYOUTS['3']` + `STATS_PANEL_RECT` in camera.js, `positionPlates` in
+  ui/hud.js, `#hud-stats` in style.css). Two, three and four humans all split
+  the screen, but three is the awkward one: the old 3-way put two views across
+  the TOP and one centred underneath, which spends the whole screen on views
+  and leaves the HUD nowhere to live — so every plate sat ON somebody's
+  viewport, and with a CPU in the fight the two top views carried two plates
+  each. Standing the three views in an L instead — P1 top-LEFT, P2 and P3
+  along the bottom — costs nothing (each view is the same quarter-screen it
+  always was) and buys the whole TOP-RIGHT quadrant as a dedicated stats
+  panel. Every plate is RE-PARENTED into it and stacked, the round clock goes
+  in at the top of it (centred on screen it straddled the panel's own edge),
+  and NOBODY'S VIEW CARRIES A PLATE. The plates are the same elements, so
+  health, ult badges, pips, ammo and death counts all keep updating through
+  the same handles, and switching layout puts them back in their corners —
+  '3' is the only layout that re-parents anything. THE PANEL IS OPAQUE ON
+  PURPOSE: that quadrant is outside every viewport's scissor rect, so there is
+  nothing behind it to show through. FOUR PLATES IS THE SIZE IT MUST FIT
+  (three humans and a CPU in a quarter of the screen), which is why everything
+  inside the panel wears tighter measurements than the same plate does alone
+  in a viewport corner. `node tools/scratch/split3.mjs [out.png]` is the check
+  — it reads the quadrant from camera.js rather than restating it, and fails
+  if the panel is not exactly that quadrant, if any plate lands outside it, or
+  if the stack outgrows it by a single pixel.
 - NOT EVERY LARGE STRUCTURE IS A BUILDING (`src/arena/structures.js`, asset
   prompts in `docs/ASSET_REQUESTS_STRUCTURES.md`). A big destructible mass has
   a gameplay job — block sight, give cover, be climbed, come down — and every

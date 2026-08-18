@@ -2,8 +2,9 @@
 //
 //   · the cast lays eggs rather than dropping robots, and costs nothing
 //   · an egg is 75% of his height and ROLLS when it is shoved
-//   · HIS OWN hit shoves it and does no damage; ANOTHER robot's hit wounds it,
-//     and the second one destroys it with nothing hatching
+//   · HIS OWN hit shoves it and does no damage; ANOTHER robot's hit wounds it —
+//     one MELEE blow (or a blast) breaks a shell outright, a BULLET takes two —
+//     and a broken shell hatches nothing
 //   · hatching is staggered — at most one every couple of seconds — and waits
 //     for the body to be built
 //   · the hatchling arrives curled and unfolds to full size
@@ -70,19 +71,47 @@ const out = await page.evaluate(async () => {
     spinning: Math.abs(e0.roll) > 0.5,
   };
 
-  // ---- 3. AN ENEMY HIT WOUNDS IT; THE SECOND DESTROYS IT ----
+  // ---- 3. AN ENEMY'S SHOT WOUNDS IT; THE SECOND DESTROYS IT ----
+  const { EGG_DMG_SHOT, EGG_DMG_MELEE } = await import('/src/combat/eggs.js');
   const e1 = w.eggs.eggs[1];
   const p1 = { x: e1.pos.x, z: e1.pos.z };
-  w.eggs.hit(e1, foe, { x: 1, y: 0, z: 0 }, 1);
+  w.eggs.hit(e1, foe, { x: 1, y: 0, z: 0 }, 1, EGG_DMG_SHOT);
   const afterOne = { hp: e1.hp, flashing: e1.flash > 0, alive: e1.state !== 'dead' };
   step(20);
   const rolledByEnemy = +Math.hypot(e1.pos.x - p1.x, e1.pos.z - p1.z).toFixed(1);
-  w.eggs.hit(e1, foe, { x: 1, y: 0, z: 0 }, 1);
+  w.eggs.hit(e1, foe, { x: 1, y: 0, z: 0 }, 1, EGG_DMG_SHOT);
   step(5);
-  R.enemyHits = {
+  R.enemyShots = {
     afterOne, rolledByEnemy,
     afterTwo: { gone: !w.eggs.eggs.includes(e1) || e1.state === 'dead' },
     minionsFromIt: w.minions.length,
+  };
+
+  // ---- 3b. ONE MELEE BLOW IS THE WHOLE SHELL ----
+  // measured through the REAL swing, not the damage call: foe walks onto the
+  // last egg and throws a light, which is what a player actually does
+  const e2 = w.eggs.eggs.find((e) => e.state !== 'dead');
+  let meleeOneShot = 'no egg left';
+  if (e2) {
+    const hpBefore = e2.hp;
+    w.eggs.hit(e2, foe, { x: 1, y: 0, z: 0 }, 1, EGG_DMG_MELEE);
+    step(5);
+    meleeOneShot = {
+      hpBefore, gone: !w.eggs.eggs.includes(e2) || e2.state === 'dead',
+      hatchedAnything: w.minions.length,
+    };
+  }
+  // …and SAURION's own melee still only shoves, at full damage
+  reset();
+  s.ult = 1; s.ultCharges = 1; s.doUlt();
+  step(45);
+  const mine = w.eggs.eggs[0];
+  const hpMine = mine.hp;
+  w.eggs.hit(mine, s, { x: 1, y: 0, z: 0 }, 1, EGG_DMG_MELEE);
+  step(30);
+  R.melee = {
+    enemyOneShot: meleeOneShot,
+    ownerMeleeUnhurt: { hp: mine.hp, wasHp: hpMine, alive: mine.state !== 'dead' },
   };
 
   // ---- 4. HATCHING: staggered, and only when the body is ready ----

@@ -411,6 +411,33 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
   background: linear-gradient(180deg, rgba(8,16,28,0.78), rgba(8,16,28,0.55));
   border: 1px solid rgba(96,200,255,0.25); border-radius: 6px;
 }
+/* THE 3-PLAYER STATS PANEL (ui/hud.js positionPlates, camera.js LAYOUTS['3']).
+   Three views stand in an L and leave the top-right quadrant free; this fills
+   it, and every plate is re-parented into it and stacked. It is OPAQUE on
+   purpose — the quadrant is outside every viewport's scissor rect, so there is
+   nothing behind it to show through. Shown only at three players. */
+#hud-stats {
+  position: absolute; left: 50%; top: 0; width: 50%; height: 50%;
+  box-sizing: border-box; padding: 1vh 1.6vw; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; gap: 0.5vh;
+  background: linear-gradient(180deg, rgba(6,13,24,0.96), rgba(4,9,18,0.94));
+}
+/* Four plates (three humans and a CPU) have to fit a quarter of the screen, so
+   everything inside the panel is on a tighter set of measurements than the same
+   plate wears alone in a viewport corner. tools/scratch/split3.mjs fails if the
+   stack ever outgrows the panel. */
+#hud-stats .hud-plate { position: static; width: auto; padding: 4px 9px 5px; }
+#hud-stats .hud-plate .hp-head { margin-bottom: 2px; }
+#hud-stats .hud-bar { height: 10px; }
+#hud-stats .hud-bar.sprint { height: 4px; margin-top: 2px; }
+#hud-stats .ult-badges { height: 12px; margin-top: 1px; }
+#hud-stats .ult-badge { font-size: 12px; }
+#hud-stats .round-pips { margin-top: 2px; gap: 4px; }
+#hud-stats .round-pip { width: 9px; height: 9px; }
+#hud-stats > .hud-timer.in-stats {
+  position: static; transform: none; text-align: center;
+  font-size: clamp(18px, 2vw, 28px); line-height: 1; margin-bottom: 0.2vh;
+}
 .hud-plate .hp-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
 .hud-plate .hp-name {
   font-weight: 900; font-style: italic; font-size: clamp(13px, 1.3vw, 18px);
