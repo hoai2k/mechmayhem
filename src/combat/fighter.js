@@ -19,6 +19,7 @@ import { floorGuard, clearFloorGuard } from './floorguard.js';
 import { updateAim } from './aim.js';
 import { aimGun } from './gunaim.js';
 import { bakePoseShell } from './poseshell.js';
+import { EGG_DMG_MELEE } from './eggs.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
@@ -1456,12 +1457,13 @@ export class Fighter {
     let hitAny = false;
     const stamp = this.world.time;
     // SAURION'S EGGS take the swing as well — his own kick SHOVES one across
-    // the plaza, anybody else's WOUNDS it (combat/eggs.js owns that rule)
+    // the plaza, anybody else's BREAKS it (combat/eggs.js owns that rule; a
+    // fist is worth the whole shell, so one connected melee blow ends an egg)
     if (this.world.eggs?.eggs.length) {
       const egg = this.world.eggs.hitSegment(_strikeS0, _strikeS1, swingR + 0.3);
       if (egg) {
         hitAny = true;
-        this.world.eggs.hit(egg, this, _eggDir.set(fwdX, 0, fwdZ), 1);
+        this.world.eggs.hit(egg, this, _eggDir.set(fwdX, 0, fwdZ), 1, EGG_DMG_MELEE);
       }
     }
     for (const f of this.world.fighters) {

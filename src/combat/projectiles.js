@@ -5,6 +5,7 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 import { rand, clamp } from '../core/utils.js';
 import { glitchColor, GOO_TINTS } from './effects.js';
 import { bodyHitSegment, SHOT_PAD } from './hurtbox.js';
+import { EGG_DMG_SHOT } from './eggs.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -447,7 +448,7 @@ export class ProjectileSystem {
         const egg = world.eggs.hitSegment(_sweepA, _sweepB, 0.35);
         if (egg && !p.hitSet.has(egg)) {
           p.hitSet.add(egg);
-          world.eggs.hit(egg, p.owner, _v2.set(sdx, 0, sdz), 0.8);
+          world.eggs.hit(egg, p.owner, _v2.set(sdx, 0, sdz), 0.8, EGG_DMG_SHOT);
           world.effects.impactSparks(p.mesh.position, p.color, 8, 6);
           if (!p.pierce) dead = true;
         }

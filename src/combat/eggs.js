@@ -19,14 +19,29 @@
 //     second ahead of the slot). The stagger is the pacing AND the budget: one
 //     body per two seconds is a build nobody can feel.
 //
+//     …AND THE BUILD IS PACED BY THE SLOT, NOT BY THE EGG'S OWN CLOCK, which is
+//     the whole point and was for a while not true. `hatchAt` is staggered by a
+//     few tenths so the clutch does not crack in unison, and the build used to
+//     fire at `hatchAt - BUILD_LEAD` — so with a COLD pool (a second cast in the
+//     round, or a mech swap that dropped the spares) all three bodies were built
+//     inside 0.8s while the hatches were a full 2s apart: the exact bunching the
+//     eggs exist to prevent, measured at 1.22 / 1.53 / 1.92s. Only the egg at
+//     the FRONT OF THE QUEUE may build, and only within `BUILD_LEAD` of the slot
+//     it is actually waiting on, so the builds inherit the hatches' spacing —
+//     measured 1.23 / 3.27 / 5.28s, warm pool or cold — one every two seconds.
+//     An egg broken out of the queue hands the front to the next one at once,
+//     so nothing stalls behind a shell the enemy took away.
+//
 // WHO HIT IT MATTERS, and this is the rule the whole damage model hangs off:
 //   SAURION'S OWN BLOWS DO NOT HURT HIS CLUTCH. They SHOVE — a full physics
 //     impulse, no damage, no flash. Kicking an egg is a way of saying "go over
 //     there", so he can roll one behind cover, into a fight, or off a ledge.
-//   ANYBODY ELSE'S BLOWS DAMAGE IT. It flashes red, takes a much smaller shunt
-//     (a hit is a wound, not a delivery), and the SECOND one destroys it: the
-//     shell comes apart and nothing hatches. An egg is two hits of the enemy's
-//     time, and it is worth spending.
+//   ANYBODY ELSE'S BLOWS DAMAGE IT, and HOW HARD depends on what landed. A
+//     SHELL IS NOT ARMOUR: getting a fist to one means closing on the clutch
+//     with SAURION standing over it, so a MELEE blow (or a blast) breaks it
+//     OUTRIGHT, while a BULLET — which anybody can send from across the plaza —
+//     takes two. Either way it flashes red and takes a much smaller shunt than
+//     a kick from its own parent: a hit is a wound, not a delivery.
 //
 // THE HATCH ITSELF: the shell breaks into pieces that scatter and fade, and the
 // raptor comes out CURLED — the `ball` clip — and unfolds into his stance as he
@@ -48,7 +63,9 @@ const OWNER_SHOVE = 15;    // units/s a kick from SAURION puts into an egg
 const ENEMY_SHOVE = 5.5;   // …against what a hit from anyone else does
 const FLASH_T = 0.35;      // seconds of red after a wound
 const PIECES = 9;
-const HP = 2;              // enemy hits an egg survives (the second one kills it)
+const HP = 2;              // shell integrity: a bullet costs 1, a fist costs all of it
+export const EGG_DMG_SHOT = 1;    // a round from range — two of them break a shell
+export const EGG_DMG_MELEE = HP;  // a fist or a blast — one is enough
 
 const _v = new THREE.Vector3();
 const _axis = new THREE.Vector3();
@@ -202,9 +219,11 @@ export class EggSystem {
 
   /**
    * A blow lands on an egg. THE ATTACKER IS THE RULE: its own parent shoves it,
-   * anybody else wounds it. `dir` is the push direction (any length).
+   * anybody else wounds it. `dir` is the push direction (any length), `dmg` is
+   * what the blow is worth against the shell — `EGG_DMG_SHOT` for a projectile,
+   * `EGG_DMG_MELEE` for a fist or a blast, which breaks it in one.
    */
-  hit(egg, attacker, dir, power = 1) {
+  hit(egg, attacker, dir, power = 1, dmg = EGG_DMG_SHOT) {
     if (!egg || egg.state === 'dead' || egg.state === 'hatching') return false;
     const own = attacker === egg.owner || (attacker && egg.owner && attacker.isAllyOf?.(egg.owner));
     _v.copy(dir); _v.y = 0;
@@ -223,7 +242,7 @@ export class EggSystem {
     egg.vel.addScaledVector(_v, ENEMY_SHOVE * power);
     egg.vel.y = Math.max(egg.vel.y, 2);
     egg.flash = FLASH_T;
-    egg.hp--;
+    egg.hp -= Math.max(1, dmg);
     fx.impactSparks(egg.pos, 0xff5a4a, 10, 7);
     this.world.audio?.play(egg.hp > 0 ? 'hit' : 'explosion');
     if (egg.hp <= 0) this.destroy(egg, attacker);
@@ -278,6 +297,11 @@ export class EggSystem {
   update(dt) {
     if (!this.eggs.length) return;
     const w = this.world;
+    // WHOSE TURN IT IS. The queue is the clutch in the order it was laid, and
+    // only its front egg is allowed to build a body — see the note at the top:
+    // this is what makes the BUILDS as far apart as the HATCHES rather than as
+    // far apart as the (deliberately tight) `hatchAt` stagger.
+    const front = this.eggs.find((e) => e.state === 'idle' || e.state === 'cracking');
     for (let i = this.eggs.length - 1; i >= 0; i--) {
       const e = this.eggs[i];
       e.t += dt;
@@ -297,8 +321,12 @@ export class EggSystem {
       }
       // ---- the hatch queue ----
       if (e.state === 'idle' || e.state === 'cracking') {
-        // build the body a beat before the slot it is going to use
-        if (!e.body && e.prepare && e.t >= e.hatchAt - BUILD_LEAD) e.body = e.prepare() || null;
+        // build the body a beat before the slot it is going to use — the SLOT,
+        // which is `nextHatch` and not this egg's own `hatchAt`, and only if it
+        // is this egg's turn at all
+        if (!e.body && e.prepare && e === front
+            && e.t >= e.hatchAt - BUILD_LEAD
+            && w.time >= this.nextHatch - BUILD_LEAD) e.body = e.prepare() || null;
         const slotReady = w.time >= this.nextHatch;
         if (e.state === 'idle' && e.t >= e.hatchAt && slotReady && e.body) {
           e.state = 'cracking';

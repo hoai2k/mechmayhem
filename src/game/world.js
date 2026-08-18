@@ -6,7 +6,7 @@ import { Effects, GOO_TINTS } from '../combat/effects.js';
 import { FlameFX, fireTint } from '../combat/flamefx.js';
 import { ProjectileSystem } from '../combat/projectiles.js';
 import { FleaSystem } from '../combat/fleas.js';
-import { EggSystem } from '../combat/eggs.js';
+import { EggSystem, EGG_DMG_MELEE } from '../combat/eggs.js';
 import { overlapsY } from '../combat/movekit.js';
 import { bodyHitSegment } from '../combat/hurtbox.js';
 import { hasCannons } from '../combat/cannonaim.js';
@@ -342,10 +342,12 @@ export class World {
     }
     this.arena?.damageSphere(pos, radius * 0.85, dmg * 2.2, null, true);
     this.arena?.hitExplosives?.(pos, radius);   // blasts cook off nearby tanks
-    // …and SAURION's clutch, where who threw it is the whole rule (eggs.js)
+    // …and SAURION's clutch, where who threw it is the whole rule (eggs.js).
+    // A BLAST COUNTS AS A HEAVY BLOW: it takes the shell in one, the same as a
+    // fist, because anything big enough to make a crater is not a scratch.
     for (const egg of this.eggs.eggsNear(pos, radius)) {
       _v2.set(egg.pos.x - pos.x, 0, egg.pos.z - pos.z);
-      this.eggs.hit(egg, owner, _v2, 1);
+      this.eggs.hit(egg, owner, _v2, 1, EGG_DMG_MELEE);
     }
   }
 

@@ -27,6 +27,17 @@ export class Hud {
     this.popupLayer.id = 'popup-layer';
     this.el.appendChild(this.popupLayer);
 
+    // THE 3-PLAYER STATS PANEL. With three humans the split stands the three
+    // views in an L and leaves the top-right quadrant empty ON PURPOSE (see
+    // camera.js LAYOUTS) — this is what goes in it. Every plate moves INSIDE
+    // it and stacks, so no player's viewport carries a plate at all; at any
+    // other player count it is not displayed and the plates sit in their
+    // viewports' corners exactly as they always have.
+    this.statsPanel = document.createElement('div');
+    this.statsPanel.id = 'hud-stats';
+    this.statsPanel.style.display = 'none';
+    this.el.appendChild(this.statsPanel);
+
     this.calloutEl = document.createElement('div');
     this.calloutEl.style.cssText = `
       position:absolute; top:14vh; left:0; right:0; text-align:center; opacity:0;
@@ -123,14 +134,39 @@ export class Hud {
   // place plates to match the split layout so each human's plate lives in
   // their own viewport. kind: 'single' | 'lr' | 'tb' | '3' | '4';
   // humanIdx: indices into the plates array that are human, in viewport order.
+  //
+  // '3' IS THE EXCEPTION AND IT IS THE WHOLE POINT: three views leave a spare
+  // quadrant, so every plate goes into the panel there instead of being dealt a
+  // corner of somebody's view. Nothing about the plates themselves changes —
+  // they are the same elements, re-parented — so health, ult badges, pips,
+  // ammo and death counts all keep updating through the same handles.
   positionPlates(kind, humanIdx = []) {
+    const panelled = kind === '3';
+    this.statsPanel.style.display = panelled ? 'flex' : 'none';
+    if (panelled) {
+      // the round clock is a stat too, and centred on screen it straddles the
+      // panel's own edge — so it goes in at the top of it
+      this.statsPanel.appendChild(this.timerEl);
+      this.timerEl.classList.add('in-stats');
+      this.plates.forEach((p) => {
+        this.statsPanel.appendChild(p.root);
+        p.root.style.cssText = '';          // the panel lays them out, not a corner
+        p.head.style.flexDirection = '';
+        p.pipsRow.style.justifyContent = '';
+      });
+      return;
+    }
+    if (this.timerEl.parentNode !== this.el) this.el.appendChild(this.timerEl);
+    this.timerEl.classList.remove('in-stats');
+    for (const p of this.plates) if (p.root.parentNode !== this.el) this.el.appendChild(p.root);
     const POS = {
       TL: ['top:2.5vh;left:2vw;', false], TR: ['top:2.5vh;right:2vw;', true],
       BL: ['bottom:3vh;left:2vw;', false], BR: ['bottom:3vh;right:2vw;', true],
       ML: ['top:52vh;left:2vw;', false], MR: ['top:52vh;right:2vw;', true],
     };
-    const HUMAN_SLOTS = { lr: ['TL', 'TR'], tb: ['TL', 'ML'], 3: ['TL', 'TR', 'ML'], 4: ['TL', 'TR', 'ML', 'MR'] };
-    const AI_SLOTS = { lr: ['BL', 'BR'], tb: ['TR', 'MR'], 3: ['MR'], 4: [] };
+    // no '3' here — that layout returned above, into the stats panel
+    const HUMAN_SLOTS = { lr: ['TL', 'TR'], tb: ['TL', 'ML'], 4: ['TL', 'TR', 'ML', 'MR'] };
+    const AI_SLOTS = { lr: ['BL', 'BR'], tb: ['TR', 'MR'], 4: [] };
     const assign = [];
     if (kind === 'single' || !HUMAN_SLOTS[kind]) {
       const order = ['TL', 'TR', 'BL', 'BR'];
