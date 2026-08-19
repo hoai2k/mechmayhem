@@ -71,6 +71,18 @@ TAPERING top, centred at ±0.21 B, inboard of the arm pivot), with the bottom
 tapering back in. Use the cleaner-perspective side of the drawing for
 single-part numbers.
 
+**3b2. SIDE ANALYSIS — a front-only match is a cardboard cutout.**
+Depth is invisible in a front view and mostly occluded in the (3/4) drawing,
+so profile it from the 3D model: `node tools/scratch/sideprofile.mjs <id>
+models` buckets the GLB's skinned vertices by leg bone and prints per-y-band
+DEPTH (z-extent) beside width; run it again with `anime` on your build and
+compare band by band. Titanus' first depth audit read HALF the model
+everywhere — thigh 1.0 vs ~1.85 (no hamstring mass), ankle throat 0.86 vs
+~2.2, boot 1.9 vs ~2.8 — which is exactly what "the legs look flat" means.
+Sculpt to the bands: rear masses (hamstring, calf, heel counter), front
+bosses (thigh wedge, faceted knee prism standing proud of its backing
+plate, instep, toe box), 45° chamfer strips so big faces read as facets.
+
 **3c. CLOSE THE LOOP with a geometry probe.** After building, sample the
 BUILT mech's mesh vertices per region (world-space, in y bands, ink shells
 excluded) and print centre/width against the target table — see the
