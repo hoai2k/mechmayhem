@@ -34,6 +34,7 @@ import {
 } from '../../../src/mechs/mannequin.js';
 import { profileFor, ARM_JOINTS, mirrorJointName } from '../../../src/mechs/glbanim.js';
 import { SIGNATURES } from '../../../src/mechs/signatures.js';
+import { ANIME, buildAnimeMech } from '../../../src/mechs/anime.js';
 import {
   buildGlbForTool, fetchRawManifest, loadRawGlbScene, applyEntryDrops, skinnedBox, measureHeadTop, setAssetBase,
   clearGlbCache,
@@ -231,7 +232,9 @@ const CONFIG = defineWorkbenchConfig({
   },
 
   variants: {
-    // 'glb'  the shipped model · 'proc' the hand-sculpted body · 'alt' a
+    // 'glb'  the shipped model · 'proc' the hand-sculpted FALLBACK body ·
+    // 'anime' the dedicated cel-route sculpt where one exists
+    // (src/mechs/animedesigns/) · 'alt' a
     // staged second build (a different GLB, or the same one on a new rig) ·
     // 'mannequin' the REFERENCE humanoid (mechs/mannequin.js) — not a build of
     // this mech at all, but the same 15 joints at this mech's measurements, so
@@ -241,7 +244,8 @@ const CONFIG = defineWorkbenchConfig({
       ? [{ key: 'mannequin', label: 'Mannequin', available: true }]
       : [
         { key: 'glb', label: 'GLB', available: !!manifest?.[id]?.url },
-        { key: 'proc', label: 'Procedural Robot', available: true },
+        { key: 'proc', label: 'Fallback Robot', available: true },
+        { key: 'anime', label: 'Anime Robot', available: !!ANIME[id]?.design },
         { key: 'alt', label: 'Alternate GLB', available: !!manifest?.[id]?.alt?.url },
         { key: 'mannequin', label: 'Mannequin', available: true },
       ]),
@@ -252,6 +256,7 @@ const CONFIG = defineWorkbenchConfig({
       if (!def) return null;
       if (variant === 'mannequin') return buildMannequin({ dims: computeDims(def), def });
       if (variant === 'proc') return buildMech(def);
+      if (variant === 'anime') return buildAnimeMech(def);
       const built = await buildGlbForTool(def, overrides, { alt: variant === 'alt' });
       return built?.mech || null;
     },

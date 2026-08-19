@@ -169,8 +169,9 @@ export function buildAnimeMech(def) {
     Object.assign(mech.materials, mats);
   }
   // the core PointLight gives a PBR body presence; on a cel ramp it blows the
-  // whole chest past the top step into one flat blaze — keep a trace of it
-  mech.group.traverse((o) => { if (o.isLight) o.intensity *= 0.12; });
+  // whole chest past the top step into one flat blaze — and on a PALE mech
+  // even 12% pooled a visible searchlight blob on the collar. A trace only.
+  mech.group.traverse((o) => { if (o.isLight) o.intensity *= 0.05; });
   // per-mech refinement over the SHARED sculpt: extra geometry the drawing
   // has and it lacks, added BEFORE the ink pass so it gets outlined too
   if (!entry.design) entry.dress?.(mech, def);
