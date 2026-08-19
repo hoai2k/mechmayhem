@@ -155,22 +155,24 @@ export function animeTitanus(A, D, J, anchors, def) {
   for (const sx of [-1, 1]) {
     const tx = sx * 0.68, tz = -0.58;
     // base collar + column (slight taper up)
-    A.sharpBox('torso', 'dark', [0.58, 0.30, 0.52], { p: [tx, 2.28, tz] });
-    A.taper('torso', 'frame', [0.48, 1.15, 0.44], 0.94, 0.94, { p: [tx, 2.90, tz] });
+    A.sharpBox('torso', 'dark', [0.62, 0.30, 0.54], { p: [tx, 2.28, tz] });
+    // ONE column, tapering the whole way up (the drawing's width per row
+    // falls 109 -> 82 px with no cap bulge at the top — measured, step 3b)
+    A.taper('torso', 'frame', [0.62, 1.75, 0.54], 0.72, 0.78, { p: [tx, 3.16, tz] });
+    A.sharpBox('torso', 'dark', [0.50, 0.07, 0.46], { p: [tx, 3.72, tz] }); // seam ring
     // recessed front grille: amber glow behind thin dark slats
-    A.sharpBox('torso', 'dark', [0.34, 0.95, 0.05], { p: [tx, 2.92, tz + 0.21] });
-    A.custom('torso', lens, new THREE.BoxGeometry(0.28, 0.85, 0.03), { p: [tx, 2.92, tz + 0.235] });
+    A.sharpBox('torso', 'dark', [0.32, 0.95, 0.05], { p: [tx, 2.95, tz + 0.22] });
+    A.custom('torso', lens, new THREE.BoxGeometry(0.26, 0.85, 0.03), { p: [tx, 2.95, tz + 0.245] });
     for (let i = 0; i < 7; i++) {
-      A.sharpBox('torso', 'dark', [0.30, 0.07, 0.035], {
-        p: [tx, 2.58 + i * 0.125, tz + 0.245] });
+      A.sharpBox('torso', 'dark', [0.28, 0.07, 0.035], {
+        p: [tx, 2.61 + i * 0.125, tz + 0.255] });
     }
     // side window slits (amber), one high one low, on the outer face
     A.sharpBox('torso', 'glow', [0.04, 0.15, 0.05], { p: [tx + sx * 0.235, 2.66, tz + 0.05] });
     A.sharpBox('torso', 'glow', [0.04, 0.15, 0.05], { p: [tx + sx * 0.235, 3.22, tz - 0.02] });
     // chamfered cap block with the crenellated notch (two prongs, gap centre)
-    A.taper('torso', 'accent', [0.62, 0.44, 0.56], 0.88, 0.88, { p: [tx, 3.68, tz] });
-    for (const px of [-1, 1]) {
-      A.sharpBox('torso', 'dark', [0.20, 0.26, 0.50], { p: [tx + px * 0.17, 4.00, tz] });
+    for (const px of [-1, 1]) {          // crenel prongs straight off the taper
+      A.sharpBox('torso', 'dark', [0.16, 0.28, 0.42], { p: [tx + px * 0.135, 4.14, tz] });
     }
     // greebles at the base: small pistons + a stub cylinder
     A.tube('torso', 'metal', 0.05, 0.05, 0.35, { p: [tx + sx * 0.30, 2.36, tz + 0.18] });
@@ -272,29 +274,41 @@ export function animeTitanus(A, D, J, anchors, def) {
     // underside plate
     A.sharpBox(el, 'frame', [0.92, 0.5, 0.2], { p: [0, -fl * 0.7, -0.48] });
 
-    // ---- FIST: gorilla knuckle cluster, bottom just below the knee line ----
-    A.tube(ha, 'dark', 0.30, 0.33, 0.22, { p: [0, 0.06, 0] });                   // wrist ring
-    A.part(ha, 'frame', roundedBox(0.98, 0.92, 0.92, 0.16), { p: [0, -0.55, 0.02] }); // palm block
-    // back-of-hand plate (yellow, beveled, tipped with the hang of the arm)
-    A.plate(ha, 'primary', rhombOutline(0.85, 0.68, { cut: 0.24 }), 0.14, {
-      p: [0, -0.38, -0.48], r: [-0.12, 0, 0], round: 0.12 });
-    // four finger columns, three segments each, curling forward-down
+    // ---- FIST: a clenched gorilla fist that reads from EVERY angle ----
+    // (judged on a 4-view turnaround — tools/scratch/partsheet.mjs). The
+    // FINGERS are most of the volume: four columns of three big segments
+    // curling from the knuckle line down and UNDER, so the side view shows
+    // the curl arc and the back view shows fingertips — never a mitten.
+    A.tube(ha, 'dark', 0.30, 0.33, 0.24, { p: [0, 0.08, 0] });                  // wrist ring
+    // metacarpal block, deeper than wide; dark palm plate on its rear face
+    A.part(ha, 'frame', roundedBox(0.92, 0.62, 0.78, 0.14), { p: [0, -0.34, 0.02] });
+    A.part(ha, 'dark', roundedBox(0.78, 0.52, 0.18, 0.06), { p: [0, -0.40, -0.34] });
+    // back-of-hand: big yellow beveled wedge on the FRONT face, over the
+    // metacarpals — the fist's one clean paint field
+    A.plate(ha, 'primary', rhombOutline(0.88, 0.62, { cut: 0.24 }), 0.16, {
+      p: [0, -0.30, 0.42], r: [0.22, 0, 0], round: 0.12 });
+    // four fingers, three LARGE segments each, wrapping down and under
     for (let i = 0; i < 4; i++) {
-      const fx = (i - 1.5) * 0.235;
-      A.part(ha, 'primary', roundedBox(0.21, 0.30, 0.28, 0.06), {
-        p: [fx, -0.42, 0.52], r: [0.15, 0, 0] });
-      A.part(ha, 'dark', roundedBox(0.20, 0.27, 0.25, 0.05), {
-        p: [fx, -0.74, 0.55], r: [0.55, 0, 0] });
-      A.part(ha, 'dark', roundedBox(0.18, 0.24, 0.21, 0.05), {
-        p: [fx, -1.00, 0.40], r: [1.1, 0, 0] });
+      const fx = (i - 1.5) * 0.24;
+      // proximal: off the knuckle line, angled forward-down
+      A.part(ha, 'primary', roundedBox(0.225, 0.34, 0.30, 0.06), {
+        p: [fx, -0.70, 0.32], r: [0.55, 0, 0] });
+      // knuckle cap
+      A.part(ha, 'dark', roundedBox(0.20, 0.14, 0.20, 0.05), {
+        p: [fx, -0.60, 0.50], r: [0.55, 0, 0] });
+      // middle: swinging under the palm
+      A.part(ha, 'dark', roundedBox(0.215, 0.32, 0.27, 0.05), {
+        p: [fx, -0.95, 0.08], r: [1.45, 0, 0] });
+      // tip: tucked back in against the palm's underside
+      A.part(ha, 'dark', roundedBox(0.20, 0.28, 0.23, 0.05), {
+        p: [fx, -0.92, -0.20], r: [2.35, 0, 0] });
     }
-    // thumb, two segments, inboard
-    A.part(ha, 'primary', roundedBox(0.22, 0.30, 0.26, 0.06), {
-      p: [-sx * 0.55, -0.55, 0.28], r: [0.3, 0, -sx * 0.4] });
-    A.part(ha, 'dark', roundedBox(0.19, 0.26, 0.22, 0.05), {
-      p: [-sx * 0.62, -0.82, 0.38], r: [0.8, 0, -sx * 0.4] });
-    // knuckle guard ridge across the top of the fingers
-    A.sharpBox(ha, 'dark', [0.95, 0.14, 0.30], { p: [0, -0.30, 0.56], r: [0.15, 0, 0] });
+    // thumb: two big segments crossing the inner-front, overlapping the
+    // first finger the way a clenched thumb does
+    A.part(ha, 'primary', roundedBox(0.26, 0.34, 0.28, 0.06), {
+      p: [-sx * 0.46, -0.52, 0.24], r: [0.5, -sx * 0.5, -sx * 0.35] });
+    A.part(ha, 'dark', roundedBox(0.22, 0.30, 0.24, 0.05), {
+      p: [-sx * 0.30, -0.74, 0.38], r: [1.1, -sx * 0.5, -sx * 0.25] });
   }
 
   // ======================= LEGS =======================
@@ -418,7 +432,7 @@ export function animeTitanus(A, D, J, anchors, def) {
 
   // ======================= ANCHORS (§5 contract) =======================
   // rocket fists fire from the knuckles; core light sits inside the chest
-  anchors.muzzleR = addAnchor(J.handR, 0, -0.72, 0.62);
-  anchors.muzzleL = addAnchor(J.handL, 0, -0.72, 0.62);
+  anchors.muzzleR = addAnchor(J.handR, 0, -0.72, 0.50);
+  anchors.muzzleL = addAnchor(J.handL, 0, -0.72, 0.50);
   anchors.core = addAnchor(J.torso, 0, 1.10, 0.45);
 }

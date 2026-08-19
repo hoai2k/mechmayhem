@@ -69,7 +69,13 @@ with boots wider still (~0.28 B per foot) — and his pauldron top is a narrow
 crest that swells to full width only a quarter of the way down (a ROUNDED,
 TAPERING top, centred at ±0.21 B, inboard of the arm pivot), with the bottom
 tapering back in. Use the cleaner-perspective side of the drawing for
-single-part numbers.
+single-part numbers. And for every COLUMNAR part (towers, horns, stacks,
+barrels), read its width per row within the part's own x-band and state the
+GRADIENT — tapers / straight / flares, and where. Titanus' radiator towers
+measure 109 → 82 px rising, a monotone TAPER with no cap: the first build
+gave them a wider cap block at the top, a bulge nothing in the drawing has,
+and the full-figure comparisons never surfaced it. A shape's direction of
+change is a measurement, not an impression.
 
 **3b2. SIDE ANALYSIS — a front-only match is a cardboard cutout.**
 Depth is invisible in a front view and mostly occluded in the (3/4) drawing,
@@ -95,6 +101,18 @@ which then also damps the heel roll and asks for a level sole exactly as a
 measured GLB boot gets). MORAL: a proportion that looks wrong at runtime is
 not always the geometry — verify the JOINTS' world positions match the
 design before touching parts.
+
+**3d. ASSEMBLY TURNAROUNDS — compound parts must read from EVERY angle.**
+`node tools/scratch/partsheet.mjs <id> <joint> out.png [render]` shoots a
+close-up 4-view sheet (front / 3-4 / side / back) centred on a joint. Run it
+for every compound assembly — hands, feet, head, any weapon cluster — and
+judge each tile as its own picture: a HAND has to read as a hand in all
+four. Titanus' first fist read fine head-on and was a MITTEN from the side
+(stub fingers pinned to the forearm, no curl in the silhouette, a floating
+thumb) — invisible in every full-figure shot, obvious in one tile. The fix
+is compositional, worth stating as the rule: in a clenched fist the FINGERS
+are most of the volume, three large segments each, wrapping down and under
+so the side shows the curl arc and the back shows fingertips.
 
 **4. Judge region by region at matched framing.**
 After each build round, side-by-side the render against the drawing at the
