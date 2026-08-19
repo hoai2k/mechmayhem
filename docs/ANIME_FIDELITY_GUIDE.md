@@ -65,6 +65,20 @@ Where the anime drawing is ambiguous (backs, occluded joints), read the
 photoreal canonical (`docs/canonical/mech_<id>.png`) — the drawing wins only
 where they disagree.
 
+**2c. WRITE THE VISUAL ANALYSIS FIRST — then build against it.**
+Before any geometry, write `docs/animeanalysis/<id>.md`: the drawing read as
+an explicit, gradeable description — the GESTALT in one paragraph (is this a
+bell-shaped monolith or stacked segments? what are the mass shares?), each
+region with measured widths AND its TRANSITIONS ("the thighs emerge from
+UNDER the skirt, no seam"), and a pass/fail CHECKLIST with numbers. Then
+grade every build round against the checklist IN WRITING in the doc's round
+log. This is what catches relationship errors that per-part checks cannot:
+glacier r11 had good parts and still failed six rows — head too visible,
+a waist pinch the drawing doesn't have, hip hardware poking the silhouette,
+a chunky lance — because those are claims about how regions RELATE, and
+nobody had written the claims down. The checklist is also where the human's
+corrections land: turn each one into a row so it can never regress silently.
+
 **3. State the landmark table in the design file header** as fractions of B,
 with the source of each number. The file is the record; the next session
 shouldn't have to re-derive it.

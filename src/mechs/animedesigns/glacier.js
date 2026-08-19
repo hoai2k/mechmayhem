@@ -25,7 +25,7 @@ export function animeGlacierDims(D) {
     // model-primary: the GLB knee sits HIGH (0.40 B) — short thigh, long shin
     hipHeight: 4.30, thighLen: 1.20, shinLen: 2.60,
     torsoH: 2.10, torsoW: 2.04, torsoD: 1.50,
-    shoulderY: 1.80, headY: 2.20, headZ: 0.24,
+    shoulderY: 1.80, headY: 2.02, headZ: 0.14,
     shoulderW: 2.00, upperArmLen: 1.40, foreArmLen: 1.45,
     hipW: 1.07, footLen: 1.60,
   };
@@ -69,39 +69,39 @@ export function animeGlacier(A, D, J, anchors, def) {
       p: [lp[0], lp[1] - h * 0.18, lp[2]], r: [Math.PI + lr[0], lr[1], -lr[2]] });
   };
 
-  // ======================= WAIST / PELVIS =======================
-  A.tube('hips', 'frame', 0.30, 0.34, 0.70, { p: [0, 0.26, 0] });
-  for (let i = 0; i < 3; i++) {
-    A.tube('hips', 'dark', 0.37 - i * 0.015, 0.39 - i * 0.015, 0.13, {
-      p: [0, 0.06 + i * 0.20, 0] });
-  }
-  // pelvis: chamfered 8-side masses, not boxes
-  A.facet('hips', 'frame', 0.62, 0.74, 0.60, 0.70, { sides: 8, scaleZ: 0.78, p: [0, -0.26, 0] });
-  A.facet('hips', 'accent', 0.50, 0.56, 0.44, 0.34, { sides: 8, scaleZ: 0.80, p: [0, -0.62, 0] });
-  // front crotch plate: pale pentagon over a raised wedge
-  A.taper('hips', 'primary', [0.56, 0.55, 0.22], 0.75, 0.8, { p: [0, -0.36, 0.46] });
-  A.plate('hips', 'primary', shieldOutline(0.70, 0.64, { taper: 0.72, tip: 0.28 }), 0.12, {
-    p: [0, -0.36, 0.58], r: [0.10, 0, 0], round: 0.14 });
-  A.sharpBox('hips', 'dark', [0.30, 0.12, 0.05], { p: [0, -0.14, 0.62] });
-  // side skirts: two-layer chamfered plates over the hip drums
+  // ======================= WAIST / PELVIS: THE SKIRT =======================
+  // The drawing has NO pelvis part: the torso flares to its widest core
+  // width (0.37 B) at the leg split and the thighs emerge from UNDER that
+  // mass. So the hips carry ONE broad chamfered skirt — no waist rings, no
+  // hip drums, no side hardware — plus a flush crotch pentagon and a rear
+  // plate riding its surface.
+  A.facet('hips', 'primary', 0.86, 0.92, 0.72, 1.00, {
+    sides: 8, scaleX: 1.52, scaleZ: 0.86, p: [0, -0.18, 0] });
+  A.facet('hips', 'accent', 0.72, 0.80, 0.62, 0.40, {
+    sides: 8, scaleX: 1.45, scaleZ: 0.82, p: [0, -0.72, 0] });
+  // skirt facet plates: front pair + side pair, laid ON the mass
   for (const sx of [-1, 1]) {
-    A.tube('hips', 'dark', 0.40, 0.40, 0.36, {
-      p: [sx * 0.80, -0.30, 0], r: [0, 0, Math.PI / 2], seg: 16 });
-    A.tube('hips', 'metal', 0.12, 0.12, 0.06, {
-      p: [sx * 1.00, -0.30, 0], r: [0, 0, Math.PI / 2] });
-    A.plate('hips', 'primary', rhombOutline(0.80, 0.62, { cut: 0.28 }), 0.12, {
-      p: [sx * 1.00, -0.38, 0.06], r: [0.04, sx * Math.PI / 2, sx * 0.16], round: 0.14 });
-    A.plate('hips', 'accent', rhombOutline(0.60, 0.44, { cut: 0.3 }), 0.08, {
-      p: [sx * 1.10, -0.52, 0.02], r: [0.04, sx * Math.PI / 2, sx * 0.22], round: 0.14 });
+    A.plate('hips', 'primary', rhombOutline(0.72, 0.78, { cut: 0.26 }), 0.10, {
+      p: [sx * 0.55, -0.30, 0.62], r: [0.14, -sx * 0.28, 0], round: 0.14 });
+    A.plate('hips', 'primary', rhombOutline(0.66, 0.70, { cut: 0.28 }), 0.10, {
+      p: [sx * 1.12, -0.34, 0.02], r: [0.05, sx * Math.PI / 2, sx * 0.10], round: 0.14 });
   }
-  A.plate('hips', 'accent', shieldOutline(0.95, 0.62, { taper: 0.78 }), 0.12, {
-    p: [0, -0.42, -0.52], r: [-0.10, Math.PI, 0], round: 0.14 });
+  // flush crotch pentagon + thin shadow notch
+  A.plate('hips', 'primary', shieldOutline(0.62, 0.58, { taper: 0.72, tip: 0.28 }), 0.10, {
+    p: [0, -0.62, 0.66], r: [0.16, 0, 0], round: 0.14 });
+  A.sharpBox('hips', 'dark', [0.26, 0.10, 0.05], { p: [0, -0.40, 0.74] });
+  A.plate('hips', 'accent', shieldOutline(1.00, 0.66, { taper: 0.78 }), 0.12, {
+    p: [0, -0.40, -0.66], r: [-0.12, Math.PI, 0], round: 0.14 });
 
   // ======================= TORSO =======================
-  // abdomen: three chamfered 8-side segments narrowing to the waist
-  A.facet('torso', 'dark', 0.58, 0.66, 0.56, 0.34, { sides: 8, scaleZ: 0.82, p: [0, 0.10, 0] });
-  A.facet('torso', 'frame', 0.62, 0.72, 0.62, 0.36, { sides: 8, scaleZ: 0.84, p: [0, 0.44, 0] });
-  A.facet('torso', 'dark', 0.68, 0.78, 0.70, 0.38, { sides: 8, scaleZ: 0.86, p: [0, 0.80, 0] });
+  // abdomen: pale chamfered segments — the body narrows only GENTLY here
+  // (0.24 B at the least) and then FLARES into the skirt; the dark is a thin
+  // shadow ring per joint, never a waist band
+  A.facet('torso', 'primary', 0.62, 0.70, 0.60, 0.36, { sides: 8, scaleX: 1.35, scaleZ: 0.92, p: [0, 0.10, 0] });
+  A.tube('torso', 'dark', 0.74, 0.76, 0.07, { p: [0, 0.30, 0], seg: 16 });
+  A.facet('torso', 'primary', 0.66, 0.74, 0.64, 0.36, { sides: 8, scaleX: 1.35, scaleZ: 0.94, p: [0, 0.46, 0] });
+  A.tube('torso', 'dark', 0.78, 0.80, 0.07, { p: [0, 0.66, 0], seg: 16 });
+  A.facet('torso', 'accent', 0.70, 0.80, 0.72, 0.38, { sides: 8, scaleX: 1.35, scaleZ: 0.96, p: [0, 0.82, 0] });
   // belly plates: broad pale slabs with chamfer wings, riding the segments
   A.part('torso', 'primary', roundedBox(0.95, 0.40, 0.24, 0.05), { p: [0, 0.58, 0.52] });
   A.part('torso', 'primary', roundedBox(0.80, 0.36, 0.22, 0.05), { p: [0, 0.16, 0.48] });
@@ -142,8 +142,8 @@ export function animeGlacier(A, D, J, anchors, def) {
     A.tube('torso', 'dark', 0.34 - i * 0.02, 0.37 - i * 0.02, 0.14, {
       p: [0, 2.10 + i * 0.13, 0.10] });
   }
-  A.taper('torso', 'dark', [1.15, 0.30, 0.85], 0.9, 0.85, { p: [0, 2.12, 0.20] });
-  A.tube('torso', 'frame', 0.52, 0.56, 0.16, { p: [0, 2.26, 0.16], seg: 18 });
+  A.taper('torso', 'dark', [1.20, 0.34, 0.90], 0.9, 0.85, { p: [0, 2.16, 0.20] });
+  A.tube('torso', 'frame', 0.54, 0.58, 0.18, { p: [0, 2.32, 0.14], seg: 18 });
   A.taper('torso', 'accent', [1.30, 0.40, 0.90], 0.85, 0.85, { p: [0, 2.18, -0.25] }); // nape shelf
   // back pack: chamfered mass + rear plate + vents
   A.facet('torso', 'accent', 0.70, 0.80, 0.66, 1.25, { sides: 8, scaleX: 1.15, scaleZ: 0.55, p: [0, 1.45, -0.80] });
@@ -153,33 +153,33 @@ export function animeGlacier(A, D, J, anchors, def) {
 
   // ======================= HEAD: the armoured DOME =======================
   const dome = asm('head', [0, 0.12, 0]);
-  A.lathe('head', 'primary', [[-0.18, 0.75], [0.30, 0.70], [0.66, 0.50], [0.95, 0.12]], {
+  A.lathe('head', 'primary', [[-0.16, 0.65], [0.26, 0.61], [0.58, 0.44], [0.83, 0.10]], {
     p: [0, 0.12, 0], scaleX: 1.20, scaleZ: 1.05, seg: 22 });
   // dome PETAL PLATES: beveled panels laid over the shell — the drawing's
   // faceted dome — three along the centre arc, two flanking pairs
-  dome('primary', beveledPlate(rhombOutline(0.55, 0.40, { cut: 0.3 }), 0.06, { round: 0.2 }), [0, 0.70, 0.48], [-1.15, 0, 0]);
-  dome('primary', beveledPlate(rhombOutline(0.60, 0.45, { cut: 0.3 }), 0.06, { round: 0.2 }), [0, 0.92, 0.10], [-1.55, 0, 0]);
-  dome('primary', beveledPlate(rhombOutline(0.55, 0.42, { cut: 0.3 }), 0.06, { round: 0.2 }), [0, 0.86, -0.34], [-2.0, 0, 0]);
+  dome('primary', beveledPlate(rhombOutline(0.48, 0.35, { cut: 0.3 }), 0.06, { round: 0.2 }), [0, 0.61, 0.42], [-1.15, 0, 0]);
+  dome('primary', beveledPlate(rhombOutline(0.52, 0.40, { cut: 0.3 }), 0.06, { round: 0.2 }), [0, 0.80, 0.09], [-1.55, 0, 0]);
+  dome('primary', beveledPlate(rhombOutline(0.48, 0.37, { cut: 0.3 }), 0.06, { round: 0.2 }), [0, 0.75, -0.30], [-2.0, 0, 0]);
   for (const sx of [-1, 1]) {
     dome('primary', beveledPlate(rhombOutline(0.48, 0.55, { cut: 0.3 }), 0.06, { round: 0.2 }),
-      [sx * 0.55, 0.60, 0.10], [-1.3, sx * 0.85, 0]);
+      [sx * 0.48, 0.52, 0.09], [-1.3, sx * 0.85, 0]);
     dome('primary', beveledPlate(rhombOutline(0.40, 0.45, { cut: 0.3 }), 0.05, { round: 0.2 }),
-      [sx * 0.66, 0.34, -0.18], [-1.2, sx * 1.5, 0]);
+      [sx * 0.58, 0.30, -0.16], [-1.2, sx * 1.5, 0]);
   }
   // crest fin down the centre
-  A.blade('head', 'primary', 0.50, 0.15, 0.28, { p: [0, 1.02, 0.02], r: [0, Math.PI / 2, 0], taper: 0.5 });
+  A.blade('head', 'primary', 0.42, 0.13, 0.25, { p: [0, 0.90, 0.02], r: [0, Math.PI / 2, 0], taper: 0.5 });
   // brow band + wrap-around visor
-  A.part('head', 'primary', roundedBox(1.15, 0.34, 0.44, 0.10), { p: [0, 0.62, 0.52] });
-  A.sharpBox('head', 'dark', [1.04, 0.34, 0.18], { p: [0, 0.33, 0.72] });
-  A.sharpBox('head', 'glow', [0.72, 0.17, 0.06], { p: [0, 0.34, 0.82] });
+  A.part('head', 'primary', roundedBox(1.00, 0.30, 0.40, 0.10), { p: [0, 0.55, 0.46] });
+  A.sharpBox('head', 'dark', [0.92, 0.30, 0.16], { p: [0, 0.30, 0.62] });
+  A.sharpBox('head', 'glow', [0.64, 0.15, 0.06], { p: [0, 0.31, 0.71] });
   for (const sx of [-1, 1]) {
     A.custom('head', lens, new THREE.BoxGeometry(0.24, 0.13, 0.06), {
-      p: [sx * 0.44, 0.33, 0.68], r: [0, sx * 0.55, 0] });
+      p: [sx * 0.39, 0.30, 0.58], r: [0, sx * 0.55, 0] });
     // cheek: plate + chamfer strip
     A.part('head', 'primary', roundedBox(0.30, 0.40, 0.34, 0.08), {
-      p: [sx * 0.44, 0.16, 0.24], r: [0, sx * 0.35, 0] });
+      p: [sx * 0.39, 0.14, 0.21], r: [0, sx * 0.35, 0] });
     A.sharpBox('head', 'primary', [0.10, 0.34, 0.26], {
-      p: [sx * 0.58, 0.20, 0.12], r: [0, sx * 0.8, 0] });
+      p: [sx * 0.51, 0.18, 0.10], r: [0, sx * 0.8, 0] });
   }
   // jaw grill + chin + neck rings
   A.taper('head', 'dark', [0.52, 0.26, 0.36], 0.8, 0.75, { p: [0, 0.07, 0.44] });
@@ -189,18 +189,18 @@ export function animeGlacier(A, D, J, anchors, def) {
   A.tube('head', 'dark', 0.30, 0.34, 0.12, { p: [0, -0.18, 0.02] });
   // THE CRYSTAL CROWN: bipyramid prisms, tall centre — plus small companions
   const crown = [
-    [0.06, 0.74, -0.32, 1.70, 0.34, 0.05],
-    [-0.34, 0.70, -0.26, 1.25, 0.27, -0.15],
-    [0.44, 0.68, -0.22, 1.10, 0.25, 0.18],
-    [-0.62, 0.58, -0.10, 0.80, 0.20, -0.30],
-    [0.70, 0.55, -0.05, 0.72, 0.18, 0.32],
-    [0.16, 0.66, -0.55, 0.92, 0.21, -0.10],
+    [0.06, 0.64, -0.28, 1.70, 0.34, 0.05],
+    [-0.32, 0.60, -0.23, 1.25, 0.27, -0.15],
+    [0.40, 0.58, -0.19, 1.10, 0.25, 0.18],
+    [-0.55, 0.48, -0.09, 0.80, 0.20, -0.30],
+    [0.62, 0.46, -0.05, 0.72, 0.18, 0.32],
+    [0.15, 0.56, -0.48, 0.92, 0.21, -0.10],
   ];
   for (const [cx, cyy, cz, h, r, tilt] of crown) {
     iceCrystal('head', [cx, cyy, cz], h, r, [tilt * 0.4, cx * 2, tilt]);
   }
-  iceCrystal('head', [-0.14, 0.66, -0.14], 0.45, 0.11, [0.1, 0, -0.4]);
-  iceCrystal('head', [0.28, 0.62, -0.42], 0.40, 0.10, [-0.1, 0, 0.35]);
+  iceCrystal('head', [-0.13, 0.56, -0.12], 0.45, 0.11, [0.1, 0, -0.4]);
+  iceCrystal('head', [0.25, 0.52, -0.36], 0.40, 0.10, [-0.1, 0, 0.35]);
 
   // ======================= SHOULDERS =======================
   for (const side of ['L', 'R']) {
@@ -234,65 +234,65 @@ export function animeGlacier(A, D, J, anchors, def) {
     pd(crystal, cone(0.13, 0.18, 6), [sx * 0.34, 1.20, -0.30], [Math.PI - 0.22, 0, sx * 0.22]);
     // upper arm: chamfered segments + dark rings + side bolt
     A.tube(sh, 'frame', 0.26, 0.29, D.upperArmLen, { p: [0, -D.upperArmLen * 0.5, 0] });
-    A.facet(sh, 'primary', 0.30, 0.34, 0.28, 0.52, { sides: 8, p: [0, -0.55, 0] });
+    A.facet(sh, 'primary', 0.27, 0.31, 0.25, 0.52, { sides: 8, p: [0, -0.55, 0] });
     A.tube(sh, 'dark', 0.30, 0.32, 0.14, { p: [0, -0.92, 0] });
-    A.facet(sh, 'primary', 0.27, 0.31, 0.26, 0.40, { sides: 8, p: [0, -1.18, 0] });
+    A.facet(sh, 'primary', 0.24, 0.28, 0.23, 0.40, { sides: 8, p: [0, -1.18, 0] });
     A.tube(sh, 'metal', 0.08, 0.08, 0.10, { p: [sx * 0.30, -0.55, 0], r: [0, 0, Math.PI / 2] });
   }
 
   // ======================= RIGHT ARM: THE ICE LANCE =======================
   {
     const el = 'elbowR';
-    A.tube(el, 'metal', 0.30, 0.30, 0.55, { p: [0, 0, 0], r: [0, 0, Math.PI / 2], seg: 14 });
+    A.tube(el, 'metal', 0.26, 0.26, 0.48, { p: [0, 0, 0], r: [0, 0, Math.PI / 2], seg: 14 });
     for (const px of [-1, 1]) {
-      A.tube(el, 'dark', 0.33, 0.33, 0.08, { p: [px * 0.30, 0, 0], r: [0, 0, Math.PI / 2], seg: 16 });
+      A.tube(el, 'dark', 0.29, 0.29, 0.08, { p: [px * 0.26, 0, 0], r: [0, 0, Math.PI / 2], seg: 16 });
     }
     // cuff, then the ribbed stack: each segment a core cylinder wearing SIX
     // pale panel staves + a dark collar with bolt studs — machinery, not boxes
-    A.facet(el, 'primary', 0.52, 0.60, 0.50, 0.58, { sides: 8, scaleZ: 0.94, p: [0, -0.34, 0] });
+    A.facet(el, 'primary', 0.42, 0.48, 0.40, 0.55, { sides: 8, scaleZ: 0.94, p: [0, -0.33, 0] });
     const seg = (yc, rr, hh) => {
       A.tube(el, 'frame', rr - 0.05, rr - 0.03, hh, { p: [0, yc, 0], seg: 16 });
       for (let k = 0; k < 6; k++) {
         const a = (k / 6) * Math.PI * 2 + 0.26;
-        A.part(el, 'primary', roundedBox(0.26, hh * 0.94, 0.10, 0.03), {
+        A.part(el, 'primary', roundedBox(0.19, hh * 0.94, 0.065, 0.02), {
           p: [Math.cos(a) * rr, yc, Math.sin(a) * rr], r: [0, -a + Math.PI / 2, 0] });
       }
       A.tube(el, 'dark', rr + 0.015, rr + 0.015, 0.12, { p: [0, yc - hh / 2 - 0.07, 0], seg: 16 });
       for (let k = 0; k < 4; k++) {
         const a = (k / 4) * Math.PI * 2;
-        A.ball(el, 'metal', 0.045, { p: [Math.cos(a) * (rr + 0.02), yc - hh / 2 - 0.07, Math.sin(a) * (rr + 0.02)], seg: 8 });
+        A.ball(el, 'metal', 0.038, { p: [Math.cos(a) * (rr + 0.02), yc - hh / 2 - 0.07, Math.sin(a) * (rr + 0.02)], seg: 8 });
       }
     };
-    seg(-0.80, 0.52, 0.42);
-    seg(-1.36, 0.49, 0.40);
+    seg(-0.80, 0.40, 0.42);
+    seg(-1.36, 0.385, 0.40);
     // big collar where the core is exposed
-    A.tube(el, 'primary', 0.62, 0.57, 0.26, { p: [0, -1.79, 0], seg: 16 });
-    A.tube(el, 'dark', 0.58, 0.58, 0.08, { p: [0, -1.94, 0], seg: 16 });
+    A.tube(el, 'primary', 0.46, 0.43, 0.24, { p: [0, -1.79, 0], seg: 16 });
+    A.tube(el, 'dark', 0.43, 0.43, 0.08, { p: [0, -1.94, 0], seg: 16 });
     // the glowing core (lens) in two runs, magenta machinery in the gaps
-    A.tube(el, 'glow', 0.35, 0.35, 0.10, { p: [0, -1.92, 0], seg: 16 });
-    A.custom(el, lens, cyl(0.38, 0.38, 0.62, 16), { p: [0, -2.14, 0] });
-    A.tube(el, 'primary', 0.45, 0.45, 0.16, { p: [0, -2.50, 0], seg: 16 });
-    A.custom(el, lens, cyl(0.36, 0.36, 0.52, 16), { p: [0, -2.82, 0] });
+    A.tube(el, 'glow', 0.29, 0.29, 0.10, { p: [0, -1.92, 0], seg: 16 });
+    A.custom(el, lens, cyl(0.29, 0.29, 0.62, 16), { p: [0, -2.14, 0] });
+    A.tube(el, 'primary', 0.34, 0.34, 0.15, { p: [0, -2.50, 0], seg: 16 });
+    A.custom(el, lens, cyl(0.275, 0.275, 0.52, 16), { p: [0, -2.82, 0] });
     for (let k = 0; k < 3; k++) {
       const a = k * 2.1 + 0.7;
       A.custom(el, magenta, new THREE.BoxGeometry(0.08, 0.24, 0.05), {
-        p: [Math.cos(a) * 0.30, -2.05 - k * 0.30, Math.sin(a) * 0.30], r: [0, -a, 0] });
+        p: [Math.cos(a) * 0.235, -2.05 - k * 0.30, Math.sin(a) * 0.235], r: [0, -a, 0] });
     }
     // side rails: chamfered bars + ridge plates, carrying the twin blades
     for (const bx of [-1, 1]) {
-      A.facet(el, 'primary', 0.17, 0.20, 0.15, 1.05, { sides: 6, scaleZ: 1.9, p: [bx * 0.57, -2.07, 0] });
-      A.part(el, 'primary', roundedBox(0.10, 0.85, 0.50, 0.04), { p: [bx * 0.68, -2.02, 0] });
+      A.facet(el, 'primary', 0.12, 0.14, 0.10, 1.05, { sides: 6, scaleZ: 1.9, p: [bx * 0.42, -2.07, 0] });
+      A.part(el, 'primary', roundedBox(0.07, 0.85, 0.40, 0.03), { p: [bx * 0.50, -2.02, 0] });
       // blade: a long edged fin + companion edge ridge — not a plank
-      A.taper(el, 'primary', [0.16, 2.05, 0.55], 0.06, 0.22, {
-        p: [bx * 0.56, -3.35, 0], r: [Math.PI, 0, bx * 0.06] });
-      A.taper(el, 'primary', [0.10, 1.30, 0.30], 0.10, 0.3, {
-        p: [bx * 0.64, -3.05, 0.06], r: [Math.PI, 0, bx * 0.10] });
+      A.taper(el, 'primary', [0.11, 2.05, 0.45], 0.06, 0.22, {
+        p: [bx * 0.44, -3.35, 0], r: [Math.PI, 0, bx * 0.06] });
+      A.taper(el, 'primary', [0.07, 1.30, 0.24], 0.10, 0.3, {
+        p: [bx * 0.50, -3.05, 0.05], r: [Math.PI, 0, bx * 0.10] });
     }
     // tip: cap ring, drill collar, drill
-    A.tube(el, 'primary', 0.31, 0.38, 0.22, { p: [0, -3.15, 0], seg: 14 });
-    A.tube(el, 'metal', 0.12, 0.17, 0.20, { p: [0, -3.32, 0], seg: 10 });
-    A.tube(el, 'dark', 0.14, 0.14, 0.06, { p: [0, -3.42, 0], seg: 10 });
-    A.spike(el, 'metal', 0.11, 0.50, { p: [0, -3.62, 0], r: [Math.PI, 0, 0], seg: 8 });
+    A.tube(el, 'primary', 0.24, 0.30, 0.20, { p: [0, -3.15, 0], seg: 14 });
+    A.tube(el, 'metal', 0.10, 0.14, 0.18, { p: [0, -3.32, 0], seg: 10 });
+    A.tube(el, 'dark', 0.12, 0.12, 0.06, { p: [0, -3.42, 0], seg: 10 });
+    A.spike(el, 'metal', 0.09, 0.46, { p: [0, -3.60, 0], r: [Math.PI, 0, 0], seg: 8 });
   }
 
   // ======================= LEFT ARM: relaxed articulated glove =======================
@@ -303,7 +303,7 @@ export function animeGlacier(A, D, J, anchors, def) {
       A.tube(el, 'dark', 0.31, 0.31, 0.08, { p: [px * 0.28, 0, 0], r: [0, 0, Math.PI / 2], seg: 16 });
     }
     // forearm: chamfered core + front/outer plates + flaring wrist cuff
-    A.facet(el, 'primary', 0.36, 0.42, 0.34, 0.88, { sides: 8, scaleZ: 0.92, p: [0, -0.60, 0] });
+    A.facet(el, 'primary', 0.32, 0.37, 0.30, 0.88, { sides: 8, scaleZ: 0.92, p: [0, -0.60, 0] });
     A.plate(el, 'primary', rhombOutline(0.52, 0.66, { cut: 0.26 }), 0.09, {
       p: [0, -0.58, 0.40], round: 0.12 });
     A.plate(el, 'accent', rhombOutline(0.40, 0.55, { cut: 0.3 }), 0.07, {
@@ -348,7 +348,7 @@ export function animeGlacier(A, D, J, anchors, def) {
 
     // thigh: lathe core + front plate + outer plate + hamstring + hip drum
     A.ball(th, 'frame', 0.34, {});
-    A.lathe(th, 'primary', [[-tl * 1.05, 0.34], [-tl * 0.62, 0.44], [-tl * 0.18, 0.40], [0.06, 0.30]], {
+    A.lathe(th, 'primary', [[-tl * 1.05, 0.34], [-tl * 0.62, 0.44], [-tl * 0.10, 0.41], [0.30, 0.34]], {
       p: [sx * 0.06, 0, 0.02], r: [0, 0, lean], scaleX: 1.15, scaleZ: 1.05, seg: 18 });
     A.plate(th, 'primary', rhombOutline(0.62, 0.72, { cut: 0.26 }), 0.11, {
       p: [sx * 0.08, -tl * 0.42, 0.46], r: [0.06, 0, lean], round: 0.12 });
@@ -356,10 +356,7 @@ export function animeGlacier(A, D, J, anchors, def) {
       p: [sx * 0.48, -tl * 0.40, 0.02], r: [0, sx * Math.PI / 2, lean], round: 0.12 });
     A.taper(th, 'primary', [0.55, 0.62, 0.36], 0.78, 0.72, {
       p: [sx * 0.06, -tl * 0.42, -0.44], r: [-0.10, 0, lean] });
-    A.tube(th, 'dark', 0.36, 0.36, 0.22, {
-      p: [sx * 0.44, -0.12, 0], r: [0, 0, Math.PI / 2], seg: 16 });
-    A.tube(th, 'metal', 0.11, 0.11, 0.06, {
-      p: [sx * 0.56, -0.12, 0], r: [0, 0, Math.PI / 2] });
+
 
     // knee: dark 8-side joint mass + protruding facet boss + cap + discs
     A.facet(kn, 'dark', 0.32, 0.36, 0.30, 0.55, { sides: 8, scaleZ: 0.9, p: [0, -0.05, 0.05] });
