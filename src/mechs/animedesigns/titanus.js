@@ -5,12 +5,15 @@
 // its own part decomposition AND its own proportions, both measured off the
 // drawing's pixels (grid overlay, figure 1410px tall):
 //
-//   hips (crotch) at 0.475 of height  → hipHeight 3.55
-//   knee centre   at 0.29 of height   → thighLen 1.36 / shinLen 1.44
-//   shoulder line at 0.76 of height   → torsoH 2.35 over the +0.23 hip offset
-//   forearm       0.19 H long, 0.163 H WIDE (wider than a thigh)
-//   fist          0.16 × 0.18 H, bottom reaching just below the knee line
-//   towers        cap tops ~1.2 head-heights above the helmet
+// (B = ground → helmet top, 1225px; the towers overtop it):
+//   hips (crotch) at 0.547 B → hipHeight 3.55, so B ≈ 6.49
+//   knee centre   at 0.335 B → thighLen 1.36 / shinLen 1.44
+//   SHOULDER PIVOTS at 0.857 B — BELOW the chest top (shoulderY 1.78), and
+//   the HEAD IS SUNKEN: helmet top at 1.0 B is UNDER the pauldron tops
+//   (1.045 B), so headY drops the joint into a chest socket (rig support:
+//   headY/headZ/shoulderY dims read by factory.buildRig)
+//   forearm       0.163 H wide (wider than a thigh); fist bottom below the knee
+//   towers        tops at 1.151 B — about one head-height over the helmet
 //
 // Materials are the anime toon set (anime.js toonMaterials); the only custom
 // material is the flat hazard-chevron canvas. Anchors keep the §5 contract:
@@ -26,6 +29,9 @@ export function animeTitanusDims(D) {
     ...D,
     hipHeight: 3.55, thighLen: 1.36, shinLen: 1.44,
     torsoH: 2.35, torsoW: 2.30, torsoD: 1.55,
+    // the drawing's shoulder pivots sit BELOW the chest top and the head is
+    // tucked down between them — stated here, honoured by buildRig
+    shoulderY: 1.78, headY: 1.84, headZ: 0.16,
     shoulderW: 1.77, upperArmLen: 1.33, foreArmLen: 1.30,
     hipW: 0.83, footLen: 1.15, headSize: 0.46,
   };
@@ -61,7 +67,7 @@ export function animeTitanus(A, D, J, anchors, def) {
       p: [sx * 1.00, -0.34, 0], r: [0, 0, Math.PI / 2] });
   }
   // front crotch box: chamfered yellow block, dark inset panel across its top
-  A.taper('hips', 'primary', [0.72, 0.78, 0.34], 0.82, 0.85, { p: [0, -0.42, 0.52] });
+  A.taper('hips', 'primary', [0.66, 0.74, 0.32], 0.82, 0.85, { p: [0, -0.44, 0.52] });
   A.sharpBox('hips', 'dark', [0.44, 0.20, 0.06], { p: [0, -0.20, 0.70] });
   A.sharpBox('hips', 'primary', [0.36, 0.13, 0.04], { p: [0, -0.20, 0.735] });
   // small side skirt plates over the drums + rear plate
@@ -79,39 +85,39 @@ export function animeTitanus(A, D, J, anchors, def) {
   A.taper('torso', 'frame', [1.35, 0.34, 1.10], 1.08, 1.0, { p: [0, 0.33, 0] });
   A.taper('torso', 'frame', [1.15, 0.32, 0.98], 1.10, 1.0, { p: [0, 0.05, 0] });
   // centre abdominal plate (small yellow angular block between the segments)
-  A.taper('torso', 'primary', [0.52, 0.60, 0.16], 0.78, 0.9, { p: [0, 0.42, 0.60] });
-  A.sharpBox('torso', 'dark', [0.30, 0.14, 0.05], { p: [0, 0.60, 0.70] });
+  A.taper('torso', 'accent', [0.44, 0.50, 0.14], 0.78, 0.9, { p: [0, 0.40, 0.58] });
+  A.sharpBox('torso', 'dark', [0.26, 0.12, 0.05], { p: [0, 0.56, 0.66] });
   // ---- ribcage mass the pecs and core sit on ----
   A.taper('torso', 'accent', [2.05, 1.15, 1.45], 1.05, 0.95, { p: [0, 1.30, 0] });
-  A.taper('torso', 'frame', [1.5, 0.5, 1.3], 0.9, 0.9, { p: [0, 1.98, 0] });
+  A.taper('torso', 'frame', [1.55, 0.55, 0.95], 0.9, 0.85, { p: [0, 1.98, 0] });
 
   // ---- THE CORE: layered amber reactor, dead-centre chest ----
   // (housing → yellow petal ring → dark ring → corona → 8 dark spokes → heart)
-  const cy = 1.10, cz = 0.72;
-  A.tube('torso', 'dark', 0.60, 0.64, 0.30, { p: [0, cy, cz], r: [Math.PI / 2, 0, 0], seg: 24 });
+  const cy = 1.28, cz = 0.72;
+  A.tube('torso', 'dark', 0.48, 0.52, 0.30, { p: [0, cy, cz], r: [Math.PI / 2, 0, 0], seg: 24 });
   for (let k = 0; k < 10; k++) {          // yellow scalloped petal ring
     const a = (k / 10) * Math.PI * 2;
-    A.taper('torso', 'primary', [0.24, 0.20, 0.10], 0.68, 1, {
-      p: [Math.cos(a) * 0.52, cy + Math.sin(a) * 0.52, cz + 0.10],
+    A.taper('torso', 'primary', [0.20, 0.17, 0.10], 0.68, 1, {
+      p: [Math.cos(a) * 0.43, cy + Math.sin(a) * 0.43, cz + 0.10],
       r: [0, 0, a - Math.PI / 2] });
   }
-  A.tube('torso', 'dark', 0.40, 0.42, 0.10, { p: [0, cy, cz + 0.14], r: [Math.PI / 2, 0, 0], seg: 24 });
-  A.custom('torso', lens, cyl(0.36, 0.36, 0.05, 24), { p: [0, cy, cz + 0.18], r: [Math.PI / 2, 0, 0] });
+  A.tube('torso', 'dark', 0.33, 0.35, 0.10, { p: [0, cy, cz + 0.14], r: [Math.PI / 2, 0, 0], seg: 24 });
+  A.custom('torso', lens, cyl(0.30, 0.30, 0.05, 24), { p: [0, cy, cz + 0.18], r: [Math.PI / 2, 0, 0] });
   for (let k = 0; k < 8; k++) {           // dark radial spokes over the lens
     const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
-    A.sharpBox('torso', 'dark', [0.05, 0.13, 0.04], {
-      p: [Math.cos(a) * 0.27, cy + Math.sin(a) * 0.27, cz + 0.21],
+    A.sharpBox('torso', 'dark', [0.045, 0.11, 0.04], {
+      p: [Math.cos(a) * 0.225, cy + Math.sin(a) * 0.225, cz + 0.21],
       r: [0, 0, a - Math.PI / 2] });
   }
-  A.tube('torso', 'glow', 0.19, 0.19, 0.06, { p: [0, cy, cz + 0.22], r: [Math.PI / 2, 0, 0], seg: 20 });
+  A.tube('torso', 'glow', 0.16, 0.16, 0.06, { p: [0, cy, cz + 0.22], r: [Math.PI / 2, 0, 0], seg: 20 });
 
   // ---- pec slabs: big angled yellow plates with dark hex insets ----
   for (const sx of [-1, 1]) {
     A.plate('torso', 'primary', rhombOutline(1.18, 1.05, { cut: 0.24 }), 0.24, {
       p: [sx * 0.60, 1.50, 0.62], r: [-0.16, -sx * 0.22, -sx * 0.06], round: 0.10 });
     // dark hexagonal inset on the upper-outer corner
-    A.plate('torso', 'accent', rhombOutline(0.34, 0.26, { cut: 0.3 }), 0.05, {
-      p: [sx * 0.90, 1.76, 0.80], r: [-0.16, -sx * 0.22, -sx * 0.06] });
+    A.plate('torso', 'accent', rhombOutline(0.26, 0.20, { cut: 0.3 }), 0.05, {
+      p: [sx * 0.94, 1.84, 0.80], r: [-0.16, -sx * 0.22, -sx * 0.06] });
     // second, lower pec face angling toward the core
     A.plate('torso', 'primary', rhombOutline(0.85, 0.55, { cut: 0.3 }), 0.16, {
       p: [sx * 0.58, 0.95, 0.68], r: [0.18, -sx * 0.22, sx * 0.05], round: 0.10 });
@@ -126,10 +132,16 @@ export function animeTitanus(A, D, J, anchors, def) {
   A.sharpBox('torso', 'glowSoft', [0.06, 0.11, 0.05], { p: [-1.02, 0.86, 0.60] });
   A.ball('torso', 'glowSoft', 0.05, { p: [1.02, 0.95, 0.62], seg: 10 });
 
-  // ---- collar: layered dark wedge under the head ----
-  A.taper('torso', 'dark', [0.82, 0.36, 0.62], 0.82, 0.85, { p: [0, 2.06, 0.26] });
-  A.taper('torso', 'accent', [0.60, 0.26, 0.48], 0.80, 0.85, { p: [0, 2.22, 0.30] });
-  A.vents('torso', 'frame', 3, 0.36, 0.09, 0.05, { p: [0, 2.06, 0.56] });
+  // ---- HEAD SOCKET: the helmet sits down IN the chest, so instead of a
+  // collar UNDER a perched head this is a recess AROUND a tucked one — a
+  // vented sill below the chin, angled walls beside the helmet, a nape wall
+  A.taper('torso', 'dark', [0.95, 0.30, 0.66], 0.90, 0.85, { p: [0, 1.88, 0.32] });
+  A.vents('torso', 'frame', 3, 0.36, 0.09, 0.05, { p: [0, 1.88, 0.62] });
+  for (const sx of [-1, 1]) {
+    A.taper('torso', 'accent', [0.28, 0.46, 0.66], 0.82, 0.78, {
+      p: [sx * 0.62, 2.08, 0.10], r: [0, 0, sx * 0.10] });
+  }
+  A.sharpBox('torso', 'accent', [1.10, 0.44, 0.26], { p: [0, 2.06, -0.40] });
 
   // ---- back plant + TWIN RADIATOR TOWERS ----
   A.taper('torso', 'accent', [1.7, 1.3, 0.6], 0.9, 0.8, { p: [0, 1.3, -0.72] });
@@ -137,26 +149,26 @@ export function animeTitanus(A, D, J, anchors, def) {
   for (const sx of [-1, 1]) {
     const tx = sx * 0.68, tz = -0.58;
     // base collar + column (slight taper up)
-    A.sharpBox('torso', 'dark', [0.58, 0.30, 0.52], { p: [tx, 2.10, tz] });
-    A.taper('torso', 'frame', [0.48, 1.90, 0.44], 0.94, 0.94, { p: [tx, 3.20, tz] });
+    A.sharpBox('torso', 'dark', [0.58, 0.30, 0.52], { p: [tx, 2.02, tz] });
+    A.taper('torso', 'frame', [0.48, 1.10, 0.44], 0.94, 0.94, { p: [tx, 2.60, tz] });
     // recessed front grille: amber glow behind thin dark slats
-    A.sharpBox('torso', 'dark', [0.34, 1.55, 0.05], { p: [tx, 3.16, tz + 0.21] });
-    A.custom('torso', lens, new THREE.BoxGeometry(0.28, 1.42, 0.03), { p: [tx, 3.16, tz + 0.235] });
-    for (let i = 0; i < 10; i++) {
-      A.sharpBox('torso', 'dark', [0.30, 0.075, 0.035], {
-        p: [tx, 2.52 + i * 0.145, tz + 0.245] });
+    A.sharpBox('torso', 'dark', [0.34, 0.95, 0.05], { p: [tx, 2.62, tz + 0.21] });
+    A.custom('torso', lens, new THREE.BoxGeometry(0.28, 0.85, 0.03), { p: [tx, 2.62, tz + 0.235] });
+    for (let i = 0; i < 7; i++) {
+      A.sharpBox('torso', 'dark', [0.30, 0.07, 0.035], {
+        p: [tx, 2.28 + i * 0.125, tz + 0.245] });
     }
     // side window slits (amber), one high one low, on the outer face
-    A.sharpBox('torso', 'glow', [0.04, 0.16, 0.05], { p: [tx + sx * 0.235, 2.66, tz + 0.05] });
-    A.sharpBox('torso', 'glow', [0.04, 0.16, 0.05], { p: [tx + sx * 0.235, 3.56, tz - 0.02] });
+    A.sharpBox('torso', 'glow', [0.04, 0.15, 0.05], { p: [tx + sx * 0.235, 2.36, tz + 0.05] });
+    A.sharpBox('torso', 'glow', [0.04, 0.15, 0.05], { p: [tx + sx * 0.235, 2.92, tz - 0.02] });
     // chamfered cap block with the crenellated notch (two prongs, gap centre)
-    A.taper('torso', 'accent', [0.62, 0.44, 0.56], 0.88, 0.88, { p: [tx, 4.38, tz] });
+    A.taper('torso', 'accent', [0.62, 0.44, 0.56], 0.88, 0.88, { p: [tx, 3.30, tz] });
     for (const px of [-1, 1]) {
-      A.sharpBox('torso', 'dark', [0.20, 0.28, 0.50], { p: [tx + px * 0.17, 4.72, tz] });
+      A.sharpBox('torso', 'dark', [0.20, 0.26, 0.50], { p: [tx + px * 0.17, 3.62, tz] });
     }
     // greebles at the base: small pistons + a stub cylinder
-    A.tube('torso', 'metal', 0.05, 0.05, 0.35, { p: [tx + sx * 0.30, 2.15, tz + 0.18] });
-    A.tube('torso', 'dark', 0.09, 0.09, 0.22, { p: [tx - sx * 0.28, 2.20, tz + 0.20] });
+    A.tube('torso', 'metal', 0.05, 0.05, 0.35, { p: [tx + sx * 0.30, 2.10, tz + 0.18] });
+    A.tube('torso', 'dark', 0.09, 0.09, 0.22, { p: [tx - sx * 0.28, 2.12, tz + 0.20] });
   }
 
   // ======================= HEAD =======================
@@ -186,11 +198,15 @@ export function animeTitanus(A, D, J, anchors, def) {
     const sh = 'shoulder' + side, el = 'elbow' + side, ha = 'hand' + side;
 
     // ---- shoulder joint + segmented upper arm ----
+    // the elbow rides OUTBOARD of the pivot (measured: forearm centres at
+    // ±0.33 B), so the arm stack slants out to meet it
+    J[el].position.x = sx * 0.30;
     A.ball(sh, 'frame', 0.36, {});
-    A.tube(sh, 'frame', 0.24, 0.27, D.upperArmLen * 0.95, { p: [0, -D.upperArmLen * 0.5, 0] });
+    A.tube(sh, 'frame', 0.24, 0.27, D.upperArmLen * 0.95, {
+      p: [sx * 0.12, -D.upperArmLen * 0.5, 0], r: [0, 0, -sx * 0.20] });
     for (let i = 0; i < 4; i++) {         // dark vertebra rings down the arm
       A.tube(sh, 'dark', 0.31 - i * 0.012, 0.33 - i * 0.012, 0.13, {
-        p: [0, -0.34 - i * 0.24, 0] });
+        p: [sx * (0.02 + i * 0.065), -0.34 - i * 0.24, 0] });
     }
     A.piston(sh, 'brass', [sx * 0.16, -0.2, 0.22], [sx * 0.1, -D.upperArmLen * 0.8, 0.26], 0.045);
 
@@ -199,24 +215,24 @@ export function animeTitanus(A, D, J, anchors, def) {
     const rz = -sx * tilt;
     // main slab: chamfered, wider at the base
     A.taper(sh, 'primary', [1.60, 1.45, 1.38], 0.76, 0.84, {
-      p: [sx * 0.62, 0.52, 0], r: [0, 0, rz] });
+      p: [sx * 0.55, 0.52, 0], r: [0, 0, rz] });
     // top cap plate, stepped
     A.taper(sh, 'primary', [1.26, 0.30, 1.20], 0.88, 0.9, {
-      p: [sx * 0.74, 1.22, 0], r: [0, 0, rz] });
+      p: [sx * 0.66, 1.22, 0], r: [0, 0, rz] });
     // the notch step near the inner-top edge (dark inset)
     A.sharpBox(sh, 'dark', [0.30, 0.12, 0.55], {
-      p: [sx * 0.28, 1.22, 0.02], r: [0, 0, rz] });
+      p: [sx * 0.24, 1.22, 0.02], r: [0, 0, rz] });
     // hazard chevron band across the lower front face
     A.custom(sh, hazard, beveledPlate(rhombOutline(1.26, 0.42, { cut: 0.18 }), 0.06, { round: 0.08 }), {
-      p: [sx * 0.62, 0.06, 0.68], r: [0, 0, rz] });
+      p: [sx * 0.55, 0.06, 0.68], r: [0, 0, rz] });
     // dark lower rim under the slab
-    A.sharpBox(sh, 'dark', [1.46, 0.14, 1.26], { p: [sx * 0.64, -0.16, 0], r: [0, 0, rz] });
+    A.sharpBox(sh, 'dark', [1.46, 0.14, 1.26], { p: [sx * 0.57, -0.16, 0], r: [0, 0, rz] });
     // second-layer skirt plate below the rim
     A.taper(sh, 'primary', [1.08, 0.48, 1.04], 1.08, 1.0, {
-      p: [sx * 0.72, -0.44, 0], r: [0, 0, rz * 0.7] });
+      p: [sx * 0.64, -0.44, 0], r: [0, 0, rz * 0.7] });
     // outer-lower corner block + inner trapezius wedge
-    A.sharpBox(sh, 'dark', [0.30, 0.30, 0.55], { p: [sx * 1.22, -0.56, 0], r: [0, 0, rz] });
-    A.taper(sh, 'frame', [0.6, 0.5, 0.8], 0.7, 0.8, { p: [-sx * 0.45, 0.72, 0], r: [0, 0, -rz] });
+    A.sharpBox(sh, 'dark', [0.30, 0.30, 0.55], { p: [sx * 1.15, -0.56, 0], r: [0, 0, rz] });
+    A.taper(sh, 'frame', [0.66, 0.38, 0.82], 0.78, 0.8, { p: [-sx * 0.42, 0.52, 0], r: [0, 0, -rz * 0.6] });
 
     // ---- elbow ----
     A.tube(el, 'metal', 0.30, 0.30, 0.62, { p: [0, 0, 0], r: [0, 0, Math.PI / 2], seg: 14 });

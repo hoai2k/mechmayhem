@@ -112,11 +112,15 @@ export function buildRig(D) {
   const root = g('root', null);
   const hips = g('hips', root, 0, D.hipHeight, 0);
   const torso = g('torso', hips, 0, 0.18 * D.scale, 0);
-  g('head', torso, 0, D.torsoH, 0.05 * D.scale);
+  // headY/headZ/shoulderY are optional dims overrides (buildMech's `dims`
+  // hook): a bruiser whose head sits SUNKEN between the shoulders, or whose
+  // arm pivots ride lower than the chest top, states it here and the whole
+  // rig — retarget, gait, hurtboxes — follows. Absent, the classic layout.
+  g('head', torso, 0, D.headY ?? D.torsoH, D.headZ ?? 0.05 * D.scale);
 
   for (const side of ['L', 'R']) {
     const sx = side === 'L' ? -1 : 1;
-    const sh = g('shoulder' + side, torso, sx * D.shoulderW, D.torsoH * 0.82, 0);
+    const sh = g('shoulder' + side, torso, sx * D.shoulderW, D.shoulderY ?? D.torsoH * 0.82, 0);
     const el = g('elbow' + side, sh, sx * 0.08 * D.scale, -D.upperArmLen, 0);
     g('hand' + side, el, 0, -D.foreArmLen, 0);
 
