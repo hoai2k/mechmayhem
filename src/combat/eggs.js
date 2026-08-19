@@ -17,18 +17,20 @@
 //     the body inside it has actually been built (combat/specials.js hands over
 //     a prewarmed mech when there is one, otherwise the system builds it a
 //     second ahead of the slot). The stagger is the pacing AND the budget: one
-//     body per two seconds is a build nobody can feel.
+//     body per four seconds is a build nobody can feel, and it is long enough
+//     that each hatch is its own event rather than a countdown — a whole pack
+//     is a fight the enemy gets to interrupt.
 //
 //     …AND THE BUILD IS PACED BY THE SLOT, NOT BY THE EGG'S OWN CLOCK, which is
 //     the whole point and was for a while not true. `hatchAt` is staggered by a
 //     few tenths so the clutch does not crack in unison, and the build used to
 //     fire at `hatchAt - BUILD_LEAD` — so with a COLD pool (a second cast in the
 //     round, or a mech swap that dropped the spares) all three bodies were built
-//     inside 0.8s while the hatches were a full 2s apart: the exact bunching the
-//     eggs exist to prevent, measured at 1.22 / 1.53 / 1.92s. Only the egg at
-//     the FRONT OF THE QUEUE may build, and only within `BUILD_LEAD` of the slot
-//     it is actually waiting on, so the builds inherit the hatches' spacing —
-//     measured 1.23 / 3.27 / 5.28s, warm pool or cold — one every two seconds.
+//     inside 0.8s while the hatches were a full `GAP` apart: the exact bunching
+//     the eggs exist to prevent, measured at 1.22 / 1.53 / 1.92s. Only the egg
+//     at the FRONT OF THE QUEUE may build, and only within `BUILD_LEAD` of the
+//     slot it is actually waiting on, so the builds inherit the hatches' own
+//     spacing — measured 1.23 / 5.27 / 9.28s, warm pool or cold.
 //     An egg broken out of the queue hands the front to the next one at once,
 //     so nothing stalls behind a shell the enemy took away.
 //
@@ -57,7 +59,7 @@ const ROLL_FRICTION = 0.55; // 1/s of speed a rolling egg loses to the ground
 const SPIN_DAMP = 2.4;     // …and how fast the spin follows the travel
 const WARP = 0.55;         // seconds of arriving
 const CRACK = 0.7;         // seconds of shaking before the shell opens
-const GAP = 2.0;           // seconds between hatches — the pacing and the budget
+const GAP = 4.0;           // seconds between hatches — the pacing and the budget
 const BUILD_LEAD = 1.0;    // …and how far ahead of a slot the body is built
 const OWNER_SHOVE = 15;    // units/s a kick from SAURION puts into an egg
 const ENEMY_SHOVE = 5.5;   // …against what a hit from anyone else does

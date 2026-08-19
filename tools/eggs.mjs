@@ -119,7 +119,7 @@ const out = await page.evaluate(async () => {
   s.ult = 1; s.ultCharges = 1; s.doUlt();
   const hatchTimes = [];
   let seen = 0;
-  for (let i = 0; i < 60 * 12; i++) {
+  for (let i = 0; i < 60 * 16; i++) {
     w.update(dt);
     if (w.minions.length > seen) { seen = w.minions.length; hatchTimes.push(+(i / 60).toFixed(2)); }
   }
