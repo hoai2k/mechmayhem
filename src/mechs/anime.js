@@ -24,6 +24,7 @@ import * as THREE from 'three';
 import { buildMech } from './factory.js';
 import { toon, inkMaterial, INK } from './animeshade.js';
 import { animeTitanus, animeTitanusDims } from './animedesigns/titanus.js';
+import { animeGlacier, animeGlacierDims } from './animedesigns/glacier.js';
 
 // ---- per-mech entries (palettes read off docs/canonical/anime/<id>.png) ----
 //   primary/accent/frame/dark/metal/brass/glow — the named material colours
@@ -42,6 +43,17 @@ export const ANIME = {
     ink: 0x181410,       // warm ink under all that yellow
     design: animeTitanus,
     dims: animeTitanusDims,
+  },
+  glacier: {
+    primary: 0x9cb2c6,   // the roster's ice blue — pale but with real shade
+    accent: 0x7d93a8,
+    frame: 0x525b67,
+    dark: 0x2e333c,
+    metal: 0x99a4b1,
+    glow: 0x54d4ff,      // the cyan visor/core
+    ink: 0x121620,
+    design: animeGlacier,
+    dims: animeGlacierDims,
   },
 };
 

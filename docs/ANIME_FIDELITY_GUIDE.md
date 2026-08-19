@@ -27,6 +27,15 @@ can't happen; skip a step and expect the same feedback again.
 
 ## The protocol
 
+**0. THE PRIORITY RULE — what each source is FOR.** The 3D model's
+proportions are PRIMARY; the drawing's proportions are secondary (it has
+perspective and a pose). The drawing's authority is the other half: it shows
+how to SIMPLIFY the model — the part blocking, which shapes merge into one
+slab, where the dark structure and the paint fields are — and how to COLOUR
+it. When the two disagree on a length or a height, the model wins outright
+(glacier's high knees stood against the drawing's foreshortened legs); when
+they disagree on paint, shape family, or piece count, the drawing wins.
+
 **1. Skeleton from the GLB, never the drawing.**
 `node tools/scratch/bonemeasure.mjs <id>` prints the canonical 3D model's bone
 world positions at rest. Express every landmark as a fraction of **B = ground →

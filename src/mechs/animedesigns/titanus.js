@@ -277,38 +277,42 @@ export function animeTitanus(A, D, J, anchors, def) {
     // ---- FIST: a clenched gorilla fist that reads from EVERY angle ----
     // (judged on a 4-view turnaround — tools/scratch/partsheet.mjs). The
     // FINGERS are most of the volume: four columns of three big segments
-    // curling from the knuckle line down and UNDER, so the side view shows
-    // the curl arc and the back view shows fingertips — never a mitten.
+    // curling from the knuckle line down and under. The whole assembly is
+    // authored knuckles-forward and then YAWED 90° so it hangs the way the
+    // drawing's does — back of hand OUTBOARD, fingers curling toward the
+    // thigh, THUMB AT THE FRONT, like a person standing at rest.
     A.tube(ha, 'dark', 0.30, 0.33, 0.24, { p: [0, 0.08, 0] });                  // wrist ring
-    // metacarpal block, deeper than wide; dark palm plate on its rear face
-    A.part(ha, 'frame', roundedBox(0.92, 0.62, 0.78, 0.14), { p: [0, -0.34, 0.02] });
-    A.part(ha, 'dark', roundedBox(0.78, 0.52, 0.18, 0.06), { p: [0, -0.40, -0.34] });
-    // back-of-hand: big yellow beveled wedge on the FRONT face, over the
-    // metacarpals — the fist's one clean paint field
-    A.plate(ha, 'primary', rhombOutline(0.88, 0.62, { cut: 0.24 }), 0.16, {
-      p: [0, -0.30, 0.42], r: [0.22, 0, 0], round: 0.12 });
-    // four fingers, three LARGE segments each, wrapping down and under
-    for (let i = 0; i < 4; i++) {
-      const fx = (i - 1.5) * 0.24;
-      // proximal: off the knuckle line, angled forward-down
-      A.part(ha, 'primary', roundedBox(0.225, 0.34, 0.30, 0.06), {
-        p: [fx, -0.70, 0.32], r: [0.55, 0, 0] });
-      // knuckle cap
-      A.part(ha, 'dark', roundedBox(0.20, 0.14, 0.20, 0.05), {
-        p: [fx, -0.60, 0.50], r: [0.55, 0, 0] });
-      // middle: swinging under the palm
-      A.part(ha, 'dark', roundedBox(0.215, 0.32, 0.27, 0.05), {
-        p: [fx, -0.95, 0.08], r: [1.45, 0, 0] });
-      // tip: tucked back in against the palm's underside
-      A.part(ha, 'dark', roundedBox(0.20, 0.28, 0.23, 0.05), {
-        p: [fx, -0.92, -0.20], r: [2.35, 0, 0] });
+    {
+      const yawQ = new THREE.Quaternion()
+        .setFromAxisAngle(new THREE.Vector3(0, 1, 0), sx * Math.PI / 2);
+      const _fe = new THREE.Euler(); const _fq = new THREE.Quaternion();
+      const _fv = new THREE.Vector3();
+      const fp = (mat, geo, p, r = [0, 0, 0]) => {
+        _fq.setFromEuler(_fe.set(r[0], r[1], r[2])).premultiply(yawQ);
+        _fv.set(p[0], p[1], p[2]).applyQuaternion(yawQ);
+        A.part(ha, mat, geo, { p: [_fv.x, _fv.y, _fv.z],
+          r: [_fe.setFromQuaternion(_fq).x, _fe.y, _fe.z] });
+      };
+      // metacarpal block, deeper than wide; dark palm plate on its rear face
+      fp('frame', roundedBox(0.92, 0.62, 0.78, 0.14), [0, -0.34, 0.02]);
+      fp('dark', roundedBox(0.78, 0.52, 0.18, 0.06), [0, -0.40, -0.34]);
+      // back-of-hand: big yellow beveled wedge over the metacarpals
+      fp('primary', beveledPlate(rhombOutline(0.88, 0.62, { cut: 0.24 }), 0.16, { round: 0.12 }),
+        [0, -0.30, 0.42], [0.22, 0, 0]);
+      // four fingers, three LARGE segments each, wrapping down and under
+      for (let i = 0; i < 4; i++) {
+        const fx = (i - 1.5) * 0.24;
+        fp('primary', roundedBox(0.225, 0.34, 0.30, 0.06), [fx, -0.70, 0.32], [0.55, 0, 0]);
+        fp('dark', roundedBox(0.20, 0.14, 0.20, 0.05), [fx, -0.60, 0.50], [0.55, 0, 0]);
+        fp('dark', roundedBox(0.215, 0.32, 0.27, 0.05), [fx, -0.95, 0.08], [1.45, 0, 0]);
+        fp('dark', roundedBox(0.20, 0.28, 0.23, 0.05), [fx, -0.92, -0.20], [2.35, 0, 0]);
+      }
+      // thumb: two big segments crossing what is now the FRONT of the fist
+      fp('primary', roundedBox(0.26, 0.34, 0.28, 0.06),
+        [-sx * 0.46, -0.52, 0.24], [0.5, -sx * 0.5, -sx * 0.35]);
+      fp('dark', roundedBox(0.22, 0.30, 0.24, 0.05),
+        [-sx * 0.30, -0.74, 0.38], [1.1, -sx * 0.5, -sx * 0.25]);
     }
-    // thumb: two big segments crossing the inner-front, overlapping the
-    // first finger the way a clenched thumb does
-    A.part(ha, 'primary', roundedBox(0.26, 0.34, 0.28, 0.06), {
-      p: [-sx * 0.46, -0.52, 0.24], r: [0.5, -sx * 0.5, -sx * 0.35] });
-    A.part(ha, 'dark', roundedBox(0.22, 0.30, 0.24, 0.05), {
-      p: [-sx * 0.30, -0.74, 0.38], r: [1.1, -sx * 0.5, -sx * 0.25] });
   }
 
   // ======================= LEGS =======================
@@ -432,7 +436,7 @@ export function animeTitanus(A, D, J, anchors, def) {
 
   // ======================= ANCHORS (§5 contract) =======================
   // rocket fists fire from the knuckles; core light sits inside the chest
-  anchors.muzzleR = addAnchor(J.handR, 0, -0.72, 0.50);
-  anchors.muzzleL = addAnchor(J.handL, 0, -0.72, 0.50);
+  anchors.muzzleR = addAnchor(J.handR, 0.15, -0.70, 0.42);
+  anchors.muzzleL = addAnchor(J.handL, -0.15, -0.70, 0.42);
   anchors.core = addAnchor(J.torso, 0, 1.10, 0.45);
 }
