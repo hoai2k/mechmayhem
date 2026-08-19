@@ -60,6 +60,30 @@ where they disagree.
 with the source of each number. The file is the record; the next session
 shouldn't have to re-derive it.
 
+**3b. RUNS-PROFILE the drawing — measure, don't eyeball, the shapes.**
+Per-row opaque SPANS of the keyed PNG (scratch: alpha runs, ~2px rows)
+separate the two legs from the fists and give every part's centre + width row
+by row. This is what catches the things a glance misses: titanus' legs leave
+a NARROW hip (thigh centres ±0.135 B) and splay OUT to the knees (±0.164 B)
+with boots wider still (~0.28 B per foot) — and his pauldron top is a narrow
+crest that swells to full width only a quarter of the way down (a ROUNDED,
+TAPERING top, centred at ±0.21 B, inboard of the arm pivot), with the bottom
+tapering back in. Use the cleaner-perspective side of the drawing for
+single-part numbers.
+
+**3c. CLOSE THE LOOP with a geometry probe.** After building, sample the
+BUILT mech's mesh vertices per region (world-space, in y bands, ink shells
+excluded) and print centre/width against the target table — see the
+geomcheck pattern in this session's scratch. Numbers catch what squinting at
+a screenshot does not, and they caught the biggest bug of all: the ANIMATOR
+was sinking the whole body boot-deep, because the procedural stance pins the
+ankles at 0.32*scale over the floor. A design whose ankle rides high in a
+tall boot must state `soleDepth` in its dims (read by the Animator ctor,
+which then also damps the heel roll and asks for a level sole exactly as a
+measured GLB boot gets). MORAL: a proportion that looks wrong at runtime is
+not always the geometry — verify the JOINTS' world positions match the
+design before touching parts.
+
 **4. Judge region by region at matched framing.**
 After each build round, side-by-side the render against the drawing at the
 same figure height — and check regions off a list, not the gestalt:

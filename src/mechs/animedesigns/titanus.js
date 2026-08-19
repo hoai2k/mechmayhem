@@ -34,9 +34,12 @@ export function animeTitanusDims(D) {
     torsoH: 2.45, torsoW: 2.30, torsoD: 1.55,
     // shoulder pivots below the chest top, head sunken level with the
     // pauldron tops — stated here, honoured by buildRig
-    shoulderY: 1.99, headY: 2.19, headZ: 0.16,
+    shoulderY: 1.99, headY: 2.28, headZ: 0.16,
     shoulderW: 1.90, upperArmLen: 1.13, foreArmLen: 1.13,
-    hipW: 1.13, footLen: 1.30, headSize: 0.46,
+    hipW: 0.78, footLen: 1.30, headSize: 0.46,
+    // the ankle rides HIGH inside the tall boot — tell the animator where
+    // the sole really is or it sinks the body boot-deep (see Animator ctor)
+    soleDepth: 1.0,
   };
 }
 
@@ -58,16 +61,16 @@ export function animeTitanus(A, D, J, anchors, def) {
       p: [0, 0.10 + i * 0.22, 0] });
   }
   // pelvis mass
-  A.taper('hips', 'frame', [1.45, 0.60, 1.05], 1.10, 0.95, { p: [0, -0.24, 0] });
-  A.sharpBox('hips', 'dark', [1.15, 0.24, 0.95], { p: [0, -0.50, 0] });
+  A.taper('hips', 'frame', [1.20, 0.60, 1.00], 1.10, 0.95, { p: [0, -0.24, 0] });
+  A.sharpBox('hips', 'dark', [0.98, 0.24, 0.90], { p: [0, -0.50, 0] });
   // big side hip drums (dark cylinders, metal cap + dimple) the thighs hang off
   for (const sx of [-1, 1]) {
     A.tube('hips', 'dark', 0.40, 0.40, 0.42, {
-      p: [sx * 0.86, -0.30, 0], r: [0, 0, Math.PI / 2], seg: 16 });
+      p: [sx * 0.62, -0.30, 0], r: [0, 0, Math.PI / 2], seg: 16 });
     A.tube('hips', 'frame', 0.30, 0.30, 0.10, {
-      p: [sx * 1.10, -0.30, 0], r: [0, 0, Math.PI / 2], seg: 16 });
+      p: [sx * 0.84, -0.30, 0], r: [0, 0, Math.PI / 2], seg: 16 });
     A.tube('hips', 'metal', 0.10, 0.10, 0.06, {
-      p: [sx * 1.16, -0.30, 0], r: [0, 0, Math.PI / 2] });
+      p: [sx * 0.90, -0.30, 0], r: [0, 0, Math.PI / 2] });
   }
   // front crotch box: chamfered yellow block, dark inset panel across its top
   A.taper('hips', 'primary', [0.66, 0.64, 0.32], 0.82, 0.85, { p: [0, -0.36, 0.52] });
@@ -76,7 +79,7 @@ export function animeTitanus(A, D, J, anchors, def) {
   // small side skirt plates over the drums + rear plate
   for (const sx of [-1, 1]) {
     A.plate('hips', 'primary', rhombOutline(0.62, 0.55, { cut: 0.3 }), 0.10, {
-      p: [sx * 0.94, -0.54, 0.18], r: [0.05, sx * Math.PI / 2, sx * 0.12] });
+      p: [sx * 0.74, -0.54, 0.18], r: [0.05, sx * Math.PI / 2, sx * 0.12] });
   }
   A.plate('hips', 'accent', shieldOutline(0.85, 0.6, { taper: 0.75 }), 0.10, {
     p: [0, -0.5, -0.55], r: [-0.08, Math.PI, 0] });
@@ -138,13 +141,13 @@ export function animeTitanus(A, D, J, anchors, def) {
   // ---- HEAD SOCKET: the helmet sits down IN the chest, so instead of a
   // collar UNDER a perched head this is a recess AROUND a tucked one — a
   // vented sill below the chin, angled walls beside the helmet, a nape wall
-  A.taper('torso', 'dark', [0.95, 0.30, 0.66], 0.90, 0.85, { p: [0, 2.24, 0.32] });
-  A.vents('torso', 'frame', 3, 0.36, 0.09, 0.05, { p: [0, 2.24, 0.62] });
+  A.taper('torso', 'dark', [0.95, 0.30, 0.66], 0.90, 0.85, { p: [0, 2.32, 0.32] });
+  A.vents('torso', 'frame', 3, 0.36, 0.09, 0.05, { p: [0, 2.32, 0.62] });
   for (const sx of [-1, 1]) {
     A.taper('torso', 'accent', [0.28, 0.46, 0.66], 0.82, 0.78, {
-      p: [sx * 0.62, 2.44, 0.10], r: [0, 0, sx * 0.10] });
+      p: [sx * 0.62, 2.52, 0.10], r: [0, 0, sx * 0.10] });
   }
-  A.sharpBox('torso', 'accent', [1.10, 0.44, 0.26], { p: [0, 2.42, -0.40] });
+  A.sharpBox('torso', 'accent', [1.10, 0.44, 0.26], { p: [0, 2.50, -0.40] });
 
   // ---- back plant + TWIN RADIATOR TOWERS ----
   A.taper('torso', 'accent', [1.7, 1.35, 0.6], 0.9, 0.8, { p: [0, 1.5, -0.72] });
@@ -213,29 +216,32 @@ export function animeTitanus(A, D, J, anchors, def) {
     }
     A.piston(sh, 'brass', [sx * 0.16, -0.2, 0.22], [sx * 0.1, -D.upperArmLen * 0.8, 0.26], 0.045);
 
-    // ---- THE PAULDRON: huge sloped slab stack over the arm ----
-    const tilt = 0.22;                    // outer edge down ~13°; the stack's TOP sits level with the helmet
-    const rz = -sx * tilt;
-    // main slab: chamfered, wider at the base
-    A.taper(sh, 'primary', [1.60, 1.45, 1.38], 0.76, 0.84, {
-      p: [sx * 0.55, 0.38, 0], r: [0, 0, rz] });
-    // top cap plate, stepped
-    A.taper(sh, 'primary', [1.26, 0.30, 1.20], 0.88, 0.9, {
-      p: [sx * 0.66, 0.96, 0], r: [0, 0, rz] });
-    // the notch step near the inner-top edge (dark inset)
-    A.sharpBox(sh, 'dark', [0.30, 0.12, 0.55], {
-      p: [sx * 0.24, 0.96, 0.02], r: [0, 0, rz] });
+    // ---- THE PAULDRON: measured off the drawing's run profile ----
+    // Centre ±1.35 from the body axis (INBOARD of the arm pivot — it reads
+    // as the chest's own shoulder), ~1.9 wide, and the TOP IS ROUNDED AND
+    // TAPERS: a narrow crest at ~+0.45 over the full-width line, which
+    // itself sits at chest-top/head-mid height. The bottom tapers back in.
+    const px0 = -sx * 0.42;               // pauldron centre, relative to the pivot
+    const rz = -sx * 0.10;                // just a hint of outer-edge droop
+    // main body: soft-cornered slab (full width at the shoulder line)
+    A.part(sh, 'primary', roundedBox(1.90, 1.00, 1.15, 0.16), {
+      p: [px0, 0.30, -0.03], r: [0, 0, rz] });
+    // the rounded, tapering top: a squashed dome over the slab
+    A.lathe(sh, 'primary', [[-0.10, 0.80], [0.15, 0.70], [0.33, 0.45], [0.46, 0.06]], {
+      p: [px0, 0.74, -0.03], r: [0, 0, rz], scaleX: 1.16, scaleZ: 0.66, seg: 20 });
+    // small raised ridge riding the crest, toward the inner edge
+    A.part(sh, 'primary', roundedBox(0.44, 0.18, 0.72, 0.06), {
+      p: [px0 - sx * 0.22, 0.94, -0.03], r: [0, 0, rz] });
     // hazard chevron band across the lower front face
-    A.custom(sh, hazard, beveledPlate(rhombOutline(1.26, 0.42, { cut: 0.18 }), 0.06, { round: 0.08 }), {
-      p: [sx * 0.55, -0.06, 0.68], r: [0, 0, rz] });
-    // dark lower rim under the slab
-    A.sharpBox(sh, 'dark', [1.46, 0.14, 1.26], { p: [sx * 0.57, -0.30, 0], r: [0, 0, rz] });
-    // second-layer skirt plate below the rim
-    A.taper(sh, 'primary', [1.08, 0.48, 1.04], 1.08, 1.0, {
-      p: [sx * 0.64, -0.56, 0], r: [0, 0, rz * 0.7] });
-    // outer-lower corner block + inner trapezius wedge
-    A.sharpBox(sh, 'dark', [0.30, 0.30, 0.55], { p: [sx * 1.15, -0.68, 0], r: [0, 0, rz] });
-    A.taper(sh, 'frame', [0.66, 0.38, 0.82], 0.78, 0.8, { p: [-sx * 0.42, 0.52, 0], r: [0, 0, -rz * 0.6] });
+    A.custom(sh, hazard, beveledPlate(rhombOutline(1.40, 0.40, { cut: 0.18 }), 0.06, { round: 0.08 }), {
+      p: [px0, -0.02, 0.56], r: [0, 0, rz] });
+    // dark lower rim, then a skirt that TAPERS BACK IN at the bottom
+    A.sharpBox(sh, 'dark', [1.70, 0.13, 1.06], { p: [px0, -0.28, -0.03], r: [0, 0, rz] });
+    A.taper(sh, 'primary', [1.55, 0.34, 0.98], 1.12, 1.02, {
+      p: [px0, -0.50, -0.03], r: [0, 0, rz] });
+    // inner shoulder step against the chest
+    A.taper(sh, 'frame', [0.55, 0.34, 0.80], 0.80, 0.8, {
+      p: [px0 - sx * 0.85, 0.30, -0.03] });
 
     // ---- elbow ----
     A.tube(el, 'metal', 0.30, 0.30, 0.62, { p: [0, 0, 0], r: [0, 0, Math.PI / 2], seg: 14 });
@@ -299,27 +305,32 @@ export function animeTitanus(A, D, J, anchors, def) {
     const sx = side === 'L' ? -1 : 1;
     const th = 'thigh' + side, kn = 'knee' + side, an = 'ankle' + side;
     const tl = D.thighLen, sl = D.shinLen;
-    // the model's ankles sit WIDER than its hips — bake the splay into the
-    // joint positions so the whole lower leg carries it
-    J[kn].position.x = sx * 0.06;
-    J[an].position.x = sx * 0.14;
+    // measured off the drawing's leg runs: thighs leave a NARROW hip
+    // (±0.135 B) and the knees sit OUT at ±0.164 B, boots wider still — the
+    // classic A-stance. Baked into the joints so the whole leg carries it.
+    J[kn].position.x = sx * 0.34;
+    J[an].position.x = sx * 0.10;
 
-    // ---- thigh ----
-    A.ball(th, 'frame', 0.28, {});
-    A.tube(th, 'frame', 0.22, 0.25, tl, { p: [0, -tl / 2, 0] });
-    // main thigh box, wider at the hip
-    A.taper(th, 'primary', [0.94, 0.95, 0.90], 0.86, 0.9, { p: [0, -tl * 0.46, 0.02] });
+    // ---- thigh: leans OUTWARD from the narrow hip to the wide knee ----
+    const lean = -sx * 0.26;              // atan(0.34 / thighLen), the splay angle
+    A.ball(th, 'frame', 0.34, { p: [sx * 0.04, -0.02, 0] });
+    A.tube(th, 'frame', 0.22, 0.25, tl * 1.05, {
+      p: [sx * 0.16, -tl / 2, 0], r: [0, 0, lean] });
+    // main thigh box riding the lean
+    A.taper(th, 'primary', [0.92, 0.92, 0.90], 0.84, 0.9, {
+      p: [sx * 0.13, -tl * 0.34, 0.02], r: [0, 0, lean] });
     // front plate with the bottom notch
-    A.plate(th, 'primary', shieldOutline(0.62, 0.72, { taper: 0.8, tip: 0.2 }), 0.10, {
-      p: [0, -tl * 0.42, 0.47], r: [0.06, 0, 0], round: 0.10 });
-    A.sharpBox(th, 'dark', [0.20, 0.10, 0.06], { p: [0, -tl * 0.74, 0.48] });
-    // outer hip drum (big dark disc + dimple)
-    A.tube(th, 'dark', 0.36, 0.36, 0.20, {
-      p: [sx * 0.42, -0.10, 0], r: [0, 0, Math.PI / 2], seg: 16 });
-    A.tube(th, 'metal', 0.11, 0.11, 0.06, {
-      p: [sx * 0.53, -0.10, 0], r: [0, 0, Math.PI / 2] });
+    A.plate(th, 'primary', shieldOutline(0.60, 0.70, { taper: 0.8, tip: 0.2 }), 0.10, {
+      p: [sx * 0.19, -tl * 0.42, 0.47], r: [0.06, 0, lean], round: 0.10 });
+    A.sharpBox(th, 'dark', [0.20, 0.10, 0.06], { p: [sx * 0.26, -tl * 0.74, 0.48] });
+    // outer hip drum (big dark disc + dimple), riding the lean
+    A.tube(th, 'dark', 0.34, 0.34, 0.20, {
+      p: [sx * 0.40, -0.14, 0], r: [0, 0, Math.PI / 2 + lean], seg: 16 });
+    A.tube(th, 'metal', 0.10, 0.10, 0.06, {
+      p: [sx * 0.50, -0.17, 0], r: [0, 0, Math.PI / 2 + lean] });
     // inner guard plate
-    A.sharpBox(th, 'accent', [0.10, 0.58, 0.55], { p: [-sx * 0.42, -tl * 0.48, 0] });
+    A.sharpBox(th, 'accent', [0.10, 0.56, 0.55], {
+      p: [-sx * 0.28, -tl * 0.48, 0], r: [0, 0, lean] });
 
     // ---- knee: REAL DARK STRUCTURE, not just a plate ----
     // joint drums BOTH sides (big keyed disc outboard, smaller inboard)
@@ -337,11 +348,18 @@ export function animeTitanus(A, D, J, anchors, def) {
     // shin core + centre-front piston in the dark gap between the hex plates
     A.tube(kn, 'frame', 0.20, 0.24, sl, { p: [0, -sl / 2, 0] });
     A.piston(kn, 'metal', [0, -sl * 0.22, 0.36], [0, -sl * 0.55, 0.34], 0.05);
-    // THE HEX PLATE STACK: large knee octagon, then a second below it
-    A.plate(kn, 'primary', rhombOutline(0.88, 0.92, { cut: 0.34 }), 0.16, {
-      p: [0, -0.14, 0.44], r: [0.10, 0, 0], round: 0.08 });
+    // THE HEX PLATE STACK: large knee octagon over a WIDER dark backing
+    // plate, so the joint's dark structure shows all round the yellow rim
+    A.plate(kn, 'dark', rhombOutline(1.06, 1.10, { cut: 0.3 }), 0.08, {
+      p: [0, -0.16, 0.36], r: [0.10, 0, 0], round: 0.10 });
+    A.plate(kn, 'primary', rhombOutline(0.86, 0.90, { cut: 0.34 }), 0.16, {
+      p: [0, -0.14, 0.46], r: [0.10, 0, 0], round: 0.08 });
     A.plate(kn, 'primary', rhombOutline(0.78, 0.80, { cut: 0.34 }), 0.14, {
       p: [0, -sl * 0.62, 0.46], r: [-0.04, 0, 0], round: 0.08 });
+    // dark side faces on the shin (the drawing keeps the sides in shadow)
+    for (const px of [-1, 1]) {
+      A.sharpBox(kn, 'accent', [0.09, 0.55, 0.48], { p: [px * 0.42, -sl * 0.55, -0.02] });
+    }
     // calf bulge up high…
     A.taper(kn, 'primary', [0.78, 0.85, 0.78], 1.14, 1.06, { p: [0, -sl * 0.50, -0.14] });
     // …then the lower shin FLARES: wide at the boot, narrower up top
@@ -352,25 +370,25 @@ export function animeTitanus(A, D, J, anchors, def) {
       p: [sx * 0.36, -sl * 0.98, 0], r: [0, 0, Math.PI / 2], seg: 14 });
 
     // ---- foot: TALL flared treaded boot (the ankle rides high in it) ----
-    A.sharpBox(an, 'dark', [0.62, 0.20, 0.60], { p: [0, 0.28, 0.06] });         // top cuff
+    A.sharpBox(an, 'dark', [0.66, 0.20, 0.62], { p: [0, 0.28, 0.06] });         // top cuff
     // boot column, flaring wide toward the ground
-    A.taper(an, 'primary', [0.96, 0.95, 1.04], 0.64, 0.66, { p: [0, -0.26, 0.10] });
-    A.taper(an, 'primary', [1.04, 0.34, 1.18], 0.86, 0.88, { p: [0, -0.80, 0.10] });
+    A.taper(an, 'primary', [1.20, 0.95, 1.18], 0.54, 0.58, { p: [0, -0.26, 0.10] });
+    A.taper(an, 'primary', [1.48, 0.36, 1.42], 0.80, 0.82, { p: [0, -0.79, 0.10] });
     // dark toe cap + stepped tread blocks marching down the front
-    A.taper(an, 'dark', [0.84, 0.40, 0.62], 0.82, 0.62, { p: [0, -0.66, 0.58] });
-    A.sharpBox(an, 'dark', [0.78, 0.16, 0.22], { p: [0, -0.76, 0.76] });
-    A.sharpBox(an, 'dark', [0.70, 0.14, 0.20], { p: [0, -0.84, 0.90] });
-    A.sharpBox(an, 'dark', [0.62, 0.12, 0.16], { p: [0, -0.92, 1.01] });
+    A.taper(an, 'dark', [1.10, 0.42, 0.66], 0.80, 0.62, { p: [0, -0.66, 0.64] });
+    A.sharpBox(an, 'dark', [1.05, 0.16, 0.24], { p: [0, -0.76, 0.84] });
+    A.sharpBox(an, 'dark', [0.95, 0.14, 0.22], { p: [0, -0.84, 1.00] });
+    A.sharpBox(an, 'dark', [0.82, 0.12, 0.18], { p: [0, -0.92, 1.13] });
     // heel block + side ankle pods
-    A.taper(an, 'dark', [0.76, 0.40, 0.48], 0.82, 0.78, { p: [0, -0.78, -0.38] });
+    A.taper(an, 'dark', [1.00, 0.42, 0.55], 0.80, 0.76, { p: [0, -0.78, -0.44] });
     for (const px of [-1, 1]) {
       A.tube(an, 'dark', 0.15, 0.15, 0.16, {
-        p: [px * 0.47, -0.50, -0.08], r: [0, 0, Math.PI / 2], seg: 12 });
+        p: [px * 0.56, -0.50, -0.08], r: [0, 0, Math.PI / 2], seg: 12 });
     }
     // sole + tread ribs
-    A.sharpBox(an, 'dark', [1.00, 0.12, 1.55], { p: [0, -0.955, 0.14] });
+    A.sharpBox(an, 'dark', [1.42, 0.12, 1.80], { p: [0, -0.955, 0.16] });
     for (let i = 0; i < 4; i++) {
-      A.sharpBox(an, 'dark', [1.02, 0.05, 0.16], { p: [0, -0.985, -0.42 + i * 0.40] });
+      A.sharpBox(an, 'dark', [1.44, 0.05, 0.18], { p: [0, -0.985, -0.48 + i * 0.44] });
     }
   }
 
