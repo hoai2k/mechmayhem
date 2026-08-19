@@ -1707,8 +1707,17 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   flat. `ANIME[id]` in anime.js is the per-mech hand: palette read off that
   mech's drawing plus an optional `dress(mech)` for geometry the drawing has
   and the shared sculpt lacks (titanus' big amber reactor lens is the worked
-  example). A mech without an entry derives its paint from `def.colors`
-  through `animeTone`, so all 17 render in anime mode today. Judge with the
+  example) — or a FULL DEDICATED SCULPT: `design` + `dims` on the entry
+  (src/mechs/animedesigns/<id>.js) replace the shared design and its
+  proportions outright through buildMech's opts, for a mech whose drawing is
+  worth a part-by-part rebuild. TITANUS is that worked example: proportions
+  measured off the drawing's pixels (hips at 0.475 of height, forearm 0.163 H
+  wide, fist bottom below the knee line), ~180 parts, hazard canvas from
+  animeshade.js. The dark hearts stay 'glow'; WIDE lit fields (core corona,
+  tower grilles) use a barely-emissive matte 'lens' material instead, or the
+  bloom pass blazes them into blobs. A mech without an entry derives its
+  paint from `def.colors` through `animeTone`, so all 17 render in anime
+  mode today. Judge with the
   usual shots (`?showcase=<id>&render=anime`) and
   `RW_QUERY="render=anime" node tools/clipsheet.mjs <mech> <clip>`; a
   posters note: posters are pictures OF THE GLB, so `posterFor` answers null

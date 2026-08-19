@@ -249,14 +249,19 @@ export function raptorLeg(A, D, side, opts = {}) {
 
 // ---------- main entry ----------
 
-export function buildMech(def) {
-  const D = computeDims(def);
-  const materials = makeMaterials(def);
+// opts (all optional — the anime route uses them, see src/mechs/anime.js):
+//   design    — a design function replacing DESIGNS[def.id]
+//   materials — a named material set replacing makeMaterials(def)
+//   dims      — (D) => D transform over computeDims, for a build whose
+//               proportions are measured off a different reference image
+export function buildMech(def, opts = {}) {
+  const D = opts.dims ? opts.dims(computeDims(def)) : computeDims(def);
+  const materials = opts.materials || makeMaterials(def);
   const { root, joints } = buildRig(D);
 
   const A = new Assembler();
   const anchors = {}; // filled by design: muzzleL/R, core, etc.
-  const design = DESIGNS[def.id];
+  const design = opts.design || DESIGNS[def.id];
   if (!design) throw new Error('No design for mech ' + def.id);
   design(A, D, joints, anchors, def);
   // shoulder axles: chest geometry varies per design, and many designs push

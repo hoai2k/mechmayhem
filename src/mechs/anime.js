@@ -2,80 +2,46 @@
 // THE ANIME ROSTER — SETTINGS → RENDERING: ANIME (CONFIG.rendering 'anime').
 //
 // A cel-shaded rendition of the same seventeen fighters, judged against the
-// drawings in docs/canonical/anime/ (see docs/ANIME_PROCEDURAL_PLAN.md). It is
-// the PROCEDURAL roster wearing different paint: the body is the exact
-// parts-kit sculpt the fallback route builds — same 15-joint rig, same
-// anchors, same animator, every gait and clip untouched — with every material
-// swapped for a flat cel ramp and an INK OUTLINE grown around every part.
-// That is deliberate: what makes the drawings read "anime" is the shading and
-// the line, not different geometry, so one pass buys the whole roster and a
-// mech is refined per-mech only where the shared sculpt misses its drawing.
+// drawings in docs/canonical/anime/ (see docs/ANIME_PROCEDURAL_PLAN.md). Two
+// tiers of fidelity, decided per mech by the ANIME table below:
 //
-// THREE PIECES:
-//   - a shared 4-step GRADIENT MAP (the cel ramp — NearestFilter, or three
-//     interpolates the steps away and it is just diffuse shading again)
-//   - toonMaterials(def): the named material set buildMech expects, as
-//     MeshToonMaterial (glows as UNLIT MeshBasicMaterial — flat bright colour
-//     IS the anime glow; fighter.js guards every m.emissive touch, so a
-//     material without one is skipped by the hit flash, which is right)
-//   - inkOutlines(mech): an inverted-hull child per mesh — same geometry,
-//     BackSide, vertices pushed out along their normals a hair. Grown as a
-//     CHILD of the mesh it outlines so it inherits every transform, fades
-//     with Fighter.setOpacity (it is a mesh in the group like any other) and
-//     survives cloneMech. Skipped on glow meshes (a rim muddies a light slit)
-//     and never grown on another outline.
+//   - a mech WITH a `design` entry gets a DEDICATED ANIME SCULPT
+//     (src/mechs/animedesigns/<id>.js): its own part decomposition and its
+//     own measured proportions (`dims` transforms computeDims), authored
+//     part-by-part against that mech's drawing. Same 15-joint rig, same
+//     anchors contract, same animator — only the geometry is its own.
+//   - a mech WITHOUT one is the shared parts-kit sculpt wearing anime paint:
+//     every named material swapped for a cel ramp, decal customs converted
+//     in place, ink outlines grown around every part.
 //
-// PALETTES: ANIME[id] is the hand-read palette from that mech's drawing;
-// a mech without one derives its paint from def.colors through animeTone()
-// (the drawings are brighter and cleaner than the battle-worn PBR bases).
-// ANIME[id].design is the extension point for a per-mech GEOMETRY override
-// (same signature as a DESIGNS entry) once a mech needs more than paint.
+// Shared pieces (src/mechs/animeshade.js): the 4-step gradient map, toon(),
+// the ink material. Glows stay REAL EMISSIVE materials — signatures write
+// mats.glow*.emissive live (nullbot's flicker) — at intensity ~1.25, under
+// where the bloom pass whites an amber slit out. The chest PointLight is cut
+// to 12%: on a cel ramp it blazes the whole torso past the top step.
 // ============================================================================
 import * as THREE from 'three';
 import { buildMech } from './factory.js';
+import { toon, inkMaterial, INK } from './animeshade.js';
+import { animeTitanus, animeTitanusDims } from './animedesigns/titanus.js';
 
-// ---- the cel ramp -----------------------------------------------------------
-let _gradientMap = null;
-function gradientMap() {
-  if (!_gradientMap) {
-    // four steps: deep shade, shade, lit, highlight — classic two-tone-plus
-    const data = new Uint8Array([90, 140, 220, 255]);
-    _gradientMap = new THREE.DataTexture(data, data.length, 1, THREE.RedFormat);
-    _gradientMap.minFilter = THREE.NearestFilter;
-    _gradientMap.magFilter = THREE.NearestFilter;
-    _gradientMap.needsUpdate = true;
-  }
-  return _gradientMap;
-}
-
-const INK = 0x14151a;
-
-// ---- per-mech palettes (read off docs/canonical/anime/mech_<id>.png) -------
+// ---- per-mech entries (palettes read off docs/canonical/anime/<id>.png) ----
+//   primary/accent/frame/dark/metal/brass/glow — the named material colours
+//   ink            — outline colour (default near-black INK)
+//   design, dims   — dedicated sculpt + measured proportions (see above)
+//   dress(mech)    — small extra geometry over the SHARED sculpt (for mechs
+//                    that stay on it); a dedicated design never needs it
 export const ANIME = {
   titanus: {
     primary: 0xe0a721,   // the drawing's crane-yellow, brighter than the PBR base
-    accent: 0x565b64,    // gunmetal panels
-    frame: 0x3b3f47,
-    dark: 0x1d1f24,
-    glow: 0xffb340,
+    accent: 0x51555e,    // mid gunmetal panels
+    frame: 0x3a3e46,     // dark gunmetal structure
+    dark: 0x212329,      // near-black trim
+    metal: 0x8f97a2,
+    glow: 0xffb028,
     ink: 0x181410,       // warm ink under all that yellow
-    // the drawing's reactor is a LARGE amber lens with a bright heart, ringed
-    // by the radial petals the shared sculpt already has — the sculpt's own
-    // lens is a marble sized for the PBR chest light, so dress a real one on
-    dress(mech) {
-      const D = mech.dims, s = D.scale, W = D.torsoW;
-      const z = W * 0.485 + 0.075 * s;
-      const lens = (r, h, mat, dz) => {
-        const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 28), mat);
-        m.rotation.x = Math.PI / 2;
-        m.position.set(0, D.torsoH * 0.56, z + dz);
-        mech.joints.torso.add(m);
-        return m;
-      };
-      lens(0.40 * s, 0.05 * s, mech.materials.dark, 0);       // housing
-      lens(0.34 * s, 0.05 * s, mech.materials.glowSoft, 0.02 * s); // corona
-      lens(0.20 * s, 0.05 * s, mech.materials.glow, 0.045 * s);    // heart
-    },
+    design: animeTitanus,
+    dims: animeTitanusDims,
   },
 };
 
@@ -92,12 +58,9 @@ function animeTone(hex, lift = 1.3) {
   return new THREE.Color().setHSL(hsl.h, s, l);
 }
 
-function toon(color, opts = {}) {
-  return new THREE.MeshToonMaterial({ color, gradientMap: gradientMap(), ...opts });
-}
-
 // The named material set buildMech hands every design. Same keys as
-// factory.makeMaterials, so the sculpts bucket onto them unchanged.
+// factory.makeMaterials, so both the shared sculpts and the dedicated anime
+// designs bucket onto them unchanged.
 function toonMaterials(def) {
   const p = ANIME[def.id] || {};
   const c = def.colors;
@@ -111,12 +74,11 @@ function toonMaterials(def) {
     metal: toon(p.metal != null ? p.metal : 0x9099a4),
     brass: toon(p.brass != null ? p.brass : 0xb38d43),
     dark: toon(p.dark != null ? p.dark : 0x1a1c21),
-    // a glow reads FLAT in a drawing, and emissive is exactly that — unlit,
-    // uniform. Kept on a real emissive material (not MeshBasicMaterial)
-    // because signatures write mats.glow*.emissive/emissiveIntensity live
-    // (nullbot's flicker) and the hit flash lerps it.
-    // intensity stays under ~1.3: past that the bloom pass saturates an amber
-    // slit to white, and the drawings' glows are saturated colour, not white
+    // a glow reads FLAT in a drawing, and emissive is exactly that — kept on
+    // a real emissive material (never MeshBasicMaterial) because signatures
+    // write mats.glow*.emissive/emissiveIntensity live and the hit flash
+    // lerps it. Intensity stays under ~1.3: past that the bloom pass
+    // saturates an amber slit to white.
     glow: toon(glow, { emissive: glow, emissiveIntensity: 1.25 }),
     glowSoft: toon(glow, { emissive: glow, emissiveIntensity: 0.65 }),
   };
@@ -132,37 +94,17 @@ function toonMaterials(def) {
 // A design's inline A.custom() materials (decal plates, hazard chevrons) are
 // PBR one-offs this module never sees by name — convert each to a toon
 // material that keeps its map, so the decals survive with cel shading over
-// them. Cached per source material: buckets share instances.
+// them. A material that is already toon/basic (a dedicated anime design's
+// own customs) passes through untouched.
 function toonify(material) {
   if (material.isMeshToonMaterial || material.isMeshBasicMaterial) return material;
-  const m = new THREE.MeshToonMaterial({
-    color: material.color ? material.color.clone() : new THREE.Color(0xffffff),
+  const m = toon(material.color ? material.color.clone() : new THREE.Color(0xffffff), {
     map: material.map || null,
-    gradientMap: gradientMap(),
   });
   if (material.emissive && (material.emissive.r || material.emissive.g || material.emissive.b)) {
     m.emissive = material.emissive.clone();
     m.emissiveIntensity = material.emissiveIntensity ?? 1;
   }
-  return m;
-}
-
-// ---- the ink line -----------------------------------------------------------
-// One MeshBasicMaterial with the vertices pushed out along their normals —
-// BackSide, so what survives the depth test is a rim of ink around the part.
-// Built on the stock material (not a ShaderMaterial) so .opacity keeps
-// working: Fighter.setOpacity fades the line with the body it is drawn on.
-function inkMaterial(width, color = INK) {
-  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uInk = { value: width };
-    sh.vertexShader = ('uniform float uInk;\n' + sh.vertexShader).replace(
-      '#include <begin_vertex>',
-      '#include <begin_vertex>\n\ttransformed += normalize(normal) * uInk;');
-  };
-  // the program is the same whatever the width (it is a uniform), so one
-  // cache key for every mech — see the structureMaterial note in CLAUDE.md
-  m.customProgramCacheKey = () => 'rw-ink';
   return m;
 }
 
@@ -195,23 +137,31 @@ function inkOutlines(mech, def) {
 
 // ---- entry ------------------------------------------------------------------
 export function buildAnimeMech(def) {
-  const mech = buildMech(def);
-  // swap the named set: repaint the merged buckets in place
+  const entry = ANIME[def.id] || {};
   const mats = toonMaterials(def);
-  const byOld = new Map(Object.entries(mech.materials)
-    .filter(([k, m]) => m && m.isMaterial && mats[k])
-    .map(([k, m]) => [m, mats[k]]));
-  mech.group.traverse((o) => {
-    if (!o.isMesh) return;
-    o.material = byOld.get(o.material) || toonify(o.material);
-  });
-  Object.assign(mech.materials, mats);
+  let mech;
+  if (entry.design) {
+    // dedicated anime sculpt: its own parts, its own measured proportions,
+    // built straight onto the toon set — nothing to convert afterwards
+    mech = buildMech(def, { design: entry.design, materials: mats, dims: entry.dims });
+  } else {
+    // shared sculpt wearing anime paint: repaint the merged buckets in place
+    mech = buildMech(def);
+    const byOld = new Map(Object.entries(mech.materials)
+      .filter(([k, m]) => m && m.isMaterial && mats[k])
+      .map(([k, m]) => [m, mats[k]]));
+    mech.group.traverse((o) => {
+      if (!o.isMesh) return;
+      o.material = byOld.get(o.material) || toonify(o.material);
+    });
+    Object.assign(mech.materials, mats);
+  }
   // the core PointLight gives a PBR body presence; on a cel ramp it blows the
   // whole chest past the top step into one flat blaze — keep a trace of it
   mech.group.traverse((o) => { if (o.isLight) o.intensity *= 0.12; });
-  // per-mech refinement: extra geometry the drawing has and the shared sculpt
-  // lacks, added BEFORE the ink pass so it gets outlined like everything else
-  ANIME[def.id]?.dress?.(mech, def);
+  // per-mech refinement over the SHARED sculpt: extra geometry the drawing
+  // has and it lacks, added BEFORE the ink pass so it gets outlined too
+  if (!entry.design) entry.dress?.(mech, def);
   inkOutlines(mech, def);
   mech.isAnime = true;
   return mech;
