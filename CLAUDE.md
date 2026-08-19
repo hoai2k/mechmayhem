@@ -1355,9 +1355,11 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   …AND THE PACK ARRIVES AS EGGS NOW (`src/combat/eggs.js`), which is what
   finally took the cast frame to nothing. Three dinosaur EGGS warp in behind
   him, 75% of his own height along the long axis, and hatch ONE AT A TIME with
-  at least `GAP` (2s) between them — so a body is built during the two seconds
+  at least `GAP` (4s) between them — so a body is built during the seconds
   before its own hatch instead of three at once, and the ult has a moment to it
-  rather than three robots appearing. An egg is a real rolling body (gravity,
+  rather than three robots appearing. The gap is long enough that each hatch is
+  its OWN EVENT rather than a countdown: a whole pack takes twelve seconds to
+  arrive, which is twelve seconds the enemy can spend breaking shells. An egg is a real rolling body (gravity,
   ground contact, restitution, rolling friction, and a roll rate off its own
   short radius, so it goes across the plaza like a barrel and settles on its
   side). WHO HIT IT IS THE WHOLE DAMAGE MODEL, AND WITH WHAT: SAURION's own
@@ -1371,26 +1373,26 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   and unfolds into his stance as it grows. Three hooks feed it, one per damage
   path: `world.explode`, the projectile sweep and the melee sweep, each handing
   over the ATTACKER and what the blow is worth, which is all the rule cares
-  about. Measured with `node tools/eggs.mjs`: cast 0.6ms, worst frame over the
-  whole cast 3.8ms (from 51.7 before any of this work), eggs at 0.75 of his
-  height, hatches at 2.93 / 4.93 / 6.93s — gaps of 2.00 and 2.00 — his own hit
-  rolling one 10.3 units for no damage, an enemy's shot rolling it 1.7 and
+  about. Measured with `node tools/eggs.mjs`: cast 0.5ms, worst frame over the
+  whole cast 1.8ms (from 51.7 before any of this work), eggs at 0.75 of his
+  height, hatches at 2.95 / 6.95 / 10.95s — gaps of 4.00 and 4.00 — his own hit
+  rolling one 9.8 units for no damage, an enemy's shot rolling it 1.7 and
   wounding it, and one enemy melee blow ending it outright.
   THE BUILD IS PACED BY THE HATCH SLOT, NOT BY THE EGG'S OWN CLOCK, and for a
   while it was not — which is the one place the staggering did not actually
   hold. `hatchIn` is 2 + 0.4i so the clutch does not crack in unison, and the
   body was built at `hatchAt - BUILD_LEAD`; with a COLD pool (a second cast in
   the round, or a mech swap that dropped the spares) that put all three
-  `cloneMech` calls inside 0.8s while the hatches were a full 2s apart —
+  `cloneMech` calls inside 0.8s while the hatches were a full `GAP` apart —
   measured at 1.22 / 1.53 / 1.92s, the exact bunching eggs exist to prevent.
   Only the egg at the FRONT OF THE QUEUE may build, and only within
   `BUILD_LEAD` of the slot it is really waiting on, so the builds inherit the
-  hatches' spacing: 1.23 / 3.27 / 5.28s, warm pool or cold. An egg broken out
+  hatches' spacing: 1.23 / 5.27 / 9.28s, warm pool or cold. An egg broken out
   of the queue hands the front to the next one at once, so nothing stalls
   behind a shell the enemy took away. `node tools/scratch/eggpace.mjs` is the
   check (build times, hatch times and every frame over threshold across four
   casts) and `tools/scratch/hatchcost.mjs` breaks one hatch into its parts —
-  cast 0.1-0.6ms, hatch frames 4.1 / 0.9 / 1.0ms, and 0.9ms a step in the
+  cast 0.0-0.5ms, hatch frames 4.1 / 0.9 / 1.0ms, and 0.9ms a step in the
   steady state with three minions in against 0.3ms with none.
   THE SHELL'S TEXTURE IS REQUESTED (`prop_dino_egg`, in
   docs/ASSET_REQUESTS_STRUCTURES.md and listed in `PENDING_ASSETS`): until it

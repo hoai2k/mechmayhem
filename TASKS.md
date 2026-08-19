@@ -6852,8 +6852,12 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
   apart — measured 1.22 / 1.53 / 1.92s. Only the front egg of the queue builds,
   and only within `BUILD_LEAD` of the slot it is actually waiting on: 1.23 /
   3.27 / 5.28s now, warm pool or cold. Everything else about the pacing was
-  measured and left alone — cast 0.1-0.6ms, hatches 2.93 / 4.93 / 6.93s, worst
-  hatch frame 4.1ms, 0.9ms a step with three minions in.
+  measured and left alone — cast 0.0-0.5ms, worst hatch frame 4.1ms, 0.9ms a
+  step with three minions in.
+- …AND THE CLUTCH HATCHES 4s APART, not 2 (`GAP`). Long enough that each hatch
+  is its own event rather than a countdown, and the pack takes twelve seconds
+  to arrive — twelve seconds the enemy can spend breaking shells. Measured:
+  hatches 2.95 / 6.95 / 10.95s (gaps 4.00, 4.00), builds 1.23 / 5.27 / 9.28s.
   `tools/scratch/eggpace.mjs` and `tools/scratch/hatchcost.mjs` are the probes.
 - THREE PLAYERS STAND IN AN L AND THE STATS TAKE THE SPARE QUADRANT. P1 top
   left, P2 and P3 along the bottom, every HUD plate and the round clock in a

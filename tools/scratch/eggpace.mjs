@@ -48,7 +48,7 @@ const out = await page.evaluate(async () => {
     const hatchTimes = [];
     let bodies = 0, lastMinions = 0;
     const buildTimes = [];
-    for (let i = 0; i < 60 * 12; i++) {
+    for (let i = 0; i < 60 * 16; i++) {
       const before = w.eggs.eggs.filter((e) => e.body).length;
       const a = performance.now();
       w.update(dt);
