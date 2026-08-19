@@ -17,7 +17,7 @@ import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
   CONFIG, setShowAllRobots, setReverseCameraY, setSfxSamples, setSfxVolume, sfxVolume,
-  setArenaDesign, ARENA_DESIGN_MODES,
+  setArenaDesign, ARENA_DESIGN_MODES, setRendering, RENDERING_MODES,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
 } from '../core/config.js';
@@ -245,6 +245,15 @@ export async function bootGame() {
       // workbenches (?showcase, ?rigedit, ?battle=...) always show them
       label: () => t(CONFIG.showAllRobots ? 'settings.showAllRobots.on' : 'settings.showAllRobots.off'),
       fn: () => setShowAllRobots(!CONFIG.showAllRobots),
+    },
+    {
+      // which set of bodies the roster wears: the rigged GLB models
+      // (default), the cel-shaded procedural roster (src/mechs/anime.js) or
+      // the original procedural roster. Takes effect on the next body built —
+      // flip through mechs on the select screen, or start the next match.
+      label: () => t(`settings.rendering.${CONFIG.rendering}`),
+      fn: () => setRendering(RENDERING_MODES[
+        (RENDERING_MODES.indexOf(CONFIG.rendering) + 1) % RENDERING_MODES.length]),
     },
     {
       // which design system lays out each match's arena (src/arena/designs/).

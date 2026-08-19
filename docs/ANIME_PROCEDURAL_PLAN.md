@@ -1,5 +1,13 @@
 # Procedural 3D mechs from the anime canonical drawings — feasibility + plan
 
+> **Status:** underway. SETTINGS → RENDERING (`CONFIG.rendering`,
+> `?render=anime`) ships with three modes — 3D MODELS / ANIME / FALLBACK —
+> and `src/mechs/anime.js` implements the anime route: the shared parts-kit
+> sculpts under cel-ramp materials + ink outlines, with `ANIME[id]` carrying
+> per-mech palettes and `dress()` geometry refinements. Titanus is the
+> worked example; the other 16 render through the generic `animeTone` pass
+> until their palettes are hand-read.
+
 The reference set is `docs/canonical/anime/` (17 cel-shaded drawings of the
 same roster, copied from the mechbrawler repo). This document answers two
 questions: **is a procedural rebuild from these drawings feasible**, and

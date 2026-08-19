@@ -63,6 +63,15 @@ const clampRound = (v) => (Number.isFinite(v)
 // declared before CONFIG, which reads it while initializing
 export const ARENA_DESIGN_MODES = ['authored', 'wards', 'avenues', 'circuit', 'fallback'];
 
+// settings-menu cycle order for RENDERING (labels in core/text.js):
+//   'models'   (default) — the rigged GLBs in public/models/manifest.json,
+//              procedural fallback for anything missing/broken (unchanged)
+//   'anime'    — the cel-shaded procedural roster (src/mechs/anime.js): the
+//              parts-kit bodies under flat toon paint + ink outlines, running
+//              the same rig/animator/clips as everything else
+//   'fallback' — the original procedural roster, exactly ?debug=fallback
+export const RENDERING_MODES = ['models', 'anime', 'fallback'];
+
 // Snapped to whole percent as well as clamped: stepping by 0.05 in binary
 // floating point otherwise banks visible crumbs (1.45 stored as
 // 1.4500000000000002), which then round-trips through localStorage forever.
@@ -98,6 +107,12 @@ export const CONFIG = {
   // and the old ?procedural=1 still means 'fallback'. The old on/off pref
   // migrates: ON → 'fallback', OFF → 'authored'.
   arenaDesign: readArenaDesign(),
+  // RENDERING: which set of bodies the roster wears (see RENDERING_MODES
+  // above). Persisted from the settings menu; ?render=<mode> forces one for a
+  // session, and the old ?debug=fallback / ?debug=3d spellings still mean
+  // 'fallback' / 'models'. Takes effect on the next body BUILT — the menus
+  // rebuild as you flip through mechs, a match builds at round start.
+  rendering: readRendering(),
   // REVERSE CAMERA Y: which way the right stick (and a touch look-drag) pitches
   // the camera. OFF is the standard third-person feel — push DOWN and the
   // camera rises so you look down on your mech; ON gives the flight-sim
@@ -233,6 +248,27 @@ export function setArenaDesign(mode) {
   CONFIG.arenaDesign = ARENA_DESIGN_MODES.includes(mode) ? mode : 'authored';
   try { localStorage.setItem('rw.arenaDesign', CONFIG.arenaDesign); } catch (e) { /* ok */ }
   return CONFIG.arenaDesign;
+}
+
+function readRendering() {
+  const p = params.get('render');
+  if (RENDERING_MODES.includes(p)) return p;
+  // the debug spellings predate this setting and stay valid forever: every
+  // tools/*.mjs harness and bookmark that says ?debug=fallback means it
+  const dbg = params.get('debug');
+  if (dbg === 'fallback') return 'fallback';
+  if (dbg === '3d') return 'models';
+  try {
+    const v = localStorage.getItem('rw.rendering');
+    if (RENDERING_MODES.includes(v)) return v;
+  } catch (e) { /* ok */ }
+  return 'models';
+}
+
+export function setRendering(mode) {
+  CONFIG.rendering = RENDERING_MODES.includes(mode) ? mode : 'models';
+  try { localStorage.setItem('rw.rendering', CONFIG.rendering); } catch (e) { /* ok */ }
+  return CONFIG.rendering;
 }
 
 function readSplitPost() {

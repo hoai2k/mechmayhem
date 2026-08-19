@@ -7,6 +7,7 @@ import { ROSTER_BY_ID, playableRoster, isPlayable } from '../mechs/roster.js';
 import { randomLineup } from './lineup.js';
 import { applyColorScheme } from '../mechs/colorscheme.js';
 import { buildMech } from '../mechs/factory.js';
+import { buildAnimeMech } from '../mechs/anime.js';
 import { Animator } from '../mechs/animator.js';
 import { PLAYER_COLORS } from '../core/colors.js';
 import { createMech, is3dMode, manifestHasGlb } from '../mechs/gltf.js';
@@ -325,8 +326,10 @@ export class MenuStage {
   }
 
   /** Poster metadata for a mech, or null when there is none (the generator
-   *  hasn't run, or this mech is new). Every caller falls back to building. */
-  posterFor(id) { return posterMeta(id); }
+   *  hasn't run, or this mech is new). Every caller falls back to building.
+   *  A poster is a picture OF THE GLB, so outside 3D MODELS mode it is the
+   *  wrong body — answer null and let the select screen build the real one. */
+  posterFor(id) { return is3dMode() ? posterMeta(id) : null; }
 
   /** The mech's poster, laid over the canvas at the NDC rect the generator
    *  recorded — a DOM <img>, not a scene object, because the picture already
@@ -515,7 +518,9 @@ export class MenuStage {
       });
       return unit;
     }
-    const mech = tag(buildMech(def));
+    // the sync procedural preview — the ANIME roster is procedural too, so it
+    // previews instantly through the same branch, wearing its own build
+    const mech = tag(CONFIG.rendering === 'anime' ? buildAnimeMech(def) : buildMech(def));
     mech.animator = new Animator(mech);
     mech.group.position.copy(pos);
     mech.group.rotation.y = rotY;

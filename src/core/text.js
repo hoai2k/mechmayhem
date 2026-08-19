@@ -145,6 +145,12 @@ export const MESSAGES = {
   'settings.arenaDesign.avenues': 'ARENA DESIGN: GRAND AXIS',
   'settings.arenaDesign.circuit': 'ARENA DESIGN: COLOSSEUM',
   'settings.arenaDesign.fallback': 'ARENA DESIGN: FALLBACK',
+  // which set of bodies the roster wears (CONFIG.rendering): the rigged GLB
+  // models (default), the cel-shaded procedural roster, or the original
+  // procedural roster (the old ?debug=fallback)
+  'settings.rendering.models': 'RENDERING: 3D MODELS',
+  'settings.rendering.anime': 'RENDERING: ANIME',
+  'settings.rendering.fallback': 'RENDERING: FALLBACK',
   'settings.reload': 'RELOAD PAGE',
   'settings.split.side': 'SPLIT: SIDE BY SIDE',
   'settings.split.stacked': 'SPLIT: STACKED',

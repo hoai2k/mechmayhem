@@ -1686,6 +1686,33 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).
   `?debug=3d` is the old opt-in flag and still means GLBs.
+- SETTINGS → RENDERING (`CONFIG.rendering`, `?render=<mode>`) picks the
+  roster's whole wardrobe: `models` (the GLBs, default) · `anime` (the
+  CEL-SHADED procedural roster — `src/mechs/anime.js`, judged against
+  `docs/canonical/anime/`, plan in `docs/ANIME_PROCEDURAL_PLAN.md`) ·
+  `fallback` (the original procedural bodies). The old spellings map in
+  (`?debug=fallback`/`?debug=3d`), `is3dMode()` now reads the setting, and
+  `createMech` is the ONE routing point. ANIME IS THE FALLBACK SCULPT WEARING
+  DIFFERENT PAINT: the exact parts-kit body — same 15 joints, anchors,
+  animator, every gait and clip — with the named material set swapped for
+  MeshToon cel ramps (a shared 4-step gradient map) and an INK OUTLINE grown
+  as an inverted-hull CHILD of every mesh (inherits transforms, fades with
+  setOpacity, survives cloneMech — and is deliberately NOT in
+  `mech.materials`, or the whiteout would flash the lines and cloneMech's
+  material cloning would drop its onBeforeCompile displacement). Glows stay
+  REAL EMISSIVE materials, not MeshBasicMaterial — signatures write
+  `mats.glow*.emissive` live (nullbot's flicker crashed on a basic one) —
+  and intensity sits ~1.25, under where bloom whites an amber slit out. The
+  core PointLight is cut to 12%: on a cel ramp it blazed the whole chest
+  flat. `ANIME[id]` in anime.js is the per-mech hand: palette read off that
+  mech's drawing plus an optional `dress(mech)` for geometry the drawing has
+  and the shared sculpt lacks (titanus' big amber reactor lens is the worked
+  example). A mech without an entry derives its paint from `def.colors`
+  through `animeTone`, so all 17 render in anime mode today. Judge with the
+  usual shots (`?showcase=<id>&render=anime`) and
+  `RW_QUERY="render=anime" node tools/clipsheet.mjs <mech> <clip>`; a
+  posters note: posters are pictures OF THE GLB, so `posterFor` answers null
+  outside `models` mode and mech select builds the real body instead.
 - A PROP'S COLLIDER IS ITS OWN SHELL (`src/arena/propshell.js`, `propBody.shell`).
   Every standing prop is measured as ONE VERTICAL CYLINDER off its ground band,
   which is right for a smokestack and a lie for anything that is not round. THE
