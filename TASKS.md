@@ -6909,3 +6909,35 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
   does that on the way in via `resumeAudio`, a pad press does not.
   `tools/scratch/mutetab.mjs` reproduces the whole sequence and
   `tools/scratch/tabpause.mjs` holds the line the handler exists for.
+
+## /stats — who is actually playing
+
+- A STATIC SITE CANNOT COUNT ITS OWN VISITORS. GitHub Pages serves files; the
+  game's JS never sees a request, an address or a country, so "where is anyone
+  playing from" can only be answered by something that RECEIVES the request.
+  GoatCounter is that something — cookieless, no identifier, no cross-site
+  profile, no consent banner, free for a non-commercial site.
+- WHAT LEAVES THE BROWSER IS THREE THINGS: the page URL, the referrer, and one
+  event — `play`, fired from `startBattle`, which is the only thing a page view
+  cannot say (did anybody get past the title screen). Country, browser and
+  screen size are derived from the request at GoatCounter's end.
+- EMPTY MEANS OFF and that is the shipped state: with `GOATCOUNTER_CODE` blank
+  no script loads and no request is made anywhere, so a fork reports to nobody.
+  Every other reason not to count is in ONE function (`reasonToSkip`) instead
+  of scattered through the boot: DNT/GPC, the Electron build, `/workbench/`,
+  and a player who said no (`?stats=0` or the button on the page — one
+  `rw.noStats` key, two ways to set it). `?battle=` counts nothing either,
+  being a dev route that never reaches `bootGame`.
+- THE PAGE IS A THIRD VITE ENTRY (`stats/index.html`), shipped in the DIST
+  build too since it is public rather than an authoring surface, and it IMPORTS
+  the site code from analytics.js rather than restating it — two copies is one
+  rename away from a stats page showing somebody else's numbers, or none. It
+  embeds GoatCounter's own dashboard (the free tier has no API to build a
+  custom view on) and has two states, configured and not-set-up-yet. The
+  embed's failure mode is the browser's own unstyleable error box, which is why
+  the explanation sits ABOVE the frame.
+- `tools/scratch/statsbeacon.mjs` STUBS `gc.zgo.at`, so the check contacts
+  nothing real: no-request rules in the shipped state, counting rules when a
+  code is set, with a real match driven through the menus by a virtual pad
+  (measured: exactly one `play` event, and it is an event rather than a page
+  view). `tools/scratch/statsshot.mjs` shoots both states of the page.

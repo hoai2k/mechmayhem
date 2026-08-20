@@ -2585,6 +2585,38 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   (`pool.liveCount()`, the emitted colours and positions) and save the pictures
   for the geometry.
 
+- THE VISITOR COUNT (`src/core/analytics.js`, the `/stats/` page, setup and
+  the full data list in `docs/ANALYTICS.md`). A STATIC SITE CANNOT COUNT ITS
+  OWN VISITORS: GitHub Pages serves files, the game's JS never sees a request,
+  an address or a country, and there is no server of ours in between — so
+  "where is anyone playing from" can only be answered by something that
+  RECEIVES the request. That is GoatCounter: cookieless, no identifier, no
+  cross-site profile, and therefore no consent banner. What leaves the browser
+  is the page URL, the referrer, and ONE event — `play`, from `startBattle`,
+  which is the only thing a page view cannot say (did anybody get past the
+  title screen). Country, browser and screen size are derived from the request
+  at their end.
+  EMPTY MEANS OFF, and that is the shipped state: with `GOATCOUNTER_CODE`
+  blank no script is loaded and no request is made anywhere, so a FORK reports
+  to nobody. Everything else that must not be counted is in one function
+  (`reasonToSkip`) rather than scattered: DNT/GPC, the Electron desktop build,
+  the `/workbench/` pages, and a player who said no (`?stats=0` / the button on
+  `/stats/`, one `rw.noStats` key for both). `?battle=...` counts nothing
+  either, being a dev route that never reaches `bootGame`.
+  THE SITE CODE IS STATED ONCE and the stats page IMPORTS it — two copies is
+  one rename away from a page showing somebody else's numbers, or none. That
+  page is a third vite entry (`stats/index.html`, in the DIST build too: it is
+  public, not an authoring surface) and it EMBEDS GoatCounter's own dashboard,
+  because the free hosted tier has no API to build a custom view on. It has two
+  states, configured and not-set-up-yet, and the embed's failure mode is the
+  browser's own unstyleable error box — which is why the explanation sits ABOVE
+  the frame rather than under it.
+  `node tools/scratch/statsbeacon.mjs` is the check and it STUBS `gc.zgo.at`,
+  so it contacts nothing real: it asserts the no-request rules in the shipped
+  state and the counting rules when a code is set, driving a real match through
+  the menus with a virtual pad. `tools/scratch/statsshot.mjs` shoots both
+  states of the page.
+
 ## Mech art pipeline — READ `docs/MECH_ART_GUIDE.md` FIRST
 
 That guide is the master manual for turning concept images into in-game

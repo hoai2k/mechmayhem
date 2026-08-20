@@ -14,6 +14,7 @@ import { Hud, toast } from '../ui/hud.js';
 import { TitleScreen, MechSelectScreen, ArenaSelectScreen, PauseScreen, ResultsScreen, SettingsScreen, playNeonBuzz } from '../ui/menus.js';
 import { installKnobs, warnUnknownParams } from '../core/knobs.js';
 import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
+import { startAnalytics, countPlay } from '../core/analytics.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
   CONFIG, setShowAllRobots, setReverseCameraY, setSfxSamples, setSfxVolume, sfxVolume,
@@ -560,6 +561,10 @@ export async function bootGame() {
 
   // ---------------- battle ----------------
   async function startBattle() {
+    // Somebody got past the title screen. It is the one thing a page view
+    // cannot say, and the only event the counter is told about — see
+    // core/analytics.js for the whole list of what leaves the browser.
+    countPlay();
     // from here every spare cycle belongs to the fight, not to a guess
     predictor.stop();
     setScreen(null);
@@ -975,6 +980,12 @@ export async function bootGame() {
   }));
 
   window.__game = { S, engine, input, audio, music, menuMusic, ambience, predictor, tick: (dt) => engine.onUpdate(dt) }; // debug hook
+
+  // The visitor count (core/analytics.js), which also reads `?stats=0|1`.
+  // Started LAST: it is the least important thing on this page and must never
+  // be between the player and the title screen.
+  startAnalytics();
+
   // A mistyped switch says so instead of looking like a dead knob, and every
   // tuning value is reachable live as `rw` (see core/knobs.js).
   warnUnknownParams();

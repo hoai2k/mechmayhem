@@ -30,6 +30,13 @@ via `.github/workflows/deploy.yml` — the live URL appears in the Actions run
 summary and under *Settings → Pages* once the first deploy finishes. No
 install needed; just open the link.
 
+### Who is playing
+
+`/stats/` on the deployed site is a public visitor count — countries,
+referrers, and how many people got past the title screen. It is off until a
+GoatCounter code is filled in; setup and the full list of what is (and is not)
+recorded are in [docs/ANALYTICS.md](docs/ANALYTICS.md).
+
 ### Mobile & tablet (touch)
 
 On phones and tablets the game auto-detects touch and switches to a
