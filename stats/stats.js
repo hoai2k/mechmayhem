@@ -16,30 +16,51 @@ import { GOATCOUNTER_CODE, dashboardUrl, optedOut, setOptOut } from '../src/core
 const dash = document.getElementById('dash');
 const url = dashboardUrl();
 
+const EMBED_KEY = 'rw.statsEmbed';
+const embedOn = () => { try { return localStorage.getItem(EMBED_KEY) === '1'; } catch (e) { return false; } };
+
 if (url) {
-  // `hideui=1` drops GoatCounter's own chrome, which is the half of its page
-  // that assumes you are logged into it.
-  // The hint goes ABOVE the frame on purpose. A dashboard that is still
-  // private refuses to be framed, and what the browser paints in its place is
-  // its own error page — which cannot be styled and reads as a broken site.
-  // One line of explanation above it turns that into "not finished yet",
-  // which is what it is.
-  dash.innerHTML = `
-    <div class="panel dash">
-      <div class="frame-hint top">
-        <div class="row" style="justify-content:space-between">
-          <p class="note" style="margin:0">
-            Live from <b>${GOATCOUNTER_CODE}.goatcounter.com</b>. Blank below?
-            The dashboard has to be <b>public</b> and this site listed under
-            <em>Settings → Sites that can embed GoatCounter</em> — until then it
-            declines to be framed, which is the right default, not a fault.
-          </p>
-          <a class="btn" href="${url}" target="_blank" rel="noopener noreferrer">Open it ↗</a>
+  // THE EMBED IS OPT-IN AND STICKY, and that is not timidity — it is the only
+  // honest default. GoatCounter refuses to be framed until the dashboard is
+  // PUBLIC *and* this host is listed under its embed allowlist, and what the
+  // browser paints in a refused frame is its own grey error page: unstyleable,
+  // full-height, and indistinguishable from a broken site. Nothing on this
+  // page can tell a refused frame from a loaded one — both settle on
+  // about:blank to a cross-origin reader, measured — so the choice is a
+  // permanent maybe-slab or one click by the person who owns the settings.
+  // Tick it once, it is remembered.
+  const render = () => {
+    const on = embedOn();
+    dash.innerHTML = `
+      <div class="panel dash">
+        <div class="frame-hint top">
+          <div class="row" style="justify-content:space-between">
+            <p class="note" style="margin:0">
+              Counting into <b>${GOATCOUNTER_CODE}.goatcounter.com</b>.
+              ${on ? `Nothing below? The dashboard has to be <b>public</b> and this
+                     host listed under <em>Settings → Sites that can embed
+                     GoatCounter</em> — until both are set it declines to be
+                     framed, which is the right default, not a fault.`
+                   : `The full dashboard — countries, referrers, days — opens at
+                      GoatCounter. It can also be shown right here once its
+                      settings allow this page to frame it.`}
+            </p>
+            <a class="btn" href="${url}" target="_blank" rel="noopener noreferrer">Open it ↗</a>
+          </div>
+          <label class="embed-toggle">
+            <input type="checkbox" id="embedbox" ${on ? 'checked' : ''} />
+            show the dashboard on this page
+          </label>
         </div>
-      </div>
-      <iframe src="${url}?hideui=1" title="GoatCounter dashboard for MECH MAYHEM"
-              loading="lazy" referrerpolicy="no-referrer"></iframe>
-    </div>`;
+        ${on ? `<iframe src="${url}?hideui=1" title="GoatCounter dashboard for MECH MAYHEM"
+                        loading="lazy" referrerpolicy="no-referrer"></iframe>` : ''}
+      </div>`;
+    document.getElementById('embedbox').addEventListener('change', (e) => {
+      try { localStorage.setItem(EMBED_KEY, e.target.checked ? '1' : '0'); } catch (err) { /* ok */ }
+      render();
+    });
+  };
+  render();
 } else {
   dash.innerHTML = `
     <div class="panel">

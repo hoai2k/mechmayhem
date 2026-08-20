@@ -26,7 +26,7 @@
  * the stats page too (stats/stats.js), so the code is stated once and the
  * dashboard link can never point somewhere the beacon isn't reporting.
  */
-export const GOATCOUNTER_CODE = '';
+export const GOATCOUNTER_CODE = 'hoai';
 
 /** The dashboard for that code, or null when there is no code yet. */
 export function dashboardUrl() {
