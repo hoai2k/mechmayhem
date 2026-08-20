@@ -255,27 +255,30 @@ export async function runAnimationWorkbench(config, params) {
     if (Array.isArray(world.projectiles)) world.projectiles.length = 0;
 
     const hasAlt = !!manifest[id]?.alt?.url;
-    // COMPARE TO: procedural by default; 'alt' stands the mech's alternate model
-    // there instead (own intake — a full independent fighter) so alt-vs-original
-    // can be judged side by side; 'solo' leaves the slot EMPTY so the mech under
-    // study stands alone, centred, with nothing else to read past.
-    const slot = (compareTo === 'alt' && !hasAlt) ? 'proc' : compareTo;
+    const hasAnime = !!config.variants.list(id).find((v) => v.key === 'anime' && v.available);
+    // COMPARE TO: fallback-procedural by default; 'anime' stands the dedicated
+    // cel-route sculpt there (mechs that have one); 'alt' the mech's alternate
+    // model (own intake — a full independent fighter); 'solo' leaves the slot
+    // EMPTY so the mech under study stands alone, with nothing else to read past.
+    let slot = compareTo;
+    if (slot === 'alt' && !hasAlt) slot = 'proc';
+    if (slot === 'anime' && !hasAnime) slot = 'proc';
     soloMode = slot === 'solo';
     procF = null;
     if (!soloMode) {
-      if (slot === 'alt') {
-        const altModel = await config.variants.build(id, { variant: 'alt' });
-        procF = makeFighter(id, -PAIR_X, { pi: 0, mech: altModel });
+      if (slot === 'alt' || slot === 'anime') {
+        const sideModel = await config.variants.build(id, { variant: slot });
+        procF = makeFighter(id, -PAIR_X, { pi: 0, mech: sideModel });
       } else {
         // no `mech` override: the actor builds this game's DEFAULT comparison
-        // body (robotworld: the hand-sculpted procedural one)
+        // body (robotworld: the hand-sculpted fallback one)
         procF = makeFighter(id, -PAIR_X, { pi: 0 });
       }
     }
     const model = await config.variants.build(id, { variant: 'glb' });
     glbF = makeFighter(id, soloMode ? 0 : PAIR_X, { pi: 1, mech: model });
-    syncSlotUI(hasAlt, slot);
-    panelUI.setSubtitle(`${id} · GLB vs ${slot === 'alt' ? 'ALT' : slot === 'solo' ? '(solo)' : 'procedural'}`);
+    syncSlotUI(hasAlt, hasAnime, slot);
+    panelUI.setSubtitle(`${id} · GLB vs ${slot === 'alt' ? 'ALT' : slot === 'anime' ? 'ANIME' : slot === 'solo' ? '(solo)' : 'fallback'}`);
     // NO stand-in enemies on the stage. Attacks aim at the combat code's own
     // no-target phantom (Fighter.aimPhantom): an imagined opponent dead ahead
     // at the move's ideal distance — close for melee, out at working range for
@@ -614,7 +617,7 @@ export async function runAnimationWorkbench(config, params) {
   // never written back.
   let compareTo = params.get('compare') || params.get('left')
     || (params.get('alt') === '1' ? 'alt' : 'solo');
-  if (!['proc', 'alt', 'solo'].includes(compareTo)) compareTo = 'solo';
+  if (!['proc', 'anime', 'alt', 'solo'].includes(compareTo)) compareTo = 'solo';
   const setCompareTo = (v) => {
     compareTo = v;
     const u = new URL(location.href);
@@ -626,9 +629,8 @@ export async function runAnimationWorkbench(config, params) {
   };
   panel.appendChild(label('Compare to'));
   const slotSel = el('select', 'width:100%;margin-bottom:8px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px;display:none');
-  for (const [v, t] of [['proc', 'Procedural Robot'], ['alt', 'Alternate GLB'], ['solo', 'None (view solo)']]) {
-    const o = document.createElement('option'); o.value = v; o.textContent = t; slotSel.appendChild(o);
-  }
+  // options are (re)built per mech in syncSlotUI — anime/alt rows only exist
+  // for a mech that has those builds
   slotSel.onchange = () => setCompareTo(slotSel.value);
   panel.appendChild(slotSel);
   const soloRow = el('label', 'display:none;gap:6px;align-items:center;cursor:pointer;margin-bottom:8px;font-size:11px;color:#cfe0f5');
@@ -638,10 +640,21 @@ export async function runAnimationWorkbench(config, params) {
   soloRow.appendChild(document.createTextNode(' None (view solo)'));
   soloCheck.onchange = () => setCompareTo(soloCheck.checked ? 'solo' : 'proc');
   panel.appendChild(soloRow);
-  // called from load() once the mech's alt availability is known
-  function syncSlotUI(hasAlt, slot) {
-    slotSel.style.display = hasAlt ? 'block' : 'none';
-    soloRow.style.display = hasAlt ? 'none' : 'flex';
+  // called from load() once the mech's alt/anime availability is known. A mech
+  // with EITHER extra build gets the dropdown; one with neither has nothing to
+  // compare against but the fallback body, so it keeps the plain checkbox.
+  function syncSlotUI(hasAlt, hasAnime, slot) {
+    const rows = [['proc', 'Fallback Robot']];
+    if (hasAnime) rows.push(['anime', 'Anime Robot']);
+    if (hasAlt) rows.push(['alt', 'Alternate GLB']);
+    rows.push(['solo', 'None (view solo)']);
+    slotSel.textContent = '';
+    for (const [v, t] of rows) {
+      const o = document.createElement('option'); o.value = v; o.textContent = t; slotSel.appendChild(o);
+    }
+    const dropdown = hasAlt || hasAnime;
+    slotSel.style.display = dropdown ? 'block' : 'none';
+    soloRow.style.display = dropdown ? 'none' : 'flex';
     slotSel.value = slot;
     soloCheck.checked = slot === 'solo';
   }

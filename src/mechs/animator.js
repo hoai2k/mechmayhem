@@ -147,14 +147,28 @@ export class Animator {
       this.J[a].getWorldPosition(_wp);
       minAnkle = Math.min(minAnkle, _wp.y - rootY);
     }
-    this.groundOffset = -(minAnkle - 0.32 * this.s);
+    // A PROCEDURAL body may state its own sole depth (dims.soleDepth: how far
+    // the sole sits under the ankle joint) — a design whose ankle rides high
+    // inside a tall boot (anime titanus, ankle ~1.0 over the sole) would
+    // otherwise be sunk boot-deep into the floor by the 0.32*s convention
+    // below, which is exactly what "the legs look short" was. GLB bodies keep
+    // ignoring this: calibrateFeet() measures theirs off the skin.
+    const soleDepth = this.D.soleDepth ?? 0.32 * this.s;
+    this.groundOffset = -(minAnkle - soleDepth);
     // How deep the SOLE sits under the ankle joint, as a fraction of the depth
     // the gait assumes (0.32 * scale — the same number groundOffset is derived
     // against). 1 = the procedural convention; calibrateFeet() measures the real
-    // number for a rigged GLB.
+    // number for a rigged GLB, and a stated soleDepth gets the same damping —
+    // a deep boot is also LONG, so the authored heel roll is scaled back and
+    // the gait is asked to keep the sole level (footFlat), exactly as a
+    // measured GLB boot would be.
     this.ankleGain = 1;
     this.footFlat = 0;
-    this.footDepth = 0.32 * this.s;
+    this.footDepth = soleDepth;
+    if (this.D.soleDepth && soleDepth > 0.02) {
+      this.ankleGain = clamp((0.32 * this.s) / soleDepth, 0.25, 1);
+      this.footFlat = clamp01((soleDepth / (0.32 * this.s) - 1) / 0.5);
+    }
 
     // BODY SIZE MULTIPLIER — 1 normally; a fighter that is grown at RUNTIME
     // (colossus' COLOSSAL FORM scales his group to 4×) sets it to the live

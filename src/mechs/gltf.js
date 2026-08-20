@@ -36,6 +36,8 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { dequantizeScene } from './dequantize.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { buildMech, buildRig, computeDims, addAnchor } from './factory.js';
+import { buildAnimeMech } from './anime.js';
+import { CONFIG } from '../core/config.js';
 import { Animator, LIMP_ROOTS } from './animator.js';
 import { RigAdapter, mapBones, JOINT_ORDER } from './rigadapter.js';
 import { GLB_DRESS } from './designs.js';
@@ -126,16 +128,19 @@ const _gcTmp2 = new THREE.Vector3();
 const PRONE_SINK = 0.08;              // see groundClamp / bodyH
 
 // The GLB models are the DEFAULT: any mech with a manifest url renders from
-// its service model, and only `?debug=fallback` forces the whole roster back
-// to the procedural bodies (the hand-sculpted route-B mechs, still the
-// fallback for any mech missing from the manifest or whose GLB fails to
-// load). `?debug=3d` still means GLB — it stays valid so the older tool URLs
-// and docs keep working, it just isn't needed any more.
+// its service model. SETTINGS → RENDERING (CONFIG.rendering) picks the
+// roster's whole wardrobe — 'models' (GLBs), 'anime' (the cel-shaded
+// procedural roster, src/mechs/anime.js) or 'fallback' (the original
+// procedural bodies, still the automatic fallback for any mech missing from
+// the manifest or whose GLB fails to load). The old URL spellings survive:
+// `?debug=fallback` still forces 'fallback', `?debug=3d` still means GLB
+// (config.js readRendering maps both), so every tools/*.mjs harness and
+// bookmark keeps working.
 // When GLBs are on, menus/previews show a spinner instead of the procedural
 // stand-in while a GLB downloads, then swap the GLB in.
 export const FALLBACK_PARAM = 'fallback';
 export function is3dMode() {
-  return new URLSearchParams(location.search).get('debug') !== FALLBACK_PARAM;
+  return CONFIG.rendering === 'models';
 }
 
 // Sync check — only meaningful once loadManifest() has resolved (which the
@@ -167,9 +172,12 @@ function fetchManifestJson() {
 
 export function loadManifest() {
   if (!manifestPromise) {
-    // GLB overrides are ON by default; ?debug=fallback is the one value that
-    // forces the procedural roster (see is3dMode).
-    if (!is3dMode()) {
+    // The legacy URL spelling `?debug=fallback` forces an EMPTY manifest for
+    // the whole session — the dev harnesses rely on it. The settings-menu
+    // modes deliberately do not: a session opened in ANIME or FALLBACK still
+    // loads the manifest (one small JSON), so flipping RENDERING back to 3D
+    // MODELS mid-session works without a reload.
+    if (new URLSearchParams(location.search).get('debug') === FALLBACK_PARAM) {
       manifestPromise = Promise.resolve({}).then((m) => { manifest = m; return m; });
       return manifestPromise;
     }
@@ -572,17 +580,23 @@ function bakeModelTransform(model, entry) {
 }
 
 // Preload the models for a set of mech ids (call during select/loading).
+// A no-op outside 3D MODELS mode — the other two rosters build locally.
 export async function preloadMechModels(ids) {
+  if (!is3dMode()) return;
   const m = await loadManifest();
   await Promise.allSettled(ids.filter((id) => m[id]?.url).map((id) => loadGLTF(m[id].url)));
 }
 
 /**
- * Build a mech: GLB-backed when the manifest has an entry, procedural
- * otherwise. Async — callers awaiting battle start use this; menus keep
- * using the sync procedural buildMech for instant previews.
+ * Build a mech in the ACTIVE RENDERING MODE (CONFIG.rendering): GLB-backed
+ * when the manifest has an entry ('models', the default, procedural when it
+ * doesn't), the cel-shaded procedural body ('anime') or the original
+ * procedural body ('fallback'). Async — callers awaiting battle start use
+ * this; menus keep using the sync builders for instant previews.
  */
 export async function createMech(def) {
+  if (CONFIG.rendering === 'anime') return buildAnimeMech(def);
+  if (CONFIG.rendering === 'fallback') return buildMech(def);
   const m = await loadManifest();
   const entry = m[def.id];
   if (!entry?.url) return buildMech(def);
