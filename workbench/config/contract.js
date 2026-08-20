@@ -3,14 +3,14 @@
 // The workbenches (animation, pose, skin, rig, collider) are model-authoring
 // tools. Nothing in workbench/tools/ imports from src/: they read this config
 // object instead, and ONE adapter per game fills it in
-// (workbench/adapters/robotworld/). Porting the tools to another game is
+// (workbench/adapters/mechmayhem/). Porting the tools to another game is
 // therefore writing a second adapter — not editing five tools.
 //
 // Two rules the adapter must honour, because they are what make the tools
 // stay correct as the game grows:
 //
 //  1. DERIVE, DON'T DUPLICATE. Every list here is a function, and the
-//     robotworld adapter answers each one by reading live game data (the
+//     Mech Mayhem adapter answers each one by reading live game data (the
 //     roster, the clip table, the joint order, the model manifest). Add a mech
 //     or a clip to the game and it shows up in the workbenches with no edit
 //     here. A static copy of those lists would rot the first time someone adds
@@ -73,7 +73,7 @@
  *   clip(name)        -> the clip data
  *   trackFor(joint, model, id) OPTIONAL — which clip TRACK drives this joint on
  *     this model, as { name, sign:[x,y,z] }. A game may not map clip channels
- *     1:1 onto joints: ROBOTWORLD's `mirrorArms` profiles play the right-arm
+ *     1:1 onto joints: MECH MAYHEM's `mirrorArms` profiles play the right-arm
  *     tracks on the left arm (a weapon in the other hand), with yaw and roll
  *     negated. Any tool that edits clip data by DRAGGING A JOINT has to go
  *     through this, or it measures a delta in joint space and writes it into a

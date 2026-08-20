@@ -284,18 +284,16 @@ export class MusicPlayer {
   setEnabled(on) {
     this.enabled = !!on;
     try { localStorage.setItem(STORE_KEY, this.enabled ? '1' : '0'); } catch (e) { /* ok */ }
-    this._applyVolume();
+    this._applyVolume();   // an audible player starts playing again in there
     // turning it back on mid-battle should actually start something
     if (this.enabled && this.playing && !this.track) this._advance();
-    else if (this.enabled && this.playing) this._play();
     this._changed();
   }
 
   /** Global SOUND: OFF from the corner button / settings. Not persisted here. */
   setMuted(m) {
     this.muted = !!m;
-    this._applyVolume();
-    if (!this.muted && this.playing && this.track) this._play();
+    this._applyVolume();   // …which starts the element again when it can hear
     this._changed();
   }
 
@@ -321,8 +319,17 @@ export class MusicPlayer {
     // some of it back — the only place in the range where it can.
     const want = this.enabled && !this.muted ? Math.min(1, this.volume * OUTPUT_TRIM) : 0;
     this.el.volume = want;
-    // silent means silent: don't keep streaming a track nobody can hear
+    // THIS IS THE ONE PLACE THAT DECIDES WHETHER THE ELEMENT RUNS, and it has
+    // to answer both halves of the question or the answers drift apart. Silent
+    // means silent: don't keep streaming a track nobody can hear. But AUDIBLE
+    // MEANS AUDIBLE — an element paused at zero stays paused until something
+    // asks it to play, and `setVolume` never did, so music turned off by
+    // dragging the slider to 0 (the only music on/off control there is now)
+    // came back mute and stayed that way. It only ever recovered by luck, when
+    // a later click or keypress happened to run `retry()` — which a gamepad
+    // never produces.
     if (!want) { try { this.el.pause(); } catch (e) { /* ok */ } }
+    else if (this.playing && this.track && this.el.paused) this._play();
   }
 
   /**

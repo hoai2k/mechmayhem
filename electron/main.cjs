@@ -1,4 +1,4 @@
-// Electron entry point for the ROBOTWORLD desktop wrapper.
+// Electron entry point for the MECH MAYHEM desktop wrapper.
 //
 // Boots a tiny localhost static server for the built game (see static-server.js
 // for why file:// won't work), then opens a fullscreen-capable window at that
@@ -26,7 +26,7 @@ async function createWindow() {
     minWidth: 800,
     minHeight: 500,
     backgroundColor: '#05070c',
-    title: 'ROBOTWORLD',
+    title: 'MECH MAYHEM',
     show: false,
     autoHideMenuBar: true,
     webPreferences: {

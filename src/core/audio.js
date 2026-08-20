@@ -1,5 +1,5 @@
 // ============================================================================
-// audio.js — procedural audio system for Robotworld.
+// audio.js — procedural audio system for Mech Mayhem.
 //
 // 100% synthesized with the Web Audio API: no assets, no dependencies.
 // Design language: heavy sci-fi mech combat with a steampunk edge — metallic

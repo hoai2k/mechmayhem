@@ -25,7 +25,7 @@
 // - Like every workbench, this tool imports NO GAME CODE. Arenas, themes,
 //   props, the palette, the level format and the playtest hand-off all arrive
 //   through `config.arena` (workbench/config/contract.js documents it,
-//   workbench/adapters/robotworld/ answers it). three.js is not game code —
+//   workbench/adapters/mechmayhem/ answers it). three.js is not game code —
 //   it is the renderer both sides share — so it is imported directly.
 // - The environment (sky, lights, ground, spawn plaza) is a real arena stage
 //   built from the current theme with no placed objects, so it looks in-game.

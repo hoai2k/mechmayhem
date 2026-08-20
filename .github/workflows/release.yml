@@ -53,7 +53,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: robotworld-${{ matrix.platform }}
+          name: mechmayhem-${{ matrix.platform }}
           path: release/*.zip
           if-no-files-found: error
 

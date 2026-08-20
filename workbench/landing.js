@@ -83,7 +83,7 @@ const TOOLS = [
 
 export function runLanding(unknownTool = null) {
   document.getElementById('boot-splash')?.remove();
-  document.title = 'ROBOTWORLD — Workbenches';
+  document.title = 'MECH MAYHEM — Workbenches';
   const root = document.createElement('div');
   root.innerHTML = `
   <style>
@@ -124,7 +124,7 @@ export function runLanding(unknownTool = null) {
   </style>
   <div class="wb-land"><div class="wb-wrap">
     <div class="wb-head">
-      <h1>ROBOTWORLD <b>WORKBENCHES</b></h1>
+      <h1>MECH MAYHEM <b>WORKBENCHES</b></h1>
       <p>The authoring tools — models, and the arenas they fight in — on their
       own page. Every tool opens on a subject and keeps it in the URL, so a link
       or a screenshot always lands back on the same thing; the chevron in a

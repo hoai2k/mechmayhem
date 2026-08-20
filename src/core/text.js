@@ -1,5 +1,5 @@
 // ============================================================================
-// ROBOTWORLD — ALL USER-FACING TEXT LIVES HERE.
+// MECH MAYHEM — ALL USER-FACING TEXT LIVES HERE.
 // ============================================================================
 // Every string a player can read — menus, HUD, announcements, mech names and
 // bios, arena names, touch-button labels, toasts — is registered in MESSAGES
@@ -475,7 +475,7 @@ export const MESSAGES = {
   'arena.neon.name': 'Neon District',
   'arena.neon.desc': 'Downtown at midnight. The signs stay lit even while the towers come down.',
   'arena.foundry.name': 'Ironworks Foundry',
-  'arena.foundry.desc': 'Steam, brass and molten light. The old machine-heart of Robotworld still beats.',
+  'arena.foundry.desc': 'Steam, brass and molten light. The old machine-heart of the city still beats.',
   'arena.uptown.name': 'Uptown Plaza',
   'arena.uptown.desc': 'Glass towers, blue skies, and a city block with excellent demolition insurance.',
   'arena.harbor.name': 'Harbor Docks',

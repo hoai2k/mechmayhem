@@ -1,7 +1,7 @@
 // WORKBENCH CONFIG CHECK — does the adapter still see the whole game?
 //
 // The workbenches read a config (workbench/config/contract.js) that one
-// adapter fills in from live game data (workbench/adapters/robotworld). The
+// adapter fills in from live game data (workbench/adapters/mechmayhem). The
 // deal is that adding a mech, a clip, a rig or a model entry shows up in the
 // tools with no edit to the adapter — this proves it, by comparing what the
 // config reports against the game's own sources, in the same browser.
@@ -20,8 +20,8 @@ page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
 await page.goto(`${base}/workbench/?edit=skin`, { waitUntil: 'networkidle' });
 
 const out = await page.evaluate(async () => {
-  const { loadRobotworldConfig } = await import('/workbench/adapters/robotworld/index.js');
-  const cfg = await loadRobotworldConfig();
+  const { loadMechMayhemConfig } = await import('/workbench/adapters/mechmayhem/index.js');
+  const cfg = await loadMechMayhemConfig();
   // the GAME's own sources, imported straight
   const { ROSTER } = await import('/src/mechs/roster.js');
   const { CLIPS } = await import('/src/mechs/animations.js');
@@ -35,7 +35,7 @@ const out = await page.evaluate(async () => {
 
   const cat = cfg.catalogue.list();
   // The adapter may add REFERENCE subjects that are deliberately not game
-  // content (robotworld's mannequin). They are declared, so they are subtracted
+  // content (Mech Mayhem's mannequin). They are declared, so they are subtracted
   // here rather than silently tolerated — an undeclared extra still fails.
   const refIds = cfg.catalogue.reference?.() || [];
   const realCat = cat.filter((c) => !refIds.includes(c.id));

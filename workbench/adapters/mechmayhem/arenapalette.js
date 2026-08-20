@@ -1,6 +1,6 @@
 // WHAT THIS GAME LETS YOU PLACE IN AN ARENA — the arena editor's palette.
 //
-// Adapter data, not tool data: every entry names a robotworld prop, lane kind
+// Adapter data, not tool data: every entry names a mechmayhem prop, lane kind
 // or terrain type, so it belongs beside the rest of the answers to "what does
 // this game mean by …" rather than inside `workbench/tools/level.js`, which
 // knows nothing about any particular game's scenery. The tool reads it as

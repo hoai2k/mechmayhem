@@ -1,7 +1,7 @@
 {
-  "name": "robotworld",
+  "name": "mechmayhem",
   "version": "1.0.0",
-  "description": "ROBOTWORLD — browser-based 3D mech battle arena. 12 mechs, destructible cities, local multiplayer, Xbox controllers, AI opponents.",
+  "description": "MECH MAYHEM — browser-based 3D mech battle arena. 12 mechs, destructible cities, local multiplayer, Xbox controllers, AI opponents.",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {

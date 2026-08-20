@@ -4926,7 +4926,7 @@ file size with the delta. ROUTE picks which optimization: `glb` stands the
 archived original beside the shipped model, `proc` stands the prop as authored
 beside the merged one. SCAN ALL PROPS totals the whole table. The tool imports
 no game code — it reads a new `props` section of the workbench contract that the
-robotworld adapter derives from `PROPS`, the prop manifest and the themes.
+Mech Mayhem adapter derives from `PROPS`, the prop manifest and the themes.
 
 Verified: `npx vite build` green, soaks on frozen / scrapyard / ruins crash-free,
 in-arena screenshots of the optimized GLBs (frozen's icebreaker, quonset huts and
@@ -5263,7 +5263,7 @@ which is where it belongs anyway.
   already had a hold-to-walk button, but no way to freeze a frame of it.)
 - Added it as what it is — a scrubbable CYCLE, not a fake clip. New optional
   `anim.locomotion` block in the workbench contract (list / ctx / period /
-  phase / step / run); the robotworld adapter drives both gaits at the mech's
+  phase / step / run); the Mech Mayhem adapter drives both gaits at the mech's
   REAL top speed via a newly exported `moveSpeedFor(def)` (fighter.js now calls
   it too, so there is one number, not a copy). In the pose tool they appear in
   their own `locomotion — generated, no keyframes` dropdown group: the scrubber
@@ -6021,8 +6021,8 @@ prop, no level field and no game module — it imports three.js and the shared
 panel chrome, nothing else, which is the same deal every other tool honours.
 
 WHAT PLACEABLE THINGS EXIST is adapter data, not tool data: `src/editor/catalog.js`
-moved to `workbench/adapters/robotworld/arenapalette.js`, since every entry in
-it names a robotworld prop or lane kind. `src/editor/` is gone.
+moved to `workbench/adapters/mechmayhem/arenapalette.js`, since every entry in
+it names a Mech Mayhem prop or lane kind. `src/editor/` is gone.
 
 **NOTHING AUTHORING-SHAPED IS LEFT ON THE GAME PAGE.** `?edit=level` joins the
 `?debug=skin` / `?rigedit=` redirects — it lands next door carrying `arena`,
@@ -6052,8 +6052,8 @@ Also fixed here, from the merged mobile-workbench work rather than this change:
 called two real switches typos.
 
 Files: `workbench/tools/level.js` (moved from `src/editor/leveleditor.js`),
-`workbench/adapters/robotworld/arenapalette.js` (moved from
-`src/editor/catalog.js`), `workbench/adapters/robotworld/index.js` (+`arena`),
+`workbench/adapters/mechmayhem/arenapalette.js` (moved from
+`src/editor/catalog.js`), `workbench/adapters/mechmayhem/index.js` (+`arena`),
 `workbench/config/contract.js`, `workbench/main.js`, `workbench/landing.js`,
 `workbench/ui/panel.js`, `workbench/README.md`, `src/dev/index.js`,
 `src/arena/arena.js` (`recordRecipe`), `src/core/knobs.js`,
@@ -6866,3 +6866,34 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
   the panel is exactly the quadrant camera.js leaves free, that no plate falls
   outside it, that four plates still fit, and that switching layout puts them
   back in their corners.
+
+## The repo is MECH MAYHEM, and music that was turned off comes back on
+
+- THE OLD NAME IS GONE from the code as well as the prose. The workbench
+  adapter is `workbench/adapters/mechmayhem/` and its entry point is
+  `loadMechMayhemConfig`; `package.json`, the electron wrapper (appId
+  `com.mechmayhem.game`, product name `Mech Mayhem`), the release workflow's
+  artifact name, the window and workbench titles, the WebGL/startup fatal
+  screens and the third-party notices all say MECH MAYHEM. The desktop ZIPs
+  are named explicitly (`artifactName: MechMayhem-${version}-${os}.${ext}`)
+  rather than off a product name that now contains a space. The one
+  PLAYER-FACING use of the old name was the Foundry's blurb — "the old
+  machine-heart of Robotworld still beats" — which names the place now, not a
+  game that no longer has that title. The `rw.` localStorage keys, `window.rw`
+  and the `RW_*` env vars are deliberately untouched: renaming those throws
+  away every setting a player has saved, and none of them spell the old name.
+- MUSIC TURNED OFF MUST COME BACK ON, and `_applyVolume` is the ONE place that
+  decides whether the element runs. It already paused a player that had become
+  inaudible; it now starts one that has become audible, so `setVolume`,
+  `setMuted` and `setEnabled` cannot disagree about it (the `_play()` calls in
+  the last two are gone — they were the same rule stated twice). THE BUG THAT
+  EXPOSED IT: the MUSIC VOLUME slider is the game's only music on/off control
+  (there is no MUSIC: ON/OFF row any more — drag it to zero), and dragging it
+  to zero PAUSES the element while nothing ever un-paused it. It came back only
+  by luck: every click and keypress runs `resumeAudio` -> `retry()`, which
+  starts the element again on its own — so the failure is invisible on a mouse
+  or a keyboard and permanent on a GAMEPAD, which produces neither event. A
+  slider move still never overrides `pause()` or `stop()`, since both clear
+  `playing` first. `node tools/scratch/musicoff.mjs` is the check — it drives
+  the real menus with NO gesture between silencing the music and restoring it,
+  and fails on the old code at exactly that step.

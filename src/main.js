@@ -16,7 +16,7 @@ function reportFatal(err) {
   console.error(err);
   showFatal({
     title: 'SOMETHING WENT WRONG',
-    body: 'ROBOTWORLD hit an error while starting up and could not continue.',
+    body: 'MECH MAYHEM hit an error while starting up and could not continue.',
     detail: String(err?.stack || err?.message || err || ''),
     reload: true,
   });

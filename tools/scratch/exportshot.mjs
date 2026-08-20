@@ -7,7 +7,7 @@ const PORT = process.env.PORT || '5175';
 const id = process.argv[2] || 'saurion';
 const clip = process.argv[3] || null;
 const at = Number(process.argv[4] || 0.5);
-const OUT = `/tmp/claude-0/-home-user-robotworld/27a6bc4b-932a-5b1a-a1d9-b717cc420b05/scratchpad/export-${id}${clip ? '-' + clip : ''}.png`;
+const OUT = `/tmp/claude-0/-home-user-mechmayhem/27a6bc4b-932a-5b1a-a1d9-b717cc420b05/scratchpad/export-${id}${clip ? '-' + clip : ''}.png`;
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });

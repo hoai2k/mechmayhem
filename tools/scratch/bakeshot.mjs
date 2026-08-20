@@ -11,7 +11,7 @@ import path from 'path';
 const PORT = process.env.PORT || '5175';
 const ROOT = process.cwd();
 const id = process.argv[2] || 'saurion';
-const out = process.argv[3] || `/tmp/claude-0/-home-user-robotworld/27a6bc4b-932a-5b1a-a1d9-b717cc420b05/scratchpad/${id}`;
+const out = process.argv[3] || `/tmp/claude-0/-home-user-mechmayhem/27a6bc4b-932a-5b1a-a1d9-b717cc420b05/scratchpad/${id}`;
 const MANIFEST = path.join(ROOT, 'public/models/manifest.json');
 // must mirror BAKED_FIELDS in tools/bake-glb.mjs
 const BAKED = ['rig', 'skinOps', 'seamCuts', 'reparent', 'stretch', 'bonePos', 'alt',
