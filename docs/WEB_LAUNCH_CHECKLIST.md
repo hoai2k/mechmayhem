@@ -1,4 +1,4 @@
-# ROBOTWORLD — web launch checklist (itch.io / any static host)
+# MECH MAYHEM — web launch checklist (itch.io / any static host)
 
 Everything below was measured or read out of this repo, not assumed. Items are
 grouped by *what stops a launch* rather than by subsystem.

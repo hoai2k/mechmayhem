@@ -1,4 +1,4 @@
-# ROBOTWORLD — agent onboarding
+# MECH MAYHEM — agent onboarding
 
 Browser 3D mech arena fighter (Three.js + Vite, plain ES modules, no TS).
 17 mechs (all playable — no `hidden` ones today), 12 destructible arenas,

@@ -1,4 +1,4 @@
-# Prompt for Codex — generate the ROBOTWORLD texture pack
+# Prompt for Codex — generate the MECH MAYHEM texture pack
 
 > **Status: this pack has been generated and is in play.** Kept as the
 > reference for the pack's conventions and for regenerating an entry. What is

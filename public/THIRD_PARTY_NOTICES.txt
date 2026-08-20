@@ -1,10 +1,10 @@
-ROBOTWORLD — third-party notices
-================================
+MECH MAYHEM — third-party notices
+=================================
 
-ROBOTWORLD ships with the following third-party software. Their licenses
+MECH MAYHEM ships with the following third-party software. Their licenses
 are reproduced in full below, as those licenses require.
 
-Textures, animation, visual effects, music and sound in ROBOTWORLD are
+Textures, animation, visual effects, music and sound in MECH MAYHEM are
 original — generated procedurally in code by this project. The mech models
 were generated with Tripo under a paid plan and then rigged, re-skinned and
 finished for this project; they are used under the rights granted by that
