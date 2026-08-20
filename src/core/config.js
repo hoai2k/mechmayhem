@@ -10,11 +10,27 @@ export const SPEED_MAX = 2.0;
 export const SPEED_STEP = 0.05;
 export const SPEED_DEFAULT = 1.0;
 
+// ------------------------------------------------------------- SOUND MASTER
+//
+// THE 🔊 BUTTON'S ON LEVEL, and it is FULL: the place to turn the game down is
+// the OS or the tab, not a headroom tax baked into the mix. It used to sit at
+// 0.8, so EVERYTHING UNDER IT WAS RAISED BY THE SAME 1/0.8 when it moved —
+// the balance inside the master is untouched, the whole game is 25% louder.
+//
+// WHAT THE MASTER ACTUALLY REACHES is the WebAudio graph only (core/audio.js'
+// sfx and synth-music buses, plus the arena bed in core/ambience.js). The
+// SOUNDTRACK is a <audio> element with its own gain (`musicVolume`), so it is
+// NOT under this number and had to be scaled by hand — which is the one way
+// this change could have quietly moved music against effects.
+export const SOUND_MASTER = 1.0;
+// The synth music bus, as a share of the master (0.35 of the old 0.8).
+export const SYNTH_MUSIC_MIX = 0.4375;
+
 // Music bus default, and the MENU THEME's share of it: the menus play at
 // `musicVolume * menuMusicMix`, so 0.5 is "half as loud as a fight". Change
 // the mix to move the menus alone; the settings slider moves the bus, and the
-// menus follow it down.
-export const MUSIC_VOL_DEFAULT = 0.22;
+// menus follow it down. (0.22 x 1/0.8 — see SOUND_MASTER above.)
+export const MUSIC_VOL_DEFAULT = 0.275;
 export const MENU_MUSIC_MIX_DEFAULT = 0.5;
 
 // ---------------------------------------------------------------- SOUND FX
@@ -26,9 +42,9 @@ export const MENU_MUSIC_MIX_DEFAULT = 0.5;
 export const SFX_SAMPLES_DEFAULT = true;
 //
 // LEVELS ARE A CHAIN, not one number: the sound master (the 🔊 button's
-// 0/0.8) x the SFX VOLUME x the CATEGORY's own level. So the whole effects bed
-// can be pulled down against the music without touching the balance inside
-// it, and one noisy family — footsteps at two a second, a gatling at twelve —
+// 0/SOUND_MASTER) x the SFX VOLUME x the CATEGORY's own level. So the whole
+// effects bed can be pulled down against the music without touching the
+// balance inside it, and one noisy family — footsteps at two a second, a gatling at twelve —
 // can be tucked under the sounds that carry the fight.
 //
 // THE SFX VOLUME IS PER SOURCE, and that is the point: recordings and the

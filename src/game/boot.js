@@ -20,6 +20,7 @@ import {
   setArenaDesign, ARENA_DESIGN_MODES,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
+  SOUND_MASTER, SYNTH_MUSIC_MIX,
 } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
@@ -137,11 +138,15 @@ export async function bootGame() {
   function setMuted(m) {
     muted = m;
     try { localStorage.setItem('rw.muted', m ? '1' : '0'); } catch (e) { /* ok */ }
-    audio.setSfxVolume(muted ? 0 : 0.8);
-    audio.setMusicVolume(muted ? 0 : 0.35);
+    // ONE MASTER, three buses under it (config.js SOUND_MASTER). The <audio>
+    // soundtrack is NOT one of them — it carries its own gain, which is why
+    // moving the master means moving MUSIC_VOL_DEFAULT with it or the mix
+    // shifts under the change.
+    audio.setSfxVolume(muted ? 0 : SOUND_MASTER);
+    audio.setMusicVolume(muted ? 0 : SOUND_MASTER * SYNTH_MUSIC_MIX);
     music.setMuted(muted);
     menuMusic.setMuted(muted);
-    ambience.setMaster(muted ? 0 : 0.8);
+    ambience.setMaster(muted ? 0 : SOUND_MASTER);
     muteBtn.textContent = muted ? '🔇' : '🔊';
   }
   muteBtn.addEventListener('click', () => setMuted(!muted));

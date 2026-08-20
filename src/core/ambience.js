@@ -31,7 +31,7 @@ export class Ambience {
     this.audio = audio;
     this.base = base;
     this.arena = null;      // theme id whose bed is loaded
-    this.master = 0.8;      // the sound master (0 while muted)
+    this.master = 1.0;      // the sound master (0 while muted)
     this.playing = false;
     this.el = null;
     this._fade = null;

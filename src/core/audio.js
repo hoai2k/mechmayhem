@@ -44,8 +44,10 @@ export class GameAudio {
     this._available =
       typeof window !== 'undefined' &&
       !!(window.AudioContext || window.webkitAudioContext);
-    this._sfxVol = 0.8;
-    this._musicVol = 0.35;
+    // Pre-boot defaults, kept in step with config.js' SOUND_MASTER — boot.js
+    // sets both the moment the 🔊 state is known.
+    this._sfxVol = 1.0;
+    this._musicVol = 0.4375;
     this._musicName = null;
     this._seq = null; // active sequencer state
     this._timer = null; // scheduler interval id
