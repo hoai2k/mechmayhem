@@ -2705,6 +2705,25 @@ procedural.
   sizeMul, where a phase window drifts out of step. The SURFACE under him is a
   second quieter layer (`step_water`/`step_lava`/… off `terrain.onPatch`, the
   same lobes the hazards read).
+  A TAB COMING BACK RESTORES WHAT LEAVING PAUSED, MUTED OR NOT (the
+  `visibilitychange` handler in boot.js). Losing visibility pauses every player
+  — the fight, both music players, the arena bed — and coming back used to skip
+  the restore while 🔊 was off, which is not a volume decision at all: it left
+  `playing` false on a player nothing would ever start again, since setMuted
+  and `retry()` both require it. Mute, switch tabs, come back, unmute and the
+  music was gone for the rest of the session (until the next trip through the
+  title, which calls `startMenuMusic`) — with the element's own volume reading
+  perfectly normal, because the level was restored and only the playback state
+  was not. A muted player resumed here is silent anyway, so what the restore
+  puts back is the INTENT. The audio CONTEXT is the one thing still gated on
+  mute — a silent context may as well stay suspended — so turning the sound
+  back on resumes it (`setMuted`): a mouse or a keyboard would have done it on
+  the way in through `resumeAudio`, but a PAD press is neither event, and the
+  effects would come back silent too. `node tools/scratch/mutetab.mjs` drives
+  the whole sequence (it sets `document.hidden` itself — a headless page is
+  never really backgrounded) and `node tools/scratch/tabpause.mjs` holds the
+  line the handler exists for: a hidden tab still stops the soundtrack and
+  suspends the context, and a PAUSED fight still does not auto-resume.
   MUSIC TURNED OFF MUST COME BACK ON, and `MusicPlayer._applyVolume` is the ONE
   place that decides whether the <audio> element runs — it pauses a player that
   has gone inaudible AND starts one that has become audible, so `setVolume`,

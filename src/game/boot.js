@@ -139,6 +139,11 @@ export async function bootGame() {
   function setMuted(m) {
     muted = m;
     try { localStorage.setItem('rw.muted', m ? '1' : '0'); } catch (e) { /* ok */ }
+    // Sound back on wakes the context, which a tab switch may have suspended
+    // (above). A mouse or a keyboard would do it on the way in — resumeAudio
+    // rides pointerdown/keydown — but a PAD press is neither, and then the
+    // effects come back silent too.
+    if (!muted) audio.resume();
     // ONE MASTER, three buses under it (config.js SOUND_MASTER). The <audio>
     // soundtrack is NOT one of them — it carries its own gain, which is why
     // moving the master means moving MUSIC_VOL_DEFAULT with it or the mix
@@ -939,8 +944,16 @@ export async function bootGame() {
       music.pause();
       menuMusic.pause();
       ambience.pause();
-    } else if (!muted) {
-      audio.resume();
+    } else {
+      // COMING BACK RESTORES WHAT LEAVING PAUSED, MUTED OR NOT. 🔊 is a
+      // VOLUME; letting it decide playback STATE is what left the music dead
+      // after mute -> switch tabs -> come back -> unmute. Hiding pauses every
+      // player (`playing` false), this branch used to skip the restore while
+      // muted, and unmuting afterwards then had nothing to start: both
+      // setMuted and retry() need `playing`. It stayed silent until the next
+      // trip through the title screen. A muted player resumed here is silent
+      // anyway — its own volume is 0 — so all this restores is the intent.
+      if (!muted) audio.resume();   // a silent context can stay suspended
       if (S.mode !== 'battle') menuMusic.resume();
       // the fight itself does NOT auto-resume; the soundtrack only comes back
       // if the match was left running (results screen, mid-warm-up)
