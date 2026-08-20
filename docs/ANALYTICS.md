@@ -20,23 +20,40 @@ game's page views.
 ## Setting it up (once)
 
 1. **Make a site** at [goatcounter.com/signup](https://www.goatcounter.com/signup).
-   The code you choose becomes `CODE.goatcounter.com`.
-2. **Put the code in the game.** One line, one place:
+   The code you choose becomes `CODE.goatcounter.com`. **Done — this game
+   counts into `hoai`.**
+2. **Put the code in the game.** One line, one place, and it is already set:
 
    ```js
    // src/core/analytics.js
-   export const GOATCOUNTER_CODE = 'yourcode';
+   export const GOATCOUNTER_CODE = 'hoai';
    ```
 
-   Push it; the deploy workflow does the rest. **Empty means off** — while that
-   string is blank the game loads no script and makes no request at all, which
-   is what a fork of this repo gets and what every check below asserts.
-3. **Make the dashboard public**, so `/stats/` can show it to you without a
-   login: GoatCounter → *Settings → Dashboard viewable by → public*.
+   **Empty means off** — while that string is blank the game loads no script
+   and makes no request at all, which is what a fork of this repo gets and
+   what every check below asserts.
+3. **Make the dashboard public**, so `/stats/` can show it without a login:
+   GoatCounter → *Settings → Dashboard viewable by → public*. Until this is
+   set, `hoai.goatcounter.com` answers a visitor with a 303 to its login page
+   (measured), so the embed has nothing to show.
 4. **Let this site frame it**: GoatCounter → *Settings → Sites that can embed
-   GoatCounter* → add `hoai2k.github.io`. Without this it refuses to be
-   embedded (the right default), and `/stats/` shows the browser's own error
-   box with an "Open it ↗" button above it.
+   GoatCounter* → add `hoai2k.github.io`. Until this is set the dashboard
+   sends `frame-ancestors 'none'` (measured) and refuses to be embedded, which
+   is the right default.
+
+   Steps 3 and 4 are only about SHOWING the numbers on `/stats/`. Counting
+   works without either — step 2 is the whole of that.
+
+### The embed is opt-in, and why
+
+`/stats/` does **not** frame the dashboard until you tick *show the dashboard
+on this page* (remembered per browser, `rw.statsEmbed`). A frame that gets
+refused paints the browser's own grey error page — full height, unstyleable,
+and indistinguishable from a broken site — and **nothing on the page can tell
+a refused frame from a loaded one**: both settle on `about:blank` to a
+cross-origin reader, which was measured rather than assumed
+(`tools/scratch/framedetect.mjs`). So the choice was a permanent maybe-slab or
+one click by the person who owns the settings. Tick it once, after step 4.
 
 ## What is collected — the whole list
 
@@ -82,6 +99,9 @@ all.
 
 Note that `?battle=...` counts nothing by design: it is a dev route
 (`src/dev/index.js`) that never reaches `bootGame`.
+
+`node tools/scratch/statsembed.mjs` drives the embed toggle: off by default,
+on when ticked, remembered across a reload.
 
 `node tools/scratch/statsshot.mjs` shoots the `/stats/` page so its two states
 — configured, and not set up yet — can be looked at rather than assumed.

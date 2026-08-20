@@ -2606,11 +2606,16 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   THE SITE CODE IS STATED ONCE and the stats page IMPORTS it — two copies is
   one rename away from a page showing somebody else's numbers, or none. That
   page is a third vite entry (`stats/index.html`, in the DIST build too: it is
-  public, not an authoring surface) and it EMBEDS GoatCounter's own dashboard,
-  because the free hosted tier has no API to build a custom view on. It has two
-  states, configured and not-set-up-yet, and the embed's failure mode is the
-  browser's own unstyleable error box — which is why the explanation sits ABOVE
-  the frame rather than under it.
+  public, not an authoring surface) and it can EMBED GoatCounter's own
+  dashboard, because the free hosted tier has no API to build a custom view on.
+  THE EMBED IS OPT-IN AND STICKY (`rw.statsEmbed`), which is the only honest
+  default: GoatCounter refuses to be framed until the dashboard is public AND
+  the host is on its embed allowlist, a refused frame paints the browser's own
+  unstyleable grey error page, and NOTHING ON THE PAGE CAN TELL THE TWO APART —
+  both settle on `about:blank` to a cross-origin reader (measured,
+  `tools/scratch/framedetect.mjs`). So it is one click by the person who owns
+  those settings rather than a permanent maybe-slab. `tools/scratch/statsembed.mjs`
+  holds the toggle's three behaviours.
   `node tools/scratch/statsbeacon.mjs` is the check and it STUBS `gc.zgo.at`,
   so it contacts nothing real: it asserts the no-request rules in the shipped
   state and the counting rules when a code is set, driving a real match through

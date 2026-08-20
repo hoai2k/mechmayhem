@@ -1,0 +1,21 @@
+// The embed toggle: off by default, turns the frame on, and is remembered.
+import { chromium } from 'playwright-core';
+const base = process.argv[2] || 'http://localhost:5173';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const ctx = await b.newContext({ viewport: { width: 1000, height: 700 } });
+const p = await ctx.newPage();
+const fails = []; const ok = (c, m) => { console.log(`${c?'  ok  ':' FAIL '} ${m}`); if (!c) fails.push(m); };
+const frames = () => p.evaluate(() => document.querySelectorAll('#dash iframe').length);
+await p.goto(`${base}/stats/`, { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(1200);
+ok(await frames() === 0, 'default: no iframe, so a refused frame is never the first thing you see');
+ok(await p.isVisible('#embedbox'), 'the toggle is offered');
+await p.click('#embedbox'); await p.waitForTimeout(1200);
+ok(await frames() === 1, 'ticking it embeds the dashboard');
+await p.reload({ waitUntil: 'domcontentloaded' }); await p.waitForTimeout(1200);
+ok(await frames() === 1, 'and it is remembered across a reload');
+ok(await p.isChecked('#embedbox'), 'the box shows it');
+await p.click('#embedbox'); await p.waitForTimeout(800);
+ok(await frames() === 0, 'unticking puts it away again');
+await b.close();
+console.log(fails.length ? `\n${fails.length} FAILED` : '\nall good');
+process.exit(fails.length ? 1 : 0);
