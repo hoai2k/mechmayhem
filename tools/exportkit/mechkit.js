@@ -1,4 +1,4 @@
-// mechkit — drive an exported ROBOTWORLD mech in any three.js project.
+// mechkit — drive an exported MECH MAYHEM mech in any three.js project.
 //
 // It imports NOTHING. You hand it the THREE namespace and a GLTFLoader that
 // your project already resolves, so there is no second copy of three, no

@@ -43,11 +43,11 @@ workbench/
   main.js             router: ?edit=<tool>
   config/contract.js  WHAT A GAME MUST PROVIDE — the whole surface, documented
   adapters/
-    robotworld/       the only place under workbench/ that imports from src/
-    actionchars.js    robotworld's move descriptions
-    robotworld/arenapalette.js  what this game lets you place in an arena
-    anchoruses.js     robotworld's "what does this anchor drive"
-    mechclips.js      robotworld's per-mech clip list
+    mechmayhem/       the only place under workbench/ that imports from src/
+    actionchars.js    Mech Mayhem's move descriptions
+    mechmayhem/arenapalette.js  what this game lets you place in an arena
+    anchoruses.js     Mech Mayhem's "what does this anchor drive"
+    mechclips.js      Mech Mayhem's per-mech clip list
   tools/              the nine workbenches — no game imports at all
     level.js          the ARENA editor: everything about places arrives as
                       config.arena, so the tool itself knows no theme, no prop
@@ -115,7 +115,7 @@ the imported arena prop models were dieted (tools/propopt.mjs) and the tool
 stands each original beside its optimized model in twin viewports that share
 one camera, so a size change cannot hide behind per-side framing. It reads a
 `props` section of the contract (list / load / url / entry), which the
-robotworld adapter derives from the live prop table, the prop manifest and the
+Mech Mayhem adapter derives from the live prop table, the prop manifest and the
 themes. A game without scenery leaves the section out and the tool is not
 offered.
 
@@ -126,7 +126,7 @@ workbenches to another game is writing a second adapter, not editing six
 tools.
 
 **The adapter derives, it never copies.** Every list is a function, and
-robotworld's adapter answers each by reading the live roster, clip table, joint
+Mech Mayhem's adapter answers each by reading the live roster, clip table, joint
 order, rig registry and model manifest. Add a mech or a clip to the game and it
 is in the workbenches on the next reload with no edit here. `node
 tools/wbconfig.mjs` proves that — it compares what the config reports against
@@ -148,7 +148,7 @@ anchors, no anchor editor.
 
 1. Write `adapters/<game>/index.js` that calls `defineWorkbenchConfig({…})`
    from `config/contract.js`. The validator fails loudly on a half-filled one.
-2. Point `main.js` at it (today it loads robotworld directly; a second game
+2. Point `main.js` at it (today it loads Mech Mayhem directly; a second game
    would pick by `?game=` or by build).
 3. Anything the contract cannot express yet is a gap in the contract — add it
    there, with a comment saying what it means, rather than reaching into a

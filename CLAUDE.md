@@ -35,7 +35,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   unaffected.
 - The workbench code is a separate tree (`workbench/`) that knows the game
   ONLY through a config object: `workbench/config/contract.js` documents the
-  whole surface, `workbench/adapters/robotworld/` fills it in by DERIVING from
+  whole surface, `workbench/adapters/mechmayhem/` fills it in by DERIVING from
   live game data (roster, clips, joint order, rig registry, manifest) — add a
   mech or a clip and the workbenches pick it up with no edit there.
   `node tools/wbconfig.mjs` proves nothing has been hand-copied. Tools under
@@ -2141,7 +2141,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   IT IS A WORKBENCH like the rest: it lives at `/workbench/?edit=level`, imports
   no game code, and reaches arenas / themes / props / the palette / the level
   format / the playtest hand-off through `config.arena` (contract.js documents
-  it, `workbench/adapters/robotworld/` answers it, and the palette of placeable
+  it, `workbench/adapters/mechmayhem/` answers it, and the palette of placeable
   things is adapter data in `arenapalette.js`). The old game-page url
   `?edit=level` redirects here carrying `arena`/`seed`/`load`/`theme`. So the
   GAME PAGE now carries no authoring surface at all, and a `RW_DIST=1` build —
@@ -2705,6 +2705,19 @@ procedural.
   sizeMul, where a phase window drifts out of step. The SURFACE under him is a
   second quieter layer (`step_water`/`step_lava`/… off `terrain.onPatch`, the
   same lobes the hazards read).
+  MUSIC TURNED OFF MUST COME BACK ON, and `MusicPlayer._applyVolume` is the ONE
+  place that decides whether the <audio> element runs — it pauses a player that
+  has gone inaudible AND starts one that has become audible, so `setVolume`,
+  `setMuted` and `setEnabled` cannot disagree about it. It only paused, once:
+  the MUSIC VOLUME slider is the game's only music on/off control (drag it to
+  zero), and zero paused the element with nothing anywhere to un-pause it. It
+  came back by LUCK — every click and keypress runs boot's `resumeAudio` ->
+  `retry()`, which starts the element on its own — so the failure is invisible
+  on a mouse or a keyboard and permanent on a GAMEPAD, which produces neither
+  event. A slider move still cannot override `pause()` or `stop()`, both of
+  which clear `playing` first. `node tools/scratch/musicoff.mjs` drives the
+  real menus with NO gesture between silencing the music and restoring it,
+  which is the only way to see it.
   A SUSTAINED STATE IS A LOOP, NOT A ONE-SHOT ON A TIMER (`audio.loop(key,
   name)`/`stopLoop`, driven by `Fighter.loopSfx`): burning (`status.burn`),
   electrocuted (the `glitched` stun) and the hover jets. Loops are keyed by

@@ -2,7 +2,7 @@
 // the title screen comes up (menustage.showLineup).
 //
 // The three stand at x = -10 / 0 / +10, and the CENTER one stands ~4 units
-// closer to the camera — so a heavy in the middle crowds the ROBOTWORLD
+// closer to the camera — so a heavy in the middle crowds the MECH MAYHEM
 // logo and buries the two flanks. Hence the staging rules:
 //   left   — always one of the heavies, so the frame opens on some bulk
 //   center — always drawn from the lighter half, so the logo stays readable

@@ -1,11 +1,16 @@
-# electron-builder configuration for the ROBOTWORLD desktop wrapper.
+# electron-builder configuration for the MECH MAYHEM desktop wrapper.
 # Produces portable ZIPs (no installer) for Windows and macOS.
 # Run via `npm run dist` after `npm run build`. Real builds happen in CI
 # (.github/workflows/release.yml) on native Windows / macOS runners.
 
-appId: com.robotworld.game
-productName: ROBOTWORLD
-copyright: ROBOTWORLD
+appId: com.mechmayhem.game
+productName: Mech Mayhem
+copyright: Mech Mayhem
+
+# The display name has a space in it and a zip you unzip from a terminal
+# should not, so the artifacts are named explicitly rather than off the
+# product name (which is what produced ROBOTWORLD-<ver>-win.zip before).
+artifactName: MechMayhem-${version}-${os}.${ext}
 
 directories:
   output: release
@@ -23,8 +28,9 @@ files:
 # read through it transparently.
 asar: true
 
-# --- Windows: portable zip (unzip -> run ROBOTWORLD.exe) ---
+# --- Windows: portable zip (unzip -> run MechMayhem.exe) ---
 win:
+  executableName: MechMayhem
   target:
     - target: zip
       arch:

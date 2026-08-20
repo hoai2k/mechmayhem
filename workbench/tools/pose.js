@@ -125,7 +125,7 @@ export async function runPoseWorkbench(config, params) {
   const JOINT_ORDER = config.rig.joints;
   const compileClip = config.anim.compile;
   // THE JOINT YOU DRAG IS NOT ALWAYS THE TRACK YOU WRITE. A clip channel need
-  // not map 1:1 onto a joint — ROBOTWORLD's `mirrorArms` GLB profiles play the
+  // not map 1:1 onto a joint — MECH MAYHEM's `mirrorArms` GLB profiles play the
   // right-arm tracks on the LEFT arm (wraith carries his rifle in the left
   // hand), yaw and roll negated, and that swap happens at PLAYBACK. So the pose
   // on screen is already mirrored, and a drag measured off the joints has to be

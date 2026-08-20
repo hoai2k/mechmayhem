@@ -1,4 +1,4 @@
-// ROBOTWORLD → workbench adapter.
+// MECH MAYHEM → workbench adapter.
 //
 // The ONLY file under workbench/ that imports from src/. It answers the
 // contract in workbench/config/contract.js by reading the game's own live
@@ -9,7 +9,7 @@
 // Read this file as the answer to "what does this game mean by …":
 //   subject   = a MECH (roster entry + optional GLB + optional custom rig)
 //   variants  = the GLB build, the hand-sculpted PROCEDURAL body, the staged
-//               ALTERNATE GLB — a robotworld-specific set, hence config data
+//               ALTERNATE GLB — a mechmayhem-specific set, hence config data
 //   joints    = the 15 canonical rig joints the animation system drives
 //   clips     = animations.js, filtered per mech by the real play sites
 //   anchors   = muzzles/core/overhead, the origins combat fires from
@@ -72,7 +72,7 @@ import { anchorUses } from '../anchoruses.js';
 // the manifests are read once and shared; every catalogue answer needs them
 let manifest = null;
 let propManifestData = null;
-export async function loadRobotworldConfig() {
+export async function loadMechMayhemConfig() {
   // the workbench page lives one directory down (/workbench/), so point both
   // asset resolvers back at the game root before anything asks for a model
   setAssetBase('../');
@@ -175,7 +175,7 @@ function postGaitLayers(tgt, env, body) {
 }
 
 const CONFIG = defineWorkbenchConfig({
-  game: 'robotworld',
+  game: 'mechmayhem',
 
   // This game's models are MECHS. A port would say character / vehicle / prop
   // here and every panel title, picker label and status line follows.

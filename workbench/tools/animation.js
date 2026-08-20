@@ -271,7 +271,7 @@ export async function runAnimationWorkbench(config, params) {
         procF = makeFighter(id, -PAIR_X, { pi: 0, mech: sideModel });
       } else {
         // no `mech` override: the actor builds this game's DEFAULT comparison
-        // body (robotworld: the hand-sculpted fallback one)
+        // body (Mech Mayhem: the hand-sculpted fallback one)
         procF = makeFighter(id, -PAIR_X, { pi: 0 });
       }
     }

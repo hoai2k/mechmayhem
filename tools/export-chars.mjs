@@ -110,7 +110,7 @@ const records = ROSTER.map((d) => ({
 
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'characters.json'), JSON.stringify({
-  note: 'ROBOTWORLD roster. Damage/knock/range are in game units; the models in '
+  note: 'MECH MAYHEM roster. Damage/knock/range are in game units; the models in '
     + 'this directory are in the same units, so a `range: 3.4` reaches 3.4 of them. '
     + '`cardStats` are the 0-10 bars the mech-select screen shows, not the real numbers.',
   shared: {
@@ -145,7 +145,7 @@ for (const d of ROSTER) {
 
 // ---- the readable dossier --------------------------------------------------
 const L = [];
-L.push('# ROBOTWORLD — the roster\n');
+L.push('# MECH MAYHEM — the roster\n');
 L.push('Who each mech is, what they can do, and the numbers behind it. The models');
 L.push('in this directory are these characters; `characters.json` is this file in a');
 L.push('form you can read at runtime, and `GEOMETRY.md` covers what the ENGINE has');

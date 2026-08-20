@@ -13,8 +13,8 @@ p.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 200)));
 await p.goto('http://localhost:5173/workbench/?edit=level&theme=frozen', { waitUntil: 'domcontentloaded' });
 await p.waitForTimeout(6000);
 const out = await p.evaluate(async () => {
-  const { loadRobotworldConfig } = await import('/workbench/adapters/robotworld/index.js');
-  const cfg = await loadRobotworldConfig();
+  const { loadMechMayhemConfig } = await import('/workbench/adapters/mechmayhem/index.js');
+  const cfg = await loadMechMayhemConfig();
   const AR = cfg.arena;
   const kinds = AR.structures().map((k) => k.id);
   const rows = [];

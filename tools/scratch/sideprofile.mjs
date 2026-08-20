@@ -5,7 +5,7 @@
 // in world units. node sideprofile.mjs <mech> <render: models|anime>
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/home/user/robotworld/node_modules/playwright-core');
+const { chromium } = require('/home/user/mechmayhem/node_modules/playwright-core');
 const [mech = 'titanus', render = 'models'] = process.argv.slice(2);
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });

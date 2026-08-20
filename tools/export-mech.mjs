@@ -86,7 +86,7 @@ try {
     fs.writeFileSync(glb, Buffer.from(res.base64, 'base64'));
     fs.writeFileSync(path.join(OUT, `${id}.json`), JSON.stringify({
       mech: id,
-      note: 'Standalone export from ROBOTWORLD (tools/export-mech.mjs). WORLD units are '
+      note: 'Standalone export from MECH MAYHEM (tools/export-mech.mjs). WORLD units are '
         + 'game units and +z is forward; anchors are empty nodes named anchor_<name>; '
         + 'every animation is a real glTF clip and states the whole skeleton. Nothing '
         + 'here needs the game to load it.',

@@ -1,7 +1,7 @@
 // Workbench entry — /workbench/?edit=<tool>&mech=<id>
 //
 // One page, one router, nine tools. Everything game-specific arrives through
-// the adapter (workbench/adapters/robotworld), which fills the contract in
+// the adapter (workbench/adapters/mechmayhem), which fills the contract in
 // workbench/config/contract.js; the tools themselves import no game code.
 //
 //   /workbench/?edit=animation&mech=colossus     GLB vs procedural, actions, anchors
@@ -49,8 +49,8 @@ if (!TOOLS[which]) {
   // wrapped rather than top-level await: the build targets es2020, where TLA
   // isn't available
   (async () => {
-    const { loadRobotworldConfig } = await import('./adapters/robotworld/index.js');
-    const config = await loadRobotworldConfig();
+    const { loadMechMayhemConfig } = await import('./adapters/mechmayhem/index.js');
+    const config = await loadMechMayhemConfig();
     const run = await TOOLS[which]();
     await run(config, params);
   })();

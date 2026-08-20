@@ -126,7 +126,7 @@ export function contextIsLost() {
 export function showNoWebGL(err) {
   showFatal({
     title: 'GRAPHICS UNAVAILABLE',
-    body: 'ROBOTWORLD needs WebGL 2, and this browser could not provide it. '
+    body: 'MECH MAYHEM needs WebGL 2, and this browser could not provide it. '
       + 'Try Chrome, Edge or Firefox, and check that hardware acceleration is '
       + 'enabled in your browser settings.',
     detail: String(err?.message || err || ''),

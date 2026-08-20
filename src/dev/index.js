@@ -54,7 +54,7 @@ export function runDevMode(params) {
   const debug = params.get('debug');
   // Only boot.js clears the index.html splash, and no dev mode goes through it
   // — without this every debug page (and so every tools/shot.mjs screenshot)
-  // renders behind a full-screen ROBOTWORLD curtain.
+  // renders behind a full-screen MECH MAYHEM curtain.
   const dropSplash = () => document.getElementById('boot-splash')?.remove();
   if (params.has('showcase')) {
     import('./showcase.js').then(({ runShowcase }) => runShowcase(params.get('showcase')));

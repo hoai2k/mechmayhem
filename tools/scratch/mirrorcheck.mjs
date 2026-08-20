@@ -45,8 +45,8 @@ for (const mech of ['wraith', 'titanus']) {
 await p.goto('http://localhost:5173/workbench/?edit=pose&mech=wraith', { waitUntil: 'networkidle' });
 await p.waitForTimeout(9000);
 const map = await p.evaluate(async () => {
-  const mod = await import('/workbench/adapters/robotworld/index.js');
-  const cfg = await mod.loadRobotworldConfig();
+  const mod = await import('/workbench/adapters/mechmayhem/index.js');
+  const cfg = await mod.loadMechMayhemConfig();
   const tf = cfg?.anim?.trackFor;
   if (!tf) return { err: 'no trackFor on the config' };
   return { wraithHandL: tf('handL', null, 'wraith'), titanusHandL: tf('handL', null, 'titanus') };

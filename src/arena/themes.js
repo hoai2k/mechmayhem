@@ -87,7 +87,7 @@ export const THEMES = [
     },
   },
   {
-    id: 'foundry', name: 'Ironworks Foundry', desc: 'Steam, brass and molten light. The old machine-heart of Robotworld still beats.',
+    id: 'foundry', name: 'Ironworks Foundry', desc: 'Steam, brass and molten light. The old machine-heart of the city still beats.',
     sky: { top: 0x1c1008, bottom: 0x6a3210, stars: false },
     fog: { color: 0x331d0e, near: 78, far: 260 },
     sun: { color: 0xffab60, intensity: 1.7, pos: [-50, 70, 40] },

@@ -1,4 +1,4 @@
-# ROBOTWORLD desktop builds (Windows + Mac)
+# MECH MAYHEM desktop builds (Windows + Mac)
 
 The game ships as a self-contained desktop app that wraps the browser build in
 Electron. Users download a zip, unzip, and double-click — no install, no
@@ -23,14 +23,14 @@ npm run desktop      # builds the web bundle, then launches the Electron app
 ## Build the zips yourself
 
 ```bash
-npm run dist:win     # -> release/ROBOTWORLD-<ver>-win.zip   (Windows only)
-npm run dist:mac     # -> release/ROBOTWORLD-<ver>-mac.zip   (macOS only)
+npm run dist:win     # -> release/MechMayhem-<ver>-win.zip   (Windows only)
+npm run dist:mac     # -> release/MechMayhem-<ver>-mac.zip   (macOS only)
 ```
 
 Each platform's zip must be built on that platform (or in CI). A Mac zip built
 without an Apple Developer signing cert is **unsigned**: on first launch macOS
 shows an "unidentified developer" warning — right-click the app → **Open** to
-bypass, or run `xattr -cr ROBOTWORLD.app` if macOS quarantined it. Windows
+bypass, or run `xattr -cr "Mech Mayhem.app"` if macOS quarantined it. Windows
 SmartScreen shows a similar "More info → Run anyway" prompt for unsigned apps.
 
 ## Cutting a release (the normal path)
@@ -49,7 +49,7 @@ to a GitHub Release.
 4. Add a title/notes if you like, then click **Publish release**.
 
 Publishing the tag triggers the workflow. A few minutes later the build job
-attaches `ROBOTWORLD-*-win.zip` and `ROBOTWORLD-*-mac.zip` to that same
+attaches `MechMayhem-*-win.zip` and `MechMayhem-*-mac.zip` to that same
 release. (The release is created immediately with no files; the zips appear
 once CI finishes — refresh the page.)
 
