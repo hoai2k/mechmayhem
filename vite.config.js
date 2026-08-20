@@ -102,11 +102,18 @@ export default defineConfig({
   build: {
     target: 'es2020',
     chunkSizeWarningLimit: 1500,
-    // two pages: the game, and the workbenches at /workbench/. They share the
-    // engine chunks — the workbench is the same code with different UI on top.
+    // three pages: the game, the visitor count at /stats/, and the workbenches
+    // at /workbench/. The first two ship in every build — /stats is public,
+    // it is what the game's own audience is offered — while the workbench is
+    // the authoring surface a DIST build leaves out. They share the engine
+    // chunks; the workbench is the same code with different UI on top.
     rollupOptions: {
-      input: IS_DIST ? { main: path.resolve('index.html') } : {
+      input: IS_DIST ? {
         main: path.resolve('index.html'),
+        stats: path.resolve('stats/index.html'),
+      } : {
+        main: path.resolve('index.html'),
+        stats: path.resolve('stats/index.html'),
         workbench: path.resolve('workbench/index.html'),
       },
     },
