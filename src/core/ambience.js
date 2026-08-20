@@ -16,7 +16,7 @@
 // An arena with no bed, a missing file, a browser that refuses to play: all
 // the same thing — silence, and nothing else changes.
 // ============================================================================
-import { CONFIG, sfxGain } from './config.js';
+import { CONFIG, sfxGain, OUTPUT_TRIM } from './config.js';
 
 const FADE = 0.8;          // seconds, in and out (a bed must never snap on)
 const STEP = 0.05;         // fade tick
@@ -45,8 +45,16 @@ export class Ambience {
     }
   }
 
-  /** The level this bed should sit at right now. */
-  get target() { return this.master * sfxGain('ambience') * (CONFIG.sfxSamples ? 1 : 0); }
+  /**
+   * The level this bed should sit at right now. OUTPUT_TRIM is the same
+   * makeup gain the WebAudio master carries (config.js) — a media element
+   * never passes through that node, so it is paid here instead, and the bed
+   * rises with the fight rather than sinking under it. Capped at 1, which the
+   * bed is nowhere near.
+   */
+  get target() {
+    return Math.min(1, this.master * sfxGain('ambience') * OUTPUT_TRIM) * (CONFIG.sfxSamples ? 1 : 0);
+  }
 
   /**
    * Play THIS arena's bed. Called as a fight is built; an arena with no

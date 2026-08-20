@@ -21,6 +21,7 @@ import {
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
   SOUND_MASTER, SYNTH_MUSIC_MIX,
+  MUSIC_VOL_DEFAULT, MUSIC_VOL_CEIL, SFX_VOL_DEFAULT, SFX_VOL_CEIL, VOL_STEP_FRAC,
 } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
@@ -165,11 +166,32 @@ export async function bootGame() {
   // 0..1 as ten blocks between dim ←→ chevrons (which say "this one adjusts"
   // without competing with the menu's own cyan selection arrows) — the whole
   // slider readout, no extra DOM
-  const volBar = (v) => {
-    const n = Math.round(v * 10);
+  // `mark` is where 100% sits when the slider runs PAST it (config.js' slider
+  // ranges): the bar spans the whole range, and a thin rule says which point
+  // on it is the balanced mix. Sliders with no such point pass nothing and
+  // are drawn exactly as before.
+  const volBar = (v, mark = null) => {
+    const n = Math.round(Math.min(1, Math.max(0, v)) * 10);
+    const at = mark != null && mark < 1 ? Math.round(mark * 10) : -1;
     const dim = (c) => `<span style="opacity:0.4;font-size:0.8em">${c}</span>`;
+    let cells = '';
+    for (let i = 0; i < 10; i++) {
+      if (i === at) cells += '<span style="opacity:0.5">\u2502</span>';
+      cells += i < n ? '\u2588' : '\u2591';
+    }
     return dim('\u25c4') + `<span style="letter-spacing:0.06em;margin:0 0.35em">`
-      + `${'\u2588'.repeat(n)}${'\u2591'.repeat(10 - n)}</span>` + dim('\u25ba');
+      + `${cells}</span>` + dim('\u25ba');
+  };
+  // One press, and the readout: a level is shown as a PERCENTAGE OF ITS OWN
+  // BALANCED DEFAULT, so 100% is the shipped mix wherever the slider's top
+  // happens to be. Both come off the defaults, so neither needs touching when
+  // a level moves in config.js.
+  const sfxVolDefault = () => SFX_VOL_DEFAULT[CONFIG.sfxSamples ? 'samples' : 'synth'];
+  const volStep = (dflt) => dflt * VOL_STEP_FRAC;
+  const volPct = (v, dflt) => Math.round((v / dflt) * 100);
+  const volSlide = (v, d, dflt, ceil) => {
+    const step = volStep(dflt);
+    return Math.min(ceil, Math.max(0, Math.round(v / step + d) * step));
   };
   // SOUND: ON/OFF is not here — the speaker button beside the gear is the one
   // control for it, and MUSIC: ON/OFF was a second mute for the same bus that
@@ -180,11 +202,11 @@ export async function bootGame() {
       ? [{
         // ←→ drags the music bus alone; SOUND: OFF still silences everything
         label: () => t('settings.musicVol', {
-          bar: volBar(music.volume),
-          pct: Math.round(music.volume * 100),
+          bar: volBar(music.volume / MUSIC_VOL_CEIL, MUSIC_VOL_DEFAULT / MUSIC_VOL_CEIL),
+          pct: volPct(music.volume, MUSIC_VOL_DEFAULT),
         }),
         slide: (d) => {
-          const v = Math.min(1, Math.max(0, Math.round(music.volume * 20 + d) / 20));
+          const v = volSlide(music.volume, d, MUSIC_VOL_DEFAULT, MUSIC_VOL_CEIL);
           music.setVolume(v);           // CONFIG.musicVolume is the shared bus…
           menuMusic.setVolume(v);       // …but each element's gain is its own
           if (!music.enabled && v > 0) { music.setEnabled(true); menuMusic.setEnabled(true); }
@@ -205,11 +227,12 @@ export async function bootGame() {
       // whichever one is playing — flip SOUND FX below and the slider jumps
       // to that source's own remembered level.
       label: () => t('settings.sfxVol', {
-        bar: volBar(sfxVolume()),
-        pct: Math.round(sfxVolume() * 100),
+        // per SOURCE, so the 100% mark moves with the source in use
+        bar: volBar(sfxVolume() / SFX_VOL_CEIL, sfxVolDefault() / SFX_VOL_CEIL),
+        pct: volPct(sfxVolume(), sfxVolDefault()),
       }),
       slide: (d) => {
-        setSfxVolume(Math.min(1, Math.max(0, Math.round(sfxVolume() * 20 + d) / 20)));
+        setSfxVolume(volSlide(sfxVolume(), d, sfxVolDefault(), SFX_VOL_CEIL));
         ambience.refresh();
         audio.play('uiMove');       // hear the level you are setting
       },

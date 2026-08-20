@@ -2638,7 +2638,38 @@ procedural.
   never machine-guns.
   LEVELS ARE A CHAIN: the 🔊 master x the SFX VOLUME x the sound's CATEGORY in
   `CONFIG.sfxMix` (impact/movement/weapon/destruction/ui/character/surface/
-  loop/ambience). Tune the balance there, never per sound. THE SFX VOLUME IS
+  loop/ambience). Tune the balance there, never per sound.
+  THE GAME IS SHIPPED AS LOUD AS IT GOES, and the number that says so is
+  MEASURED. `SOUND_MASTER` (config.js) is the 🔊 button's ON level and is
+  FULL; `OUTPUT_TRIM` is the last of the headroom on top of it, applied at the
+  three places sound actually leaves — the post-compressor master gain, the
+  soundtrack element, the arena-bed element. POST-compressor ON PURPOSE: gain
+  added ahead of the limiter comes straight back as compression, which would
+  squash effects against a soundtrack that never passes through it, and the
+  whole point of one trim in three places is that no source can move against
+  another. `node tools/scratch/headroom.mjs` is where the number comes from —
+  it decodes every shipped asset (`tools/scratch/audiopeaks.mjs`) and renders
+  the loudest of them through a REPLICA of audio.js' own chain, then adds the
+  two media elements the graph cannot reach, because the browser sums the lot
+  into one device. The worst case it builds — loudest music peak + loudest bed
+  + twelve of the loudest effects on the same sample — lands at exactly 1.000
+  (0 dBFS) at the shipped numbers. Re-run it after touching the mixer, the
+  compressor or the audio: it prints the trim the current numbers can afford.
+  NOTE Chrome's DynamicsCompressorNode applies its OWN makeup gain (+5.5 dB
+  here), so the chain is nothing like the arithmetic and has to be rendered.
+  A SLIDER'S 100% IS THE BALANCED DEFAULT, NOT ITS TOP. Since the mix already
+  sits at the ceiling, more of one source means unbalancing it — the player's
+  call — so each slider runs PAST 100% to wherever that source's own gain
+  reaches unity (`MUSIC_VOL_CEIL` = 1/OUTPUT_TRIM -> 319%, `SFX_VOL_CEIL` =
+  1/the loudest category -> 500% of the recorded default, 111% of the synth's).
+  Both are DERIVED, so moving a default, the trim or the category mix moves the
+  range, the 100% mark on the bar and the readout with it, with no edit in
+  boot.js; a level saved by an older build is clamped as it is read. One press
+  is 5% OF THE DEFAULT (`VOL_STEP_FRAC`), never of the range, so 0 -> 100% is
+  twenty presses however far the slider goes. `node
+  tools/scratch/volsliders.mjs` drives the real settings screen and asserts all
+  of it (and note the presses must WAIT for the value to move: the menu reads a
+  key edge once per game frame, and SwiftShader runs the title at ~2fps). THE SFX VOLUME IS
   PER SOURCE (`CONFIG.sfxVolume.samples` 0.20 / `.synth` 0.9, each persisted):
   recordings are real audio normalized to -3 dBFS and the synth is a handful
   of oscillators at a fraction of full scale, so one number cannot serve both
