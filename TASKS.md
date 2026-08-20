@@ -6897,3 +6897,15 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
   `playing` first. `node tools/scratch/musicoff.mjs` is the check — it drives
   the real menus with NO gesture between silencing the music and restoring it,
   and fails on the old code at exactly that step.
+- …AND THE OTHER HALF OF IT WAS THE TAB SWITCH, which is how the bug was
+  actually met: mute on the title, switch tabs, come back, unmute on mech
+  select. Hiding pauses every player; the `visibilitychange` handler only
+  restored them when NOT muted, so a muted return left `playing` false and
+  unmuting had nothing to start — the element's volume was restored, so it
+  read as fine and stayed silent until the next trip through the title.
+  Coming back now restores what leaving paused, muted or not (a muted player
+  is silent on its own volume anyway; what is restored is the intent), and
+  turning the sound back on resumes the audio CONTEXT — a mouse or keyboard
+  does that on the way in via `resumeAudio`, a pad press does not.
+  `tools/scratch/mutetab.mjs` reproduces the whole sequence and
+  `tools/scratch/tabpause.mjs` holds the line the handler exists for.
