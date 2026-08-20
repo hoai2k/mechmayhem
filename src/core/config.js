@@ -26,6 +26,25 @@ export const SOUND_MASTER = 1.0;
 // The synth music bus, as a share of the master (0.35 of the old 0.8).
 export const SYNTH_MUSIC_MIX = 0.4375;
 
+// OUTPUT TRIM — the last of the headroom, MEASURED rather than guessed
+// (`node tools/scratch/headroom.mjs`, which decodes every shipped asset and
+// renders the loudest of them through a replica of core/audio.js' own chain).
+//
+// It is ONE number applied at the three places sound actually leaves the game
+// — the post-compressor master gain, the soundtrack element, the arena-bed
+// element — so it lifts everything by the same amount and cannot move any
+// source against any other. It sits AFTER the compressor on purpose: gain
+// added BEFORE it would be handed straight back as compression, quietly
+// squashing effects against a soundtrack that never passes through it.
+//
+// WHY IT IS SMALL. The worst case the measurement builds — the loudest music
+// peak, the loudest arena bed and twelve of the loudest effects landing on the
+// same sample — already summed to 0.877 (-1.1 dBFS). That is what is left, and
+// spending it is what "100% is as loud as this mix goes" means. Re-run the
+// tool after any change to the mixer, the compressor or the audio itself: it
+// prints the trim the current numbers can afford.
+export const OUTPUT_TRIM = 1.14;
+
 // Music bus default, and the MENU THEME's share of it: the menus play at
 // `musicVolume * menuMusicMix`, so 0.5 is "half as loud as a fight". Change
 // the mix to move the menus alone; the settings slider moves the bus, and the
@@ -65,6 +84,37 @@ export const SFX_MIX_DEFAULT = {
   loop: 0.6,          // sustained states: burning, electrocuted, jets held
   ambience: 0.35,     // the arena bed, which must never compete with combat
 };
+
+// ------------------------------------------------- WHAT A SLIDER'S RANGE IS
+//
+// 100% IS THE BALANCED DEFAULT, NOT THE TOP OF THE SLIDER. The mix ships as
+// loud as it can go with every source in proportion (OUTPUT_TRIM above), so
+// wanting MORE of one source means unbalancing the mix — which is the
+// player's call to make, and the slider goes there: past 100%, up to wherever
+// that source's OWN gain runs out. ONE RULE FOR ALL OF THEM, since a media
+// element and a GainNode both stop at 1:
+//
+//   ceiling = the level at which this source's own gain reaches unity
+//
+// DERIVED, so moving a default, the trim or the category mix moves the range
+// AND the 100% mark with it and the settings screen needs no edit. A level
+// saved by an older build is clamped into the range as it is read.
+//
+// (A source can be pushed past its own unity — the limiter would take it —
+// but a recording amplified beyond the level it was mastered at is the point
+// where a slider stops buying loudness and starts buying compression, so that
+// is where these stop. `tools/scratch/headroom.mjs` measures both: the loudest
+// single effect does not reach full scale until x15.5 of its shipped level,
+// which is 14 dB of gain for 9 dB of sound.)
+
+// The soundtrack is a media element carrying `musicVolume * OUTPUT_TRIM`.
+export const MUSIC_VOL_CEIL = 1 / OUTPUT_TRIM;
+// An effect's own node carries `sfxVolume * sfxMix[category]`, so the loudest
+// category is what decides where the effects bed runs out.
+export const SFX_VOL_CEIL = 1 / Math.max(...Object.values(SFX_MIX_DEFAULT));
+// One slider press: 5% OF THE BALANCED LEVEL, never of the range — so 0 to
+// 100% is twenty presses however far past 100% that slider can go.
+export const VOL_STEP_FRAC = 0.05;
 
 // Round length slider bounds, in SECONDS.
 export const ROUND_MIN = 30;
@@ -203,13 +253,13 @@ export const CONFIG = {
   // (see above). `rw.set('sfxVolume.samples', 0.5)` from the console lands
   // immediately: it is read at the point of use.
   sfxVolume: {
-    samples: readNum('rw.sfxVol.samples', SFX_VOL_DEFAULT.samples),
-    synth: readNum('rw.sfxVol.synth', SFX_VOL_DEFAULT.synth),
+    samples: readNum('rw.sfxVol.samples', SFX_VOL_DEFAULT.samples, 0, SFX_VOL_CEIL),
+    synth: readNum('rw.sfxVol.synth', SFX_VOL_DEFAULT.synth, 0, SFX_VOL_CEIL),
   },
   // …and per CATEGORY under that. Tune the balance here, not per sound.
   sfxMix: { ...SFX_MIX_DEFAULT },
   // Music bus level, independent of the SFX bus. Settings slider, persisted.
-  musicVolume: readNum('rw.musicVol', MUSIC_VOL_DEFAULT),
+  musicVolume: readNum('rw.musicVol', MUSIC_VOL_DEFAULT, 0, MUSIC_VOL_CEIL),
   // …and the MENU THEME is quieter than that, by a set PERCENTAGE of it: it
   // plays under screens a player is reading and talking over, where the
   // fight's level is loud. Stated as a fraction of the music bus rather than
@@ -336,7 +386,7 @@ export function setInfiniteUltimates(on) {
 }
 
 export function setMusicVolume(v) {
-  CONFIG.musicVolume = Math.min(1, Math.max(0, +v || 0));
+  CONFIG.musicVolume = Math.min(MUSIC_VOL_CEIL, Math.max(0, +v || 0));
   try { localStorage.setItem('rw.musicVol', String(CONFIG.musicVolume)); } catch (e) { /* ok */ }
 }
 
@@ -353,7 +403,7 @@ export function setSfxSamples(on) {
  */
 export function setSfxVolume(v) {
   const key = CONFIG.sfxSamples ? 'samples' : 'synth';
-  CONFIG.sfxVolume[key] = Math.min(1, Math.max(0, +v || 0));
+  CONFIG.sfxVolume[key] = Math.min(SFX_VOL_CEIL, Math.max(0, +v || 0));
   try { localStorage.setItem(`rw.sfxVol.${key}`, String(CONFIG.sfxVolume[key])); } catch (e) { /* ok */ }
 }
 

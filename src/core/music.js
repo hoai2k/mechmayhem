@@ -37,7 +37,7 @@
 import {
   MUSIC_BASE, MUSIC_FILES, MUSIC_ARENA_BASE, MUSIC_ARENA_FILES,
 } from 'virtual:rw-music';
-import { CONFIG, setMusicVolume, menuMusicVolume } from './config.js';
+import { CONFIG, setMusicVolume, menuMusicVolume, OUTPUT_TRIM } from './config.js';
 
 const titleOf = (file) => file.replace(/\.[^.]+$/, '');
 const byTitle = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
@@ -315,7 +315,11 @@ export class MusicPlayer {
 
   _applyVolume() {
     if (!this.el) return;
-    const want = this.enabled && !this.muted ? this.volume : 0;
+    // The trim is the graph's makeup gain (config.js OUTPUT_TRIM) paid to a
+    // player the graph cannot reach, so music and effects rise together. An
+    // element's gain stops at 1, so a slider dragged to the very top gives
+    // some of it back — the only place in the range where it can.
+    const want = this.enabled && !this.muted ? Math.min(1, this.volume * OUTPUT_TRIM) : 0;
     this.el.volume = want;
     // silent means silent: don't keep streaming a track nobody can hear
     if (!want) { try { this.el.pause(); } catch (e) { /* ok */ } }

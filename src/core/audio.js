@@ -18,7 +18,7 @@
 // throws if AudioContext is unavailable or still suspended.
 // ============================================================================
 
-import { CONFIG, sfxGain, sfxVolume } from './config.js';
+import { CONFIG, sfxGain, sfxVolume, OUTPUT_TRIM } from './config.js';
 
 const clamp01 = (v) => Math.min(1, Math.max(0, Number.isFinite(+v) ? +v : 0));
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12); // MIDI note -> Hz
@@ -71,8 +71,12 @@ export class GameAudio {
       comp.ratio.value = 14;
       comp.attack.value = 0.002;
       comp.release.value = 0.22;
+      // POST-compressor, which is where the output trim belongs: gain added
+      // ahead of the limiter is handed straight back as compression, so it
+      // would squash effects against a soundtrack that never passes through
+      // it. Here it lifts the whole graph and changes no ratio at all.
       const master = ctx.createGain();
-      master.gain.value = 0.9;
+      master.gain.value = 0.9 * OUTPUT_TRIM;
       comp.connect(master);
       master.connect(ctx.destination);
 
