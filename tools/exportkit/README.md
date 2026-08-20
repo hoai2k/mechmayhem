@@ -1,4 +1,4 @@
-# ROBOTWORLD mechs — portable export
+# MECH MAYHEM mechs — portable export
 
 Self-contained rigged, skinned, animated mechs. Nothing here needs the game.
 Copy this whole directory into another project and go.

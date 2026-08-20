@@ -48,9 +48,9 @@ Each mech has up to three, in order of authority:
 
 | Reference | URL | What it settles |
 | --- | --- | --- |
-| **Canonical concept art** | `https://raw.githubusercontent.com/hoai2k/robotworld/main/docs/canonical/mech_<id>.png` | the design: silhouette, proportions, decals, palette. **This is the subject.** |
-| **In-game render** | `https://raw.githubusercontent.com/hoai2k/robotworld/main/public/posters/<id>.png` | what the mech actually looks like in the shipped build, from its real model |
-| **Written spec** | `https://raw.githubusercontent.com/hoai2k/robotworld/main/docs/canonical/SPECS.md` | the per-mech paragraph, for anything the images leave ambiguous |
+| **Canonical concept art** | `https://raw.githubusercontent.com/hoai2k/mechmayhem/main/docs/canonical/mech_<id>.png` | the design: silhouette, proportions, decals, palette. **This is the subject.** |
+| **In-game render** | `https://raw.githubusercontent.com/hoai2k/mechmayhem/main/public/posters/<id>.png` | what the mech actually looks like in the shipped build, from its real model |
+| **Written spec** | `https://raw.githubusercontent.com/hoai2k/mechmayhem/main/docs/canonical/SPECS.md` | the per-mech paragraph, for anything the images leave ambiguous |
 
 The card is **that mech**, not an interpretation of it: same silhouette, same
 armour breakup, same decals, same accent colour glowing in the same places. A
@@ -68,7 +68,7 @@ world, same paint. Pass the closest one as a **style reference** alongside the
 mech's own canonical image; each entry below names which:
 
 ```
-https://raw.githubusercontent.com/hoai2k/robotworld/main/public/arenas/<themeId>.jpg
+https://raw.githubusercontent.com/hoai2k/mechmayhem/main/public/arenas/<themeId>.jpg
 ```
 
 **Realistic anime**, as those images define it: anime background-painting

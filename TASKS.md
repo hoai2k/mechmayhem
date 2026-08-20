@@ -1,4 +1,4 @@
-# ROBOTWORLD — 3D Mech Battle Game — Task Tracker
+# MECH MAYHEM — 3D Mech Battle Game — Task Tracker
 
 Browser-based 3D mech arena fighter in the spirit of **Override: Mech City Brawl**.
 17 unique mechs, 12 destructible city arenas, local multiplayer (keyboard + Xbox
