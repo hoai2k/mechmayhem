@@ -63,7 +63,7 @@ const clampRound = (v) => (Number.isFinite(v)
 // declared before CONFIG, which reads it while initializing
 export const ARENA_DESIGN_MODES = ['authored', 'wards', 'avenues', 'circuit', 'fallback'];
 
-// settings-menu cycle order for RENDERING (labels in core/text.js):
+// RENDERING modes (?render=<mode> — a DEV knob, no settings-menu entry yet):
 //   'models'   (default) — the rigged GLBs in public/models/manifest.json,
 //              procedural fallback for anything missing/broken (unchanged)
 //   'anime'    — the cel-shaded procedural roster (src/mechs/anime.js): the
@@ -108,10 +108,14 @@ export const CONFIG = {
   // migrates: ON → 'fallback', OFF → 'authored'.
   arenaDesign: readArenaDesign(),
   // RENDERING: which set of bodies the roster wears (see RENDERING_MODES
-  // above). Persisted from the settings menu; ?render=<mode> forces one for a
-  // session, and the old ?debug=fallback / ?debug=3d spellings still mean
-  // 'fallback' / 'models'. Takes effect on the next body BUILT — the menus
-  // rebuild as you flip through mechs, a match builds at round start.
+  // above). A DEV KNOB for now — the anime roster is a work in progress
+  // (2 of 17 mechs sculpted) and deliberately NOT in the settings menu; reach
+  // it with ?render=anime, or through the Animation Workbench's COMPARE TO →
+  // Anime Robot. The old ?debug=fallback / ?debug=3d spellings still mean
+  // 'fallback' / 'models'. The setRendering setter + localStorage persistence
+  // stay wired so re-adding the settings row is a one-item edit in boot.js
+  // (plus its three settings.rendering.* labels in core/text.js — see the
+  // status note in docs/ANIME_PROCEDURAL_PLAN.md).
   rendering: readRendering(),
   // REVERSE CAMERA Y: which way the right stick (and a touch look-drag) pitches
   // the camera. OFF is the standard third-person feel — push DOWN and the

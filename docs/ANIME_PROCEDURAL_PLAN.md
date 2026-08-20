@@ -1,12 +1,31 @@
 # Procedural 3D mechs from the anime canonical drawings — feasibility + plan
 
-> **Status:** underway. SETTINGS → RENDERING (`CONFIG.rendering`,
-> `?render=anime`) ships with three modes — 3D MODELS / ANIME / FALLBACK —
-> and `src/mechs/anime.js` implements the anime route: the shared parts-kit
-> sculpts under cel-ramp materials + ink outlines, with `ANIME[id]` carrying
-> per-mech palettes and `dress()` geometry refinements. Titanus is the
-> worked example; the other 16 render through the generic `animeTone` pass
-> until their palettes are hand-read.
+> **Status (2026-08): PARKED AS A DEV FEATURE, two mechs done.** The anime
+> route is fully built (`src/mechs/anime.js` + `src/mechs/animedesigns/` —
+> TITANUS and GLACIER have dedicated high-fidelity sculpts; the other 15
+> render through the generic repaint pass) but it is deliberately NOT
+> player-facing: there is no settings-menu entry. It is reachable two ways —
+> the Animation Workbench's **COMPARE TO → Anime Robot** (the intended
+> judging surface, offered only for mechs with a dedicated sculpt) and the
+> dev URL knob `?render=anime` (works on ?showcase, ?battle, everything).
+>
+> **What we learned** is captured where the next session needs it:
+> `docs/ANIME_FIDELITY_GUIDE.md` is the whole method — the priority rule
+> (model proportions primary, drawing owns simplification + colour), bone
+> measure, runs profiles, side profiles, part sheets, and step 2c: write
+> `docs/animeanalysis/<id>.md` FIRST and grade every round against its
+> checklist in writing (glacier's is the worked example, with its round
+> log). Rig levers grown for this: dims overrides `headY`/`headZ`/
+> `shoulderY` (buildRig) and `soleDepth` (Animator ctor); design-time joint
+> splay; the sculpt vocabulary in animedesigns/* (the `asm` local-frame
+> helper, facet cores + lathe bulges + panel staves — never bare boxes).
+>
+> **To resume:** pick the next mech (viper or inferno), follow the guide's
+> prompt template, and expect ~5-8 rounds. **To ship to players:** re-add
+> the settings row (one item in boot.js settingsItems cycling
+> RENDERING_MODES via setRendering, plus three `settings.rendering.*`
+> labels in core/text.js — the config plumbing, persistence and
+> ?render migration are already wired and tested).
 
 The reference set is `docs/canonical/anime/` (17 cel-shaded drawings of the
 same roster, copied from the mechbrawler repo). This document answers two

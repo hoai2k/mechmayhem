@@ -1686,7 +1686,9 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   every mech; `?debug=fallback` forces the procedural roster (also the
   automatic fallback for a mech with no manifest entry or a broken GLB).
   `?debug=3d` is the old opt-in flag and still means GLBs.
-- SETTINGS → RENDERING (`CONFIG.rendering`, `?render=<mode>`) picks the
+- RENDERING (`CONFIG.rendering`, `?render=<mode>` — a DEV KNOB, deliberately
+  not in the settings menu while the anime roster is 2/17 done; see the
+  status note in docs/ANIME_PROCEDURAL_PLAN.md) picks the
   roster's whole wardrobe: `models` (the GLBs, default) · `anime` (the
   CEL-SHADED procedural roster — `src/mechs/anime.js`, judged against
   `docs/canonical/anime/`, plan in `docs/ANIME_PROCEDURAL_PLAN.md`) ·
