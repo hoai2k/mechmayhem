@@ -133,7 +133,7 @@ commit that explains the measurement. `npx vite build` is green after each.
 
 Also: `package.json` said "12 mechs".
 
-Verification after the pass: `npx vite build` green; `tools/proneprobe.mjs` (titanus 8.9%, fenrir 0.8%, wraith 7.2%, tritone 0%); a hips probe on saurion / titanus / viper (GLB bone travel now equals the virtual joint's, to four decimals); the fenrir anchor probe (boostR under the right paw at the left one's paw-relative offset); `tools/brawl.mjs` (every rule it prints still holds: 4-robot KO → respawn, clean sheet ends the round, timeout on deaths, solo-vs-CPUs is not a brawl, a duel gets its finisher).
+Verification after the pass: `npx vite build` green; `tools/proneprobe.mjs` (titanus 8.9%, fenrir 0.8%, wraith 7.2%, tritone 0%); a hips probe on saurion / titanus / viper (GLB bone travel now equals the virtual joint's, to four decimals); the fenrir anchor probe (boostR under the right paw at the left one's paw-relative offset); `tools/brawl.mjs` (every rule it prints still holds: 4-robot KO → respawn, clean sheet ends the round, timeout on deaths, solo-vs-CPUs is not a brawl, a duel gets its finisher); and a four-player `ace` soak on volcano (titanus / tritone / fenrir / saurion): no page error, three KOs, and every corpse at exactly 0 hp.
 
 ---
 
