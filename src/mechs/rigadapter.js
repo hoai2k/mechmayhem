@@ -12,6 +12,7 @@ import * as THREE from 'three';
 const _q1 = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
 const _q3 = new THREE.Quaternion();
+const _d = new THREE.Vector3();
 const _e = new THREE.Euler();
 const D2R = Math.PI / 180;
 
@@ -199,7 +200,7 @@ export class RigAdapter {
     // Rest height is captured lazily on first sync, after the Animator has
     // applied its rest pose + ground offset.
     this.hipsEntry = this.entries.find((e) => e.jname === 'hips') || null;
-    this.hipsRestY = null;
+    this.hipsRest = null;    // the virtual hips' rest position, taken on the first sync
     this.hipsScale = opts.hipsScale ?? 1;
 
     // 3) restore rest pose
@@ -241,12 +242,30 @@ export class RigAdapter {
         }
       }
     }
-    // hips bob / crouch translation (vertical only, scaled into model units)
+    // HIPS TRANSLATION — the whole vector, not just the bob. The clip
+    // library keys `hipsPos` in x and z as well as y (a strike's drive
+    // through the target, the dash coil's weight over the heels, a crouch's
+    // seat going back, the knockdown slide), and every one of those was
+    // dropped on the GLB route: only y was copied, straight onto the bone's
+    // local y. Measured: saurion's kick authored to lunge 0.60 moved the bone
+    // 0.09, titanus' taunt sway 0.00. The delta is taken in the virtual rig's
+    // frame, carried through WORLD into the hips bone's PARENT frame — which
+    // is also what makes the vertical right on a model whose armature does
+    // not keep world-up on its local y (saurion's `tripoRoot`: local y is
+    // world -z, so his hip bob used to slide him back and forth) — and scaled
+    // into model units.
     if (this.hipsEntry) {
-      if (this.hipsRestY === null) this.hipsRestY = this.joints.hips.position.y;
-      const dy = (this.joints.hips.position.y - this.hipsRestY) * this.hipsScale;
-      this.hipsEntry.bone.position.copy(this.hipsEntry.bindLocalPos);
-      this.hipsEntry.bone.position.y += dy;
+      const hj = this.joints.hips;
+      if (!this.hipsRest) this.hipsRest = hj.position.clone();
+      const bone = this.hipsEntry.bone;
+      _d.copy(hj.position).sub(this.hipsRest);
+      bone.position.copy(this.hipsEntry.bindLocalPos);
+      if (_d.lengthSq() > 1e-12) {
+        hj.parent.getWorldQuaternion(_q3);
+        _d.applyQuaternion(_q3);
+        if (bone.parent) _d.applyQuaternion(bone.parent.getWorldQuaternion(_q3).invert());
+        bone.position.addScaledVector(_d, this.hipsScale);
+      }
     }
   }
 }
