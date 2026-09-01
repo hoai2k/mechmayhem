@@ -1588,7 +1588,12 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   13 OF THE 17 ARE BAKED; titanus, tritone, jerry and nullbot are not, and
   `--apply` REFUSES to write a mech whose check failed, rolling back just that
   mech (it used to `git checkout` the whole tree, which threw away every mech
-  baked earlier in a batch).
+  baked earlier in a batch). THE ROLLBACK TAKES THE ARCHIVE BACK TOO: the
+  sidecar and source copy are written before the check can run, and a refused
+  bake used to leave `source/<id>.edits.json` claiming the edits had been
+  folded — the four unbaked mechs sat like that, byte-identical to their
+  "source" with the whole correction layer still in the manifest. A sidecar on
+  disk now always describes a bake that landed.
   ORIENTATION AND SIZE ARE NOT FOLDED (`yawOffset`, `modelScale`,
   `heightScale`): they describe the model and belong in a file, but the GAME
   derives live quantities from the runtime scale (`RigAdapter.hipsScale`,
