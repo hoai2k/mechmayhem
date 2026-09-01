@@ -42,6 +42,7 @@ export class Match {
     // CPUs would only deny the win. Two people plus a CPU is a party game, and
     // there nobody should be sitting out half a round watching.
     this.brawl = fighters.length >= 3 && humans >= 2;
+    this.humans = humans;
     this.respawns = [];   // {f, t} — a wreck fading out on the floor
   }
 
@@ -80,6 +81,11 @@ export class Match {
 
   onKO({ fighter, attacker }) {
     if (this.state !== 'fight') return;
+    // a SUMMON (a raptor, a wolf) dying is not a contestant dying: the world
+    // removes it on its own, and in a brawl it used to be pushed onto the
+    // respawn queue — a phantom ring and a "powerup" sting on an empty pad for
+    // a body that was no longer in the fight
+    if (fighter.isMinion || !this.fighters.includes(fighter)) return;
     // ---- BRAWL (3+ robots): a KO is a RESPAWN, not the end of the round ----
     if (this.brawl) {
       fighter.deaths = (fighter.deaths || 0) + 1;
@@ -95,6 +101,14 @@ export class Match {
       return;
     }
     const alive = this.fighters.filter((f) => f.alive);
+    // A GAUNTLET ENDS WITH ITS PLAYER. One person against two or three CPUs
+    // is decided the moment that person drops — the alternative was watching
+    // the machines finish each other off for the rest of the clock.
+    if (alive.length > 1 && this.humans > 0 && !alive.some((f) => !f.isAI)) {
+      const best = alive.reduce((a, b) => (b.hp / b.maxHp > a.hp / a.maxHp ? b : a));
+      this.endRound(best, t('match.ko'));
+      return;
+    }
     if (alive.length > 1) return;
     const winner = alive[0] || null;
     // won by a KILL (not timeout) and the survivor threw it: cinematic
@@ -117,6 +131,10 @@ export class Match {
     this.state = 'roundEnd';
     this.stateT = afterFinisher ? 2.4 : 3.2;
     this.pendingWinner = winner;
+    // the round is OVER for everybody: after a TIME UP the losers kept full
+    // control through the slow-mo and could hit — and kill — the winner in
+    // the middle of the victory pose
+    for (const f of this.fighters) { f.controlsLocked = true; f.intent.moveX = f.intent.moveZ = 0; }
     if (!afterFinisher) {
       this.engine.timeScale = 0.25;        // dramatic slow-mo
       this.hud.announce(banner, false, banner === t('match.ko') ? KO_COLOR : null);

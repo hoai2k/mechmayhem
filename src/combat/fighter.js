@@ -123,6 +123,7 @@ const SPRINT_REGEN = STAMINA_REGEN;
 const BLOCK_DASH_MULT = TUNING.stamina.dashCostBlockMult;
 const DASH_COST = TUNING.stamina.dashCost;
 const BLOCK_MOVE_MULT = TUNING.movement.blockMoveMult;
+const GUARD_RELOCK = TUNING.stamina.guardRelock;
 const BACK_MOVE_MULT = TUNING.movement.backMult;
 // The half-arc a raised guard covers, as a COSINE. takeHit tests the same
 // arc in radians; the bubble shader fades out past it, so what you see
@@ -593,6 +594,11 @@ export class Fighter {
   setState(s, t = 0) {
     this.state = s;
     this.stateT = t;
+    // FROZEN SOLID HOLDS NO GUARD. The frozen branch of update() returns
+    // before the block intent is re-read, so a mech iced while holding LT
+    // kept `blocking` true — and its bubble — for the whole freeze, eating
+    // every frontal hit as chip. (glitchOverload already clears its own.)
+    if (s === 'frozen') { this.blocking = false; this.hideGuardShield(); }
     // a mobile light/heavy grants locomotion only for its own 'attack' window;
     // any other transition (attack end, launch, special...) drops it
     if (s !== 'attack') this._moveAttack = false;
@@ -609,6 +615,15 @@ export class Fighter {
   }
 
   // ================= actions =================
+  // the light string this body throws: a GLB profile's own cycle, the roster's,
+  // or the shared trio — one answer for doLight and for the chain buffer, which
+  // used to hard-code THREE and ate the buffered 4th press of saurion's 4-hit
+  // GLB string (the string's launcher)
+  lightClipNames() {
+    return this.animator?.profile?.lightClips
+      || this.def.lightClips || ['light1', 'light2', 'light3'];
+  }
+
   doLight() {
     const mv = this.def.moves.light;
     // hold-to-charge haymaker (TITANUS/COLOSSUS): the wind-up pose HOLDS
@@ -638,8 +653,7 @@ export class Fighter {
     // shared punch trio is only the default. A GLB animation profile may
     // supply its OWN cycle (any length) when the model's anatomy wants a
     // different mix (saurion GLB: kicks alternating with claw rakes).
-    const names = this.animator?.profile?.lightClips
-      || this.def.lightClips || ['light1', 'light2', 'light3'];
+    const names = this.lightClipNames();
     const idx = this.comboIdx % names.length;
     this.faceNearestEnemyIfClose(12);
     // WHICH ARM. Every blow in a combo alternates hands, and the lead flips
@@ -2256,7 +2270,12 @@ export class Fighter {
     if (this.blocking && !unblockable && this.state !== 'hitstun') {
       const toSrc = Math.atan2(-dirX, -dirZ);
       if (Math.abs(angleDiff(this.yaw, toSrc)) < GUARD_ARC) {
-        const low = !!(attacker && attacker.ducking);       // crouched attack
+        // A CROUCHED STRIKE is a blow thrown from the attacker's own body —
+        // srcPos is his position (or absent). A projectile, a beam, a flame
+        // arrives from where it was fired and a gunner ducking behind his
+        // gatling is not sliding anything under anybody's guard.
+        const bodyBlow = !srcPos || srcPos === attacker?.pos;
+        const low = !!(attacker && attacker.ducking && bodyBlow); // crouched attack
         const gb = guardBreak;
         const underGuard = low && !this.ducking;            // high block vs low hit
         const shattered = gb > 0 && Math.random() < gb;
@@ -2310,11 +2329,19 @@ export class Fighter {
     this.hp -= dmg;
     this.lastAttacker = attacker;
 
-    if (status) this.applyStatus(status);
+    // a status rides a blow that LANDED on a living body: a killing hit that
+    // also freezes used to set 'frozen' (overlay and all) and then 'dead' on
+    // the same frame
+    if (status && this.hp > 0) this.applyStatus(status);
 
     this.world.events.emit('damage', { fighter: this, attacker, dmg, pos: this.center() });
-    this.sfx(heavy ? 'hitHeavy' : 'hit');
-    this.world.effects.impactSparks(this.center(), 0xffb060, heavy ? 18 : 10, heavy ? 13 : 9);
+    // `silent`: a rapid-tick source (the cryo beam, a grab's squeeze) that
+    // makes its own noise — the per-tick hit sfx and sparks would fire 8x a
+    // second over it
+    if (!silent) {
+      this.sfx(heavy ? 'hitHeavy' : 'hit');
+      this.world.effects.impactSparks(this.center(), 0xffb060, heavy ? 18 : 10, heavy ? 13 : 9);
+    }
 
     if (this.hp <= 0) { this.die(attacker); return; }
 
@@ -2772,7 +2799,9 @@ export class Fighter {
     this.dashT = Math.max(0, this.dashT - dt);
     if (this.comboWindow <= 0) this.comboIdx = 0;
 
-    // status ticks
+    // status ticks — on a LIVING body: burn and poison used to keep draining
+    // a wreck below zero and emitting flames off it for the whole brawl fade
+    if (!this.alive && Object.keys(this.status).length) this.status = {};
     for (const key of Object.keys(this.status)) {
       const s = this.status[key];
       s.t -= dt;
@@ -2830,7 +2859,10 @@ export class Fighter {
 
     if (!this.alive) {
       this.applyPhysics(dt, 0, 0);
-      this.animator.update(dt, { speed: 0, grounded: this.grounded, dead: true });
+      // `state: 'dead'` is what puts the animator's DOWN_STATES rule — the
+      // limp tail/cloak solve — on a corpse; `dead` alone left fenrir's blade
+      // tail standing up off a body lying flat
+      this.animator.update(dt, { speed: 0, grounded: this.grounded, dead: true, state: 'dead' });
       // GLB: rest the collapsed body flat on the ground (see groundClamp)
       this.mech.groundClamp?.(this.grounded);
       return;
@@ -3055,10 +3087,17 @@ export class Fighter {
     // tank rather than being free and unlimited. An empty tank drops the
     // guard and holding LT can't raise it again until some has refilled, so
     // a turtle has to breathe.
-    this.blocking = acting && I.block && (this.sprintEnergy > 0 || this.blocking);
+    // THE LOCKOUT IS REAL NOW: an empty tank used to drop the guard for ONE
+    // frame — the next frame's regen put a sliver back, LT was still down, and
+    // the guard came straight back up. Measured: up two frames in three, the
+    // block clip starting and stopping every few frames, and two thirds of
+    // the hits still absorbed as chip. So a guard that runs dry stays down
+    // until the tank has refilled to `guardRelock`.
+    if (this._guardLock && this.sprintEnergy >= GUARD_RELOCK) this._guardLock = false;
+    this.blocking = acting && I.block && !this._guardLock && this.sprintEnergy > 0;
     if (this.blocking) {
       this.sprintEnergy = Math.max(0, this.sprintEnergy - BLOCK_DRAIN * dt);
-      if (this.sprintEnergy <= 0) this.blocking = false;
+      if (this.sprintEnergy <= 0) { this.blocking = false; this._guardLock = true; }
     }
     // AN AIR GUARD IS A TUCK: press LT while AIRBORNE and the mech curls into
     // the somersault ball (spinning if it's small enough — see startAirRoll)
@@ -3145,9 +3184,13 @@ export class Fighter {
 
     // ---- duck: hold to crouch. Ducking PERSISTS through an attack (so a
     // held-duck strike lands LOW and slips under a standing block); only
-    // jumping/airborne or blocking pops you back up ----
+    // jumping/airborne pops you back up. A crouch is allowed UNDER a raised
+    // guard, because that is the LOW BLOCK — the only answer to a crouched
+    // strike (takeHit's `underGuard`), and for a long while it could not be
+    // done at all: the guard refused the crouch, so every crouched attack in
+    // the game was a free guard-break ----
     if (this._hangCoyote > 0) this._hangCoyote -= dt;
-    const wantDuck = (I.duck || this._chargeStill) && this.grounded && !this.blocking &&
+    const wantDuck = (I.duck || this._chargeStill) && this.grounded &&
       (this.state === 'normal' || this.state === 'channel' || this.state === 'attack');
     this.duckT = clamp01(this.duckT + (wantDuck ? dt / 0.13 : -dt / 0.11));
 
@@ -3232,7 +3275,7 @@ export class Fighter {
     } else if (this.state === 'attack' && this.queuedLight && this.stateT < 0.14) {
       // combo chain
       this.queuedLight = false;
-      if (this.comboIdx > 0 && this.comboIdx < 3) this.doLight();
+      if (this.comboIdx > 0 && this.comboIdx < this.lightClipNames().length) this.doLight();
     } else if (this.state === 'channel') {
       // keep channel while held (and while there's ammo for it)
       if (I.ranged && !(this.ammoMax !== undefined && this.ammo <= 0)) {
@@ -3548,12 +3591,8 @@ export class Fighter {
     this.updateRegrow(dt);
     // ---- poison bites: red flush + a flinch each time a wound opens ----
     this.updatePoisonWounds(dt);
-    // ---- POINT THE GUN AT WHAT HE IS SHOOTING AT (combat/gunaim.js) ----
-    // A hand-held muzzle inherits the arm's animation, so the ARM is turned
-    // onto the aim — the crosshair while targeting, straight ahead otherwise —
-    // and the round then leaves a barrel that is actually pointing at it. Here,
-    // with the other post-pose servos, and before the GLB re-sync below.
-    aimGun(this, dt);
+    // (the gun-aim servo runs AFTER the GLB re-sync below — a second call here
+    // ran it twice a frame, halving its post-shot hold and doubling its ramp)
     // GLB rigs: everything above (heavy spins, palm clamps, scripted whirls)
     // wrote to the VIRTUAL joints — but the adapter already synced the bones
     // inside animator.update(), so those writes never reached the model
@@ -4934,6 +4973,16 @@ export class Fighter {
     this._pitchDrv = null;
     this._strikeAim = null;
     this._oneArmLift = false;
+    this._guardLock = false;
+    // a taunt effect mid-flight (wraith's loom, glacier's block, nullbot's
+    // stutter) must not play its exit over the next round's intro
+    this._growK = 0;
+    this._growBase = null;
+    this._iceK = 0;
+    if (this._ice) this._ice.visible = false;
+    this._holoOn = false;   // (setOpacity(1) below restores the render)
+    this.lockTarget = null;
+    this.aimTarget = null;
     this.clearChargeGlow();
     if (this._fistOut?.size) { // fist projectile(s) died with the round — re-attach
       for (const side of this._fistOut) {

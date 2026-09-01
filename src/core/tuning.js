@@ -30,6 +30,10 @@ export const TUNING = {
     dashCost: 0.09,        // fraction of a full bar spent per dash
     dashCostBlockMult: 2.2, // ...multiplied by this when the guard is also up
     refillSeconds: 5.3,    // seconds to refill from empty (guard down, not sprinting)
+    // A GUARD THAT RUNS DRY STAYS DOWN until the tank has this much back in
+    // it — the breath a turtle is made to take. Without it the guard flickered
+    // back up on the very next frame's regen and blocked two hits in three.
+    guardRelock: 0.15,
     // NOTE on sprinting from a standing start: you enter a sprint THROUGH a
     // dash, and that dash charges `dashCost` before the run begins. So a cold
     // start off a full bar runs for sprintSeconds x (1 - dashCost) — 10.9s at
