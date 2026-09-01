@@ -358,7 +358,7 @@ The code is in better shape than its file sizes suggest — only four `def.id ==
 | 8 | Fold the 29 magic constants at the top of fighter.js and `GORE_*` into tuning.js/roster; three gravities exist (fighter 34, ragdoll 32, fleas 40, jets 28). fighter.js snapshots TUNING by value at import (why `rw.tune` reloads) while climb.js holds a live reference — pick the live one. | 1 hr | one number, one place |
 | 9 | `CLAUDE.md` is 2,898 lines with the Architecture map at line ~2,600 behind 2,500 lines of per-feature essays (several naming dead files). Move the essays to `docs/<feature>.md`; keep commands, map, rules, and a one-line index. | ½ day | onboarding |
 
-Also noted: `tools/gaitprobe.mjs` — the documented judge for gaits — died with "Execution context was destroyed" on every run during this audit. Every failure coincided with a source or `public/` edit landing while the page was up, i.e. Vite's full reload; it needs re-running on a quiet tree before calling it broken, but if it still fails the workbench's own `location.href` navigations on load (`panel.js`, `subjectpick.js`, `variantpick.js`) are the suspects.
+Also noted: `tools/gaitprobe.mjs` — the documented judge for gaits — died with "Execution context was destroyed" on every run during this audit, and every failure coincided with a source or `public/` edit landing while its page was up: Vite's full reload. Re-run on a quiet tree it completes normally (titanus: lift 51%, bob 23%, arms counter-swing). The browser tools are not robust to an edit landing mid-run, which a shared `tools/lib/browser.mjs` could handle once (retry the page once on that error).
 
 ---
 
