@@ -522,6 +522,7 @@
     },
     "wraith": {
       "url": "models/mech_wraith.glb",
+      "limpChains": ["cape0"],
       "modelScale": 6.73427,
       "bindPose": "native",
       "yawOffset": 270,
@@ -1219,6 +1220,10 @@
             0.127,
             0.01
           ]
+        },
+        "boostR": {
+          "bone": "ankleR",
+          "offset": [0.083, 0.1271, -0.0093]
         }
       }
     },

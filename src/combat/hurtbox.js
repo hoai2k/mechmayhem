@@ -125,13 +125,19 @@ export const PART_TABLE = [
   ['footR', 'ankleR', null],
 ];
 
-// The four striking extremities, in the order strike-limb auto-detection
-// considers them (see pickStrikeLimb).
-const LIMB_PARTS = ['handL', 'handR', 'footL', 'footR'];
+// The striking extremities, in the order strike-limb auto-detection
+// considers them (see pickStrikeLimb). The HEAD is one: a horn jab or a bite
+// is thrown with the skull, and until it was listed tritone's gore resolved
+// on his right FOREFOOT (`strikeArm: 'R'` -> handR, a leg under his chest).
+const LIMB_PARTS = ['handL', 'handR', 'footL', 'footR', 'head'];
+// A hand or foot wins ties with the head in the auto-scan: on a long-snouted
+// frame the jaws lead the fists at all times, so the head only takes a blow
+// it clearly arrives with first (the same rule Fighter.strikeTipName uses).
+const HEAD_LEAD_GAIN = 1.25;
 // the limb segment a blow is swept along: extremity -> the part whose bone
-// is the joint it swings from (elbow / knee)
+// is the joint it swings from (elbow / knee / the neck's base)
 const STRIKE_ARM = {
-  handL: 'foreArmL', handR: 'foreArmR', footL: 'shinL', footR: 'shinR',
+  handL: 'foreArmL', handR: 'foreArmR', footL: 'shinL', footR: 'shinR', head: 'chest',
 };
 
 // ---------------------------------------------------------------------
@@ -785,6 +791,7 @@ const LIMB_FALLBACK = {
   handR: ['foreArmR', 'upperArmR'],
   footL: ['shinL', 'thighL'],
   footR: ['shinR', 'thighR'],
+  head: ['chest'],
 };
 
 /**
@@ -822,7 +829,7 @@ export function pickStrikeLimb(hurtbox, clip, fwdX, fwdZ, originX, originZ, minL
     const mx = (p.a.x + p.b.x) * 0.5 - originX;
     const mz = (p.a.z + p.b.z) * 0.5 - originZ;
     const f = mx * fwdX + mz * fwdZ;
-    if (f > bestF) { bestF = f; best = name; }
+    if (f > bestF * (name === 'head' ? HEAD_LEAD_GAIN : 1)) { bestF = f; best = name; }
   }
   return best;
 }

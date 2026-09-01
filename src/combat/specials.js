@@ -16,6 +16,12 @@ import { AIController } from '../game/ai.js';
 import { cloneMech } from '../mechs/factory.js';
 import { warmEggAssets } from './eggs.js';
 import { stillCasting, cast, eachEnemy, volley, timedUpdater, overlapsY } from './movekit.js';
+// A HIT REACTION HAS TAKEN THE BODY: the states a blow puts a fighter into.
+// A scheduled beat of an airborne move checks this rather than stillCasting,
+// because the move's own cast window can legitimately expire before the body
+// lands — what must cancel it is being hit, not the clock.
+const HIT_STATES = new Set(['hitstun', 'launched', 'knockdown', 'getup', 'frozen', 'glitched', 'dead']);
+function hitReacting(f) { return HIT_STATES.has(f.state); }
 import { driveCannons } from './cannonaim.js';
 import { faceRoar } from '../mechs/face.js';
 
@@ -451,6 +457,12 @@ export const SPECIALS = {
     let landed = false;
     const check = () => {
       if (landed || !f.alive) return;
+      // KNOCKED OUT OF THE AIR IS THE END OF IT: a launcher mid-pounce used to
+      // put him down and then, the moment he touched the ground, fire the full
+      // shockwave off the knockdown and setState('normal') over it — the
+      // getup and its iframes erased, the punish turned into a buff. (Not
+      // stillCasting: the 0.75s cast can expire before a 0.7s airtime lands.)
+      if (hitReacting(f)) { landed = true; return; }
       if (f.grounded) {
         landed = true;
         // the pounce is Saurion's block-breaker: only THIS hit carries his
@@ -985,6 +997,10 @@ export const SPECIALS = {
 
     const hunt = () => {
       if (done || !f.alive) return;
+      // hit out of the arc: the dive is over (see fenrir's pounce) — the
+      // horizontal velocity used to be re-imposed every tick through a
+      // hitstun or a launch, and the latch still taken on whoever he fell on
+      if (hitReacting(f)) { done = true; return; }
       // once he's cresting/descending, look for a victim UNDER the claws —
       // the latch requires hitting them HIGH on the body, riding down on top
       if (f.vel.y < 4) {

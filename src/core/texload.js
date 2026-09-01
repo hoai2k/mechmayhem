@@ -63,7 +63,7 @@ export function pbrMaterial(set, name, {
     map: loadMap(set, name, 'albedo', { srgb: true, repeat }),
     normalMap: loadMap(set, name, 'normal', { repeat }),
     roughnessMap: loadMap(set, name, 'rough', { repeat }),
-    metalnessMap: metalMap || undefined,
+    ...(metalMap ? { metalnessMap: metalMap } : {}),   // an `undefined` key logs a THREE warning per build
     roughness: 1,
     metalness: metalMap ? 1 : metalness,
     color,

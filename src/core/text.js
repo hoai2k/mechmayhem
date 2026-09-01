@@ -103,8 +103,8 @@ export const MESSAGES = {
   'pause.menu.settings': 'SETTINGS',
   'pause.menu.quit': 'QUIT TO MENU',
   'pause.controls.html': `
-      <b style="color:#fff">KEYBOARD P1</b> — WASD move · SPACE jump · F light · G heavy · H block · R ranged · T special · Y ultimate · SHIFT dash · Q strafe-lock · C duck · B taunt<br>
-      <b style="color:#fff">KEYBOARD P2</b> — Arrows move · Num0 jump · Num1 light · Num2 heavy · Num3 block · Num4 ranged · Num5 special · Num6 ult · NumEnter dash · Num7 strafe-lock · Num8 duck<br>
+      <b style="color:#fff">KEYBOARD P1</b> — WASD move · SPACE jump · F light · G heavy · H block · R ranged · T special · Y ultimate · SHIFT dash · Q strafe (face the camera) · C duck · B taunt<br>
+      <b style="color:#fff">KEYBOARD P2</b> — Arrows move · Num0 jump · Num1 light · Num2 heavy · Num3 block · Num4 ranged · Num5 special · Num6 ult · NumEnter dash · Num7 strafe (face the camera) · Num8 duck<br>
       <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera (free look, nothing auto-swings it) · A jump · X light · Y heavy · RB ranged · RT special · LT block · L-stick CLICK camera adjust (R-stick ↑↓ zooms in/out) · D-pad ↑ ultimate · D-pad ↓ taunt<br>
       <b style="color:#fff">B / SHIFT — DASH &amp; SPRINT</b> — standing still, HOLD to wind up a dash coil (3s cap, crouches); the moment you push a direction it FIRES a dash that way — longer wind-up, farther dash. Already moving, press-and-HOLD for a short dash into a SPRINT that drains the yellow stamina bar (refills when you let go)<br>
       <b style="color:#fff">PAD LB — TAP: TARGET LOCK</b> — lock onto the nearest enemy: you face them, the camera keeps them framed, and sideways movement becomes a strafe. Tap again to release<br>
@@ -175,7 +175,7 @@ export const MESSAGES = {
   'controls.title': 'HOW TO PLAY',
   'controls.close': 'CLOSE',
   'controls.foot.html': 'pick a control — hover, or <b>↑ ↓</b> — for what it does&nbsp;&nbsp;·&nbsp;&nbsp;<b>B / ESC</b> close'
-    + '<br>keyboard P1: <b>WASD</b> move · <b>SPACE</b> jump · <b>F</b> light · <b>G</b> heavy · <b>H</b> block · <b>R</b> ranged · <b>T</b> special · <b>Y</b> ultimate · <b>SHIFT</b> dash · <b>Q</b> strafe-lock · <b>C</b> duck · <b>B</b> taunt',
+    + '<br>keyboard P1: <b>WASD</b> move · <b>SPACE</b> jump · <b>F</b> light · <b>G</b> heavy · <b>H</b> block · <b>R</b> ranged · <b>T</b> special · <b>Y</b> ultimate · <b>SHIFT</b> dash · <b>Q</b> strafe (face the camera) · <b>C</b> duck · <b>B</b> taunt',
   'controls.lstick.name': 'LEFT STICK',
   'controls.lstick.action': 'move',
   'controls.lstick.detail': 'walks your mech around the arena. Press in for camera adjust mode: while held, the right stick will zoom the view in and out, and where you leave it is remembered.',
@@ -210,7 +210,7 @@ export const MESSAGES = {
   'controls.y.detail': 'a slow, committed swing that hits hard and breaks a guard. It leaves you open on a whiff, so it wants a dash or a block to set it up.',
   'controls.rb.name': 'RB',
   'controls.rb.action': 'ranged weapon',
-  'controls.rb.detail': 'fires your mech\'s ranged weapon. Every one of them runs on AMMO — grab the yellow crates — and while LB target lock is held the shots fly at whoever you are locked onto.',
+  'controls.rb.detail': 'fires your mech\'s ranged weapon. Every one of them runs on AMMO — grab the yellow crates — and while you are target-locked (tap LB) the shots fly at the crosshair on whoever you are locked onto.',
   'controls.rt.name': 'RT',
   'controls.rt.action': 'special attack',
   'controls.rt.detail': 'throws your mech\'s signature special attack — the move named on its card. Each one has its own cooldown, so it is something to open with, not a button to lean on.',
@@ -247,6 +247,7 @@ export const MESSAGES = {
   'music.btn': 'music on/off',
 
   // --------------------------------------------------------------------- match
+  'battle.loading': 'LOADING {arena}…',
   'match.round': 'ROUND {n}',
   'match.intro': '{mech}: {quote}',
   'match.fight': 'FIGHT!',

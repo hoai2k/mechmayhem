@@ -1,6 +1,7 @@
 // Arena: builds a themed battleground (sky, lights, ground, destructible
 // buildings, props, ambient particles) and services combat queries.
 import * as THREE from 'three';
+const _padV = new THREE.Vector3(); // spawn-pad / crate-spot probes
 import { DestructibleSystem } from './destructible.js';
 import { Terrain } from './terrain.js';
 import { generateMassing, THEME_MASSING } from './massing.js';
@@ -817,7 +818,40 @@ export class Arena {
     if (lane && (lane.hazard === 'lava' || lane.hazard === 'acid')) return true;
     const patch = this.terrain.onPatch(x, z, 1);
     if (patch && (patch.hazard === 'lava' || patch.hazard === 'acid' || patch.hazard === 'water')) return true;
-    return !!this.terrain.nearBridge(x, z, 1);
+    if (this.terrain.nearBridge(x, z, 1)) return true;
+    // …or INSIDE something. Crates scatter at 28-72 from the origin, which is
+    // exactly the building ring, and this only ever asked about lava and
+    // bridges — measured, one to three of the six crates a round sat inside a
+    // live tower or a solid prop (a beacon you can see through the wall and
+    // walk into the facade for). A building chunk, a bridge slab or a prop
+    // body at crate height is a bad spot.
+    const gy = this.terrain.heightAt(x, z);
+    if (this.propAt(_padV.set(x, gy + 1, z))) return true;
+    return !!this.pointHits(_padV.set(x, gy + 0.8, z));
+  }
+
+  // IS THIS A PLACE A ROBOT CAN STAND UP IN? A spawn pad has to be: not
+  // inside a prop body, not within a fuel tank's blast, not on burning or
+  // bogging ground, not inside a building. `pad` is the room to leave round
+  // the mech (its radius plus a step).
+  padClear(x, z, pad = 4) {
+    const w = this.world;
+    const dd = (ax, az) => {
+      const dx = w ? w.wrapDelta(ax - x) : ax - x, dz = w ? w.wrapDelta(az - z) : az - z;
+      return Math.hypot(dx, dz);
+    };
+    for (const p of this.propBodies) {
+      if (p.alive && dd(p.x, p.z) < p.r + pad) return false;
+    }
+    for (const e of this.explosives) {
+      if (!e.dead && dd(e.x, e.z) < e.r + pad) return false;
+    }
+    const lane = this.terrain.onLane(x, z, pad);
+    if (lane && lane.hazard) return false;
+    const patch = this.terrain.onPatch(x, z, pad);
+    if (patch && patch.hazard) return false;
+    const gy = this.terrain.heightAt(x, z);
+    return !this.pointHits(_padV.set(x, gy + 1, z));
   }
 
   // ---- solid destructible props ----
@@ -1061,7 +1095,7 @@ export class Arena {
     // chain-react other tanks in range a beat later
     for (const o of this.explosives) {
       if (o.dead || o === e) continue;
-      const dx = o.x - e.x, dz = o.z - e.z;
+      const dx = w.wrapDelta(o.x - e.x), dz = w.wrapDelta(o.z - e.z);
       if (Math.hypot(dx, dz) < e.r * 1.1) w.schedule(rand(0.08, 0.2), () => this.detonateExplosive(o));
     }
   }
@@ -1076,7 +1110,9 @@ export class Arena {
       const contact = e.bodyR;
       let boom = false;
       for (const f of this.world.fighters) {
-        if (!f.alive) continue;
+        // a robot whose controls are locked (the round intro, the victory
+        // pose) did not walk into anything: it was PUT there
+        if (!f.alive || f.controlsLocked) continue;
         const dx = this.world.wrapDelta(f.pos.x - e.x), dz = this.world.wrapDelta(f.pos.z - e.z);
         if (dx * dx + dz * dz < (contact + f.radius) ** 2 && f.pos.y < e.top + 2) { boom = true; break; }
       }
@@ -1209,26 +1245,61 @@ export class Arena {
     }
   }
 
+  // A SPAWN PAD IS VALIDATED, because three placement paths are allowed inside
+  // the clearing: the ring scatter and the gate planner both accept anything
+  // past 16 units, and a gate is nudged ALONG its lane — inward as often as
+  // out — so its posts landed on the ring. Measured: pads 2.9-4.7 units from
+  // torii/temple gate legs, rock arches and antenna towers, fuel tanks 3.5
+  // from a pad (a tank that cooks off on contact, under a mech whose controls
+  // are still locked for the intro). A ring pad slides along its ring until it
+  // is clear; an authored pad is nudged about its own spot. Failing every
+  // try, the pad stays where it was asked — a squeeze beats a hole in the map.
+  settlePad(x, z, ringR = null) {
+    if (this.padClear(x, z)) return [x, z];
+    if (ringR) {
+      const a0 = Math.atan2(z, x);
+      for (let k = 1; k <= 8; k++) {
+        for (const sgn of [1, -1]) {
+          const a = a0 + sgn * k * (5 * Math.PI / 180);
+          const nx = Math.cos(a) * ringR, nz = Math.sin(a) * ringR;
+          if (this.padClear(nx, nz)) return [nx, nz];
+        }
+      }
+    } else {
+      for (const d of [4, 8, 12]) {
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const nx = x + Math.cos(a) * d, nz = z + Math.sin(a) * d;
+          if (this.padClear(nx, nz)) return [nx, nz];
+        }
+      }
+    }
+    return [x, z];
+  }
+
   spawnPoints(n) {
     const pts = [];
-    // authored levels can pin exact spawn points; cycle if fewer than n
+    const r = Math.min(this.bounds * 0.4, 34);
+    const ringPad = (i, count) => {
+      const a = (i / count) * Math.PI * 2 + Math.PI / count;
+      const [x, z] = this.settlePad(Math.cos(a) * r, Math.sin(a) * r, r);
+      return { pos: new THREE.Vector3(x, 0, z), yaw: Math.atan2(-x, -z) };
+    };
+    // authored levels can pin exact spawn points. FEWER PADS THAN FIGHTERS
+    // used to cycle the list, stacking two robots on one pad; the remainder
+    // now comes off the radial ring instead.
     const sp = this.theme.spawns;
     if (sp && sp.length) {
-      for (let i = 0; i < n; i++) {
-        const s = sp[i % sp.length];
-        const yaw = s.yaw ?? Math.atan2(-s.x, -s.z);
-        pts.push({ pos: new THREE.Vector3(s.x, 0, s.z), yaw });
+      for (let i = 0; i < Math.min(n, sp.length); i++) {
+        const s = sp[i];
+        const [x, z] = this.settlePad(s.x, s.z);
+        const yaw = s.yaw ?? Math.atan2(-x, -z);
+        pts.push({ pos: new THREE.Vector3(x, 0, z), yaw });
       }
+      for (let i = sp.length; i < n; i++) pts.push(ringPad(i, n));
       return pts;
     }
-    const r = Math.min(this.bounds * 0.4, 34);
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + Math.PI / n;
-      pts.push({
-        pos: new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r),
-        yaw: Math.atan2(-Math.cos(a), -Math.sin(a)),
-      });
-    }
+    for (let i = 0; i < n; i++) pts.push(ringPad(i, n));
     return pts;
   }
 
@@ -1303,6 +1374,7 @@ export class Arena {
       });
     }
     for (const d of this.destructoAll) d.dispose();
+    this.terrain?.dispose?.();
     this.objects.length = 0;
   }
 }

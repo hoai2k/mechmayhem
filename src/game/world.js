@@ -193,10 +193,13 @@ export class World {
       // the crate sits (and bobs) on the terrain surface
       let x = 0, z = 0, tries = 0;
       do {
-        const a = (i / count) * Math.PI * 2 + rand(-0.4, 0.4);
+        // the bearing widens once the first dozen tries have failed — a slot
+        // whose whole sector is one block would otherwise try the same wall
+        // thirty times
+        const a = (i / count) * Math.PI * 2 + rand(-0.4, 0.4) * (tries < 12 ? 1 : 2.5);
         const r = radius * rand(0.45, 1);
         x = Math.cos(a) * r; z = Math.sin(a) * r;
-      } while (this.arena?.badPickupSpot?.(x, z) && ++tries < 12);
+      } while (this.arena?.badPickupSpot?.(x, z) && ++tries < 30);
       const gy = this.arena?.terrainHeightAt?.(x, z) || 0;
       const pos = new THREE.Vector3(x, gy, z);
       const grp = new THREE.Group();
@@ -400,7 +403,8 @@ export class World {
         tick = 0.4;
         for (const f of this.fighters) {
           if (f === owner || !f.alive) continue;
-          if (f.grounded && f.pos.distanceTo(at) < radius + f.radius) {
+          const fdx = this.wrapDelta(f.pos.x - at.x), fdz = this.wrapDelta(f.pos.z - at.z);
+          if (f.grounded && Math.hypot(fdx, fdz) < radius + f.radius && Math.abs(f.pos.y - at.y) < 4) {
             f.takeHit(dps, owner, { knock: 1, srcPos: at, status: { burn: 6, burnT: 1.5 }, soft: true });
           }
         }

@@ -3,6 +3,7 @@
 // dodging, special/ult usage. Three difficulty tiers.
 import { rand, clamp, angleDiff } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
+import { TUNING } from '../core/tuning.js';
 
 // blockP/dodgeP are PER-SECOND reaction rates (they used to be rolled per
 // FRAME, which made even a veteran block/dodge nearly everything — the #1
@@ -31,10 +32,23 @@ function preferredRange(def) {
   return 5; // brawlers (dart, wave, rocket, feather)
 }
 
+// A BRAWLER IS A MECH, NOT A WEAPON. `preferredRange` says where a GUN wants
+// to stand, and for a long while it was also who the CPU thought it was: a
+// rocket fist reads 13, a shoulder cannon 16, so CPU TITANUS held thirteen
+// units, backed away whenever you got inside eight and never threw a punch —
+// eleven of the seventeen played as the same kiting zoner. These weapons are
+// what a brawler carries for the walk in; the roster may also say so outright
+// with `aiRole: 'brawler' | 'zoner'`.
+const BRAWLER_WEAPONS = new Set(['fist', 'shell', 'shard', 'glitch', 'salvo', 'siege', 'blade', 'wave', 'dart', 'rocket', 'feather']);
+function isBrawler(def, rangedPref) {
+  if (def.aiRole) return def.aiRole === 'brawler';
+  return rangedPref <= 6 || BRAWLER_WEAPONS.has(def.moves.ranged.type);
+}
+
 // self-centered AoE moves only connect up close — gate them by their radius
 // instead of the weapon's preferred range
 const SELF_AOE_SPECIALS = new Set(['groundPound', 'staticField', 'grabThrow']);
-const SELF_AOE_ULTS = new Set(['supernova', 'wildHunt', 'sonicCroak', 'thunderfall', 'absoluteZero', 'fleaCircus']);
+const SELF_AOE_ULTS = new Set(['wildHunt', 'sonicCroak', 'thunderfall', 'absoluteZero', 'fleaCircus']);
 
 export class AIController {
   constructor(fighter, difficulty = 'veteran') {
@@ -46,7 +60,21 @@ export class AIController {
     this.strafeDir = 1;
     this.jumpT = rand(2, 5);
     this.rangedPref = preferredRange(fighter.def);
+    this.brawler = isBrawler(fighter.def, this.rangedPref);
+    this.hold = null;   // {key, t}: a charge attack being held (see below)
     this.thinkNoise = rand(100);
+  }
+
+  nearestCrate() {
+    const f = this.f;
+    let box = null, boxD = Infinity;
+    for (const p of f.world.pickups) {
+      if (!p.active) continue;
+      const bx = f.world.wrapDelta(p.pos.x - f.pos.x), bz = f.world.wrapDelta(p.pos.z - f.pos.z);
+      const d = Math.hypot(bx, bz);
+      if (d < boxD) { box = { bx, bz, d }; boxD = d; }
+    }
+    return box;
   }
 
   update(dt) {
@@ -54,6 +82,7 @@ export class AIController {
     const I = f.intent;
     // clear one-shot intents
     I.jump = I.light = I.heavy = I.special = I.ult = I.dash = I.taunt = false;
+    I.lightHeld = I.heavyHeld = false;
     I.ranged = false;
     I.block = false;
     I.duck = false;
@@ -96,7 +125,11 @@ export class AIController {
 
     // ---- movement ----
     let mx = 0, mz = 0;
-    const melee = this.rangedPref <= 6;
+    // a dry magazine with no crate to be had makes anybody a brawler for now:
+    // the CPU used to keep its zoner spacing and attack with nothing
+    const dry = f.ammoMax !== undefined && f.ammo <= 0;
+    const crate = dry ? this.nearestCrate() : null;
+    const melee = this.brawler || (dry && !crate);
     const wantDist = this.mode === 'engage' && melee ? 2.5 : this.rangedPref;
     if (this.mode === 'approach' || (this.mode === 'engage' && dist > wantDist + 1)) {
       mx = nx; mz = nz;
@@ -110,16 +143,7 @@ export class AIController {
     if (!melee && dist < wantDist * 0.6) { mx = -nx; mz = -nz; }
 
     // dry burst weapon: detour to the nearest ammo crate
-    if (f.ammoMax !== undefined && f.ammo <= 0) {
-      let box = null, boxD = Infinity;
-      for (const p of f.world.pickups) {
-        if (!p.active) continue;
-        const bx = f.world.wrapDelta(p.pos.x - f.pos.x), bz = f.world.wrapDelta(p.pos.z - f.pos.z);
-        const d = Math.hypot(bx, bz);
-        if (d < boxD) { box = { bx, bz, d }; boxD = d; }
-      }
-      if (box && box.d > 2) { mx = box.bx / box.d; mz = box.bz / box.d; }
-    }
+    if (crate && crate.d > 2) { mx = crate.bx / crate.d; mz = crate.bz / crate.d; }
     // empty pouch and no enemy breathing down its neck: swing by a nearby
     // ult fountain (ground-level ones only — see fountains.nearestForAI)
     if (this.d.useUlt && f.ultCharges === 0 && dist > 16 && f.world.fountains) {
@@ -182,6 +206,16 @@ export class AIController {
     this._atkT = (this._atkT || 0) - dt;
     this._fireT = (this._fireT || 0) - dt;
     this._fireCd = (this._fireCd || 0) - dt;
+    // A CHARGE ATTACK IS HELD, then let go. TITANUS' and COLOSSUS' haymakers
+    // and heavies bank damage while the button stays down — and the CPU only
+    // ever tapped, so the two hardest hitters on the roster threw every blow at
+    // its 0.8x floor. Hold for the chosen wind-up, then release (the release
+    // itself is fighter.js' job: it fires when the held flag drops).
+    if (this.hold) {
+      this.hold.t -= dt;
+      if (this.hold.t > 0 && f.state === 'attack') { I[this.hold.key] = true; return; }
+      this.hold = null;
+    }
     if (f.canAct() && !I.block) {
       const uMv = f.def.moves.ult;
       const ultRange = SELF_AOE_ULTS.has(uMv.id) ? (uMv.radius || 12) - 2 : 24;
@@ -194,17 +228,26 @@ export class AIController {
         I.ult = true;
       } else if (f.specialCd <= 0 && dist < spRange && Math.random() < dt * 1.4) {
         I.special = true;
-      } else if (melee || dist < 6) {
-        if (dist < f.def.moves.light.range * f.scale + 1.2 && this._atkT <= 0) {
+      } else if ((melee || dist < 6) && dist < f.def.moves.light.range * f.scale + 1.2) {
+        if (this._atkT <= 0) {
           // a swing beat: sometimes the AI hesitates instead (its "whiff")
           this._atkT = (0.2 + this.d.react * rand(0.9, 1.8)) * this.d.pace;
           if (Math.random() >= this.d.err) {
-            if (Math.random() < 0.25) I.heavy = true;
-            else I.light = true;
+            const heavy = Math.random() < 0.25;
+            if (heavy) I.heavy = true; else I.light = true;
+            const holds = heavy ? f.def.heavyHold : f.def.punchHold;
+            if (holds) {
+              const cap = heavy ? TUNING.melee.heavyHoldCap : TUNING.melee.punchHoldCap;
+              // the harder tiers wind up further; a rookie mostly taps
+              const k = rand(0.15, 0.35 + this.d.aggression * 0.6);
+              this.hold = { key: heavy ? 'heavyHeld' : 'lightHeld', t: k * cap };
+              I[this.hold.key] = true;
+            }
           }
         }
-      } else if (dist < this.rangedPref * 1.7 &&
-                 !(f.ammoMax !== undefined && f.ammo <= 0)) {
+      } else if (dist < this.rangedPref * 1.7 && !dry) {
+        // …and a brawler outside arm's reach shoots on the way in, which is
+        // what the rocket fist and the shoulder cannon are for
         // fire in human-length BURSTS with real pauses between them,
         // not a continuous max-rate hose
         if (this._fireT > 0) {

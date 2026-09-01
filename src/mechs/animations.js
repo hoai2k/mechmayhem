@@ -533,7 +533,7 @@ const CLIPS_RAW = {
   saurionBite: { // heavy: coil deep back onto the haunches, head craned away
     // — then the whole frame SPRINGS forward (heavyDrive) and the jaws snap
     // down through the target
-    dur: 0.9,
+    dur: 0.9, strikeLimb: 'head',
     keys: [
       { t: 0, pose: {} },
       { t: 0.3, ease: 'inOutCubic', pose: { hipsPos: [0, -0.4, -0.12], hipsRot: [-4, 0, 0], torso: [14, 0, 0], head: [-30, 0, 0], thighL: [-10, 0, 0], thighR: [-10, 0, 0], kneeL: [14, 0, 0], kneeR: [14, 0, 0], ankleL: [-6, 0, 0], ankleR: [-6, 0, 0], shoulderL: [-16, 0, -14], shoulderR: [-16, 0, 14], elbowL: [-70, 0, 0], elbowR: [-70, 0, 0], handL: [34, 0, 12], handR: [34, 0, -12] } },
@@ -1379,7 +1379,9 @@ const CLIPS_RAW = {
   // horn tosses: the body sets the line, the neck delivers. hipsRot does the
   // aiming, head/torso do the swing.
   tritoneGore: { // light: a short brutal horn jab, head down and drive
-    dur: 0.62, strikeArm: 'R',
+    // the blow is the HORNS: resolved and aimed on the head (it was
+    // `strikeArm: 'R'`, which on a ceratopsian is the right foreleg)
+    dur: 0.62, strikeLimb: 'head',
     keys: [
       { t: 0, pose: {} },
       { t: 0.16, ease: 'outCubic', pose: { hipsRot: [-5, -12, 0], torso: [-8, -14, 0], head: [-12, -16, 0], shoulderR: [8, 0, 14], shoulderL: [-6, 0, -8] } },
@@ -1392,7 +1394,7 @@ const CLIPS_RAW = {
     events: [{ t: 0.22, type: 'sfx', arg: 'whoosh' }, { t: 0.28, type: 'hit', arg: 0 }],
   },
   tritoneToss: { // heavy: horns dig LOW then rip up and over — the launcher
-    dur: 0.98,
+    dur: 0.98, strikeLimb: 'head',
     keys: [
       { t: 0, pose: {} },
       // set the feet and drop the head — the shovel going in

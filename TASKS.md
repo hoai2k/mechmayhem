@@ -6941,3 +6941,69 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
   code is set, with a real match driven through the menus by a virtual pad
   (measured: exactly one `play` event, and it is an event rather than a page
   view). `tools/scratch/statsshot.mjs` shoots both states of the page.
+
+## The game audit — five areas, one doc, and the bugs it could fix on the spot
+
+- `docs/GAME_AUDIT.md` IS THE REPORT: combat and balance, the AI, animation
+  and rigging, the twelve arenas, menus/HUD/controls, and (secondarily) how
+  the code is factored — every claim verified in code or measured with the
+  repo's own tools, what was fixed listed first, what is left ranked by value
+  for effort with the file it lives in. `docs/audit/arena-overheads.jpg` is
+  all twelve arenas from above and `docs/audit/ui-screens.jpg` the menu
+  screens the flow findings refer to.
+- THE GUARD DID NOT DO WHAT THE GAME SAYS. `wantDuck` refused to crouch
+  while blocking, so the "crouch to block low" counter takeHit promises could
+  never happen and every crouched strike was a free guard-break (the AI
+  ducked on purpose whenever you blocked); the crouch rule also applied to
+  projectiles, so a crouching gunner's gatling slipped under every block;
+  freezing never cleared `blocking`; and an empty tank dropped the guard for
+  ONE frame — the next frame's regen put a sliver back and LT was still down,
+  so it strobed (up two frames in three, two thirds of hits still absorbed).
+  `TUNING.stamina.guardRelock` is the refill a dry guard now waits for.
+- THE CPU PLAYED ELEVEN OF SEVENTEEN AS THE SAME KITING ZONER: `preferredRange`
+  said where a GUN wants to stand and was also who the AI thought it was, so
+  CPU titanus held thirteen units and never punched. Brawlers are classified
+  by mech now (`BRAWLER_WEAPONS`, or roster `aiRole`), a dry magazine with no
+  crate makes anybody close in, and hold attacks are HELD (`intent.*Held` was
+  only ever written by input.js, so CPU titanus/colossus threw every haymaker
+  at the 0.8x floor).
+- EVERY SHIPPED BODY DROPPED HALF ITS HIP ANIMATION. `RigAdapter.sync` copied
+  the virtual hips' y delta onto the bone's local y and nothing else; 63
+  clips key `hipsPos` x/z (a strike's drive, the dash coil, the crouch's
+  seat, the knockdown slide) and all of it was lost on the GLB route.
+  Measured: saurion's kick authored to lunge 0.60 moved the bone 0.09;
+  titanus' taunt sway 0.00. The whole vector goes through world into the
+  bone's parent frame now (bone travel = joint travel), which also fixes the
+  vertical on saurion, whose `tripoRoot` keeps world -z on its local y.
+- A BAKE LOSES WHAT THE RIG FILE DECLARED. gltf.js' prone clamp looked the
+  limp-chain root up in `rigBones` only, so a BAKED mech (no rig file) had no
+  skip-list: fenrir's tail was measured and stood the corpse on it (42% float
+  against the documented 0.8%). And wraith's `limpChains: ['cape0']` lived on
+  the rig file the bake deleted (24.7% against 7.2%). The clamp falls back to
+  the model's bones, the manifest carries wraith's chains, and bake-glb.mjs
+  carries `limpChains`/`tailFloor` over from any rig it removes.
+- THE HEAD IS A STRIKING LIMB. `tritoneGore` was `strikeArm: 'R'` — on a
+  ceratopsian the right FORELEG — so his horn jab resolved and auto-aimed on
+  a foot under his chest. `head` is in hurtbox's part table (swept torso →
+  skull, a hand or foot wins ties in the auto-scan); gore, toss and saurion's
+  bite declare it.
+- ARENA PLACEMENT PUT THINGS WHERE THE PLAYER STANDS: crates inside towers
+  (`badPickupSpot` only knew lava and bridges), spawn pads 3-5 units from
+  gate legs, arches and fuel tanks (a tank cooked off under a robot whose
+  controls were locked for the intro). Pads are validated (`padClear`) and
+  slide along their ring; a locked robot cannot set a tank off; an organic
+  lava lobe keeps its whole outline out of the plaza; respawn distance, fire
+  patches and chain-reactions read the torus; the per-round swap disposes
+  the ground overlay's two 2048^2 textures.
+- THE PRESS THAT CHANGED THE SCREEN WAS BEING RE-READ: key edges live until
+  `endFrame()`, so the Enter that left the title arrived on mech select as a
+  confirm (TITANUS locked, GAME READY armed, and beside a pad a ghost
+  KEYBOARD 1 seat that flipped the match into brawl rules). `setScreen`
+  flushes it. The arena select stays up with a LOADING chip instead of a
+  blank canvas while the level loads; ROBOT SPEED and INFINITE ULTIMATES have
+  their settings rows back; the camera reframes every round; the clock blanks
+  outside the fight; results ignore the KO mash for a beat; a draw-locked
+  match ends after five rounds; a solo player's death ends a gauntlet round.
+- `tools/gaitprobe.mjs` DIES ON A VITE RELOAD: every "Execution context was
+  destroyed" during the audit coincided with a source or `public/` edit
+  landing while its page was up. Run it on a quiet tree.

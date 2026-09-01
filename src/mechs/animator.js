@@ -851,7 +851,10 @@ export class Animator {
         const crossed = clip.loop
           ? this.loopCrossed(prevT % clip.dur, act.t % clip.dur, ev.t)
           : prevT < ev.t && act.t >= ev.t;
-        if (crossed && act.onEvent) act.onEvent(ev.type, ev.arg);
+        // a clip that has been stopped is over: its fade is a blend, not a
+        // playback, and a looping strike/whoosh must not fire once more on
+        // the way out
+        if (crossed && act.onEvent && !act.fadingOut) act.onEvent(ev.type, ev.arg);
       }
 
       // weight envelope

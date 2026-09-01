@@ -61,6 +61,7 @@
 import { chromium } from 'playwright-core';
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'node:url';
 
 const PORT = process.env.PORT || '5175';
 const ROOT = process.cwd();
@@ -144,7 +145,7 @@ function rewriteBoneNames(entry, renames) {
 }
 
 function cleanEntry(text, mechId, opts = {}) {
-  const { renames = {}, jointBones = {} } = opts;
+  const { renames = {}, jointBones = {}, rigExtras = {} } = opts;
   const m = JSON.parse(text);
   const entry0 = m[mechId];
   if (!entry0) throw new Error(`no manifest entry "${mechId}"`);
@@ -154,6 +155,19 @@ function cleanEntry(text, mechId, opts = {}) {
   for (const [k, v] of Object.entries(entry)) {
     if (BAKED_FIELDS.includes(k)) { removed.push(k); continue; }
     clean[k] = v;
+  }
+  // A RIG FILE MAY CARRY GAME FIELDS TOO. `limpChains` and `tailFloor` are
+  // read off the custom rig as well as the manifest (gltf.js resolves
+  // entry.limpChains || customRig.limpChains), and the bake deletes the rig
+  // file: wraith's `limpChains: ['cape0']` lived only there, so his baked
+  // cloak stopped going limp and propped his corpse 25% of his height off
+  // the road. Anything the rig declared and the entry does not is carried
+  // over, so the game reads the same value from the manifest afterwards.
+  for (const k of ['limpChains', 'tailFloor']) {
+    if (rigExtras[k] !== undefined && clean[k] === undefined) {
+      clean[k] = rigExtras[k];
+      moved.push(`${k}: carried over from the rig file`);
+    }
   }
   // Residual overrides: normally none (every bone answers to its joint name),
   // but a joint whose target name was already taken keeps its mapping.
@@ -544,6 +558,25 @@ function extras(a, b) {
 }
 
 // ---- rig-file removal (custom rig) ----
+// The game-side fields a rig module may declare beside its bones (see
+// cleanEntry): read off the module itself, which is the same thing gltf.js
+// reads at runtime, so nothing is re-parsed out of the file's text.
+async function readRigExtras(mechId) {
+  const rigPath = path.join(ROOT, `src/mechs/rigs/${mechId}.rig.js`);
+  if (!fs.existsSync(rigPath)) return {};
+  try {
+    const mod = await import(pathToFileURL(rigPath).href);
+    const rig = Object.values(mod).find((v) => v && Array.isArray(v.bones)) || {};
+    const out = {};
+    if (Array.isArray(rig.limpChains)) out.limpChains = rig.limpChains;
+    if (rig.tailFloor !== undefined) out.tailFloor = rig.tailFloor;
+    return out;
+  } catch (e) {
+    console.warn(`     (could not read rig extras for ${mechId}: ${e.message})`);
+    return {};
+  }
+}
+
 function removeRigFile(mechId) {
   const rigPath = path.join(ROOT, `src/mechs/rigs/${mechId}.rig.js`);
   const idxPath = path.join(ROOT, 'src/mechs/rigs/index.js');
@@ -760,8 +793,9 @@ try {
   console.log(`     ${(buffer.length / 1e6).toFixed(2)} MB · ${report.bones} bones · ${report.mappedJoints}/15 joints mapped · customRig=${report.customRig}`);
 
   // compute the cleaned manifest before mutating anything (for the diff report)
+  const rigExtras = customRig ? await readRigExtras(id) : {};
   const { out: cleanManifest, removed, moved } = cleanEntry(origManifest, id,
-    { renames: report.renames, jointBones: report.jointBones });
+    { renames: report.renames, jointBones: report.jointBones, rigExtras });
 
   console.log('3/5  writing baked GLB + cleaned manifest (temporarily) for fidelity check…');
   // WHAT THIS MECH TOUCHES, kept in memory so undoing it is surgical. The

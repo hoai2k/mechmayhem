@@ -100,15 +100,15 @@ resolved and preloaded while the current round is still being fought.
 | Special | T | Numpad 5 | RT |
 | Ultimate | Y | Numpad 6 | D-pad ↑ |
 | Dash | Shift | Numpad Enter | B (crouch-charged, see below) |
-| Target lock | Q (strafe-lock, hold) | Numpad 7 | LB **tap** (toggle) |
+| Target lock | — (Q = strafe: face the camera while held) | Numpad 7 (strafe) | LB **tap** (toggle) |
 | Sniper scope | — | — | LB **hold** |
 | Duck (hold) | C | Numpad 8 | — (pad crouches on the B coil) |
 | Camera zoom (hold) | — | — | L-stick click + right stick |
 | Taunt | B | Numpad . | D-pad ↓ |
 | Pause | Esc / P | — | Start |
 
-Players 3 and 4 also have keyboard bindings (`,` `.` `/` `M` `N` `'` `Enter`
-`Shift` `J` `K` `;`), though pads are the sane choice past two players.
+Keyboard 2 also has a right-hand cluster for keyboards without a numpad (`,`
+`.` `/` `M` `N` `'` `Enter` `Shift` `J` `K` `;`). Players 3 and 4 need pads.
 
 **Pad B — charged dash.** Hold B to wind up a dash charge (3-second cap).
 Standing still crouches you and winds the coil at full rate; you can also
