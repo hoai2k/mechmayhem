@@ -23,6 +23,7 @@ import {
   setSplitPostFx, SPLIT_POST_MODES,
   SOUND_MASTER, SYNTH_MUSIC_MIX,
   MUSIC_VOL_DEFAULT, MUSIC_VOL_CEIL, SFX_VOL_DEFAULT, SFX_VOL_CEIL, VOL_STEP_FRAC,
+  SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_DEFAULT, setRobotSpeed, setInfiniteUltimates,
 } from '../core/config.js';
 import { t } from '../core/text.js';
 import { GameAudio } from '../core/audio.js';
@@ -228,6 +229,19 @@ export async function bootGame() {
       slide: (d) => setRoundTime(CONFIG.roundTime + d * ROUND_STEP),
     },
     {
+      // ←→ the global pace, 50-200%: what every mech's speed is multiplied by
+      // (TUNING.movement.speedBase is what 100% means). Persisted; the
+      // setter and the label existed for a long while with no row to reach
+      // them from — this and INFINITE ULTIMATES below were `?speed=` and
+      // console-only.
+      label: () => t('settings.robotSpeed', {
+        bar: volBar((CONFIG.robotSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN),
+          (SPEED_DEFAULT - SPEED_MIN) / (SPEED_MAX - SPEED_MIN)),
+        pct: Math.round(CONFIG.robotSpeed * 100),
+      }),
+      slide: (d) => setRobotSpeed(CONFIG.robotSpeed + d * SPEED_STEP),
+    },
+    {
       // ←→ the effects bed, under the 🔊 master. PER SOURCE: recordings and
       // the synth sit at wildly different levels, so this reads and writes
       // whichever one is playing — flip SOUND FX below and the slider jumps
@@ -273,6 +287,13 @@ export async function bootGame() {
         setSplitPostFx(next);
         engine.resetSplitPostWatch();
       },
+    },
+    {
+      // a PLAYER cheat: humans start every round with a full ult pouch. The
+      // CPU never reads it (fighter.js grants it to human-controlled fighters
+      // only), so it is a way to practise the big moves, not a handicap.
+      label: () => t(CONFIG.debugUltimates ? 'settings.infiniteUlts.on' : 'settings.infiniteUlts.off'),
+      fn: () => setInfiniteUltimates(!CONFIG.debugUltimates),
     },
     {
       // work-in-progress mechs (roster `hidden`) join the game roster; the
@@ -465,10 +486,16 @@ export async function bootGame() {
     closeModal(); // a floating settings panel never outlives a screen change
     S.screen?.destroy();
     S.screen = screen;
+    // THE PRESS THAT CHANGED THE SCREEN IS SPENT. Key edges live until
+    // endFrame(), so the Enter that left the title arrived on mech select as
+    // a confirm: the first robot locked, GAME READY armed, and — with a pad
+    // plugged in — a ghost KEYBOARD 1 seat joined that nobody asked for.
+    input.endFrame();
   }
 
   // menu input goes to the settings modal when one is open, else the screen
   function screenUpdate(ev) {
+    if (S.starting) return;   // a battle is loading: the menu is done listening
     // any menu input parks the background prefetcher for a beat (predict.js
     // nudge) — the player flipping through robots gets a quiet machine, and
     // the loading resumes once they settle
@@ -493,6 +520,7 @@ export async function bootGame() {
     startMenuMusic();
     predictor.start();
     setScreen(new TitleScreen(uiRoot, {
+      canStart: () => !S.modal,   // Enter inside SETTINGS / HOW TO PLAY is theirs
       audio, hotButtons,
       onPlay: () => goMechSelect(),
       onFullscreen: toggleFullscreen,
@@ -561,22 +589,26 @@ export async function bootGame() {
 
   // ---------------- battle ----------------
   async function startBattle() {
+    if (S.starting) return;
+    S.starting = true;
     // Somebody got past the title screen. It is the one thing a page view
     // cannot say, and the only event the counter is told about — see
     // core/analytics.js for the whole list of what leaves the browser.
     countPlay();
     // from here every spare cycle belongs to the fight, not to a guess
     predictor.stop();
-    setScreen(null);
-    S.stage?.destroy();
-    S.stage = null;
-    resetScene();
-    S.mode = 'battle';
 
+    // THE MENU STAYS UP WHILE THE ARENA LOADS. The level fetch and the prop
+    // warm-up below can take seconds on a cold cache, and tearing the select
+    // screen and the stage down first left an empty canvas with nothing on
+    // it for the whole wait (and Esc doing nothing). The screen stops
+    // listening (`S.starting`, screenUpdate) and a chip says what is coming.
+    const picked = THEMES_BY_ID[S.themeId];
+    toast(t('battle.loading', { arena: picked.name }));
     // An arena with a hand-built level plays it; everything else is generated
     // from its recipe. Resolved BEFORE the prop warm-up below, since it is the
     // authored level that says which props this city actually places.
-    const theme = await resolveArenaTheme(THEMES_BY_ID[S.themeId]);
+    const theme = await resolveArenaTheme(picked);
     // Warm the prop GLBs THIS arena places — one to three models, not the
     // whole set, so the wait is short and nothing downloads for an arena the
     // player never picked. Never a hard gate: the procedural props always
@@ -586,6 +618,12 @@ export async function bootGame() {
       Promise.all([preloadPropModels(themePropNames(theme)), preloadBuildingModels()]),
       new Promise((r) => setTimeout(r, 8000)),
     ]);
+    setScreen(null);
+    S.stage?.destroy();
+    S.stage = null;
+    resetScene();
+    S.mode = 'battle';
+    S.starting = false;
     // shared world/arena/camera wiring (arenaObjs = everything the arena
     // adds, hidden behind the warm-up's neutral backdrop and revealed
     // fully-warmed later)
@@ -667,7 +705,11 @@ export async function bootGame() {
         predictor.start(S.picks || []);
         setScreen(new ResultsScreen(uiRoot, {
           winner, audio,
-          onRematch: () => { predictor.stop(); setScreen(null); match.begin(); S.mode = 'battle'; },
+          onRematch: () => {
+            predictor.stop(); setScreen(null); match.begin(); S.mode = 'battle';
+            // the results screen hid them; nothing else shows them again
+            if (S.battle?.usesTouch) touchControls?.setVisible(true);
+          },
           onChangeMechs: () => { teardownBattle(); ensureStage(); goMechSelect(); },
           onMenu: () => goTitle(),
         }));
@@ -719,6 +761,16 @@ export async function bootGame() {
         hud.announce(t2.name, true);
       }
       prepareNextArena();                // …the one after this
+      if (round >= 2) {
+        // EVERY round opens looking at the fight. The orbit used to stay
+        // wherever the stick left it while the robots were re-spawned on
+        // fresh pads (a different arena, from round 2), so a round could open
+        // with the camera in your own face — and a keyboard player, who has
+        // no camera stick, stayed like that for the whole round.
+        cameraSys.azInit = false;
+        cameraSys.lookAzOffset = 0;
+        for (const ch of cameraSys.chase) ch.azInit = false;
+      }
       if (round < 2 || !randomIdx.length) return;
       for (const i of randomIdx) {
         const old = fighters[i];
@@ -874,7 +926,10 @@ export async function bootGame() {
 
   function world_update(B, dt) {
     B.world.update(dt);
-    B.hud.update(dt, engine.camera, B.match.state === 'fight' ? B.match.timeLeft : undefined);
+    // outside the fight the clock is BLANK: `undefined` left the element
+    // untouched, so it read 0 through the slow-mo, the victory pose and the
+    // next intro after a TIME UP (and the last number otherwise)
+    B.hud.update(dt, engine.camera, B.match.state === 'fight' ? B.match.timeLeft : Infinity);
   }
 
   engine.onRender = (dtReal) => {

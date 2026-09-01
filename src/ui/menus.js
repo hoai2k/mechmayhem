@@ -173,8 +173,9 @@ export function playNeonBuzz(audio, opacity = 0.25) {
 // an answer. The one thing it must never do is let a refusal cost the player
 // the press, so the screen change never waits on the display change.
 export class TitleScreen {
-  constructor(root, { onPlay, onFullscreen, audio, hotButtons }) {
+  constructor(root, { onPlay, onFullscreen, audio, hotButtons, canStart = null }) {
     this.el = el('div', 'screen fade-in title-screen');
+    this.canStart = canStart;
     // Each WORD of the game name is its own neon tube: alternating colors, and
     // each one flickers on its own clock (style.css). Splitting here rather
     // than hard-coding two spans keeps the effect working for any name the
@@ -229,6 +230,9 @@ export class TitleScreen {
     // and none of them falls through to the polled path for a second opinion.
     this._onKey = (e) => {
       if (this.started) return;
+      // a modal (settings, how-to-play) owns the keyboard while it is open:
+      // Enter on a settings row used to start the game underneath it
+      if (this.canStart && !this.canStart()) return;
       if (!['Enter', 'NumpadEnter', 'Space', 'KeyF', 'Numpad1'].includes(e.code)) return;
       e.preventDefault();
       this.start(true);
@@ -903,8 +907,17 @@ export class MechSelectScreen {
         if (moved) { this.audio?.play('uiMove'); this.refresh(); }
         if (confirm) this.lockIn(pk);
         // unlocked: back LEAVES the match (frees the slot); syncPickers
-        // mutates this.pickers, so bail out of the loop after
-        if (back) { this.removeSlot(pk.slotIdx); return; }
+        // mutates this.pickers, so bail out of the loop after. A LONE
+        // keyboard or touch seat backing out means "back to the title" —
+        // freeing the only seat left a picker-less roster with nobody to
+        // press anything (right for a four-pad table, wrong for the solo
+        // default)
+        if (back) {
+          if (this.pickers.length === 1 && !String(pk.device).startsWith('pad')) {
+            this.audio?.play('uiBack'); this.onBack(); return;
+          }
+          this.removeSlot(pk.slotIdx); return;
+        }
       } else {
         // colors cycle BOTH ways: right/X steps forward, left steps back
         if (alt || left || right) {
@@ -1246,8 +1259,12 @@ export class ResultsScreen {
       { t: t('results.menu.mainMenu'), fn: onMenu },
     ]));
     root.appendChild(this.el);
+    this._t0 = performance.now();
   }
   update(ev) {
+    // the buttons a player was mashing at the KO are the confirm keys, and
+    // item 0 is REMATCH: nothing is accepted for the first beat
+    if (ev?.confirm && performance.now() - this._t0 < 600) ev = { ...ev, confirm: false };
     this.list.nav(ev);
   }
   destroy() { this.el.remove(); }

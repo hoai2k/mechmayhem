@@ -7,6 +7,10 @@ import { prewarmSummons, clearSpares } from '../combat/specials.js';
 const KO_COLOR = '#ff4d5e';
 const FIGHT_COLOR = '#ffb43c';
 const WINS_NEEDED = 2;
+// A DRAW IS NOT A ROUND. Two timed-out rounds on equal hp% award nobody a
+// win, and there was no end to it — two turtling CPUs could draw forever. Past
+// this many rounds the match is decided on wins, then on hp% at the bell.
+const MAX_ROUNDS = 5;
 // A BRAWL DEATH, in seconds: fade out where you fell, lie gone for a beat,
 // then come back. Long enough to feel like a loss, short enough to stay in a
 // round (the whole cycle is under three seconds).
@@ -211,7 +215,11 @@ export class Match {
         if (this.stateT <= 0) {
           this.victoryPlayed = false;
           this.engine.timeScale = 1;
-          const champ = this.fighters.find((f) => f.wins >= WINS_NEEDED);
+          let champ = this.fighters.find((f) => f.wins >= WINS_NEEDED);
+          if (!champ && this.round >= MAX_ROUNDS) {
+            champ = this.fighters.reduce((a, b) =>
+              (b.wins > a.wins || (b.wins === a.wins && b.hp / b.maxHp > a.hp / a.maxHp)) ? b : a);
+          }
           if (champ) {
             this.state = 'done';
             this.world.audio?.play('stingWin');
@@ -264,7 +272,9 @@ export class Match {
       let d = Infinity;
       for (const o of this.fighters) {
         if (o === f || !o.alive) continue;
-        d = Math.min(d, Math.hypot(o.pos.x - p.pos.x, o.pos.z - p.pos.z));
+        // on the torus, the near image: a robot across the seam is close
+        const w = this.world;
+        d = Math.min(d, Math.hypot(w.wrapDelta(o.pos.x - p.pos.x), w.wrapDelta(o.pos.z - p.pos.z)));
       }
       if (d > bestD) { bestD = d; best = p; }
     }

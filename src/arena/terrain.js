@@ -265,7 +265,11 @@ export class Terrain {
           const rMax = spec.ring?.[1] ?? this.B * 1.05;
           const a = rng.range(0, TAU), rr = rng.range(rMin, rMax);
           const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-          if (hazard && Math.hypot(x, z) < this.clearing + r + 2) continue;
+          // an ORGANIC patch's lobes reach 1.44r from its centre (mkLobes:
+          // reach + s, both up to 0.72r), so the plaza rule is measured against
+          // the outline, not the nominal radius — volcano's lava lakes used to
+          // dip to 37 from the origin against a clearing of 36 (spawn ring 34)
+          if (hazard && Math.hypot(x, z) < this.clearing + r * (1 + 0.45 * org) + 2) continue;
           if (this.onLane(x, z, r * 0.55)) continue;
           if (this.patches.some((p) =>
             Math.hypot(this.wrapD(p.x - x), this.wrapD(p.z - z)) < p.r + r + 7)) continue;
@@ -713,6 +717,18 @@ export class Terrain {
           else w.effects.dustPuff(f.pos, 2, 0x14161a);
         }
       }
+    }
+  }
+
+  // the ground overlay is two 2048^2 canvas textures per arena (~30-40 MB of
+  // VRAM); a per-round arena swap that only disposed geometry leaked them
+  dispose() {
+    const m = this.overlayMat;
+    if (m) {
+      m.map?.dispose();
+      m.emissiveMap?.dispose();
+      m.dispose();
+      this.overlayMat = null;
     }
   }
 
