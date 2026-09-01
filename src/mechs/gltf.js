@@ -1139,9 +1139,14 @@ function buildGlbMech(def, entry, gltf) {
   // The WHOLE subtree under the chain root, not just the `tailN` run: a rig may
   // finish the chain with a differently-named leaf (tritone's `tailTip`), and
   // half a tail in the measurement props the body up exactly as all of it did.
+  // The root is looked up on the CUSTOM RIG first and then on the model's own
+  // bones: a BAKED mech has no rig file any more (fenrir's was folded into
+  // the GLB), and a lookup that only knew rigBones found nothing, measured
+  // the tail after all and stood the body on it — fenrir's knockdown went
+  // from the documented 0.8% float back to 42%.
   const skipBones = new Set();
   for (const rootName of mech.limpChains) {
-    const r = rigBones?.[rootName];
+    const r = rigBones?.[rootName] || bones.find((b) => b.name === rootName);
     if (r) r.traverse((b) => { if (b.name) skipBones.add(b.name); });
   }
   const coreOf = new WeakMap();          // per mesh: is sampled vertex i core?
