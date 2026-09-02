@@ -79,6 +79,8 @@ export const ARENA_PALETTE = [
       { id: 'patch_grass', label: 'Lawn', k: 'patch', kind: 'grass' },
       { id: 'patch_ash', label: 'Ash', k: 'patch', kind: 'ash' },
       { id: 'patch_pave', label: 'Plaza paving ✦new', k: 'patch', kind: 'pave', hint: 'Paved pocket plaza — pure paint, no hazard' },
+      { id: 'patch_void', label: 'Void ✦new', k: 'patch', kind: 'void', glow: 0x53e8ff, hint: 'The drop — a grounded mech over it falls and respawns at a cost' },
+      { id: 'patch_lowgrav', label: 'Grav pad ✦new', k: 'patch', kind: 'lowgrav', glow: 0x62ff9a, hint: 'Low gravity: floaty jumps for anyone on or over it' },
     ],
   },
   {

@@ -7021,6 +7021,68 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
   launches Chromium through `tools/lib/browser.mjs`; and there is a TRAINING
   tile on arena select (`src/game/training.js`, `tools/training.mjs`).
 
+## Arena pass — ice is a rule, the twins split, the plazas painted
+
+The audit's §4 arena list, taken in order (docs/GAME_AUDIT.md 4.3, items
+1-6). Data plus one rule each; the design systems and the level editor pick
+the new patch kinds up from the theme lists with no edit.
+
+- ICE IS A RULE (`terrain.js` KINDS.ice / PATCH_HAZ.ice = 'ice'): a lane or
+  a lake of it sets `Fighter._grip` to 0.25 (restated every frame, damped back
+  to 1 off the edge) and `applyPhysics` scales its steering gain and the
+  dash's speed bleed by it. Measured with `node tools/scratch/icegrip.mjs`
+  (titanus, synthetic sheet vs bare ground, walk cap 20.7): stopping distance
+  2.09 -> 8.82 units (0.42 -> 1.67 s), a right-angle turn 0.22 -> 0.85 s to
+  come round, a dash tap carries 8.2 -> 19.6. Frozen's lakes and river are the
+  same patches/lanes as before, now hazards — so they keep out of the spawn
+  plaza like every other hazard, and nothing is parked on them.
+- PLAZA RINGS on all twelve (`plaza: true` on foundry, harbor, scrapyard,
+  quarry, volcano, frozen, jungle — the accent-colour spawn ring).
+- SKY TERRACE HAS ITS DROP: `void` patches (3, r 7-10, painted as a hole in
+  the roof deck with a lit rim). A grounded fighter over one FALLS
+  (`Fighter.voidFall`: controls off, ground clamp off, nothing he holds steers
+  it) and after 0.6 s or 20 units `voidRespawn` puts him on the spawn pad
+  furthest from everyone still up (`Arena.respawnSpot`, which the brawl
+  respawn in match.js now shares) at 15% max hp with 1.2 s of iframes and the
+  respawn ring. The skybridges are placed to SPAN the holes (buildBridges,
+  half its tries), so a blown-out segment drops you onto exactly what it was
+  bridging — and the deck platforms keep back `R + 9` from a hole so the span
+  has somewhere to land (seed 7: one of the two skybridges is over a void).
+  `node tools/scratch/voidfall.mjs`: fell 0.60 s to y -5.9, hp 1250
+  -> 1062.5 (15.0%), landed on the pad the enemy was not on, 0.0 off centre.
+- ORBITAL HAS GRAV PADS: `lowgrav` patches (3, r 8-11, a lit deck plate with
+  a dashed inner ring) set `_gravMul` 0.45 and `_jumpMul` 1.3 for anyone on
+  OR OVER one (`Fighter.jumpSpeed()` is now the one place a jump's launch
+  speed is stated). And a `cryoTank` blast freezes what it catches for 1 s on
+  top of the burn (`detonateExplosive` reads the tank's prop name off the
+  registered explosive). `node tools/scratch/lowgrav.mjs`: titanus' jump apex
+  2.83 -> 10.92, hang 0.78 -> 2.37 s; cryo blast -> state frozen 0.98 s.
+- MID RING FILLED on foundry / harbor / scrapyard: `buildings.count` 12 on all
+  three — and the planner's site cap raised 30 -> 36 in arena.js, because
+  foundry's old 10 already hit 30 and the count alone changed nothing (NOTE
+  the cap is global: uptown, and neon's GENERATED roll, go 30 -> 36 sites with
+  it; one number to put back if that is unwanted).
+  Buildings placed (arenabake objects minus props and terrain): foundry 30 ->
+  36, harbor 28 -> 36, scrapyard 26 -> 36; instanced chunks (x9 wrap ghosts)
+  15750 / 11907 / 11385 -> 17838 / 17190 / 15705, i.e. ~2000 live per cell
+  against the 3600 purse. Harbor: ONE organic basin (r 20-24, `organic: 0.8`,
+  ringed to 72-100 so its lobes clear the plaza rule) instead of two stamped
+  discs, container stacks in nests of 3-5, and `tintLerp: 0.4`.
+- FROZEN LEGIBILITY: snowDrift tints 0xe8f2fa -> 0xa8bccc family (a drift is
+  not a light source — the audit's 0xc8d8e4 was tried and still bloomed, a
+  rounded lump facing the 1.4 sun at 0.83 luma being over the 0.92 bloom
+  line); ice lakes and the river get a slate shore (`#243a4e`, 0.18r / 1.3W)
+  so they read against snow. Judged with `tools/scratch/clipshot.mjs`, the
+  overhead at 1920 wide cut into quadrants.
+- `buildings.tintLerp` (default 0.68, the old constant) — 0.4 on scrapyard
+  and harbor so the rust and corrugation keep their colour from above.
+- Editor: `void` / `lowgrav` in the palette (arenapalette.js) and the proxy
+  colour table; a palette entry's `glow` now lands on the placed patch.
+- Checks: `npx vite build`, `npm run check` (27 tests), `node
+  tools/arenabake.mjs` all 12 OK, soaks on skyterrace / frozen / orbital
+  clean. NOTE a `lowgrav` patch is ONE disc (`mkLobes`), and the overlay's
+  `inner` lobe used to assume a second one — the first orbital build threw in
+  buildOverlay; guarded now.
 ## The mech diet — every model baked, half the triangles, a quarter of the texture memory
 
 The owner uploaded `public/models/opt/`, gltfpack output, and asked whether the

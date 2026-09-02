@@ -25,7 +25,7 @@
 // Solid features are ghost-cloned into the 8 neighbor cells (like props);
 // the overlay tiles for free because its texture repeats at the cell period.
 import * as THREE from 'three';
-import { TAU, clamp, rand } from '../core/utils.js';
+import { TAU, clamp, rand, damp } from '../core/utils.js';
 
 const _v = new THREE.Vector3();
 const _c = new THREE.Color();
@@ -42,7 +42,7 @@ const KINDS = {
   water:   { hazard: 'water', minR: 0 },
   canal:   { hazard: 'water', minR: 0 },
   oil:     { hazard: 'oil',   minR: 0 },
-  ice:     { hazard: null,    minR: 20 },
+  ice:     { hazard: 'ice',   minR: 20 },   // low grip (Fighter._grip)
   crystal: { hazard: null,    minR: 20 },
   sand:    { hazard: null,    minR: 20 },
   stripe:  { hazard: null,    minR: 16 },
@@ -53,11 +53,21 @@ const KINDS = {
 // patch kinds → live hazard (same behaviors as lanes)
 // `pave` is a paved pocket plaza — pure paint, no hazard: the design systems
 // (arena/designs/) use it to open designed squares in a dense board
+// ICE IS A RULE, not paint: a lane or a lake of it cuts the grip under a
+// standing fighter to ICE_GRIP (Fighter._grip, read in applyPhysics — the
+// steering gain, so momentum carries, the stick barely bites and a dash slides
+// on). `void` is SKY TERRACE's drop: a grounded fighter over it FALLS
+// (Fighter.voidFall) and comes back on a spawn pad at a cost. `lowgrav` is
+// ORBITAL's grav pad: gravity x LOWGRAV_G and jump x LOWGRAV_JUMP for anyone
+// on or OVER it. All three are hazards as far as placement is concerned —
+// kept out of the spawn plaza, nothing built or parked on them — and one rule
+// each in updateHazards.
 const PATCH_HAZ = {
   water: 'water', lake: 'water', lava: 'lava', acid: 'acid',
-  oil: 'oil', mud: 'mud', ice: null, sand: null, grass: null, ash: null,
-  pave: null,
+  oil: 'oil', mud: 'mud', ice: 'ice', sand: null, grass: null, ash: null,
+  pave: null, void: 'void', lowgrav: 'lowgrav',
 };
+const ICE_GRIP = 0.25, LOWGRAV_G = 0.45, LOWGRAV_JUMP = 1.3;
 
 const hex = (c) => '#' + new THREE.Color(c).getHexString();
 
@@ -128,18 +138,16 @@ export class Terrain {
   // you from nowhere. So a patch carries `lobes` — offset sub-discs — and
   // BOTH the paint and this containment test are the union of them.
   onPatch(x, z, margin = 0) {
-    for (const p of this.patches) {
-      const dx = this.wrapD(x - p.x), dz = this.wrapD(z - p.z);
-      if (Math.hypot(dx, dz) > p.r * 1.5 + margin) continue;    // broad phase
-      if (!p.lobes) {
-        if (Math.hypot(dx, dz) < p.r + margin) return p;
-        continue;
-      }
-      for (const lb of p.lobes) {
-        if (Math.hypot(dx - lb.dx, dz - lb.dz) < p.r * lb.s + margin) return p;
-      }
-    }
+    for (const p of this.patches) if (this.inPatch(p, x, z, margin)) return p;
     return null;
+  }
+
+  // is (x,z) inside THIS patch, widened by margin — the lobe union
+  inPatch(p, x, z, margin = 0) {
+    const dx = this.wrapD(x - p.x), dz = this.wrapD(z - p.z);
+    if (Math.hypot(dx, dz) > p.r * 1.5 + margin) return false;    // broad phase
+    if (!p.lobes) return Math.hypot(dx, dz) < p.r + margin;
+    return p.lobes.some((lb) => Math.hypot(dx - lb.dx, dz - lb.dz) < p.r * lb.s + margin);
   }
 
   // viaduct-local coords: along the deck's axis (folded to one cell) and
@@ -228,6 +236,8 @@ export class Terrain {
       // driven by the patch's own seeded lobes so paint and hazard agree.
       const org = spec.organic ?? 0;
       const mkLobes = (r) => {
+        // a grav pad is a deck plate: one disc, and the rule matches the paint
+        if (spec.kind === 'lowgrav') return [{ dx: 0, dz: 0, s: 1 }];
         if (!org) {
           return [
             { dx: 0, dz: 0, s: 1 },
@@ -340,7 +350,10 @@ export class Terrain {
         const r = rng.range(this.clearing + R + 3, this.B * 0.95);
         const x = Math.cos(a) * r, z = Math.sin(a) * r;
         if (this.onLane(x, z, R * 0.7)) continue;
-        if (this.onPatch(x, z, R * 0.8)) continue;
+        // …and a HOLE keeps the platforms back far enough to bridge: a span
+        // over a void is its diameter plus two ramps, and a deck skirting the
+        // rim at the ordinary margin sits exactly where the ramp has to land
+        if (this.patches.some((q) => this.inPatch(q, x, z, q.hazard === 'void' ? R + 9 : R * 0.8))) continue;
         if (this.viaduct && Math.abs(this.vLocal(x, z).perp) < this.viaduct.w / 2 + R * 0.7) continue;
         if (this.hills.some((o) => Math.hypot(o.x - x, o.z - z) < o.R + R + 8)) continue;
         this.hills.push({ x, z, R, Rtop, H: h });
@@ -397,10 +410,20 @@ export class Terrain {
     // span streams first, roads second
     const wet = this.lanes.filter((l) => l.hazard || l.kind === 'sand' || l.kind === 'ice');
     const cands = wet.length ? wet : this.lanes;
+    const holes = this.patches.filter((q) => q.hazard === 'void');
     for (let i = 0; i < count; i++) {
       for (let tries = 0; tries < 30; tries++) {
-        let x, z, axis, flatNeed = 9;
-        if (cands.length) {
+        let x, z, axis, flatNeed = 9, over = null;
+        if (holes.length && tries < 15) {
+          // SKY TERRACE: the skybridge SPANS A DROP where there is one to
+          // span — it is the dry route over the void, and a blown-out segment
+          // drops you onto exactly what it was bridging. Half the tries go to
+          // the hole; a hole boxed in by deck platforms gets a walkway elsewhere.
+          const q = holes[i % holes.length];
+          x = q.x; z = q.z; over = q;
+          axis = tries % 2 ? 'x' : 'z';   // both ways, since a platform may sit on one
+          flatNeed = Math.ceil(q.r * 2.2) + 4;
+        } else if (cands.length) {
           const lane = cands[i % cands.length];
           const s = (rng.chance(0.5) ? 1 : -1) * rng.range(this.clearing + 10, this.B * 0.85);
           const c = this.laneCenter(lane, s);
@@ -420,10 +443,20 @@ export class Terrain {
         const aC = axis === 'x' ? x : z, pC = axis === 'x' ? z : x;
         if (Math.abs(aC) + halfSpan > this.P / 2 - 4 || Math.abs(pC) + w > this.P / 2 - 4) continue;
         if (this.bridges.some((o) => Math.hypot(o.x - x, o.z - z) < 30)) continue;
-        if (this.hills.some((o) => Math.hypot(o.x - x, o.z - z) < o.R + len / 2)) continue;
-        if (this.onPatch(x, z, len / 2)) continue;
+        // a span over a hole has deck platforms all round it by construction
+        // (they were placed to skirt the patch), so it is tested against its
+        // own footprint rather than a circle the length of the bridge
+        const hillHit = (o) => {
+          if (!over) return Math.hypot(o.x - x, o.z - z) < o.R + len / 2;
+          const dx = o.x - x, dz = o.z - z;
+          const along = axis === 'x' ? dx : dz, perp = axis === 'x' ? dz : dx;
+          return Math.abs(along) < len / 2 + o.R && Math.abs(perp) < w / 2 + o.R;
+        };
+        if (this.hills.some(hillHit)) continue;
+        if (this.patches.some((q) => q !== over && this.inPatch(q, x, z, len / 2))) continue;
         if (this.viaduct && Math.abs(this.vLocal(x, z).perp) < this.viaduct.w / 2 + len / 2) continue;
         this.addBridge(x, z, axis, flatNeed);
+        if (over) holes.splice(holes.indexOf(over), 1);
         break;
       }
     }
@@ -682,14 +715,22 @@ export class Terrain {
     const w = this.arena.world;
     if (!w) return;
     for (const f of w.fighters) {
-      if (!f.alive || !f.grounded || f.pos.y > 0.5) continue;
-      const lane = this.onLane(f.pos.x, f.pos.z, -0.4);
-      let hazard = lane?.hazard;
-      if (!hazard) {
-        const patch = this.onPatch(f.pos.x, f.pos.z, -0.4);
-        hazard = patch?.hazard;
-      }
-      if (!hazard) continue;
+      if (!f.alive) continue;
+      const hazard = this.onLane(f.pos.x, f.pos.z, -0.4)?.hazard
+        || this.onPatch(f.pos.x, f.pos.z, -0.4)?.hazard;
+      // THE SURFACE FIELDS ARE RESTATED EVERY FRAME, at any height, so leaving
+      // a pad is the same code as never having stood on one. Low gravity
+      // holds OVER the pad as well as on it — the jump is the point; grip only
+      // means anything to a body that is standing, and it DECAYS back rather
+      // than snapping, so a robot sliding off a lake carries the skate a few
+      // frames onto the bank.
+      const low = hazard === 'lowgrav';
+      f._gravMul = low ? LOWGRAV_G : 1;
+      f._jumpMul = low ? LOWGRAV_JUMP : 1;
+      const grip = hazard === 'ice' && f.grounded ? ICE_GRIP : 1;
+      f._grip = grip < (f._grip ?? 1) ? grip : damp(f._grip ?? 1, grip, 6, dt);
+      if (!f.grounded || f.pos.y > 0.5 || !hazard || hazard === 'ice' || low) continue;
+      if (hazard === 'void') { f.voidFall?.(); continue; }
       if (hazard === 'lava' || hazard === 'acid') {
         const acid = hazard === 'acid';
         f._lavaT = (f._lavaT ?? 0) - dt;
@@ -763,6 +804,14 @@ export class Terrain {
           } else if (p.hazard === 'water' && Math.random() < 0.25) {
             w.effects.glows.emit(x, 0.15, z, 0, rand(0.2, 0.6), 0,
               { life: rand(0.6, 1.2), size: rand(0.2, 0.4), color: 0x9fd8e8, alpha: 0.5 });
+          } else if (p.hazard === 'lowgrav' && Math.random() < 0.4) {
+            // things drift UP off a grav pad: slow motes, the visible tell
+            w.effects.glows.emit(x, rand(0.2, 1), z, rand(-0.3, 0.3), rand(1.2, 2.6), rand(-0.3, 0.3),
+              { life: rand(1.6, 2.8), size: rand(0.25, 0.5), color: 0x8ff6ff, alpha: 0.6, drag: 0.2 });
+          } else if (p.hazard === 'void' && Math.random() < 0.3) {
+            // cloud deck curling up out of the drop
+            w.effects.smoke.emit(x, 0.2, z, rand(-0.4, 0.4), rand(0.6, 1.4), rand(-0.4, 0.4),
+              { life: rand(1.5, 2.5), size: rand(1.5, 3), color: 0xc8d4e0, alpha: 0.25, grow: 1.5 });
           }
         }
       }
@@ -1142,8 +1191,11 @@ export class Terrain {
           strokeLane(ctx, l, W * 0.2, '#4a3a22', 0.4, { dash: [1.4, 3] });
           break;
         case 'ice':
-          strokeLane(ctx, l, W, '#bfe2f2', 0.62);
-          strokeLane(ctx, l, W * 0.55, '#e6f6ff', 0.5);
+          // dark banks first (see the lake note below): a frozen river on snow
+          // is invisible without its shore
+          strokeLane(ctx, l, W * 1.3, '#243a4e', 0.7);
+          strokeLane(ctx, l, W, '#9cc8e0', 0.85);
+          strokeLane(ctx, l, W * 0.55, '#d4ecf8', 0.5);
           if (ectx) strokeLane(ectx, l, W * 0.4, '#1c3844', 1, { dash: [5, 4] });
           break;
         case 'crystal':
@@ -1213,7 +1265,8 @@ export class Terrain {
         { dx: rng.range(-0.3, 0.3) * p.r, dz: rng.range(-0.3, 0.3) * p.r, s: rng.range(0.55, 0.75) },
         { dx: rng.range(-0.35, 0.35) * p.r, dz: rng.range(-0.35, 0.35) * p.r, s: rng.range(0.5, 0.7) },
       ];
-      const inner = [{ dx: lobes[1].dx * 0.5, dz: lobes[1].dz * 0.5, s: 1 }];
+      // (a one-disc patch — a grav pad — has no second lobe to lean on)
+      const inner = [lobes[1] ? { dx: lobes[1].dx * 0.5, dz: lobes[1].dz * 0.5, s: 1 } : { dx: 0, dz: 0, s: 1 }];
       const base = p.color ? hex(p.color) : null;
       switch (p.kind) {
         case 'pave': {
@@ -1257,10 +1310,40 @@ export class Terrain {
           fillPatch(ctx, p, p.r * 0.55, '#241809', 0.75, inner);
           break;
         case 'ice':
-          fillPatch(ctx, p, p.r, base || '#bfe2f2', 0.62, lobes);
-          fillPatch(ctx, p, p.r * 0.6, '#e6f6ff', 0.5, inner);
-          if (p.glow) fillPatch(ectx, p, p.r * 0.5, hex(p.glow), 0.35, inner);
+          // A LAKE READS AGAINST SNOW BY ITS RIM: the sheet is pale, so with
+          // a pale bank it was one more white disc on a white ground (the
+          // audit's frozen overhead). A slate shore first, then the ice.
+          fillPatch(ctx, p, p.r * 1.18, '#243a4e', 0.8, lobes);
+          fillPatch(ctx, p, p.r * 0.9, base || '#9cc8e0', 0.9, lobes);
+          fillPatch(ctx, p, p.r * 0.55, '#d4ecf8', 0.5, inner);
+          if (p.glow) fillPatch(ectx, p, p.r * 0.45, hex(p.glow), 0.25, inner);
           break;
+        case 'void':
+          // SKY TERRACE'S DROP: a hole in the roof deck with the cloud deck
+          // showing through — near-black, a thin lit rim so the edge reads
+          // from the chase camera, and no bank, because it is not a puddle
+          fillPatch(ctx, p, p.r * 1.06, '#0a0d14', 1, lobes);
+          fillPatch(ctx, p, p.r * 0.7, base || '#101a2c', 1, inner);
+          fillPatch(ctx, p, p.r * 0.35, '#1c2e4a', 0.7, inner);
+          if (p.glow) {   // the rim is the glow shape minus the hole itself
+            fillPatch(ectx, p, p.r * 1.08, hex(p.glow), 0.7, lobes);
+            fillPatch(ectx, p, p.r * 0.98, '#000000', 1, lobes);
+          }
+          break;
+        case 'lowgrav': {
+          // ORBITAL'S GRAV PAD: a lit deck plate — a disc of cool paint with
+          // a glowing rim and a dashed inner ring, the same language as the
+          // deck platforms' edge strips. Geometric on purpose; it is machinery.
+          const disc = [{ dx: 0, dz: 0, s: 1 }];
+          fillPatch(ctx, p, p.r, base || '#1e2a3c', 0.85, disc);
+          strokePatch(ctx, p, p.r * 0.96, 0.5, '#8ff6ff', 0.6);
+          strokePatch(ctx, p, p.r * 0.55, 0.35, '#8ff6ff', 0.35, [1.5, 1.5]);
+          if (p.glow) {
+            strokePatch(ectx, p, p.r * 0.96, 0.5, hex(p.glow), 0.9);
+            strokePatch(ectx, p, p.r * 0.55, 0.3, hex(p.glow), 0.5, [1.5, 1.5]);
+          }
+          break;
+        }
         case 'sand':
           fillPatch(ctx, p, p.r * 1.12, '#00000030', 1, lobes);
           fillPatch(ctx, p, p.r, base || '#8a704c', 0.55, lobes);

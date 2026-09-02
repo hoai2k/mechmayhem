@@ -94,6 +94,10 @@ const AIM_DRIVER = {
   head: 'torso',
 };
 const GRAVITY = 34;
+// THE DROP (sky terrace's `void` patches, terrain.updateHazards -> voidFall):
+// how long he falls before he is put back, how far down ends it early, what
+// it costs and how long he is untouchable on the pad
+const VOID_FALL_T = 0.6, VOID_FALL_DEPTH = 20, VOID_FALL_COST = 0.15, VOID_FALL_IFRAMES = 1.2;
 // (ultimates are fountain-fed now — see combat/fountains.js. The old
 // damage-drip meter constants ULT_RATE / BLOCK_ULT_DIV are gone with it.)
 // ---- GAMEPLAY DIALS: all of these live in core/tuning.js, which is the file
@@ -161,6 +165,7 @@ const SOFT_FLINCH_CHANCE = TUNING.melee.softFlinchChance;
 const DASH_SPEED_MULT = TUNING.dash.speedMult;
 const DASH_CHARGE_BOOST = TUNING.dash.chargeBoost;
 const DASH_COOLDOWN = TUNING.dash.cooldown;
+const KNOCKDOWN_IFRAMES = 0.3;   // no re-launch off the floor for this long
 const ESCAPE_JUMP_MULT = 2.6;    // knockdown escape spring: ground speed x this
 const ESCAPE_JUMP_VY = 13;
 // ---- ROLLOVER (roster `rollover` — CRANKY) ----
@@ -200,7 +205,8 @@ const WEIGHT_DMG_BASE = 0.7;     // attacker mass lean at weightless (w=0)...
 const WEIGHT_DMG_GAIN = 0.6;     // ...rising to BASE+GAIN for a max-weight bruiser
 const IMPACT_FLOOR = 6;          // no damage bonus below this wallop
 const IMPACT_DMG_RATE = 0.05;    // +5% damage per unit of wallop past the floor
-const IMPACT_DMG_CAP = 1.1;      // capped at +110% on a full-speed collision
+const IMPACT_DMG_CAP = 0.5;      // capped at +50% on a full-speed collision (was +110%:
+                                 // a target walking into a standing jab ate double)
 const IMPACT_KNOCK_RATE = 0.07;  // knockback grows a little faster than damage
 const IMPACT_KNOCK_CAP = 1.6;
 // KNOCKDOWN: the shove velocity the target eats = closing speed × (attacker mass
@@ -208,8 +214,24 @@ const IMPACT_KNOCK_CAP = 1.6;
 // (or even at a fast walk) but NEVER a heavy, however fast it runs; a heavy
 // floors a light almost by leaning on it. Below CLOSING_MIN nothing floors, so
 // standing jab-trades and gentle jostling never knock anyone down.
-const CLOSING_MIN = 5;           // real forward motion required before any floor
-const KNOCKDOWN_KICK = 9.5;      // shove velocity (u/s) that puts a target down
+// THE NUMBERS ARE SET AGAINST WALK SPEEDS OF 15-39 u/s. At the old
+// CLOSING_MIN 5 / KNOCKDOWN_KICK 9.5 a WALKING jab floored anything under
+// about twice the attacker's mass — titanus at a walk floored the whole
+// roster, viper at a walk half of it — and neutral was "first moving jab
+// wins the knockdown". Now: walking contact alone never floors (CLOSING_MIN
+// sits above every walk speed's contribution for a same-mass pair), a sprint
+// or a real mass gap does, and a HEAVY FRAME has a shove of its own that
+// needs no run-up at all (HEAVY_SHOVE below), so titanus and colossus still
+// put a scout on the floor from a standstill.
+const CLOSING_MIN = 12;          // real forward motion required before speed counts
+const KNOCKDOWN_KICK = 60;       // shove velocity (u/s) that puts a target down
+// A heavy frame leans on you: mass past HEAVY_MASS adds this much closing
+// speed to every blow, run-up or not. Titanus (mass 2.10) standing still
+// carries 12 into a jab, x7 against viper's 0.30 = 84 -> down; against
+// vulcan (0.97) 26 -> not from a standstill, 71 at a walk -> down. Tempest
+// (0.50) walking into viper reads 55 -> stays up; sprinting, 88 -> down.
+const HEAVY_MASS = 1.5;
+const HEAVY_SHOVE = 20;
 const IMPACT_LAUNCH_MIN = 11;    // launch velocity injected right at the threshold
 const IMPACT_LAUNCH_RATE = 0.4;  // extra launch per u/s of shove beyond it...
 const IMPACT_LAUNCH_MAX = 20;    // ...clamped so a lopsided mass ratio can't orbit
@@ -608,8 +630,54 @@ export class Fighter {
 
   lockFor(t) { this.setState('attack', t); }
 
+  // launch speed of a jump: the mech's own, the buff, and the GROUND's say —
+  // ORBITAL's grav pads (terrain.updateHazards sets _jumpMul, 1 everywhere else)
+  jumpSpeed() {
+    return this.def.stats.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1) * (this._jumpMul ?? 1);
+  }
+
+  // THE DROP. A grounded body over a `void` patch (terrain.updateHazards) lets
+  // go of the floor: controls off, the ground clamp off (applyPhysics), and
+  // VOID_FALL_T later — or VOID_FALL_DEPTH units down, whichever first —
+  // voidRespawn puts him back. Nothing the player holds steers it, and a body
+  // that is not its own master (intro, wall-walking) is not taken.
+  voidFall() {
+    if (this._voidFall || !this.alive || this.controlsLocked || this.climb) return;
+    this._voidFall = { t: 0 };
+    this.grounded = false;
+    this.hovering = false;
+    this.blocking = false;
+    this.endAirRoll();
+    this.setState('normal', 0);
+    this.animator.stop(0.1);
+    this.world.effects.dustPuff(this.pos, 4);
+    this.sfx('jump');
+  }
+
+  // …and back on the pad furthest from everyone still standing (the brawl
+  // respawn's own rule), lighter by VOID_FALL_COST of his hp, with iframes so
+  // the pad cannot be camped — the respawn ring says where he came back.
+  voidRespawn() {
+    const w = this.world;
+    const spot = w.arena.respawnSpot(this, w.fighters);
+    this._voidFall = null;
+    this.pos.copy(spot.pos);
+    this.yaw = spot.yaw;
+    this.group.rotation.y = spot.yaw;
+    this.vel.set(0, 0, 0);
+    this.grounded = true;
+    this._wrap = null;
+    this.hp -= this.maxHp * VOID_FALL_COST;
+    this.iframes = Math.max(this.iframes, VOID_FALL_IFRAMES);
+    w.effects.rings.spawn(this.pos, { from: 4.5, to: 0.6, dur: 0.5, color: 0x8fe8ff, y: 1 });
+    w.effects.impactSparks(this.center(), 0x8fe8ff, 14, 9);
+    w.audio?.play('powerup');
+    this.animator.play('land');
+    if (this.hp <= 0) this.die(this.lastAttacker);
+  }
+
   canAct() {
-    return this.alive && !this.controlsLocked &&
+    return this.alive && !this.controlsLocked && !this._voidFall &&
       (this.state === 'normal' || (this.state === 'attack' && this.stateT <= 0));
   }
 
@@ -1510,7 +1578,8 @@ export class Fighter {
         // floors a same-size rival by charging in, but can't budge a heavy one no
         // matter how fast; a heavy bowls over a light almost by leaning on it.
         let launch = atk.launch || 0;
-        const kick = closing >= CLOSING_MIN ? closing * this.massFactor() / f.massFactor() : 0;
+        const shove = HEAVY_SHOVE * Math.max(0, this.massFactor() - HEAVY_MASS);
+        const kick = ((closing >= CLOSING_MIN ? closing : 0) + shove) * this.massFactor() / f.massFactor();
         if (kick >= KNOCKDOWN_KICK) {
           launch = Math.max(launch,
             Math.min(IMPACT_LAUNCH_MAX, IMPACT_LAUNCH_MIN + (kick - KNOCKDOWN_KICK) * IMPACT_LAUNCH_RATE));
@@ -2659,6 +2728,7 @@ export class Fighter {
 
   die(attacker) {
     this.stopLoopSfx();     // nothing a corpse owns keeps making noise
+    this._voidFall = null;  // a wreck lies where it fell; it does not keep falling
     this.hp = 0;
     this.alive = false;
     this.clearChargeGlow();
@@ -2812,6 +2882,17 @@ export class Fighter {
       return; // no animator update: frozen solid
     }
 
+    // ---- THE DROP: falling through a void patch, nothing else runs ----
+    if (this._voidFall) {
+      const v = this._voidFall;
+      v.t += dt;
+      this.applyPhysics(dt, 0, 0);
+      this.animator.update(dt, { speed: 0, grounded: false, vy: this.vel.y });
+      this.group.rotation.y = this.yaw;
+      if (v.t >= VOID_FALL_T || this.pos.y < -VOID_FALL_DEPTH) this.voidRespawn();
+      return;
+    }
+
     // ---- TOTAL CORRUPTION: engulfed in glitch, servos locked, spasming.
     // The crash runs its full 3s, then every stack clears at once ----
     if (this.state === 'glitched') {
@@ -2877,6 +2958,11 @@ export class Fighter {
         break;
       case 'launched':
         if (this.grounded) {
+          // A BODY THAT HAS JUST HIT THE FLOOR IS NOT A TARGET for a beat:
+          // without it a launcher landed during the 0.75 s knockdown relaunched
+          // him straight off the ground, and the only way out was the escape
+          // jump nobody is told about
+          this.iframes = Math.max(this.iframes, KNOCKDOWN_IFRAMES);
           if (this._onBack) {
             // ROLLOVER: he doesn't sit down, he goes over. Longer on the floor
             // than a normal knockdown — a stranded shell is a real penalty.
@@ -2943,7 +3029,7 @@ export class Fighter {
         this.endHang();
       } else if (I.jump) {
         this.endHang();
-        this.vel.y = this.def.stats.jump * JUMP_MULT;
+        this.vel.y = this.jumpSpeed();
         this.vel.x = h.nx * 4;
         this.vel.z = h.nz * 4;
         this.grounded = false;
@@ -3140,7 +3226,7 @@ export class Fighter {
       if (this._jumpCharge <= 0) {
         this._jumpCharge = 0;
         if (this.grounded && this.alive) {
-          this.vel.y = st.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1);
+          this.vel.y = this.jumpSpeed();
           this.grounded = false;
           this.sfx('jump');
           this.world.effects.dustPuff(this.pos, 10);
@@ -3184,7 +3270,7 @@ export class Fighter {
           // spring-loader: crouch first, launch when the wind-up expires
           if (!this._jumpCharge) this._jumpCharge = st.jumpWindup;
         } else {
-          this.vel.y = st.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1);
+          this.vel.y = this.jumpSpeed();
           this.grounded = false;
           this.sfx('jump');
           this.world.effects.dustPuff(this.pos, 6);
@@ -3196,7 +3282,7 @@ export class Fighter {
         // just let go of a wall: for a beat, a jump still fires in mid-air —
         // that's the release-then-jump climbing rhythm
         this._hangCoyote = 0;
-        this.vel.y = st.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1);
+        this.vel.y = this.jumpSpeed();
         this.sfx('jump');
       } else if (I.jump && !this.grounded && !this.hovering && !this._airRoll &&
                  this.hoverFuel > 0.2) {
@@ -4685,20 +4771,26 @@ export class Fighter {
       // any traction, so momentum carries and steering barely bites
       let control = this.grounded ? 9 : this.hovering ? 6.5 : 3.2;
       if (this.status.slip && this.grounded) control = 1.1;
+      // ICE IS A RULE (terrain.updateHazards -> _grip, 1 everywhere else): the
+      // steering gain scales with the grip, so on a lake momentum carries and
+      // the stick barely bites — a frozen river is glacier's field for everyone
+      control *= this._grip ?? 1;
       this.vel.x = lerp(this.vel.x, ax * speedCap, 1 - Math.exp(-control * dt));
       this.vel.z = lerp(this.vel.z, az * speedCap, 1 - Math.exp(-control * dt));
     } else {
-      const d = Math.max(0, 1 - 2.2 * dt);
+      // …and a dash bleeds speed at the grip too, so it carries on ice
+      const d = Math.max(0, 1 - 2.2 * (this._grip ?? 1) * dt);
       this.vel.x *= d; this.vel.z *= d;
     }
 
-    this.vel.y -= GRAVITY * dt;
+    // ORBITAL's grav pads: gravity x _gravMul on and over the pad (terrain)
+    this.vel.y -= GRAVITY * (this._gravMul ?? 1) * dt;
     this.pos.x += this.vel.x * dt;
     this.pos.y += this.vel.y * dt;
     this.pos.z += this.vel.z * dt;
 
-    // ground
-    if (this.pos.y <= 0) {
+    // ground — none under a body dropping through a void (voidFall)
+    if (this.pos.y <= 0 && !this._voidFall) {
       const fallSpeed = -this.vel.y;
       this.pos.y = 0;
       this.vel.y = 0;
@@ -4850,6 +4942,8 @@ export class Fighter {
     this._rollUp = null;
     this.endAirRoll();     // a round never opens mid-somersault
     this.climb = false;    // …nor halfway up a building
+    this._voidFall = null; // …nor falling through the roof
+    this._grip = 1; this._gravMul = 1; this._jumpMul = 1;
     this._climbTilt = 0;
     this._climbTiltOn = false;
     this._climbCd = 0;

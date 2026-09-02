@@ -79,7 +79,7 @@ export const ROSTER = [
     },
     body: { scale: 1.0, torsoW: 0.85, torsoH: 0.95, headSize: 0.85, armLen: 1.05, legLen: 1.12, hipW: 0.85, bulk: 0.85 },
     restPose: DIGITIGRADE_REST,
-    stats: { hp: 780, speed: 13.5, jump: 15.5, weight: 0.3, armor: 0, blockMult: 0.2 },
+    stats: { hp: 780, speed: 13.5, jump: 15.5, weight: 0.3, armor: 0, blockMult: 0.15 },
     gait: 'sprint', // fastest thing on the roster — it must RUN, not walk quickly
     ui: { power: 6, speed: 10, defense: 2 },
     // signature combat stance (additive over restPose; default carriage)
@@ -285,7 +285,7 @@ export const ROSTER = [
     },
     body: { scale: 1.02, torsoW: 0.85, torsoH: 1.0, headSize: 0.9, armLen: 1.05, legLen: 1.1, hipW: 0.85, bulk: 0.82 },
     restPose: { thighL: [-26, 0, 0], thighR: [-26, 0, 0], kneeL: [49, 0, 0], kneeR: [49, 0, 0], ankleL: [-23, 0, 0], ankleR: [-23, 0, 0] },
-    stats: { hp: 800, speed: 11, jump: 14, weight: 0.35, armor: 0, blockMult: 0.2 },
+    stats: { hp: 800, speed: 11, jump: 14, weight: 0.35, armor: 0, blockMult: 0.15 },
     gait: 'sprint', // a stalker who covers ground in long, low strides
     ui: { power: 8, speed: 7, defense: 2 },
     // signature combat stance (additive over restPose; default carriage)
@@ -307,7 +307,7 @@ export const ROSTER = [
       light: { dmg: [30, 32, 44], knock: [3, 4, 9], range: 3.0 },
       heavy: { dmg: 68, knock: 15, range: 3.4, launch: 7 },
       ranged: { name: 'Night Swarm', type: 'bats', dmg: 26, count: 3, speed: 24, cooldown: 1.5, ammo: 12 },
-      special: { id: 'ghostWalk', name: 'Ghost Protocol', cooldown: 9, dmg: 60, speed: 17, duration: 5 },
+      special: { id: 'ghostWalk', name: 'Ghost Protocol', cooldown: 7, dmg: 60, speed: 17, duration: 5 },
       ult: { id: 'deathSwarm', name: 'DEATH SWARM', dmg: 4, count: 150, duration: 7 },
     },
   },

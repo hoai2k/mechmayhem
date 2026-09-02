@@ -215,6 +215,16 @@ as generation prompts in `docs/ASSET_REQUESTS_ARENA_DESIGN.md`.
 - The `pave` patch kind (terrain.js) is the designed square: crisp paving +
   painted rim, optional accent glow, no hazard. Placeable in the level editor
   too (Ground patches → Plaza paving).
+- Three patch kinds carry a RULE rather than a bog or a burn, each one line in
+  `Terrain.updateHazards` read by `Fighter.applyPhysics`: `ice` (lanes and
+  lakes — grip 0.25, so momentum carries, the stick barely bites and a dash
+  slides on), `void` (sky terrace's drop — a grounded fighter over it falls,
+  controls locked, and comes back on the spawn pad furthest from everyone at
+  15% hp with iframes; the skybridges are placed to SPAN them) and `lowgrav`
+  (orbital's grav pads — gravity ×0.45, jump ×1.3 on and over the plate). All
+  three are hazards to placement — out of the plaza, nothing built or parked
+  on them — and all three pass through the design systems and the editor with
+  no edit, since both pick patch kinds up from the theme list.
 
 ## Sources
 

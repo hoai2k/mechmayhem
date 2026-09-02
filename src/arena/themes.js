@@ -25,9 +25,11 @@
 //              sand, stripe. Lanes tile: centerlines are periodic in the
 //              wrap cell, so a lane exiting one edge re-enters opposite.
 //   patches  — circular ground features: {kind, count, r:[min,max], ring?,
-//              glow?, color?}. kinds: water/lake, lava, acid, oil, mud, ice,
-//              sand, ash, grass. Painted at all 9 wrap offsets (tiling-safe);
-//              hazard kinds are live like hazard lanes. Lakes! Lawns! Slag!
+//              glow?, color?, organic?}. kinds: water/lake, lava, acid, oil,
+//              mud, ice (low grip), sand, ash, grass, pave, void (the drop —
+//              fall in, respawn at a cost), lowgrav (floaty jumps on and over
+//              it). Painted at all 9 wrap offsets (tiling-safe); hazard kinds
+//              are live like hazard lanes. Lakes! Lawns! Slag!
 //   viaduct  — ONE endless raised highway/monorail loop following its own
 //              periodic centerline around the whole cell: {h?, w?, edge?,
 //              color?, amp?}. Walk under it, ride it via two ground-level
@@ -95,7 +97,7 @@ export const THEMES = [
     rim: { color: 0xff6a20, intensity: 1.15, pos: [60, 25, -60] },
     exposure: 1.08,
     ground: { color: 0x322c26, road: false, accent: 0xff5a10 },
-    buildings: { count: 10, tints: [0x7a6450, 0x6a5442, 0x82684e, 0x5e5248], styles: [1, 3], hRange: [4, 7], glow: true },
+    buildings: { count: 12, tints: [0x7a6450, 0x6a5442, 0x82684e, 0x5e5248], styles: [1, 3], hRange: [4, 7], glow: true },
     // the blast furnace anchors the works; molten slag pools + lava runs
     // carve the floor, conveyors and hoists make the mid-field a machine hall
     props: [
@@ -115,7 +117,7 @@ export const THEMES = [
     bounds: 52,
     music: 'battleIndustrial',
     layout: {
-      clearing: 38,
+      clearing: 38, plaza: true,
       lanes: [
         { kind: 'road', style: 'plate', count: 1, width: 6 },
         { kind: 'lava', count: 2, width: 5 },
@@ -174,13 +176,13 @@ export const THEMES = [
     rim: { color: 0x5f8fff, intensity: 0.85, pos: [60, 40, -50] },
     exposure: 1.04,
     ground: { color: 0x363b40, road: false, accent: 0xffb43c },
-    buildings: { count: 8, tints: [0x687480, 0x7a6450, 0x566470, 0x806e58], styles: [3, 1], hRange: [4, 6], glow: true, facadeTex: 'bldg_dock_corrugated' },
+    buildings: { count: 12, tints: [0x687480, 0x7a6450, 0x566470, 0x806e58], styles: [3, 1], hRange: [4, 6], glow: true, facadeTex: 'bldg_dock_corrugated', tintLerp: 0.4 },
     // working port: two open harbor basins with trawlers riding at anchor,
     // container canyons stacked between the plate roads, gantry cranes
     // towering over the outer band (walk between their legs)
     props: [
       { name: 'gantryCrane', ring: [38, 52], count: 2 },
-      { name: 'containerStack', ring: [26, 50], count: 7, clump: { n: [2, 3], spread: 8 } },
+      { name: 'containerStack', ring: [26, 50], count: 6, clump: { n: [3, 5], spread: 9 } },   // container yards
       { name: 'trawler', on: 'water', count: 2 },
       { name: 'buoy', on: 'water', count: 5 },
       { name: 'boatHull', ring: [30, 44], count: 1 },
@@ -195,11 +197,14 @@ export const THEMES = [
     bounds: 60,
     music: 'battleNight',
     layout: {
-      clearing: 38,
+      clearing: 38, plaza: true,
       lanes: [
         { kind: 'road', style: 'plate', count: 2, width: 6.5 },
       ],
-      patches: [{ kind: 'water', count: 2, r: [12, 17] }],   // harbor basins
+      // ONE BIG BASIN instead of two stamped ponds: ragged like a real
+      // shoreline, and ringed out far enough that its lobes (1.36r) clear the
+      // spawn plaza — a waterfront the mid-ring's container yards back onto
+      patches: [{ kind: 'water', count: 1, r: [20, 24], organic: 0.8, ring: [72, 100] }],
       bridges: { count: 1, color: 0x565e66, edge: 0xffb43c },
       clusters: { count: 4, size: [2, 3] },
     },
@@ -234,6 +239,10 @@ export const THEMES = [
     layout: {
       clearing: 36, plaza: true,
       lanes: [{ kind: 'stripe', count: 2, width: 4, glow: 0x53e8ff }],
+      // THE DROP: holes in the roof deck between the platforms. Fall in and
+      // you are back on the far spawn pad, lighter (terrain.js `void`); the
+      // skybridges span them, so the bridge is the dry route
+      patches: [{ kind: 'void', count: 3, r: [7, 10], glow: 0x53e8ff }],
       bridges: { count: 2, color: 0x8ea0b0, edge: 0x53e8ff },   // glass skybridges
       hills: { count: 4, color: 0x6a7480, style: 'deck', edge: 0x53e8ff, hMax: 3.6 },
       clusters: { count: 3, size: [2, 3] },
@@ -248,7 +257,7 @@ export const THEMES = [
     rim: { color: 0xff8c3c, intensity: 0.75, pos: [-60, 30, 50] },
     exposure: 1.02,
     ground: { color: 0x554636, road: false, accent: 0xffb43c },
-    buildings: { count: 7, tints: [0x7a563a, 0x6e5844, 0x82603e, 0x60564a], styles: [1, 3], hRange: [3, 6], glow: false, facadeTex: 'bldg_rust_patchwork' },
+    buildings: { count: 12, tints: [0x7a563a, 0x6e5844, 0x82603e, 0x60564a], styles: [1, 3], hRange: [3, 6], glow: false, facadeTex: 'bldg_rust_patchwork', tintLerp: 0.4 },
     // the mech graveyard: a colossal buried hand marks the boneyard, the
     // crusher still runs, crushed-car towers make scrap canyons, and the
     // ground itself leaks oil and mud
@@ -268,7 +277,7 @@ export const THEMES = [
     bounds: 54,
     music: 'battleIndustrial',
     layout: {
-      clearing: 38,
+      clearing: 38, plaza: true,
       lanes: [
         { kind: 'road', style: 'dirt', count: 2, width: 6 },
         { kind: 'oil', count: 1, width: 4.5 },
@@ -318,7 +327,7 @@ export const THEMES = [
       { kind: 'rockOutcrop', share: 0.1 },
     ],
     layout: {
-      clearing: 38,
+      clearing: 38, plaza: true,
       lanes: [
         { kind: 'road', style: 'dirt', count: 1, width: 5.5, color: 0x2e2740 },
         { kind: 'crystal', count: 2, width: 3.2, glow: 0xb46bff },
@@ -364,7 +373,7 @@ export const THEMES = [
       { kind: 'basaltCliff', share: 0.28 },
     ],
     layout: {
-      clearing: 36,
+      clearing: 36, plaza: true,
       lanes: [
         { kind: 'road', style: 'stone', count: 1, width: 5, color: 0x241a14 },
         { kind: 'lava', count: 3, width: 6.5 },
@@ -420,12 +429,14 @@ export const THEMES = [
       { kind: 'iceTower', share: 0.1 },
     ],
     layout: {
-      clearing: 38,
+      clearing: 38, plaza: true,
       lanes: [
         { kind: 'road', style: 'dirt', count: 1, width: 6, color: 0x5a6c7c },  // plowed track
         { kind: 'ice', count: 1, width: 8, glow: 0x9be8ff },                   // frozen river
       ],
-      patches: [{ kind: 'ice', count: 2, r: [11, 16], glow: 0x9be8ff, organic: 0.9 }],  // frozen lakes
+      // frozen lakes — ICE IS A RULE (low grip), so like every hazard they
+      // keep out of the spawn plaza now
+      patches: [{ kind: 'ice', count: 2, r: [11, 16], glow: 0x9be8ff, organic: 0.9 }],
       bridges: { count: 1, color: 0x788a9a, edge: 0x53c8ff },
       hills: { count: 6, color: 0xc2d4e0, hMax: 6 },            // snow drifts
       clusters: { count: 3, size: [2, 3] },
@@ -505,7 +516,7 @@ export const THEMES = [
     bounds: 54,
     music: 'battleDay',
     layout: {
-      clearing: 36,
+      clearing: 36, plaza: true,
       lanes: [
         { kind: 'road', style: 'stone', count: 1, width: 4.5, color: 0x6e7458 },  // overgrown flagstones
         { kind: 'water', count: 1, width: 7 },                                    // jungle river
@@ -550,6 +561,9 @@ export const THEMES = [
     layout: {
       clearing: 38, plaza: true,
       lanes: [{ kind: 'stripe', count: 2, width: 5, glow: 0x53e8ff }],  // deck traffic lanes
+      // GRAV PADS: the artificial gravity is off over these plates (terrain.js
+      // `lowgrav`) — floaty jumps, long hang, for anyone on or over one
+      patches: [{ kind: 'lowgrav', count: 3, r: [8, 11], glow: 0x62ff9a }],
       viaduct: { h: 7, w: 7, color: 0x3c4450, edge: 0x62ff9a },         // mag-track loop
       bridges: { count: 1, color: 0x3c4450, edge: 0x62ff9a },           // elevated walkway
       hills: { count: 2, color: 0x444c58, style: 'deck', edge: 0x53e8ff, hMax: 3.2 },

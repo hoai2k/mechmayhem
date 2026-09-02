@@ -1808,6 +1808,10 @@ export const ULTS = {
       // no target exists, or the round sweeps it (60s failsafe).
       const SPREAD = 2.0;
       const pinUntil = new Map(); // victim -> venom-pin deadline (first latch)
+      // ONE PIN PER VICTIM PER CAST. The deadline used to be deleted when it
+      // expired, so every later latch pinned again: sixty snakes prowling for
+      // up to a minute could hold a 1v1 victim far past the stated 2.4 s.
+      const pinned = new Set();
       let t = 0;
       w.addUpdater((dt) => {
         t += dt;
@@ -1889,7 +1893,8 @@ export const ULTS = {
                 });
                 w.effects.impactSparks(P.set(s.x, s.y, s.z), 0x5aff2e, 6, 5);
                 if (Math.random() < 0.35) f.sfx('slash');
-                if (!pinUntil.has(prey)) {
+                if (!pinned.has(prey)) {
+                  pinned.add(prey);
                   pinUntil.set(prey, t + (u.paralyze || 2.4));
                   f.sfx('dart');
                 }

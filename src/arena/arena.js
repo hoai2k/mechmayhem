@@ -387,9 +387,13 @@ export class Arena {
     // every site off lanes/hills/bridges and out of the spawn clearing, so
     // fighters always start in an open plaza with clear sight lines
     // tint helper shared by procedural + authored placement (pack facades
-    // carry their own color, so only a whisper of tint survives)
+    // carry their own color, so only a whisper of tint survives — HOW MUCH is
+    // the theme's `buildings.tintLerp`: the default whisper reads near-white
+    // from above on rust and dock corrugation, so scrapyard and harbor keep
+    // more of their own colour)
+    const tintLerp = theme.buildings.tintLerp ?? 0.68;
     const tintFor = (t) => (CONFIG.useTextures && facadeTex)
-      ? new THREE.Color(t).lerp(new THREE.Color(0xffffff), 0.68).getHex() : t;
+      ? new THREE.Color(t).lerp(new THREE.Color(0xffffff), tintLerp).getHex() : t;
     let placedSites = [];   // building sites, for the prop planner to keep off
     if (theme.authored) {
       // authored levels place exact towers from the editor
@@ -439,7 +443,10 @@ export class Arena {
       // reading as "the fog is eating things right in front of me". More
       // buildings, and (in buildingSites) placement that reaches into the
       // seam ring, gives the near-field something to occlude with.
-      const count = Math.min(theme.buildings.count * 2 + 12, 30);
+      // (the cap was 30, which foundry's 10 already hit — the mid-ring fill
+      // on foundry / harbor / scrapyard runs to 36 sites; live chunks per
+      // cell stay well inside the 3600 purse, see the arena pass in TASKS.md)
+      const count = Math.min(theme.buildings.count * 2 + 12, 36);
       const [mNormal, mLandmark] = theme.buildings.massing
         || THEME_MASSING[theme.id]
         || [['tower', 'slab', 'lshape'], ['tower']];
@@ -817,7 +824,7 @@ export class Arena {
     const lane = this.terrain.onLane(x, z, 1);
     if (lane && (lane.hazard === 'lava' || lane.hazard === 'acid')) return true;
     const patch = this.terrain.onPatch(x, z, 1);
-    if (patch && (patch.hazard === 'lava' || patch.hazard === 'acid' || patch.hazard === 'water')) return true;
+    if (patch && (patch.hazard === 'lava' || patch.hazard === 'acid' || patch.hazard === 'water' || patch.hazard === 'void')) return true;
     if (this.terrain.nearBridge(x, z, 1)) return true;
     // …or INSIDE something. Crates scatter at 28-72 from the origin, which is
     // exactly the building ring, and this only ever asked about lava and
@@ -1075,7 +1082,10 @@ export class Arena {
         rand(-1.5, 1.5), rand(3, 7), rand(-1.5, 1.5),
         { life: rand(1.2, 2.4), size: rand(2.5, 4.5), color: 0x2c2620, alpha: 0.5, grow: 2 });
     }
-    // AoE: scorch every fighter caught in the (much wider) blast
+    // AoE: scorch every fighter caught in the (much wider) blast — and a CRYO
+    // TANK (orbital) vents cold with it: everyone in the blast is frozen solid
+    // for a second on top, the same status glacier's beam applies
+    const status = e.name === 'cryoTank' ? { burn: 13, burnT: 3.8, freeze: 1.0 } : { burn: 13, burnT: 3.8 };
     for (const f of w.fighters) {
       if (!f.alive) continue;
       const dx = w.wrapDelta(f.pos.x - e.x), dz = w.wrapDelta(f.pos.z - e.z);
@@ -1083,8 +1093,7 @@ export class Arena {
       if (d < e.r && Math.abs(f.pos.y - pos.y) < e.top + 6) {
         const fall = 1 - d / e.r;
         f.takeHit(95 * Math.max(0.3, fall), null, {
-          knock: 24 * fall, launch: 11 * fall, srcPos: pos, heavy: true,
-          status: { burn: 13, burnT: 3.8 },
+          knock: 24 * fall, launch: 11 * fall, srcPos: pos, heavy: true, status,
         });
       }
     }
@@ -1179,6 +1188,7 @@ export class Arena {
       this.explosives.push({
         group: g, x, z, r: e.r, bodyR: e.bodyR || e.r * 0.32,
         hp: e.hp, top: e.top || 6, dead: false,
+        name: g.name?.startsWith('prop:') ? g.name.slice(5) : null,   // what kind of tank
       });
     }
     if (g.userData.spikes) this.spikes.push({ x, z, r: g.userData.spikes.r });
@@ -1301,6 +1311,26 @@ export class Arena {
     }
     for (let i = 0; i < n; i++) pts.push(ringPad(i, n));
     return pts;
+  }
+
+  // Where a body coming BACK lands: the spawn point furthest from the robots
+  // who are still up. Coming back into the fight you just lost is not a second
+  // chance, it is a second death. The brawl respawn (match.js) and sky
+  // terrace's drop (Fighter.voidRespawn) share it.
+  respawnSpot(f, fighters) {
+    const w = this.world;
+    const pts = this.spawnPoints(Math.max(2, fighters.length));
+    let best = pts[0], bestD = -1;
+    for (const p of pts) {
+      let d = Infinity;
+      for (const o of fighters) {
+        if (o === f || !o.alive) continue;
+        // on the torus, the near image: a robot across the seam is close
+        d = Math.min(d, Math.hypot(w.wrapDelta(o.pos.x - p.pos.x), w.wrapDelta(o.pos.z - p.pos.z)));
+      }
+      if (d > bestD) { bestD = d; best = p; }
+    }
+    return best;
   }
 
   update(dt) {

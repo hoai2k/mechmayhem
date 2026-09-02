@@ -1,11 +1,10 @@
 // Registry of custom rigs — a hand-placed skeleton that REPLACES a GLB's
 // scrambled auto-rig at load (see reskin.js, gltf.js, and the ?rigedit tool).
 // Add a mech here once its rig is authored/tuned.
-import { RHINO_RIG } from './rhino.rig.js';
-
-export const RIGS = {
-  rhino: RHINO_RIG,
-};
+// Every shipped mech is BAKED now (tools/bake-glb.mjs folds the rig into the
+// GLB), so the table is empty; a mech being re-rigged goes back in here while
+// its rig is authored.
+export const RIGS = {};
 
 export function rigFor(id) { return RIGS[id] || null; }
 

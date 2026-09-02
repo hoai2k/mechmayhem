@@ -95,7 +95,14 @@ export const STRUCTURE_KINDS = {
     // same mound silhouette as a rock outcrop, drawn as overlapping rounded
     // lumps rather than boulders or shards
     style: 'drift', mat: 'snow', tex: 'struct_snow_pack',
-    tints: [0xe8f2fa, 0xdcebf6, 0xf2f8ff],
+    // A DRIFT IS NOT A LIGHT SOURCE. Near-white tints on a white pack texture
+    // put the drifts over the bloom threshold (0.92), and from above frozen
+    // was a white ground with white blobs on it (the audit's overhead). The
+    // audit's 0xc8d8e4 was tried first and STILL bloomed — a rounded lump
+    // facing a 1.4 sun at 0.83 luma is over the line — so the family sits at
+    // ~0.7: shadow-blue snow, which the bloom leaves alone and which reads as
+    // a shape against the ground instead of a hole in the picture.
+    tints: [0xa8bccc, 0x9cb2c4, 0xb2c6d4],
     // A DRIFT IS WIDE AND LOW. At the 2-3 floors the other landforms use it
     // came out a two-storey wall of snow, which is a bank, not a pile — the
     // shape was right and the proportion was not.
