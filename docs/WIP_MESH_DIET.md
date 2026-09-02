@@ -41,11 +41,21 @@ Delete this file (fold the result into TASKS.md) when the work lands on main.
   titanus; crops at 2x show no visible difference on decals. Dials: tex 1024,
   mr 512, q85 (mechopt defaults).
 
+## In flight (scratch dir of this session; re-run if lost)
+- `tools/scratch/_dietgate.tmp.sh konga saurion glacier` (gitignored harness):
+  patches manifest urls to public/models/_diet/, runs hurtboxfit + skindebug +
+  groundprobe + poster shots, restores. Baselines: hurtbox konga 88%/1.22,
+  saurion 78%/1.16, glacier see hurt_ship; groundprobe under-floor clips
+  konga 7/19, saurion 6/20, glacier 5/20; skindebug konga 20 findings/~280,
+  saurion 28 findings.
+- nullbot + jerry dry-run bakes re-running alone (a first attempt crashed the
+  browser while three ground probes shared the renderer — never run two
+  browser harnesses at once on SwiftShader).
+
 ## TODO
-1. Texture size decision: poster-route shots (select-screen framing, 1600x900)
-   at 2048/1024/512 for titanus/konga/glacier -> diff + view; pick 1024/512.
-2. Visual + gate check of simplified meshes (public/models/_diet/ via manifest
-   patch): poster shots, skindebug, hurtboxfit, groundprobe.
+1. (done) Texture size decision -> 1024/512.
+2. Read the gate results; if hurtbox containment holds and skin/ground match
+   within noise, the 0.5 ratio stands.
 3. Bake tritone (+ titanus/jerry/nullbot if they pass) with --apply.
 4. `node tools/mechopt.mjs --apply` on the roster; run gates; `node tools/posters.mjs`.
 5. Remove public/models/_texprobe, _diet, tools/scratch/_*.tmp.mjs; update
