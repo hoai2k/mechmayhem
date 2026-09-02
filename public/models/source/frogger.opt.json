@@ -1,0 +1,39 @@
+{
+  "mech": "frogger",
+  "file": "public/models/mech_frogger.glb",
+  "commit": "7b0e6040a79bf447e60a084a6aa17db1f9c8a50a",
+  "appliedAt": "2026-09-02T01:53:27.611Z",
+  "note": "Diet applied by tools/mechopt.mjs on top of the model at `commit`; --restore reads that version back out of git.",
+  "dials": {
+    "ratio": 0.5,
+    "error": 0.02,
+    "tex": 1024,
+    "mr": 512,
+    "quality": 85,
+    "simplified": true
+  },
+  "before": {
+    "bytes": 7315704,
+    "tris": 141098,
+    "verts": 81890,
+    "textures": [
+      "2048x2048",
+      "2048x2048",
+      "2048x2048"
+    ],
+    "vram": 67092087
+  },
+  "after": {
+    "bytes": 3216548,
+    "tris": 70546,
+    "verts": 43586,
+    "textures": [
+      "512x512",
+      "1024x1024",
+      "1024x1024"
+    ],
+    "vram": 12579766
+  },
+  "shapeDrift": 0.0004007221104220804,
+  "simplifyError": 0.00161925598513335
+}

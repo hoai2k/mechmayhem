@@ -1,0 +1,39 @@
+{
+  "mech": "jerry",
+  "file": "public/models/mech_jerry_alt.glb",
+  "commit": "654af72b14cc1b5e741b39d456110d745af38c1b",
+  "appliedAt": "2026-09-02T01:58:11.554Z",
+  "note": "Diet applied by tools/mechopt.mjs on top of the model at `commit`; --restore reads that version back out of git.",
+  "dials": {
+    "ratio": 0.5,
+    "error": 0.02,
+    "tex": 1024,
+    "mr": 512,
+    "quality": 85,
+    "simplified": true
+  },
+  "before": {
+    "bytes": 3987080,
+    "tris": 20576,
+    "verts": 35974,
+    "textures": [
+      "2048x2048",
+      "2048x2048",
+      "2048x2048"
+    ],
+    "vram": 67092087
+  },
+  "after": {
+    "bytes": 2451680,
+    "tris": 17183,
+    "verts": 32336,
+    "textures": [
+      "512x512",
+      "1024x1024",
+      "1024x1024"
+    ],
+    "vram": 12579766
+  },
+  "shapeDrift": 0,
+  "simplifyError": 0.019863899797201157
+}

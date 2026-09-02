@@ -773,7 +773,15 @@ function buildGlbMech(def, entry, gltf) {
   // bones with a painted selection get a split; everyone else gets null and
   // keeps the old whole-joint behaviour.
   let fistSplit = null;   // handed to `mech` once that object exists, below
-  if (rigBones?.fistR || rigBones?.fistL) {
+  // GATED ON THE SKELETON, NOT ON THE RIG FILE. `fistL`/`fistR` are bones the
+  // custom rig authors, and a BAKE folds that rig into the file — the bones
+  // are still there under the same names, but `rigBones` is only set while a
+  // rig file is applied at load, so a baked titanus built with his fist welded
+  // on. The bake's own check caught it as three skinned meshes (body + the two
+  // socket caps fistsplit adds) against one, and refused; fistsplit.js already
+  // finds its bones by name in the mesh's skeleton, so the gate does the same.
+  const fistBones = rigBones || Object.fromEntries(bones.map((b) => [b.name, b]));
+  if (fistBones.fistR || fistBones.fistL) {
     const sk = meshes.find((m) => m.isSkinnedMesh);
     if (sk) {
       try {

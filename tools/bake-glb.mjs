@@ -57,6 +57,18 @@
 // again. No browser and no fidelity check: it is a file-for-file rollback of
 // exactly what the bake folded in.
 //
+// THE SEQUENCE IS RESEEDED PER CLIP. Animator seeds its phase from
+// Math.random() and several signatures twitch off it (nullbot's head ticks,
+// jerry's nerves), so the captures install a seeded PRNG. One seed for the
+// whole capture only matches while both builds draw the same NUMBER of times
+// before a clip starts, and the custom-rig load path and the baked one do not
+// — the sequence slid and nullbot's head ticks landed on different frames:
+// SKIN 1.73% worst on hitFlinch with a mean of 0.006%, on a faithful bake. So
+// captureSkin puts the seed back at the start of every clip it samples: from
+// there the two builds run the same animator over the same skeleton and draw
+// in step. (A CONSTANT random was tried and crashed the page on both builds —
+// something in the pipeline does not survive a random that never changes.)
+//
 // THE FIDELITY CHECK ONLY SEES JOINTS. It compares the 15 game joints across
 // three poses, which catches a broken skeleton and nothing else — it cannot see
 // skinning, and it cannot see a glbanim profile hook that stopped firing. Baking
@@ -448,6 +460,7 @@ async function captureSkin(browser, tag) {
         // itself measured a 4.2% noise floor on fast clips, which is larger
         // than anything a bake does. poseStatic() reseats `cur` on the rest
         // target, which is a deterministic function of the mech alone.
+        _seed = 0x2f6e2b1;   // same sequence from here, whatever the build drew while loading
         anim.t = 0; anim.phase = 0; anim.action = null;
         anim.poseStatic();
         let dur = 0.6;
