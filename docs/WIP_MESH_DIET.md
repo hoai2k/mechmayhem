@@ -33,8 +33,15 @@ Delete this file (fold the result into TASKS.md) when the work lands on main.
 - tritone: dry run PASSES (main's "bake keeps a rig's game fields") -> bake with --apply.
 - titanus: dry run PASSES with the fist gate fix (skin 0.001%, 3 skinned meshes both sides).
 - nullbot: the 1.73% was the SEEDED PRNG sliding between the two load paths (his
-  signature fires random head ticks); captures now return a CONSTANT 0.5 ->
-  re-running dry run.
+  signature fires random head ticks). A CONSTANT random crashed the page on both
+  builds; captureSkin now RESEEDS the sequence at the start of every clip ->
+  re-running dry run (scratch bake_nullbot4.log / bake_jerry4.log).
+- Diet gates on konga/saurion/glacier (ratio 0.5, 1024/512): hurtbox 88->86 /
+  78->78 / 79->81 containment, bloat 1.22/1.15/0.96; groundprobe konga 7->7,
+  glacier 5->5, saurion 6->8 but the extra two are the lowest vertex changing
+  owner bone (bone_14 vs ankle*, limits 0.05 vs 0.31) at the same depth; skin
+  audit top findings same places, same severities; crops at 2x identical.
+  DECISION: apply ratio 0.5 to every baked mech.
 - jerry: first dry run hit a playwright navigation timeout -> re-running.
 - Texture decision MEASURED: select-screen framing, control shot (ship vs ship)
   noise floor mean 2.88/255, PSNR 25.4; 1024 -> 2.26/27.0, 512 -> 3.52/24.2 on
