@@ -1,8 +1,8 @@
 {
   "mech": "titanus",
   "file": "public/models/mech_titanus.glb",
-  "commit": "7b0e6040a79bf447e60a084a6aa17db1f9c8a50a",
-  "appliedAt": "2026-09-02T01:53:20.374Z",
+  "commit": "654af72b14cc1b5e741b39d456110d745af38c1b",
+  "appliedAt": "2026-09-02T01:58:11.180Z",
   "note": "Diet applied by tools/mechopt.mjs on top of the model at `commit`; --restore reads that version back out of git.",
   "dials": {
     "ratio": 0.5,

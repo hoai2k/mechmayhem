@@ -18,7 +18,8 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE STEPPER STOPS FLICKERING: LONGER STRIDES, FRONT LIMBS
+- **Latest:** THE MECH DIET — every model baked, half the triangles, a quarter
+  of the texture memory (see the entry at the end). Previous: THE STEPPER STOPS FLICKERING: LONGER STRIDES, FRONT LIMBS
   ANTICIPATE, TWO LIMBS STAY DOWN. Owner: "Jerry's legs are moving a bit too
   fast (looks like flickering) when climbing... reach them a bit further and
   when moving in a direction first move the closest foot (aiming for the
@@ -7007,3 +7008,64 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
 - `tools/gaitprobe.mjs` DIES ON A VITE RELOAD: every "Execution context was
   destroyed" during the audit coincided with a source or `public/` edit
   landing while its page was up. Run it on a quiet tree.
+
+## The mech diet — every model baked, half the triangles, a quarter of the texture memory
+
+The owner uploaded `public/models/opt/`, gltfpack output, and asked whether the
+game could use it and whether the same treatment belonged on props and
+buildings. It could not: the files were built from the PORTABLE EXPORT, not
+the shipped masters — folded transform (50x size through the manifest's own
+modelScale), baked rigs and renamed bones, ~30 baked clips, unnormalized
+uint16 positions `dequantize.js` does not unfold (the skin audit read 144k
+severity on a body that rendered fine), a missing fallback .bin, anchors
+1-13 units off. Props were already dieted (`propopt`), buildings are voxel
+donors. So the diet was done in-repo instead, and three things came out of
+the audit of what still applied at runtime.
+
+- A REFUSED BAKE LEFT A LYING ARCHIVE. `bake-glb.mjs` wrote its sidecar and
+  source copy before the fidelity check and never rolled them back, so four
+  mechs sat with `source/<id>.edits.json` claiming edits folded into a GLB
+  byte-identical to its "source". The archive is part of the undo record now.
+- THE FEATHER CACHE SHIPPED INSIDE THE MODEL. GLTFExporter serializes
+  `geometry.userData` as primitive extras, feather.js caches its geodesic
+  graph there: konga 29.6 MB with 21.7 MB of JSON nothing reads, saurion 45.7
+  with 33.9 — in the release build too. The bake drops `__*` keys before
+  exporting; `tools/stripcache.mjs` rewrote the two files (JSON chunk only,
+  BIN byte-identical).
+- THE LAST FOUR BAKES WERE FAILING FOR HARNESS REASONS. Titanus lost his
+  rocket fist post-bake (the split was gated on the rig file rather than the
+  `fistL`/`fistR` bones the bake keeps — three skinned meshes against one);
+  nullbot's random head ticks slid between the two load paths under one
+  seeded PRNG (a constant random crashed the page; the capture reseeds per
+  clip now); tritone passed once a bake kept `tailFloor`; jerry's first run
+  was a browser timeout. All 17 are baked; `src/mechs/rigs/` keeps only
+  rhino's orphaned file; jerry's `alt` (mech_jerry.glb) is no longer
+  referenced.
+
+THE DIET (`tools/mechopt.mjs`, CLAUDE.md entry): meshopt
+`simplifyWithAttributes` with normals and skin weights in the metric, ratio
+0.5, error ladder + bounding-box gate (worst drift 0.095%); textures 1024²
+colour/normal + 512² metallic-roughness at JPEG q85. The texture size was
+MEASURED at the select screen (one picker, 1600x900 via `?poster=`): the
+shipped model shot twice differs by mean 2.9/255 (unseeded idle), 1024
+measured 2.3 and 512 3.5, and 2x crops of titanus' shoulder lettering,
+konga's face and glacier's arm are indistinguishable. Roster: 2,294,764 ->
+1,160,186 triangles, 121.9 -> 55.0 MB on disk (plain glb; dist compresses),
+texture VRAM ~1088 -> ~204 MB.
+
+GATES, before -> after. Hurtbox containment moved at most 2 points on any
+mech (konga 88->86, titanus 66->65, vulcan 85->84, tempest 80->79, wraith
+82->81, jerry 83->82; glacier 79->81, cranky 73->78, colossus 82->83,
+frogger 84->85, the rest unchanged); bloat within 0.08 everywhere, glacier
+1.03->0.96, vulcan 1.27->1.19. Ground probe: konga 7/19 -> 7/19, glacier
+5/20 -> 5/20, titanus 15/25 -> 15/25, jerry 8/18 -> 8/18, saurion 6/20 ->
+8/20 where the two extra are the lowest vertex changing owner bone at the
+same depth (bone_14 vs ankle, per-part limits 0.05 vs 0.31). Skin audit: same
+places, same severities within its noise; jerry's baked seam record had to be
+REMAPPED through the compaction or the audit read the cut as a tear. Ankle
+probe OK on every mech; `mechopt --audit` PASS; posters re-rendered; soak
+clean; build green.
+
+WHAT IS LEFT is the honest cost: a 2-point containment change is a balance
+change, and `node tools/hitprobe.mjs` A/B'd over several runs is the way to
+see whether it is felt. `public/models/opt/` is deleted.
