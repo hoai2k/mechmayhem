@@ -35,7 +35,7 @@
 // through the buffer) — the lowest point of a mech is a horn tip or a hoof,
 // features hundreds of vertices wide, so a stride finds them while a full
 // scan of every clip would take minutes per mech.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : Number(args[i + 1]); };
@@ -45,10 +45,7 @@ const FRAMES = flag('frames', 14);
 const STRIDE = flag('stride', 7);
 const ALL = args.includes('all') || args.includes('--all');
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

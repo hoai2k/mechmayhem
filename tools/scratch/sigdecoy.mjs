@@ -2,7 +2,7 @@
 // animator? A signature that throws is disabled for that body (the measurement
 // falls back to the gait alone) and says so on the console — this catches that.
 //   node tools/scratch/sigdecoy.mjs [mech …]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const ids = process.argv.slice(2);
 const base = process.env.RW_URL || 'http://localhost:5173';
@@ -12,10 +12,7 @@ const list = ids.length ? ids : [
   'nullbot', 'tritone',
 ];
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 let bad = 0;
 for (const mech of list) {
   const page = await browser.newPage({ viewport: { width: 420, height: 320 } });

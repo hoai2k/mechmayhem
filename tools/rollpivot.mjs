@@ -8,11 +8,8 @@
 //   headR/footR   radius of the circle each traces
 //   comDrift      how far the body's mid-point wanders during the spin —
 //                 0 means it tumbles in place, which is what a ball does
-import { chromium } from 'playwright-core';
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+import { launch } from './lib/browser.mjs';
+const browser = await launch();
 for (const mech of process.argv.slice(3)) {
   const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
   const errs = [];

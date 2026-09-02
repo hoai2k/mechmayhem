@@ -4,10 +4,9 @@
 //
 // The world is stepped at a fixed 1/60 so the answer is in FRAMES, not in
 // whatever a SwiftShader frame happened to be worth.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const mech = process.argv[2] || 'titanus';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 400, height: 300 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 300)));
 await p.goto(`http://localhost:5173/?battle=neon&p1=${mech}&p2=titanus&auto=0`, { waitUntil: 'networkidle' });

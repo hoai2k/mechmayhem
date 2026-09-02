@@ -68,7 +68,7 @@
 //     node tools/postercheck.mjs <id>   — and regenerate the poster
 //
 // Requires the dev server running on :5175 (npm run dev).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'node:url';
@@ -759,8 +759,7 @@ if (RESTORE) {
 }
 
 // ---- main ----
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 
 if (NOISE) {
   console.log(`\n== ${id}: skin NOISE FLOOR (same build, two captures) ==`);

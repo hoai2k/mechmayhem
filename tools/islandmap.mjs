@@ -1,9 +1,9 @@
 // islandmap: list the skinned mesh's geometry islands (post-skinOps, live) with
 // size, current dominant bone, animator role, and world centroid — the map you
 // need to decide claw/leg reassignment.  node tools/islandmap.mjs <mechId>
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 const [mechId] = process.argv.slice(2);
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 300)));
 await page.goto(`http://localhost:5173/?showcase=${mechId}&anim=none&debug=3d`, { waitUntil: 'networkidle' });

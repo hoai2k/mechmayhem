@@ -15,16 +15,13 @@
 // suggestion is conservative: only islands smaller than 40% of their owner
 // bone's total verts get an auto-suggestion — bigger ones need human eyes
 // (?debug=skin).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const base = process.argv[2] || 'http://127.0.0.1:5175';
 const only = process.argv[3] ? process.argv[3].split(',') : null;
 const STRETCH_R = 3.0;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 200)));
 

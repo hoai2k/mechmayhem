@@ -7,15 +7,14 @@
 // (as a fraction of body height, which cancels the units) on both sides.
 //
 //   node tools/scratch/anchorprobe.mjs <mech> <exported.glb>
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import fs from 'fs';
 
 const PORT = process.env.PORT || '5175';
 const id = process.argv[2] || 'titanus';
 const b64 = fs.readFileSync(process.argv[3]).toString('base64');
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 320, height: 240 } });
 page.on('console', (m) => { if (m.type() === 'error') console.log('  [page]', m.text().slice(0, 160)); });
 await page.goto(`http://127.0.0.1:${PORT}/?export=__probe`, { waitUntil: 'networkidle' });

@@ -19,16 +19,13 @@
 // tip well forward and inside the victim band at the marked row. A sick one
 // has it behind or overhead, with the forward peak a few frames LATER — and
 // the gap between those two rows is how much to move the event by.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const mech = process.argv[2] || 'jerry';
 const want = process.argv[3] ? process.argv[3].split(',') : null;
 const base = process.env.RW_URL || 'http://localhost:5173';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 420, height: 300 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e)));

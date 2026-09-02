@@ -4,14 +4,11 @@
 //   node tools/scratch/traitprobe.mjs "<battle url>"
 // Reports per rule: worst deviation and a PASS/FAIL line. Facing tolerance
 // is ±10° (placements jitter, the rule shouldn't).
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const url = process.argv[2]
   || 'http://localhost:5173/?battle=ruins&p1=titanus&p2=viper&auto=1&design=wards';
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 480, height: 300 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 300)));
 await page.goto(url, { waitUntil: 'domcontentloaded' });

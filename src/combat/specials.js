@@ -135,19 +135,6 @@ function poundWave(w, f, origin, { radius, speed = 30, dmg, knock = 12, color = 
 // ============================= SPECIALS =============================
 
 export const SPECIALS = {
-  // TITANUS: seismic ground slam
-  groundPound(f, sp) {
-    cast(f, 'groundPound', {
-      stateT: (dur) => dur * 0.92,
-      onEvent: (t, a) => {
-        if (t === 'fire') {
-          const w = f.world;
-          w.groundShockwave(f, f.pos, sp.radius, sp.dmg * f.dmgMult(), sp.knock, 0xffb43c);
-          f.sfx('slam');
-        } else if (t === 'shake') f.world.effects.addShake(a);
-      },
-    });
-  },
 
   // VULCAN: homing micro-missile volley
   missileVolley(f, sp) {
@@ -171,50 +158,6 @@ export const SPECIALS = {
     });
   },
 
-  // AEGIS: Bulwark Bash — the tower shield goes UP over his head face-up
-  // and WHIRLS like a rotor (same showmanship as the spear heavy), then
-  // comes down and RAMS forward, swelling into a bot-tall wall of steel
-  // as it strikes
-  shieldBash(f, sp) {
-    const w = f.world;
-    const RAISE = 0.95;
-    cast(f, 'shieldWhirlHold', { stateT: RAISE + 0.9 });
-    // the shield itself tips FLAT — decorated face to the sky — and spins
-    // about its own face normal like an umbrella/top balanced on the raised
-    // fist (set overrides the rest-carry, z is the face axis once tipped)
-    f._spinFx = { joint: 'shield', axis: 'z', rate: 26, dur: RAISE, set: [Math.PI / 2, 0, 0], t: 0, acc: 0 };
-    f.sfx('whooshBig');
-    // whirl tell: tightening rings overhead
-    volley(w, f, 3, 0.3, () => {
-      w.effects.rings.spawn(f.pos, { from: 3.4, to: 1, dur: 0.28, color: 0x49b7ff, y: f.height * 0.95 });
-    }, { guard: (f) => stillCasting(f) });
-    w.schedule(RAISE, () => {
-      if (!f.alive || f.state !== 'special') return;
-      f.faceNearestEnemyIfClose(14);
-      cast(f, 'aegisShieldSmash', {
-        stateT: (dur) => dur * 0.95,
-        onEvent: (t) => {
-          if (t === 'hit') {
-            f.onAttackEvent('hit', 0, {
-              dmg: sp.dmg * f.dmgMult(), knock: sp.knock, range: 6.4 * f.scale, heavy: true,
-            });
-            w.effects.rings.spawn(f.pos, { from: 1, to: 6, dur: 0.4, color: 0x9fd8ff, y: 1 });
-          }
-        },
-      });
-      // the wall: the shield GROWS to a full mech's height through the
-      // strike, then eases back to carry size
-      f._scaleFx = { joint: 'shield', t: 0, grow: 0.2, hold: 0.5, back: 0.3, max: 1.75 };
-      // and the smash CARRIES — a driving shield-rush through the strike
-      // window instead of a standing shove
-      volley(w, f, 9, 0.045, () => {
-        f.vel.x = Math.sin(f.yaw) * 25;
-        f.vel.z = Math.cos(f.yaw) * 25;
-      }, { start: 0.045, guard: (f) => stillCasting(f) });
-    });
-    f.status.guard = { f: 0.6, t: sp.guard };
-    f.world.effects.rings.spawn(f.pos, { from: 1, to: 5, dur: 0.5, color: 0x49b7ff, y: 1 });
-  },
 
   // VIPER: BLADE CYCLONE — IG-11 doctrine: the legs keep WALKING straight
   // ahead while everything above the waist spins free, both swords thrown
@@ -260,25 +203,6 @@ export const SPECIALS = {
     }
   },
 
-  // NOVA: three homing star orbs
-  starfall(f, sp) {
-    cast(f, 'castRaise', {
-      stateT: (dur) => dur * 0.8,
-      onFire: () => {
-        const target = f.nearestEnemy();
-        volley(f.world, f, sp.count, 0.14, () => {
-          const origin = muzzle(f).add(new THREE.Vector3(rand(-1, 1), rand(1, 2.5), rand(-1, 1)));
-          const g = f.animator?.novaGlow || 0;
-          f.world.projectiles.spawn('plasma', f, origin, new THREE.Vector3(0, 1, 0), {
-            dmg: sp.dmg * f.dmgMult(), speed: 22, splash: 2.6 * (1 + 0.4 * g), color: 0xff5ce8,
-            homing: target, retarget: true, turnRate: 4.0, life: 4.5,
-            size: 1 + 0.7 * g,
-          });
-          f.sfx('plasma');
-        });
-      },
-    });
-  },
 
   // RHINO: bull rush — gallops forward on all fours as long as B is HELD,
   // up to 5s. The run ENDS the moment it connects with someone (one clean
@@ -706,39 +630,7 @@ export const SPECIALS = {
     });
   },
 
-  // COLOSSUS (legacy): artillery barrage on target area
-  barrage(f, sp) {
-    const fallback = fwd(f, 24);
-    cast(f, 'brace', {
-      stateT: (dur) => dur * 0.85,
-      onEvent: (t, a) => {
-        if (t === 'shake') { f.world.effects.addShake(a); return; }
-        if (t !== 'fire') return;
-        volley(f.world, f, sp.count, 0.22, (i) => {
-          const from = muzzle(f, i % 2 ? 'muzzleL' : 'muzzleR');
-          // re-aim EACH shell at launch, led by its own flight time —
-          // one stale aim point misses everything by the last shell
-          const arcTime = rand(1.1, 1.5);
-          const e = f.nearestEnemy();
-          const target = e ? leadPos(f, e, arcTime * 0.85) : fallback;
-          const to = target.clone().add(new THREE.Vector3(rand(-sp.radius, sp.radius) * 0.45, 0, rand(-sp.radius, sp.radius) * 0.45));
-          f.world.projectiles.spawn('mortar', f, from, new THREE.Vector3(0, 1, 0), {
-            dmg: sp.dmg * f.dmgMult(), splash: 4, color: 0xffd23c, arcTo: to, arcTime,
-          });
-          f.sfx('mortar');
-          f.animator.addImpulse('torso', [-0.12, 0, 0], 30, 10);
-        });
-      },
-    });
-  },
 
-  // WRAITH: cloak (legacy — Ghost Protocol now uses ghostWalk below)
-  cloak(f, sp) {
-    f.status.cloak = { t: sp.duration, spd: sp.speedBoost };
-    f.setOpacity(0.16);
-    f.sfx('cloak');
-    f.world.effects.rings.spawn(f.pos, { from: 3, to: 0.5, dur: 0.4, color: 0xff3838, y: f.height * 0.5 });
-  },
 
   // WRAITH: Ghost Protocol — projects a white spectre of his body that
   // glides forward hurting everything it passes through for as long as B is
@@ -1158,61 +1050,6 @@ export const SPECIALS = {
     f.world.schedule(sp.duration + 0.05, () => { if (f.state === 'special') { f.animator.stop(); f.setState('normal'); } });
   },
 
-  // KONGA: THUNDER DRUMS. He rears to full height and hammers his own chest —
-  // three cracks that each punch a ring of pressure out across the ground, and
-  // a final roar that knocks anything close off its feet. He comes out of it
-  // ANGRY: a damage-and-speed buff for the rest of the fight window.
-  //
-  // The reason it's a chest beat and not another swing: his whole kit is
-  // "close the distance and be enormous", so his special should REWARD already
-  // being close and PUNISH crowding him, rather than adding a fourth way to
-  // hit one target.
-  chestBeat(f, sp) {
-    const w = f.world;
-    const dur = cast(f, 'chestBeat', { stateT: (d) => d * 0.9 });
-    f.sfx('charge');
-    // the three drum-beats, on the clip's own hit frames
-    const BEATS = [0.42, 0.58, 0.74];
-    BEATS.forEach((bt, i) => {
-      w.schedule(bt, () => {
-        if (!stillCasting(f)) return;
-        const at = f.center();
-        w.effects.rings.spawn(f.pos, { from: 1.2, to: 5 + i * 1.6, dur: 0.34, color: f.def.colors.glow, y: 0.4 });
-        w.effects.dustPuff(f.pos, 8, 0x9a8878);
-        w.effects.addShake(0.28);
-        f.sfx('hitHeavy');
-        // each crack shoves anyone in arm's reach; only the last one launches
-        eachEnemy(w, f, at, (sp.radius || 9) * 0.55 * f.scale, (e, d) => {
-          if (!overlapsY(e, f.pos.y, f.height)) return;
-          e.takeHit(sp.dmg * 0.28 * f.dmgMult(), f, {
-            knock: (sp.knock || 20) * 0.4, srcPos: f.pos, soft: true,
-          });
-        });
-      });
-    });
-    // the ROAR — the payoff beat
-    w.schedule(0.92, () => {
-      if (!stillCasting(f)) return;
-      faceRoar(f, 0.85);
-      f.sfx('howl');
-      w.effects.addShake(0.65);
-      w.engine.addHitStop(0.06);
-      const R = (sp.radius || 9) * f.scale;
-      w.effects.rings.spawn(f.pos, { from: 1.5, to: R, dur: 0.42, color: f.def.colors.glow, y: 0.5 });
-      w.effects.explosion(f.center(), 2.4, { color: f.def.colors.glow, smoke: true, sparks: false });
-      w.groundShockwave(f, f.pos, R, sp.dmg * f.dmgMult(), sp.knock || 20, f.def.colors.glow, true);
-      // ...and he stays wound up: harder and faster while the drums ring
-      f.status.buff = { spd: 1.16, dmg: 1.32, t: sp.duration || 6 };
-      // dust kicked off every surface he can reach
-      for (let i = 0; i < 18; i++) {
-        const a = rand(TAU), rr = rand(1, R * 0.8);
-        w.effects.smoke.emit(f.pos.x + Math.cos(a) * rr, f.pos.y + 0.2, f.pos.z + Math.sin(a) * rr,
-          Math.cos(a) * 3, rand(1, 3), Math.sin(a) * 3,
-          { life: rand(0.5, 0.9), size: rand(1.2, 2.4), color: 0x9a8878, alpha: 0.5 });
-      }
-    });
-    w.schedule(dur, () => { if (f.state === 'special') { f.animator.stop(); f.setState('normal'); } });
-  },
 
   // TRITONE: GORE CHARGE. The move the whole body was built for — he drops his
   // head, plants the frill as a shield and RUNS, for as long as the trigger is
@@ -1909,76 +1746,6 @@ export const ULTS = {
     }, () => { w.scene.remove(im); geo.dispose(); mat.dispose(); });
   },
 
-  // AEGIS: the spear goes up, ten shafts of light climb into the heavens,
-  // and the court speaks: JUDGEMENT... then a coin-flip verdict. GUILTY is
-  // a death sentence — a pillar of light takes the condemned away entirely
-  // (no finisher; they are simply gone). INNOCENT and the defendant walks.
-  judgment(f, u) {
-    const w = f.world;
-    cast(f, 'castRaise', { state: 'ult', stateT: 4.6, speed: 0.55 });
-    f.sfx('cast');
-    w.effects.rings.spawn(f.pos, { from: 1, to: 9, dur: 0.8, color: 0xf6ecc2, y: 0.6 });
-    volley(w, f, 10, 0.09, (i) => {
-      const from = muzzle(f);
-      const top = from.clone().add(new THREE.Vector3(rand(-8, 8), 78, rand(-8, 8)));
-      w.effects.beams.spawn(from, top, { radius: rand(0.22, 0.42), dur: 1.5, color: 0xf6ecc2 });
-      if (i % 3 === 0) f.sfx('beam');
-    }, { start: 0.2 });
-    const say = (text, color = null, hold = true) => w.events.emit('banner', { text, hold, color });
-    w.schedule(1.0, () => f.alive && say(t('combat.judgement.0')));
-    w.schedule(1.5, () => f.alive && say(t('combat.judgement.1')));
-    w.schedule(2.0, () => f.alive && say(t('combat.judgement.2')));
-    w.schedule(2.5, () => f.alive && say(t('combat.judgement.3')));
-    w.schedule(3.2, () => {
-      if (!f.alive) { say('', null, false); return; }
-      // the court tries the nearest REAL defendant (summons don't count)
-      let v = null, best = Infinity;
-      for (const e of w.fighters) {
-        if (e === f || !e.alive || f.isAllyOf(e) || e.isMinion) continue;
-        const dx = w.wrapDelta(e.pos.x - f.pos.x), dz = w.wrapDelta(e.pos.z - f.pos.z);
-        const d = dx * dx + dz * dz;
-        if (d < best) { best = d; v = e; }
-      }
-      if (!v) { say(t('combat.judgement.dismissed'), '#9fd8ff', false); return; }
-      if (Math.random() < 0.5) {
-        say(t('combat.judgement.innocent'), '#7dff9a', false);
-        w.effects.rings.spawn(v.pos, { from: 4, to: 0.5, dur: 0.6, color: 0x7dff9a, y: 0.5 });
-        f.sfx('uiConfirm');
-        return;
-      }
-      say(t('combat.judgement.guilty'), '#ff4d5e', false);
-      // heaven's pillar comes down on the condemned and TAKES them
-      const gp = v.pos.clone();
-      const top = gp.clone();
-      top.y += 85;
-      w.effects.beams.spawn(top, gp, { radius: u.radius || 3.4, dur: 1.6, color: 0xfff3c8 });
-      w.effects.beams.spawn(top, gp, { radius: (u.radius || 3.4) * 0.4, dur: 1.6, color: 0xffffff });
-      w.effects.rings.spawn(gp, { from: 1, to: 10, dur: 0.6, color: 0xfff3c8, y: 0.4 });
-      f.sfx('beam');
-      f.sfx('thunder');
-      w.effects.addShake(1.0);
-      v.setState('launched', 4);
-      v.iframes = 2.5; // nothing interrupts an execution
-      let lift = 0;
-      w.addUpdater((dt) => {
-        if (!v.alive) { v.setOpacity(1); return false; }
-        lift += dt;
-        v.pos.x = gp.x;
-        v.pos.z = gp.z;
-        v.pos.y = lift * lift * 24; // accelerating ascension
-        v.vel.set(0, 0, 0);
-        v.grounded = false;
-        v.setOpacity(Math.max(0.05, 1 - lift / 1.05));
-        w.effects.glows.emit(gp.x + rand(-1.2, 1.2), v.pos.y + rand(0, v.height), gp.z + rand(-1.2, 1.2),
-          0, 5, 0, { life: 0.4, size: 1.6, color: 0xfff3c8, alpha: 0.9 });
-        if (lift < 1.15) return true;
-        v.setOpacity(1);        // restored for the next round's body
-        v.die(null);            // no attacker credited: no finisher cinematic
-        v.group.visible = false; // taken — the sky keeps them
-        return false;
-      });
-    });
-  },
 
   // VIPER: coils to the ground, springs skyward — and SIXTY vipers leap out
   // in every direction, slithering down whoever they find. The first fang
@@ -2199,80 +1966,6 @@ export const ULTS = {
     });
   },
 
-  // NOVA: a blinding flash, then a newborn SUN swells off her frame to twice
-  // her height, collapses hard to half her size — and detonates across the
-  // whole neighborhood. She alone stands in the quiet center.
-  supernova(f, u) {
-    const w = f.world;
-    const GROW = 1.3, SHRINK = 0.45;
-    cast(f, 'burst', { state: 'ult', stateT: GROW + SHRINK + 0.5, speed: 0.7 });
-    f.iframes = GROW + SHRINK + 0.6;
-    f.sfx('charge');
-    // the flash
-    w.effects.glows.emit(f.pos.x, f.pos.y + f.height * 0.6, f.pos.z, 0, 0, 0,
-      { life: 0.28, size: 30, color: 0xffffff, alpha: 1 });
-    const geo = new THREE.SphereGeometry(1, 28, 20);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xfff6ea, transparent: true, opacity: 0.9,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-    const sun = new THREE.Mesh(geo, mat);
-    w.scene.add(sun);
-    // "twice her height" is the sphere's SIZE (diameter), not its radius
-    const rMax = f.height * 1.05, rMin = f.height * 0.27;
-    let t = 0;
-    w.addUpdater((dt) => {
-      if (!f.alive) return false;
-      t += dt;
-      sun.position.set(f.pos.x, f.pos.y + f.height * 0.55, f.pos.z);
-      // the newborn star has GRAVITY: everyone else is dragged toward the
-      // core the whole time it swells — and harder as it collapses
-      const pull = t < GROW ? 22 : 52;
-      for (const e of w.fighters) {
-        if (e === f || !e.alive || f.isAllyOf(e)) continue;
-        const dx = w.wrapDelta(f.pos.x - e.pos.x), dz = w.wrapDelta(f.pos.z - e.pos.z);
-        const d = Math.hypot(dx, dz) || 1;
-        if (d < u.radius * 2.6 && d > 2) {
-          const g = pull * clamp01(1.5 - d / (u.radius * 2)) * dt;
-          e.vel.x += (dx / d) * g;
-          e.vel.z += (dz / d) * g;
-          // infall streaks sell the drag
-          if (Math.random() < dt * 8) {
-            w.effects.glows.emit(e.pos.x, e.pos.y + rand(1, e.height), e.pos.z,
-              (dx / d) * 8, 0.5, (dz / d) * 8,
-              { life: 0.3, size: 0.9, color: 0xfff0d8, alpha: 0.7, drag: 0.5 });
-          }
-        }
-      }
-      let r;
-      if (t < GROW) {
-        r = 0.2 + (rMax - 0.2) * ss(clamp01(t / GROW));
-        mat.opacity = 0.85;
-      } else if (t < GROW + SHRINK) {
-        r = rMax + (rMin - rMax) * ss(clamp01((t - GROW) / SHRINK));
-        mat.opacity = 0.98; // densening core
-      } else {
-        // DETONATION — the collapse doubles the reach of the blast
-        w.explode(f.pos, u.radius * 2, u.dmg * f.dmgMult(), { unblockable: true,
-          owner: f, knock: 22, launch: 12, color: 0xfff0d8,
-        });
-        w.effects.explosion(sun.position, u.radius * 1.2, { color: 0xffffff, smoke: false });
-        w.effects.rings.spawn(f.pos, { from: 2, to: u.radius * 4.2, dur: 0.7, color: 0xfff0d8, y: 0.6 });
-        w.effects.rings.spawn(f.pos, { from: 1, to: u.radius * 2.6, dur: 0.5, color: 0xff5ce8, y: 1.4 });
-        w.effects.addShake(1.6);
-        w.engine.addHitStop(0.12);
-        return false;
-      }
-      sun.scale.setScalar(Math.max(0.01, r));
-      // boiling rim
-      const a = rand(TAU);
-      w.effects.glows.emit(
-        sun.position.x + Math.cos(a) * r, sun.position.y + rand(-r, r) * 0.6, sun.position.z + Math.sin(a) * r,
-        Math.cos(a) * 2, rand(1, 3), Math.sin(a) * 2,
-        { life: 0.25, size: rand(0.8, 1.6), color: 0xfff0d8, alpha: 0.9 });
-      return true;
-    }, () => { w.scene.remove(sun); geo.dispose(); mat.dispose(); });
-  },
 
   // RHINO: he becomes a CROWD — ten of him shoulder to shoulder, and the
   // whole herd thunders forward flattening everything on the line

@@ -9,14 +9,10 @@
 //
 //   node tools/sfxloops.mjs [url]
 // ============================================================================
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const url = process.argv[2] || 'http://localhost:5173/?battle=neon&p1=titanus&p2=fenrir';
-const b = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox',
-    '--autoplay-policy=no-user-gesture-required'],
-});
+const b = await launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const p = await b.newPage({ viewport: { width: 640, height: 360 } });
 const errs = [];
 p.on('pageerror', (e) => errs.push(String(e)));

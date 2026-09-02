@@ -1,8 +1,8 @@
 // The brawl death: a wreck fading out on the floor, then the body back.
 // usage: node tools/scratch/respawnshot.mjs <outPrefix> [waitMs]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const [out = 'respawn', waitMs = '30000'] = process.argv.slice(2);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 200)));
 await p.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&p3=vulcan&p4=wraith&auto=1', { waitUntil: 'networkidle' });

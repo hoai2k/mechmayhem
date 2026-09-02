@@ -15,7 +15,7 @@
 //
 // A mech with no feather op in its manifest renders the same body twice, which
 // is the correct (and visibly boring) answer. Needs the dev server on :5173.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
@@ -23,10 +23,7 @@ const pos = args.filter((a, i) => !a.startsWith('--') && !args[i - 1]?.startsWit
 const [mech, out, clip = 'heavy', t = '0.35'] = pos;
 if (!mech || !out) { console.error('usage: node tools/feathershot.mjs <mech> <out.png> [clip] [t] [--rot deg] [--zoom k]'); process.exit(1); }
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1400, height: 700 } });
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 300)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none&debug=3d`, { waitUntil: 'domcontentloaded' });

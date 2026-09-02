@@ -7007,3 +7007,15 @@ MISSING, and dropping a PNG back into public/textures reports STRAY.
 - `tools/gaitprobe.mjs` DIES ON A VITE RELOAD: every "Execution context was
   destroyed" during the audit coincided with a source or `public/` edit
   landing while its page was up. Run it on a quiet tree.
+- SECOND PASS, after the owner's review: the animator CROSSFADES clip to clip
+  (`Animator.play` keeps the outgoing action as `prev`, frozen, and the new
+  clip fades in over it rather than over the rest pose — a combo used to dip
+  toward neutral between punches; measured on titanus light1→light2 the
+  nearest approach to rest went 0.85→1.33 rad); hit flinches are DIRECTIONAL
+  (`hitFlinchL/R/Back`, picked in takeHit by the blow's angle); the shared
+  intro crouch is scaled per gait for the non-bipeds (`INTRO_CROUCH`, arms
+  left out because arm clip values are absolute — jerry's claw went 2.22→0.40
+  under); the retired-mech handlers/weapons/clips are gone; `npm run check`
+  runs 27 node tests plus the pure-node tools (and CI runs it); every tool
+  launches Chromium through `tools/lib/browser.mjs`; and there is a TRAINING
+  tile on arena select (`src/game/training.js`, `tools/training.mjs`).

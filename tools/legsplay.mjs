@@ -45,16 +45,13 @@
 // captures a rest offset per bone, so both halves cancel a bind rotation out.
 //
 // Needs the dev server (npm run dev).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const mechs = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 if (!mechs.length) { console.error('usage: node tools/legsplay.mjs <mech> [<mech> …]'); process.exit(1); }
 const base = process.env.RW_URL || 'http://localhost:5173';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 480, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)));

@@ -4,9 +4,8 @@
 // Driven deterministically — the animator is stepped at a fixed 1/60 and
 // iceTaunt is ticked with it — because under SwiftShader the clip is over in a
 // couple of frames and a wall-clock screenshot lands wherever it likes.
-import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 400, height: 300 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 300)));
 await p.goto('http://localhost:5173/?battle=neon&p1=glacier&p2=titanus&auto=0', { waitUntil: 'networkidle' });

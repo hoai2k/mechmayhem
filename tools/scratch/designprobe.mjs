@@ -1,9 +1,6 @@
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const url = process.argv[2];
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 480, height: 300 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 300)));
 await page.goto(url, { waitUntil: 'domcontentloaded' });

@@ -18,10 +18,9 @@
 // 0.09. READ IT AGAINST A HEALTHY MECH, not against zero — the residue is the
 // model's own proportions, which no mapping can close, and tempest, whose
 // mapping was never in doubt, measures 1.34.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 const mech = process.argv[2] || 'saurion';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 320, height: 240 } });
 page.on('pageerror', e => console.error('PAGE ERROR', String(e).slice(0,300)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });

@@ -3,11 +3,10 @@
 // mech's forward. Report how far the HEAD (and the hood/tail tip if the rig has
 // one) travels along +z for a positive value of each lever.
 //   node tools/scratch/leansign.mjs <mech> [extraBone]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const mech = process.argv[2] || 'wraith';
 const extra = process.argv[3] || null;
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 400, height: 300 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await p.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });

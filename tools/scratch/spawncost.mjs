@@ -1,8 +1,8 @@
 // What does ONE summoned body cost, now that its mech is prewarmed?
 // usage: node tools/scratch/spawncost.mjs [waitMs]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const [waitMs = '30000'] = process.argv.slice(2);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 960, height: 540 } });
 p.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 200)));
 await p.goto('http://localhost:5173/?battle=neon&p1=saurion&p2=titanus&auto=1&diff=ace', { waitUntil: 'networkidle' });

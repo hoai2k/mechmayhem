@@ -5,10 +5,10 @@
 //
 //   node tools/scratch/statsbeacon.mjs [url]
 // ============================================================================
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import { GOATCOUNTER_CODE } from '../../src/core/analytics.js';
 const base = process.argv[2] || 'http://localhost:5173';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const browser = await launch();
 const fails = [];
 const ok = (c, m) => { console.log(`${c ? '  ok  ' : ' FAIL '} ${m}`); if (!c) fails.push(m); };
 

@@ -27,15 +27,12 @@
 //             handR]: P planted (pinned to its plant point) · S swinging (arc
 //             to a new home) · A airborne (no surface within full extension —
 //             reaching, not planted) · - stepper inactive (animator owns it).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const url = process.argv[2] ||
   'http://localhost:5173/?battle=neon&p1=jerry&p2=viper&auto=1';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));

@@ -6,7 +6,7 @@
 // dropped in without re-running this bake.
 //
 // usage: npx vite --port 5173 &   then   node tools/voxbake.mjs
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -14,10 +14,7 @@ import { dirname, join } from 'path';
 const base = process.argv[2] || 'http://localhost:5173';
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '../public/models/buildings');
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 300)));
 await page.goto(base + '/?showcase', { waitUntil: 'domcontentloaded' });

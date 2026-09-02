@@ -1,6 +1,6 @@
 // A backgrounded tab must still pause the FIGHT and must not auto-resume it.
-import { chromium } from 'playwright-core';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1000, height: 650 } });
 const fails = []; const ok = (c, m) => { console.log(`${c?'  ok  ':' FAIL '} ${m}`); if (!c) fails.push(m); };
 await page.addInitScript(() => { let away = false;

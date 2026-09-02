@@ -40,6 +40,7 @@ import { MenuStage } from './menustage.js';
 import { PadPointers } from './padpointers.js';
 import { Warmup } from './warmup.js';
 import { createBattle, rebuildArena } from './battle.js';
+import { Training } from './training.js';
 
 export async function bootGame() {
   const engine = new Engine(document.getElementById('game-canvas'));
@@ -577,7 +578,9 @@ export async function bootGame() {
       audio,
       // the RANDOM tile lands on the arena the prefetcher has been loading
       pickRandom: () => predictor.takeArena(),
-      onDone: (themeId) => { S.themeId = themeId; startBattle(); },
+      // the TRAINING tile says so in `opts` (game/training.js); every other
+      // card is a plain arena pick
+      onDone: (themeId, opts) => { S.themeId = themeId; S.training = !!opts?.training; startBattle(); },
       onBack: () => goMechSelect(),
     }));
   }
@@ -631,6 +634,7 @@ export async function bootGame() {
       theme, audio, input, seed: (Math.random() * 9999) | 0,
     });
 
+    const training = !!S.training;   // TRAINING tile: see game/training.js
     const active = [];
     S.slots.forEach((s, i) => { if (s.kind !== 'off') active.push({ slot: s, slotIdx: i }); });
     const spawns = arena.spawnPoints(active.length);
@@ -685,8 +689,10 @@ export async function bootGame() {
       fighters.push(f);
       world.fighters.push(f);
       if (a.slot.kind === 'ai') {
-        const ctrl = new AIController(f, a.slot.diff);
-        ctrl.diffName = a.slot.diff;
+        // in TRAINING every CPU slot is a dummy, whatever temper it was dealt
+        const diff = training ? 'dummy' : a.slot.diff;
+        const ctrl = new AIController(f, diff);
+        ctrl.diffName = diff;
         ais.push(ctrl);
       } else humans.push({ fighter: f, device: a.slot.device, idx: humans.length });
     });
@@ -694,10 +700,11 @@ export async function bootGame() {
     const hud = new Hud(uiRoot, world);
     hud.buildPlates(fighters);
     hud.positionPlates(cameraSys.layoutKind(humans.length), humans.map((h) => fighters.indexOf(h.fighter)));
+    hud.setTraining(training);
     world.camera = engine.camera;
 
     const match = new Match({
-      engine, world, fighters, hud, humans: humans.length,
+      engine, world, fighters, hud, humans: humans.length, training,
       onEnd: (winner) => {
         S.mode = 'results';
         touchControls?.setVisible(false);
@@ -730,7 +737,7 @@ export async function bootGame() {
     // opens in the arena it was already in.
     let nextTheme = null, prepping = false;
     function prepareNextArena() {
-      if (prepping || !CONFIG.arenaPerRound) return;
+      if (prepping || !CONFIG.arenaPerRound || training) return;   // one round, one city
       prepping = true;
       const here = S.battle?.arena?.theme?.id;
       const pool = THEMES.filter((t) => t.id !== here);
@@ -815,7 +822,10 @@ export async function bootGame() {
     };
 
     const usesTouch = humans.some((h) => h.device === 'touch');
-    S.battle = { world, arena, fighters, humans, ais, cameraSys, hud, match, paused: false, usesTouch, loading: null, arenaObjs };
+    // the training rules and the per-seat checklists, stepped by the main loop
+    // beside the match and torn down with it
+    const trainer = training ? new Training({ world, fighters, humans, hud, audio }) : null;
+    S.battle = { world, arena, fighters, humans, ais, cameraSys, hud, match, paused: false, usesTouch, loading: null, arenaObjs, training: trainer };
     if (touchControls) touchControls.setVisible(false); // hidden until the bell
     stopMenuMusic();
     ambience.setArena(theme.id);   // this arena's own bed, under the fight
@@ -847,6 +857,7 @@ export async function bootGame() {
       S.battle.loading = null;
       engine.views = null;
     }
+    S.battle.training?.destroy();   // (hands the ult cheat back as it was)
     S.battle.match.destroy();
     S.battle.hud.destroy();
     S.battle.cameraSys.dividerEl.remove();
@@ -907,6 +918,8 @@ export async function bootGame() {
         world_update(B, dt);
         if (B.loading) warmup.update(B, dt);
         B.match.update(dt);
+        // the warm-up sandbox is not training: nothing ticks until the bell
+        if (B.training && !B.loading) B.training.update(dt);
         const ev = input.menuEvents();
         if (ev.pause) pauseBattle();
       } else {

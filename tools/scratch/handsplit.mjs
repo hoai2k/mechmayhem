@@ -10,12 +10,11 @@
 // to the hand. Emits a PINNED skinOp — an explicit vertex list, not a `{comp:N}`
 // ordinal — because an ordinal is an index into the partition the CURRENT rig
 // draws and silently lands on other geometry the moment anything moves.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import { writeFileSync } from 'fs';
 const [mech = 'saurion', elbowJ = 'elbowL', handJ = 'handL', out = '/tmp/handsplit.json'] =
   process.argv.slice(2);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 320, height: 240 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await p.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });

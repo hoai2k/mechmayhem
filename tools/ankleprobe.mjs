@@ -35,7 +35,7 @@
 // procedural rigs are built to, which is what gain 1.00 means. Run it after any
 // rig edit; `node tools/rigtest.mjs` still checks the retarget maths, and
 // tools/footprobe.mjs still asks whether the walk actually plants.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { writeFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
@@ -44,10 +44,7 @@ const only = args.filter((a, i) => !a.startsWith('--') && !args[i - 1]?.startsWi
 const base = flag('base', 'http://localhost:5173');
 const jsonOut = flag('json', null);
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

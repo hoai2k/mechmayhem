@@ -10,7 +10,7 @@
 // to each mech's manifest skinOps (they compose — the scan runs on the
 // SHIPPED state, post existing ops, and selects pristine island ids exactly
 // like the runtime applier).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import fs from 'fs';
 
 const args = process.argv.slice(2).filter((a) => a !== '--apply');
@@ -18,10 +18,7 @@ const APPLY = process.argv.includes('--apply');
 const base = args[0] || 'http://127.0.0.1:5175';
 const only = args[1] ? args[1].split(',') : null;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 200)));
 

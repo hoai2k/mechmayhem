@@ -2,7 +2,7 @@
 // Applies a bake, lists every renderable by its world-space vertical extent
 // next to the same list pre-bake, then restores.
 //   node tools/scratch/tallbits.mjs <mech>
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import { execSync } from 'node:child_process';
 import fs from 'fs';
 import path from 'path';
@@ -14,8 +14,7 @@ const MANIFEST = path.join(ROOT, 'public/models/manifest.json');
 const BAKED = ['rig', 'skinOps', 'seamCuts', 'reparent', 'stretch', 'bonePos', 'alt',
   'dropGeo', 'dropBones', 'boneOverrides'];
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 
 async function waitGlobal(page, name, ms = 120000) {
   const t0 = Date.now();

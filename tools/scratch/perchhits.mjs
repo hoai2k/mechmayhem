@@ -1,10 +1,9 @@
 // SICKLE POUNCE, the ride: does every beat of the perch loop land a blow, and
 // is the chip damage still what it was before the claws joined in?
 //   node tools/scratch/perchhits.mjs [victim]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const foe = process.argv[2] || 'titanus';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 400, height: 300 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 300)));
 await p.goto(`http://localhost:5173/?battle=neon&p1=saurion&p2=${foe}&auto=0`, { waitUntil: 'networkidle' });

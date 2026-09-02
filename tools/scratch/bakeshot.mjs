@@ -3,7 +3,7 @@
 // tools/bake-glb.mjs, because the numbers can only say "different", not "how".
 //
 //   node tools/scratch/bakeshot.mjs <mech> [outPrefix]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import { execSync } from 'node:child_process';
 import fs from 'fs';
 import path from 'path';
@@ -17,8 +17,7 @@ const MANIFEST = path.join(ROOT, 'public/models/manifest.json');
 const BAKED = ['rig', 'skinOps', 'seamCuts', 'reparent', 'stretch', 'bonePos', 'alt',
   'dropGeo', 'dropBones', 'boneOverrides'];
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 
 async function waitGlobal(page, name, ms = 90000) {
   const t0 = Date.now();

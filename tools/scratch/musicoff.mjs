@@ -8,9 +8,9 @@
 //
 //   node tools/scratch/musicoff.mjs [url]
 // ============================================================================
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const url = process.argv[2] || 'http://localhost:5173/';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1100, height: 700 } });
 const fails = [];
 const ok = (c, m) => { console.log(`${c ? '  ok  ' : ' FAIL '} ${m}`); if (!c) fails.push(m); };

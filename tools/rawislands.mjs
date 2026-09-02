@@ -2,9 +2,9 @@
 // coordinates you author a custom rig from (src/mechs/rigs/<id>.rig.js). Prints
 // each island's vertex count, current dominant bone, centroid and bbox.
 //   node tools/rawislands.mjs <mechId> [alt]
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 const [id, alt] = process.argv.slice(2);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage();
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 300)));
 await p.goto('http://localhost:5173/?rigtest', { waitUntil: 'networkidle' });

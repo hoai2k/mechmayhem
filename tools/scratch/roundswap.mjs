@@ -11,8 +11,8 @@
 // the lock is set through the latch (tools/scratch/lbprobe.mjs tests the tap).
 //
 // usage: node tools/scratch/roundswap.mjs
-import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 const errs = [];
 p.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));

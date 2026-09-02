@@ -17,7 +17,15 @@ export const DIFFICULTY = {
   rookie: { react: 0.6, aggression: 0.4, blockP: 0.5, dodgeP: 0.4, ultDelay: 2.8, useUlt: false, err: 0.5, aimErr: 0.3, pace: 1.7 },
   veteran: { react: 0.34, aggression: 0.65, blockP: 1.4, dodgeP: 1.0, ultDelay: 1.3, useUlt: true, err: 0.28, aimErr: 0.16, pace: 1.15 },
   ace: { react: 0.16, aggression: 0.88, blockP: 3.2, dodgeP: 2.2, ultDelay: 0.5, useUlt: true, err: 0.1, aimErr: 0.05, pace: 0.75 },
+  // TRAINING DUMMY (game/training.js). Not a tier you can pick at mech select
+  // — every CPU slot in a training session becomes one. `passive` is the whole
+  // of it: it never attacks, blocks, dodges or ults, it turns to face the
+  // nearest person, and if it gets knocked more than DUMMY_LEASH from its pad
+  // it walks back so the practice target is always where you left it.
+  dummy: { react: 0.5, aggression: 0, blockP: 0, dodgeP: 0, ultDelay: 99, useUlt: false, err: 1, aimErr: 0, pace: 1, passive: true },
 };
+const DUMMY_LEASH = 15;     // units off its pad before a dummy walks home
+const DUMMY_HOME = 2;       // ...and how close counts as home again
 
 // preferred fighting range by ranged-weapon type
 function preferredRange(def) {
@@ -63,6 +71,36 @@ export class AIController {
     this.brawler = isBrawler(fighter.def, this.rangedPref);
     this.hold = null;   // {key, t}: a charge attack being held (see below)
     this.thinkNoise = rand(100);
+    // a dummy's pad: where it was stood at the start (and re-stood on respawn)
+    this.home = fighter.pos.clone();
+    this.returning = false;
+  }
+
+  // ---- the training dummy: stand there, face whoever is nearest, and walk
+  // back to the pad if a blow carried you off it. No intent but movement is
+  // ever set, so it cannot attack, block, dodge or ult by construction.
+  updateDummy() {
+    const f = this.f;
+    const I = f.intent;
+    const w = f.world;
+    let best = null, bestD = Infinity;
+    for (const o of w.fighters) {
+      if (o === f || o.isAI || !o.alive) continue;
+      const d = Math.hypot(w.wrapDelta(o.pos.x - f.pos.x), w.wrapDelta(o.pos.z - f.pos.z));
+      if (d < bestD) { best = o; bestD = d; }
+    }
+    const hx = w.wrapDelta(this.home.x - f.pos.x), hz = w.wrapDelta(this.home.z - f.pos.z);
+    const hd = Math.hypot(hx, hz);
+    // a LATCH, not a comparison: past the leash it commits to walking home
+    // and lets go only once it is there, or it would stop on the leash line
+    if (hd > DUMMY_LEASH) this.returning = true;
+    else if (hd < DUMMY_HOME) this.returning = false;
+    if (this.returning && hd > 0.01) {
+      I.moveX = hx / hd; I.moveZ = hz / hd;
+    } else {
+      I.moveX = I.moveZ = 0;
+      if (best && f.state === 'normal' && f.grounded) f.targetYaw = f.yawTo(best);
+    }
   }
 
   nearestCrate() {
@@ -88,6 +126,7 @@ export class AIController {
     I.duck = false;
     I.specialHeld = false;
     if (!f.alive || f.controlsLocked) { I.moveX = I.moveZ = 0; return; }
+    if (this.d.passive) { this.updateDummy(); return; }
 
     // retarget occasionally — and IMMEDIATELY drop a target we've picked up
     // (colossus' grab): a carried victim rides directly over the carrier, so

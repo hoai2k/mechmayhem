@@ -896,13 +896,6 @@ const WEAPONS = {
     }
   },
 
-  rocket(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {
-    w.projectiles.spawn('rocket', f, from, dir, {
-      dmg: mv.dmg * f.dmgMult(), speed: mv.speed, splash: mv.splash, color: 0xffb43c, knock: 14, launch: 6,
-    });
-    w.audio?.play('missile');
-    w.effects.muzzleFlash(from);
-  },
 
   salvo(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // KONGA: a RIPPLE of small
     // missiles out of BOTH shoulder pods — the ordnance bolted on top of the
@@ -989,39 +982,7 @@ const WEAPONS = {
     w.effects.muzzleFlash(from);
   },
 
-  plasma(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {
-    // NOVA: shots fired while the halo glows at apex alignment come out
-    // bigger and hotter (novaGlow 0..1 from the animator)
-    const g = f.animator?.novaGlow || 0;
-    w.projectiles.spawn('plasma', f, from, dir, {
-      dmg: mv.dmg * f.dmgMult(), speed: mv.speed,
-      splash: mv.splash * (1 + 0.45 * g), color: 0xff5ce8, knock: 10 + 4 * g,
-      size: 1 + 0.75 * g,
-    });
-    w.audio?.play('plasma');
-    // apex shots detonate off the staff tip — the flash size tracks how
-    // bright the halo is burning, so a 2X-power shot LOOKS 2X
-    if (g > 0.4) {
-      w.effects.glows.emit(from.x, from.y, from.z, 0, 0, 0,
-        { life: 0.28, size: 2.5 + 4.5 * g, color: 0xff5ce8, alpha: 0.95 });
-      w.effects.glows.emit(from.x, from.y, from.z, 0, 0, 0,
-        { life: 0.18, size: 1.2 + 2.2 * g, color: 0xfff0ff, alpha: 0.95 });
-      for (let i = 0; i < Math.round(6 * g); i++) {
-        const a = rand(Math.PI * 2);
-        w.effects.glows.emit(from.x, from.y, from.z,
-          Math.cos(a) * rand(3, 7), rand(-2, 4), Math.sin(a) * rand(3, 7),
-          { life: rand(0.25, 0.5), size: rand(0.5, 1.1), color: 0xff5ce8, alpha: 0.9, drag: 1.5 });
-      }
-    }
-  },
 
-  dart(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {
-    w.projectiles.spawn('dart', f, from, dir, {
-      dmg: mv.dmg * f.dmgMult(), speed: mv.speed, color: 0x6cff5c, knock: 4,
-      status: { slow: 0.8, slowT: 1.2 },
-    });
-    w.audio?.play('dart');
-  },
 
   blade(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, dirFrom }) { // VIPER: hurls a forearm
     // dagger end-over-end; it re-forges on the empty forearm a beat later
@@ -1054,21 +1015,6 @@ const WEAPONS = {
     w.audio?.play('slash');
   },
 
-  spear(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // AEGIS: javelin throw — the lance reforges in his grip.
-    // Launch from the throwing HAND: the far lance-tip anchor sits a
-    // whole shaft-length away mid-whip (often across the body), which
-    // read as the spear firing from the wrong arm.
-    const grip = f.mech.joints.handR
-      ? f.mech.joints.handR.getWorldPosition(new THREE.Vector3())
-      : from;
-    grip.addScaledVector(dir, 1.1); // just clear of the fingers
-    w.projectiles.spawn('spear', f, grip, dir, {
-      dmg: mv.dmg * f.dmgMult(), speed: mv.speed, color: 0x9fd8ff, knock: 12,
-    });
-    f.regrowWeapon?.('lance');
-    w.effects.muzzleFlash(grip);
-    w.audio?.play('whooshBig');
-  },
 
   wave(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {
     // waves fly level, so cap the launch height at chest level — a
@@ -1174,13 +1120,6 @@ const WEAPONS = {
     w.audio?.play('zap');
   },
 
-  railgun(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) {
-    w.projectiles.railshot(f, from, dir, {
-      dmg: mv.dmg * f.dmgMult(), color: 0xff3838, knock: 12,
-    });
-    w.audio?.play('railgun');
-    f.animator.addImpulse('shoulderR', [0.4, 0, 0], 30, 10);
-  },
 
   shard(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors, muzzle }) { // GLACIER: a BARRAGE of icicles — a rapid scattered fan
     // of frozen spikes off the launcher instead of one lone shard
@@ -1269,10 +1208,6 @@ const WEAPONS = {
     w.effects.muzzleFlash(from);
   },
 
-  groundpound(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // TITANUS: the RT is a point-blank seismic quake
-    w.groundShockwave(f, f.pos, mv.radius, mv.dmg * f.dmgMult(), mv.knock, 0xffb43c);
-    w.audio?.play('slam');
-  },
 
   spikes(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // SAURION: a fan of BLACK quills thrown off both
     // hands/forearms (his own plumage — regrows, costs nothing)
@@ -1292,10 +1227,6 @@ const WEAPONS = {
     w.audio?.play('dart');
   },
 
-  flea(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // JERRY: launches a live robo-shrimp flea that hunts on foot
-    w.fleas.spawn(f, from, dir, { dmg: mv.dmg * f.dmgMult() });
-    w.effects.muzzleFlash(from);
-  },
 
   goo(w, f, mv, { from, dir, e, aimP, barrelDot, flatDist, anchors }) { // JERRY: a SHORT BURST of black bilge —
     // CRANKY's pressurized stream (same jet tube, in tar) fired as a

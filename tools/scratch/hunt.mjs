@@ -2,10 +2,9 @@
 // and the two lifetimes (a wolf that has bitten leaves at `duration`, one that
 // has not keeps hunting to `huntMax`).
 //   node tools/scratch/hunt.mjs [enemy]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const enemy = process.argv[2] || 'titanus';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const page = await b.newPage({ viewport: { width: 800, height: 450 } });
 page.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await page.goto(`http://localhost:5173/?battle=neon&p1=fenrir&p2=${enemy}&auto=1&diff=ace`, { waitUntil: 'networkidle' });

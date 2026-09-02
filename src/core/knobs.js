@@ -137,7 +137,7 @@ export const KNOWN_PARAMS = [
   // screens and harnesses
   'battle', 'showcase', 'rigedit', 'rigtest', 'edit', 'level', 'load',
   'glbview', 'bake', 'export', 'menupose', 'poster', 'finisherdemo', 'ultfx', 'geyser',
-  'fire', 'theme', 'forcesplit', 'diff', 'auto', 'arena', 'seed',
+  'fire', 'theme', 'forcesplit', 'diff', 'auto', 'arena', 'seed', 'training',
   // subject / model selection
   'mech', 'id', 'prop', 'variant', 'alt', 'model', 'clip', 'anim', 'key', 't',
   'at', 'compare', 'left', 'dummy', 'ball', 'spin', 'yaw', 'orbit', 'cam',

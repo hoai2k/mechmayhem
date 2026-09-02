@@ -8,10 +8,9 @@
 // and how far past the fist it extends (Fighter.strikeVolume), while the hit
 // itself is the swept LIMB against the victim's hurtbox. So the only way to
 // know what a number buys is to measure the swing.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const mech = process.argv[2] || 'cranky', foe = process.argv[3] || 'titanus';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 320, height: 240 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await p.goto(`http://localhost:5173/?battle=neon&p1=${mech}&p2=${foe}&auto=0`, { waitUntil: 'networkidle' });

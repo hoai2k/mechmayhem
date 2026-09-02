@@ -194,6 +194,7 @@ export class Animator {
     this.phase = Math.random() * TAU;   // gait phase
     this.t = Math.random() * 100;       // global time (desyncs idles)
     this.action = null;
+    this.prev = null;   // the outgoing clip of a crossfade (see play)
     this.impulses = [];
     this.spinVel = 0;                   // gatling spin
     this.fired = false;                 // convenience flag combat can poll
@@ -465,6 +466,19 @@ export class Animator {
     const clip = this.profile?.clipOverrides?.[name] ||
       defClipVariants(this.mech.def)?.[name] || CLIPS[name];
     if (!clip) { console.warn('no clip', name); return 0; }
+    // CLIP-TO-CLIP CROSSFADE. The outgoing action used to be discarded and
+    // the new one ramped from weight 0 — so a light combo dipped toward the
+    // GAIT/REST pose between punches, and a flinch interrupting a swing
+    // snapped through neutral. The outgoing action is kept as `prev`, frozen
+    // where it was, and blended OUT under the new one over the same fade:
+    // prev -> next, never prev -> base -> next. It fires no events and has no
+    // clock; it is only a pose on its way out.
+    const out = this.action;
+    if (out && out.weight > 0.001 && out.clip !== clip) {
+      this.prev = { clip: out.clip, t: out.t, weight: out.weight, fadeOut: opts.fade ?? 0.07 };
+    } else if (out && out.clip === clip) {
+      this.prev = null;   // the same clip restarting blends from itself
+    }
     this.action = {
       clip, t: 0, speed: opts.speed || 1, weight: 0,
       fadeIn: opts.fade ?? 0.07, fadingOut: false,
@@ -497,6 +511,42 @@ export class Animator {
 
   addImpulse(joint, amp, freq = 26, decay = 9) {
     this.impulses.push({ joint, amp, freq, decay, t: 0 });
+  }
+
+  // Sample one action's clip at its own time and blend it over the target at
+  // its weight (x `scale`). Used for the live action and for the outgoing one
+  // of a crossfade.
+  applyAction(act, tgt, scale = 1) {
+    const clip = act.clip;
+    const sampleT = clip.loop ? act.t % clip.dur : Math.min(act.t, clip.dur);
+    const w = ease.inOutQuad(clamp01(act.weight)) * scale;
+    const joints = clip.upper ? UPPER_JOINTS : null;
+    const mirror = this.profile?.mirrorArms;
+    for (const [jname0, track] of Object.entries(clip.tracks)) {
+      if (joints && !joints.includes(jname0) && jname0 !== 'hipsPos' && jname0 !== 'hipsRot') continue;
+      let v = sampleTrack(track, sampleT);
+      let jname = jname0;
+      // mirror-handed GLB: a right-arm clip drives the left arm (and vice
+      // versa), pitch preserved / yaw+roll flipped — so a weapon in the
+      // opposite hand swings from the arm that actually holds it
+      if (mirror && ARM_JOINTS.includes(jname0)) { jname = mirrorJointName(jname0); v = mirrorValue(v); }
+      const base = tgt[jname];
+      if (!base) continue;
+      if (jname === 'hipsPos') {
+        base[0] = lerp(base[0], v[0] * this.s, w);
+        base[1] = lerp(base[1], v[1] * this.s, w);
+        base[2] = lerp(base[2], v[2] * this.s, w);
+      } else if (jname === 'hipsRot') {
+        base[0] = lerp(base[0], v[0], w);
+        base[1] = lerp(base[1], v[1], w);
+        base[2] = lerp(base[2], v[2], w);
+      } else {
+        // legs keep their rest-pose bend (digitigrade mechs) during clips
+        base[0] = lerp(base[0], v[0] + this.restBias(jname, 0), w);
+        base[1] = lerp(base[1], v[1] + this.restBias(jname, 1), w);
+        base[2] = lerp(base[2], v[2] + this.restBias(jname, 2), w);
+      }
+    }
   }
 
   // ---------- main update ----------
@@ -837,6 +887,19 @@ export class Animator {
       tgt.elbowR[0] += -0.55 * d;
     }
 
+    // ===== the outgoing clip of a crossfade (see play) =====
+    // Applied FIRST, at the weight it had when it was replaced, so the new
+    // clip fades in OVER it rather than over the rest pose: lerp(base, prev)
+    // then lerp(that, next) is a straight prev -> next blend. It is dropped
+    // the frame the new clip reaches full weight; only with nothing replacing
+    // it (the action stopped, or itself fading) does it fade out on its own.
+    if (this.prev) {
+      const pv = this.prev, cur = this.action;
+      if (!cur || cur.fadingOut) pv.weight -= dt / (pv.fadeOut || 0.07);
+      if (pv.weight <= 0 || (cur && !cur.fadingOut && cur.weight >= 1)) this.prev = null;
+      else this.applyAction(pv, tgt);
+    }
+
     // ===== action clip layer =====
     const act = this.action;
     if (act) {
@@ -869,37 +932,7 @@ export class Animator {
         }
       }
 
-      if (this.action) {
-        const sampleT = clip.loop ? act.t % clip.dur : Math.min(act.t, clip.dur);
-        const w = ease.inOutQuad(clamp01(act.weight));
-        const joints = clip.upper ? UPPER_JOINTS : null;
-        const mirror = this.profile?.mirrorArms;
-        for (const [jname0, track] of Object.entries(clip.tracks)) {
-          if (joints && !joints.includes(jname0) && jname0 !== 'hipsPos' && jname0 !== 'hipsRot') continue;
-          let v = sampleTrack(track, sampleT);
-          let jname = jname0;
-          // mirror-handed GLB: a right-arm clip drives the left arm (and vice
-          // versa), pitch preserved / yaw+roll flipped — so a weapon in the
-          // opposite hand swings from the arm that actually holds it
-          if (mirror && ARM_JOINTS.includes(jname0)) { jname = mirrorJointName(jname0); v = mirrorValue(v); }
-          const base = tgt[jname];
-          if (!base) continue;
-          if (jname === 'hipsPos') {
-            base[0] = lerp(base[0], v[0] * this.s, w);
-            base[1] = lerp(base[1], v[1] * this.s, w);
-            base[2] = lerp(base[2], v[2] * this.s, w);
-          } else if (jname === 'hipsRot') {
-            base[0] = lerp(base[0], v[0], w);
-            base[1] = lerp(base[1], v[1], w);
-            base[2] = lerp(base[2], v[2], w);
-          } else {
-            // legs keep their rest-pose bend (digitigrade mechs) during clips
-            base[0] = lerp(base[0], v[0] + this.restBias(jname, 0), w);
-            base[1] = lerp(base[1], v[1] + this.restBias(jname, 1), w);
-            base[2] = lerp(base[2], v[2] + this.restBias(jname, 2), w);
-          }
-        }
-      }
+      if (this.action) this.applyAction(act, tgt);
     }
 
     // ===== additive impulses =====

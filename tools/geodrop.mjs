@@ -24,7 +24,7 @@
 // treated as one.
 //
 // It PRINTS (house rule: tools export, humans apply). Needs `npm run dev`.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import fs from 'node:fs';
 
 const argv = process.argv.slice(2);
@@ -38,10 +38,7 @@ const boneFilter = flag('bone', null);
 const pick = flag('pick', null);
 const out = flag('json', null);
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 480 } });
 page.on('pageerror', (e) => console.error('PAGE ERROR:', String(e).slice(0, 400)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none&debug=3d`, { waitUntil: 'domcontentloaded' });

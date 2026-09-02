@@ -4,17 +4,14 @@
 //   node tools/attackmatrix.mjs [baseUrl]        (default http://localhost:5173)
 // Non-damaging by design: fenrir ult (buff — damage only lands if the
 // victim is close when the spin triggers).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const base = process.argv[2] || 'http://localhost:5173';
 const MECHS = ['titanus', 'vulcan', 'viper', 'rhino',
   'tempest', 'fenrir', 'colossus', 'wraith', 'inferno', 'glacier',
   'cranky', 'saurion', 'frogger', 'jerry'];
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 480, height: 270 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

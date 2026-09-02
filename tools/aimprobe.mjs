@@ -1,12 +1,9 @@
 // Where does a mech's muzzle actually POINT at the fire frame?
 //   node aimprobe.mjs <mechId> <clip> <t0,t1,...>
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 const [mechId, clip, tlist = '0,0.1,0.11,0.2'] = process.argv.slice(2);
 const times = tlist.split(',').map(Number);
-const b = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 320, height: 200 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 300)));
 await p.goto(`http://localhost:5173/?showcase=${mechId}&anim=none`, { waitUntil: 'networkidle' });

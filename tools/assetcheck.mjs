@@ -10,7 +10,7 @@
 // in a directory the game never reads.
 import { readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 let bad = 0;
 
@@ -38,10 +38,7 @@ for (const s of strays) {
 if (!strays.length) console.log('OK     no texture images stranded outside src/textures');
 
 // ---- 2. the declared-name check, run in the page --------------------------
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
 page.on('pageerror', (e) => { console.log('PAGEERROR', String(e).slice(0, 200)); bad++; });
 await page.goto('http://localhost:5173/', { waitUntil: 'domcontentloaded' });

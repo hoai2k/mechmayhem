@@ -7,16 +7,13 @@
 // duration, and per side damage dealt, casts of special/ult, and the share
 // of damage landed while the attacker was in a melee attack state.
 // One JSON line per duel, so a driver can fan pairings over processes.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const [pairsArg, arena = 'neon', diff = 'ace'] = process.argv.slice(2);
 const pairs = pairsArg.split(',').map((s) => s.split(':'));
 const CAP = 150 * 60;           // 150s of game time at 60 steps/s
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 480, height: 320 } });
 page.on('pageerror', (e) => console.error('PAGEERROR', String(e).slice(0, 200)));
 

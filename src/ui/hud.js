@@ -90,6 +90,21 @@ export class Hud {
       world.events.on('banner', (d) => this.announce(d.text || '', !!d.hold, d.color || null)),
     ];
     this.popupBudget = 0;
+    // TRAINING (game/training.js): the clock's slot reads TRAINING instead of
+    // a count, and update() leaves it alone
+    this.training = false;
+  }
+
+  // the plate root a fighter's checklist (or anything else) hangs off — null
+  // for a fighter with no plate (a summon)
+  plateFor(fighter) {
+    return this.plates.find((p) => p.f === fighter)?.root || null;
+  }
+
+  setTraining(on) {
+    this.training = !!on;
+    this.timerEl.classList.toggle('training', this.training);
+    this.timerEl.textContent = this.training ? t('training.title') : '';
   }
 
   buildPlates(fighters) {
@@ -218,7 +233,7 @@ export class Hud {
       }
       p.pips.forEach((pip, i) => pip.classList.toggle('won', f.wins > i));
     }
-    if (timeLeft !== undefined) {
+    if (timeLeft !== undefined && !this.training) {
       this.timerEl.textContent = timeLeft === Infinity ? '' : Math.max(0, Math.ceil(timeLeft));
     }
     this.calloutT -= dt;

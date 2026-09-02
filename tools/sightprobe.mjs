@@ -3,13 +3,10 @@
 // where the fog band starts and ends. Answers "are the buildings I can see
 // already fogged, and how big are the gaps between them?"
 // usage: node tools/sightprobe.mjs "<battle url>" [waitMs]
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [url, waitMs = '28000'] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 200)));
 await page.goto(url, { waitUntil: 'networkidle' });

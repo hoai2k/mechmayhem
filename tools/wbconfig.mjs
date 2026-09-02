@@ -9,11 +9,10 @@
 //   node tools/wbconfig.mjs [baseUrl]
 //
 // Exit 1 on any drift, so it can gate a commit that adds content.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const base = process.argv[2] || 'http://localhost:5173';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));

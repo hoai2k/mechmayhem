@@ -1,9 +1,8 @@
 // Did the hand-made VFX sprites load? effects.js keeps per-slot outcomes in
 // `spriteStatus` precisely so a silent fall back to the procedural textures
 // can be seen. Every slot in the manifest must say "ok".
-import { chromium } from 'playwright-core';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));

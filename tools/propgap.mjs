@@ -21,7 +21,7 @@
 // float.
 //
 // Needs the dev server (npm run dev) on :5173.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
@@ -31,10 +31,7 @@ const mech = flag('mech', 'konga');
 const want = flag('prop', 'gear');
 const frames = +flag('frames', 240);
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

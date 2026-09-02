@@ -5,11 +5,11 @@
 //
 //   node tools/scratch/volsliders.mjs [url]
 // ============================================================================
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import { MUSIC_VOL_DEFAULT, MUSIC_VOL_CEIL, SFX_VOL_DEFAULT, SFX_VOL_CEIL, VOL_STEP_FRAC } from '../../src/core/config.js';
 
 const url = process.argv[2] || 'http://localhost:5173/';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1100, height: 700 } });
 const fails = [];
 const ok = (cond, msg) => { console.log(`${cond ? '  ok  ' : ' FAIL '} ${msg}`); if (!cond) fails.push(msg); };

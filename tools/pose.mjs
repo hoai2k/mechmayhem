@@ -5,13 +5,10 @@
 // Loads ?showcase=<mechId>&anim=none, steps the Animator to <timeSec> of
 // <clip> with fixed 1/120 ticks, freezes it, and screenshots — no more
 // guessing SwiftShader wall-clock waits to catch a strike frame.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [mechId, clip, timeSec, out, cam] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

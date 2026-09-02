@@ -4,11 +4,10 @@
 // capsule radius, both derived from the roster `range` number).
 //
 //   node tools/scratch/fistreach.mjs <mech> [more mechs...]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const mechs = process.argv.slice(2);
 if (!mechs.length) mechs.push('cranky', 'titanus', 'konga');
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 320, height: 240 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 

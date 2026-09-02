@@ -6,17 +6,14 @@
 //   node tools/aimshot.mjs <attacker> <victim> <out-prefix> [light|heavy] [dist]
 //
 // (Needs the dev server: it mutates MELEE.AIM_PITCH live.)
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [atkId, vicId, out, move = 'light', dist = '5'] = process.argv.slice(2);
 if (!out) {
   console.error('usage: node tools/aimshot.mjs <attacker> <victim> <out-prefix> [light|heavy] [dist]');
   process.exit(1);
 }
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 720, height: 480 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

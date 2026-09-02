@@ -18,6 +18,8 @@ import { preloadBuildingModels } from '../arena/buildglb.js';
 import { loadLevel, themeFromLevel } from '../arena/level.js';
 import { resolveArenaTheme } from '../arena/authored.js';
 import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
+import { Hud } from '../ui/hud.js';
+import { Training } from '../game/training.js';
 
 export async function runBattleTest() {
   checkDeclaredAssetsOnce();
@@ -25,6 +27,13 @@ export async function runBattleTest() {
   const themeId = params.get('battle') || 'neon';
   let theme = THEMES_BY_ID[themeId] || THEMES[0];
   const auto = params.get('auto') === '1';
+  // &training=1: the TRAINING rules (game/training.js) — CPUs are dummies,
+  // KOs respawn, no clock, and the REAL HUD with a checklist per human seat.
+  // With &forcesplit=1 every fighter but the LAST is a real human seat (nobody
+  // drives P2+, but each gets a plate and a checklist) and the last is the
+  // dummy, which is the multi-seat picture; without it P1 is the one human.
+  const training = params.get('training') === '1';
+  const forcesplit = params.get('forcesplit') === '1';
 
   // ?level=<name> plays an authored level from the editor (public/levels/<name>.json,
   // or the live editor stash when name is __edit / playtest)
@@ -81,28 +90,48 @@ export async function runBattleTest() {
   // real match ships (createMech falls back to procedural off-3d or on load
   // failure), letting the soak/screenshot harness reproduce GLB-only bugs.
   const builtMechs = await Promise.all(defs.map((def) => createMech(def)));
+  const humanN = auto ? 0 : training && forcesplit ? Math.max(1, Math.min(4, ids.length - 1)) : 1;
   defs.forEach((def, i) => {
     const f = new Fighter(world, def, {
-      pos: spawns[i].pos, yaw: spawns[i].yaw, playerIndex: i, isAI: auto || i > 0,
+      pos: spawns[i].pos, yaw: spawns[i].yaw, playerIndex: i, isAI: i >= humanN,
       mech: builtMechs[i] || undefined,
     });
     fighters.push(f);
     world.fighters.push(f);
-    if (auto || i > 0) ais.push(new AIController(f, params.get('diff') || 'veteran'));
+    if (i >= humanN) ais.push(new AIController(f, training ? 'dummy' : params.get('diff') || 'veteran'));
   });
 
-  let humans = auto ? [] : [fighters[0]];
-  if (params.get('forcesplit') === '1') {
-    humans = fighters.slice(0, Math.min(4, fighters.length));
-    fighters.forEach((f, i) => f.pos.set((i % 2) * 90 - 45, 0, (i >> 1) * 60 - 30));
+  let humans = fighters.slice(0, humanN);
+  if (forcesplit) {
+    if (!training) humans = fighters.slice(0, Math.min(4, fighters.length));
+    // (a training dummy's home is its pad, so the bodies stay where they spawned)
+    if (!training) fighters.forEach((f, i) => f.pos.set((i % 2) * 90 - 45, 0, (i >> 1) * 60 - 30));
   }
   const layoutParam = params.get('layout'); // lr | tb (2-human split preview)
   if (layoutParam === 'lr' || layoutParam === 'tb') cameraSys.layout2p = layoutParam;
 
-  // simple debug HUD
+  // simple debug HUD (bottom-centre under training, where the real plates
+  // own the corners)
   const hud = document.createElement('div');
   hud.style.cssText = 'position:absolute;top:10px;left:10px;color:#8fe8ff;font:13px monospace;z-index:20;white-space:pre;text-shadow:0 1px 2px #000';
+  if (training) hud.style.cssText += ';top:auto;left:50%;bottom:8px;transform:translateX(-50%)';
   document.getElementById('ui-root').appendChild(hud);
+
+  // TRAINING: the real HUD (plates + the checklist each seat's list hangs
+  // off) and the trainer itself. Seat devices follow boot's own order.
+  let realHud = null, trainer = null;
+  if (training) {
+    realHud = new Hud(document.getElementById('ui-root'), world);
+    realHud.buildPlates(fighters);
+    realHud.positionPlates(cameraSys.layoutKind(humans.length), humans.map((f) => fighters.indexOf(f)));
+    realHud.setTraining(true);
+    world.camera = engine.camera;
+    const DEV = ['kb1', 'kb2', 'pad2', 'pad3'];
+    trainer = new Training({
+      world, fighters, hud: realHud, audio: null,
+      humans: humans.map((f, i) => ({ fighter: f, device: DEV[i], idx: i })),
+    });
+  }
 
   // finishers fire here too (the real Match wires its own) — and
   // ?finisherdemo=1 (alias ?debug=finisher) turns the page into a looping
@@ -144,6 +173,7 @@ export async function runBattleTest() {
     document.getElementById('ui-root').appendChild(bar);
   }
   world.events.on('ko', ({ fighter, attacker }) => {
+    if (training) return;   // the trainer respawns them; no finisher, no end
     const alive = fighters.filter((f) => f.alive);
     if (world.finisher || !attacker || !attacker.alive) return;
     if (!CONFIG.enable_finishers && !demo) return;
@@ -180,6 +210,8 @@ export async function runBattleTest() {
     }
     for (const ai of ais) ai.update(dt);
     world.update(dt);
+    trainer?.update(dt);
+    realHud?.update(dt, engine.camera, undefined);
     input.endFrame();
 
     hud.textContent = fighters.map((f) =>
@@ -215,6 +247,8 @@ export async function runBattleTest() {
   window.__ais = ais;
   window.__cam = cameraSys;
   window.__fighters = fighters;
+  window.__training = trainer;   // (null outside &training=1)
+  window.__hud = realHud;
   window.__THREE = THREE;   // audit tools build frustums against the live camera
   return engine;
 }

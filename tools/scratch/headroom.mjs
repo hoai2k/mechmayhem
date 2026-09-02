@@ -11,7 +11,7 @@
 //
 //   node tools/scratch/headroom.mjs [--peaks peaks.json] [--ceiling 1.0]
 // ============================================================================
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
@@ -53,7 +53,7 @@ await new Promise((r) => server.listen(0, r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
 const STACKS = [1, 2, 3, 4, 6, 8, 12];
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+const browser = await launch({ gl: false });
 const page = await browser.newPage();
 await page.goto(base + '/');
 

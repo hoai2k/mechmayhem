@@ -8,7 +8,7 @@
 // The backdrop colour is sampled from the real thumbs: their corners are a
 // near-black navy, rgb(0,7,21), lifting slightly toward the middle of each
 // edge. Matching it is what makes the cell borders line up visually.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { readFileSync, writeFileSync } from 'fs';
 import { basename } from 'path';
 
@@ -21,10 +21,7 @@ const SIZE = Number(sizeArg) || 340;
 const BACKDROP = [0, 7, 21];
 
 const dataUrl = 'data:image/png;base64,' + readFileSync(src).toString('base64');
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--no-sandbox'],
-});
+const browser = await launch({ gl: false });
 const page = await browser.newPage();
 const png = await page.evaluate(async ({ dataUrl, SIZE, BACKDROP }) => {
   const img = new Image();

@@ -14,10 +14,9 @@
 // `alt` audits the manifest's alternate entry for the same mech (for rhino:
 // the old Tripo rig + skinOps) so a custom rig can be compared against what
 // it replaced under identical motion. Output: worst clips, worst bone pairs.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 const [id, which = 'primary', minDistArg = '3', base = 'http://localhost:5173'] = process.argv.slice(2);
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
 const errs = []; page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
 await page.goto(`${base}/?showcase=${id}&anim=none`, { waitUntil: 'networkidle' });

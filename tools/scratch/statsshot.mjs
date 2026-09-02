@@ -1,8 +1,8 @@
 // Shoot the /stats page in both of its states, and report console errors.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const base = process.argv[2] || 'http://localhost:5173';
 const out = process.argv[3] || '/tmp/claude-0/-home-user-mechmayhem/a9d5bb07-8b5c-5524-b54f-b3d8b5219b33/scratchpad';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 1100, height: 950 } });
 const errs = [];
 p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });

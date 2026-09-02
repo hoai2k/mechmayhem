@@ -15,7 +15,7 @@
 //   ANIMATION       do the clips exist, and does playing one actually MOVE the
 //                   bones â€” a track that binds to nothing is silent, not an
 //                   error.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -33,8 +33,7 @@ if (!ids.length) { console.error('usage: node tools/exportcheck.mjs <mechId> [â€
 const JOINTS = ['hips', 'torso', 'head', 'shoulderL', 'elbowL', 'handL', 'shoulderR',
   'elbowR', 'handR', 'thighL', 'kneeL', 'ankleL', 'thighR', 'kneeR', 'ankleR'];
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));

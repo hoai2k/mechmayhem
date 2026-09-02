@@ -4,10 +4,9 @@
 // separates from a correctly-mapped one that simply has no geometry.
 //
 //   node tools/scratch/bonechain.mjs <mech>
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const mech = process.argv[2] || 'saurion';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 320, height: 240 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await p.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });

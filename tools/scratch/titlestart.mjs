@@ -5,11 +5,10 @@
 // the browser allows it, the pad) take fullscreen with them. Fullscreen itself
 // cannot be observed in headless Chromium, so what is checked is that the
 // request was MADE — requestFullscreen is wrapped before the page boots.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const PORT = process.env.PORT || '5175';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 
 // A real gamepad, as far as the game can tell: the input layer polls
 // navigator.getGamepads every frame, so a fake one exercises the ACTUAL pad

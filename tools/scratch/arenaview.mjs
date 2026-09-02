@@ -3,16 +3,13 @@
 // Parks the camera out on the spawn ring looking across the arena centre —
 // the view a player actually fights in, which is the only honest way to judge
 // whether the big structures read.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 // A 6th argument names a STRUCTURE SYSTEM to frame instead of the arena
 // centre (`--sys 1`, index into arena.destructoAll — 0 is the buildings).
 // Judging a crystal field from the middle of the plaza is judging a
 // silhouette 90 units away and six pixels tall.
 const [url, out, yawD = '35', hgt = '12', dist = '70', sysArg] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 200)));
 await page.goto(url, { waitUntil: 'domcontentloaded' });

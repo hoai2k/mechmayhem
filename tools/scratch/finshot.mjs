@@ -2,14 +2,11 @@
 // stepped by the harness, so a 20x-slow headless renderer still lands on the
 // beat you asked for) and shoots the frames you name.
 //   node tools/scratch/finshot.mjs <mech> <out-prefix> <t0,t1,...> [victim]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const [mech = 'saurion', out = '/tmp/fin', times = '1.6,2.2,3,3.8', vic = 'titanus'] = process.argv.slice(2);
 const TS = times.split(',').map(Number);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 200)));
 await page.goto(`http://localhost:5173/?battle=neon&p1=${mech}&p2=${vic}&auto=0`, { waitUntil: 'networkidle' });

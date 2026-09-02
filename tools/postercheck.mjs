@@ -10,14 +10,11 @@
 //   node tools/postercheck.mjs viper,rhino,cranky,jerry
 //
 // Several comma-lists may be given; each is one run.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { PNG } from 'pngjs';
 
 const BASE = process.env.RW_URL || 'http://localhost:5173/';
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const silhouette = (buf) => {
   const p = PNG.sync.read(buf);
   let x0 = p.width, x1 = -1, y0 = p.height, y1 = -1;

@@ -12,7 +12,7 @@
 // The badge, poster and thumbnail come from tools/export-chars.mjs; these are
 // the ones that could not exist before, because the model had no self-contained
 // form to photograph.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -36,8 +36,7 @@ const VIEWS = [
 // one action frame per mech, in preference order — whichever it actually has
 const ACTION = ['taunt', 'heavy', 'light1', 'block', 'run'];
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 160)));

@@ -11,7 +11,7 @@
 // The neighbouring probes ask narrower questions and are cheaper to run:
 // tools/skinstretch.mjs (one clip, by island), tools/cliptear.mjs (far seams
 // only), tools/stretchaudit.mjs (synthetic sweep + suggested skinOps).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { writeFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
@@ -27,10 +27,7 @@ const limits = {};
 for (const k of ['stretch', 'pinch', 'tear']) if (flag(k)) limits[k] = +flag(k);
 const custom = Object.keys(limits).length > 0;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.log('PAGE ERROR:', String(e).slice(0, 300)));
 

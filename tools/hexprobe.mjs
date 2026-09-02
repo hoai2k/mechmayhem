@@ -24,16 +24,13 @@
 // The whole point of `keep` is that neither half is authored: `travel` is
 // measured off the bones and `ground` falls out of the cadence, so they only
 // agree if the gait is right.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [mech = 'cranky', throttle = '1', steps = '20'] = process.argv.slice(2);
 const base = process.env.RW_BASE || 'http://localhost:5173';
 const url = `${base}/workbench/?edit=gait&mech=${mech}&throttle=${throttle}`;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 480, height: 360 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e)));

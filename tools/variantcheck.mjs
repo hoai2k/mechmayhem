@@ -3,13 +3,10 @@
 // in use, and any console/page error raised on the way. The cheap regression
 // check after re-rigging a mech that keeps its old rig as `alt`.
 //   node tools/variantcheck.mjs <mechId>
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [id] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.text()); });

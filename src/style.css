@@ -403,6 +403,7 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
 /* The blurb has nowhere left to live on a clipped card — it rides the card's
    tooltip instead (menus.js), so nothing is lost. */
 .arena-card .arena-desc { display: none; }
+.arena-card.training .arena-name { color: var(--hud-amber); }
 
 /* ---------- HUD ---------- */
 #hud { position: absolute; inset: 0; pointer-events: none; }
@@ -426,7 +427,7 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
    everything inside the panel is on a tighter set of measurements than the same
    plate wears alone in a viewport corner. tools/scratch/split3.mjs fails if the
    stack ever outgrows the panel. */
-#hud-stats .hud-plate { position: static; width: auto; padding: 4px 9px 5px; }
+#hud-stats .hud-plate { position: relative; width: auto; padding: 4px 9px 5px; }
 #hud-stats .hud-plate .hp-head { margin-bottom: 2px; }
 #hud-stats .hud-bar { height: 10px; }
 #hud-stats .hud-bar.sprint { height: 4px; margin-top: 2px; }
@@ -485,6 +486,50 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
   color: #fff; text-shadow: 0 0 20px rgba(56,232,255,0.5), 0 3px 5px rgba(0,0,0,0.8);
   letter-spacing: 0.04em;
 }
+
+/* TRAINING: the clock's slot carries the word instead of a count */
+.hud-timer.training {
+  font-size: clamp(16px, 2vw, 26px); letter-spacing: 0.3em; color: var(--hud-amber);
+  text-shadow: 0 0 16px rgba(255,180,60,0.55), 0 2px 4px rgba(0,0,0,0.8);
+}
+/* THE TRAINING CHECKLIST (game/training.js): one per human seat, hung off
+   that seat's own plate so it lands in that player's viewport whatever the
+   split. Done steps collapse into a row of ticked chips; only the CURRENT step
+   is spelled out, with the button it lives on for THAT seat's device. */
+.hud-train { margin-top: 6px; padding-top: 5px; border-top: 1px solid rgba(96,200,255,0.2); font-size: 11px; }
+.hud-train .train-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.hud-train .train-title { font-weight: 900; letter-spacing: 0.2em; color: var(--hud-amber); font-size: 10px; }
+.hud-train .train-count { font-weight: 800; letter-spacing: 0.1em; color: #8fb4cc; font-size: 10px; }
+.hud-train .train-done { display: flex; flex-wrap: wrap; gap: 3px 5px; margin-top: 3px; }
+.hud-train .train-done:empty { display: none; }
+.hud-train .train-chip {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.08em; color: var(--hud-green);
+  padding: 1px 5px; border: 1px solid rgba(98,255,154,0.35); border-radius: 3px; background: rgba(98,255,154,0.08);
+}
+.hud-train .train-cur {
+  margin-top: 4px; font-weight: 900; font-style: italic; font-size: 13px; letter-spacing: 0.06em; color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+.hud-train .train-cur b { color: var(--hud-cyan); font-style: normal; margin-left: 6px; letter-spacing: 0.1em; }
+.hud-train .train-cur.tick { color: var(--hud-green); animation: traintick 0.4s ease-out; }
+@keyframes traintick { 0% { transform: scale(1.25); filter: brightness(2); } 100% { transform: none; filter: none; } }
+.hud-train.free .train-done, .hud-train.free .train-cur { display: none; }
+.hud-train.free .train-title { color: var(--hud-green); }
+.hud-train.right { text-align: right; }
+.hud-train.right .train-head { flex-direction: row-reverse; }
+.hud-train.right .train-done { justify-content: flex-end; }
+/* in the 3-player stats panel there is a quarter-screen for four plates and
+   the stack already fills it, so the list may cost NO height: the chips go, the
+   rest folds onto one line (count · current step) pinned to the empty right
+   half of the plate's name row, and the title is the panel's clock */
+#hud-stats .hud-train {
+  position: absolute; right: 9px; top: 3px; margin: 0; padding: 0; border: 0;
+  display: flex; align-items: baseline; gap: 0 8px; white-space: nowrap;
+}
+#hud-stats .hud-train .train-done { display: none; }
+#hud-stats .hud-train:not(.free) .train-title { display: none; }
+#hud-stats .hud-train .train-cur { margin-top: 0; font-size: 11px; }
+#hud-stats .hud-train.free .train-cur { display: none; }
 
 /* announcements */
 #announce {

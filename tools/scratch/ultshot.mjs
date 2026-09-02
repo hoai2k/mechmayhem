@@ -2,15 +2,12 @@
 // frames it asks for, driving the world by hand so a 20x-slow SwiftShader
 // renderer still lands on the moment you asked for.
 //   node tools/scratch/ultshot.mjs <mech> <out-prefix> <t0,t1,t2...> [arena]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const [mech = 'fenrir', out = '/tmp/ult', times = '0.7,1.2,2,3', arena = 'neon'] = process.argv.slice(2);
 const TS = times.split(',').map(Number);
 const url = `http://localhost:5173/?battle=${arena}&p1=${mech}&p2=titanus&auto=1&diff=ace`;
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 200)));
 await page.goto(url, { waitUntil: 'networkidle' });

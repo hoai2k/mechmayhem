@@ -7,14 +7,11 @@
 //            what a summon pays mid-fight (saurion's pack, fenrir's hunt), and
 //            it still re-runs the custom-rig re-skin + skinOps every time.
 // A bake removes the correction work from BOTH.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const base = process.argv.includes('--base')
   ? process.argv[process.argv.indexOf('--base') + 1] : 'http://localhost:5173';
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));

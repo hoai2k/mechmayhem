@@ -9,16 +9,13 @@
 // page.screenshot's wait-for-a-fresh-frame until it times out. Instead the AI
 // is taken off P1 and its intent object is written ONCE — nothing else touches
 // it, so the hold persists across frames — and the tool just watches.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const out = process.argv[2] || 'climb';
 const url = process.argv[3] ||
   'http://localhost:5173/?battle=neon&p1=jerry&p2=viper&auto=1';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 760, height: 430 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

@@ -6,7 +6,7 @@
 // One representative shot per tool, resized to 640x360 into workbench/thumbs/.
 // Re-run when a tool's look changes; the landing page (workbench/landing.js)
 // bundles these files, so a missing one fails the build rather than 404ing.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import sharp from 'sharp';
 const shots = [
   ['animation', 'http://localhost:5173/workbench/?edit=animation&mech=colossus', 16000],
@@ -23,7 +23,7 @@ const shots = [
 const only = process.argv.slice(2);
 const list = only.length ? shots.filter(([name]) => only.includes(name)) : shots;
 if (!list.length) { console.log('no such tool:', only.join(', ')); process.exit(1); }
-const b = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium', args:['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const b = await launch();
 for (const [name, url, wait] of list) {
   const p = await b.newPage({ viewport:{width:1280,height:720} });
   await p.goto(url, {waitUntil:'domcontentloaded'}).catch(e=>console.log(name, String(e).slice(0,80)));

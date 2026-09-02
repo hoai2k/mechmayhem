@@ -22,7 +22,7 @@
 // be a rounding error next to `lift`.
 //
 // Needs the dev server (npm run dev) on :5173.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
@@ -30,10 +30,7 @@ const has = (n) => args.includes('--' + n);
 const mech = args.find((a, i) => !a.startsWith('--') && !args[i - 1]?.startsWith('--'));
 if (!mech) { console.error('usage: node tools/browprobe.mjs <mech> [--clips a,b] [--frames 24]'); process.exit(1); }
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 300)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none&debug=3d`, { waitUntil: 'domcontentloaded' });

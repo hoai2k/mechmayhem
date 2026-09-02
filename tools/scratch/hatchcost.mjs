@@ -2,12 +2,9 @@
 // Fighter, the AI, and the frame the raptor first walks on. Also: how much a
 // live minion costs per step, since three of them is a permanent tax the
 // player feels as "lag after the ult" whether or not any single frame spiked.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const [waitMs = '25000'] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 300)));
 await page.goto('http://localhost:5173/?battle=neon&p1=saurion&p2=titanus', { waitUntil: 'networkidle' });

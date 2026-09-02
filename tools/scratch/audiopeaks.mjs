@@ -3,7 +3,7 @@
 // decodeAudioData is what the game itself will use anyway).
 //
 //   node tools/scratch/audiopeaks.mjs [--json out.json]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import { createServer } from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
 import { extname, join } from 'node:path';
@@ -33,7 +33,7 @@ const files = [
   { group: 'menu', url: '/public/sound/Bohemian Cello Flame Hybrid Suite.mp3', name: 'menu theme' },
 ];
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+const browser = await launch({ gl: false });
 const page = await browser.newPage();
 await page.goto(base + '/');
 const rows = await page.evaluate(async (list) => {

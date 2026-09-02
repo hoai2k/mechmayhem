@@ -12,14 +12,13 @@
 // presenting frames, `step(dt)` advances it by exactly what you ask, and
 // `capture()` draws and reads in the same synchronous call (through the real
 // post chain). So the times below are the times.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import sharp from 'sharp';
 const [mech = 'wraith', out = '/tmp/t.png', timesArg = '0.5,1.4,2.4,3.0,3.4,4.0', gapArg = '9'] =
   process.argv.slice(2);
 const times = timesArg.split(',').map(Number).sort((a, b) => a - b);
 const W = 460, H = 560;
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const page = await b.newPage({ viewport: { width: W, height: H } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 240)));

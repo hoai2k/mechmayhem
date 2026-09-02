@@ -1,9 +1,8 @@
 // how long is viper's blade, really — the farthest skinned vertex owned by the
 // forearm/hand, measured along the elbow->hand axis at rest.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const mech = process.argv[2] || 'viper';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const page = await b.newPage({ viewport: { width: 400, height: 300 } });
 page.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });

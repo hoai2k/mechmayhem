@@ -1,16 +1,13 @@
 // Screenshot driver for ultimates: loads a battle, freezes the AI, lines the
 // two bots up, force-fires P1's ult, then fast-forwards the world
 // synchronously and screenshots at the requested frame marks.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [, , p1, p2, phasesArg, prefix, distArg] = process.argv;
 const phases = phasesArg.split(',').map(Number);
 const dist = Number(distArg) || 14;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (e) => console.log('PAGEERR:', String(e).slice(0, 300)));
 await page.goto(

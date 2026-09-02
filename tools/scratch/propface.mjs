@@ -4,13 +4,10 @@
 // that faces the focal point shows you its FACE, one at a random yaw shows
 // you its flank — the picture behind traitprobe's facing-deviation number.
 //   node tools/scratch/propface.mjs "<url>" <prop> <out.png>  (__faceBack: dist)
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const [url, propName, out] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 300)));
 await page.goto(url, { waitUntil: 'domcontentloaded' });
