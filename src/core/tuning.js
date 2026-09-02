@@ -27,7 +27,14 @@ export const TUNING = {
   stamina: {
     sprintSeconds: 12,     // seconds of continuous SPRINTING a full bar buys
     blockSeconds: 7,       // seconds of continuous BLOCKING a full bar buys
-    dashCost: 0.09,        // fraction of a full bar spent per dash
+    // A DASH HAS TO COST MORE THAN IT REGENERATES, or the dodge is free. At
+    // 0.09 a dash put 0.11 back over its own 0.6s cooldown, so mashing it
+    // actually REFILLED the bar and the dodge had no end. Measured at 0.18 (a
+    // mash on the cooldown, tools/scratch/dashbuffer.mjs): a full bar buys
+    // about ten dashes before it refuses, ~7s of continuous dodging, while a
+    // single dash is back inside a second — expensive to lean on, free to
+    // use.
+    dashCost: 0.18,        // fraction of a full bar spent per dash
     dashCostBlockMult: 2.2, // ...multiplied by this when the guard is also up
     refillSeconds: 5.3,    // seconds to refill from empty (guard down, not sprinting)
     // A GUARD THAT RUNS DRY STAYS DOWN until the tank has this much back in
@@ -36,9 +43,9 @@ export const TUNING = {
     guardRelock: 0.15,
     // NOTE on sprinting from a standing start: you enter a sprint THROUGH a
     // dash, and that dash charges `dashCost` before the run begins. So a cold
-    // start off a full bar runs for sprintSeconds x (1 - dashCost) — 10.9s at
+    // start off a full bar runs for sprintSeconds x (1 - dashCost) — 9.8s at
     // the values above — while a sprint resumed on an already-moving mech
-    // gets the full 12. Raise sprintSeconds to ~13.2 if you want a cold start
+    // gets the full 12. Raise sprintSeconds to ~14.6 if you want a cold start
     // to measure a clean 12.
   },
 
@@ -66,6 +73,13 @@ export const TUNING = {
     chargeBoost: 0.95,     // extra burst at a full crouch coil, as a fraction
     chargeMax: 3,          // seconds of crouch that fully winds a charged dash
     cooldown: 0.6,         // seconds before another uncharged dash is allowed
+    // INVULNERABILITY BELONGS TO THE COIL, NOT THE BUTTON. A flat 0.26 on a
+    // 0.6s cooldown was 43% i-frame uptime for mashing B, which made the
+    // dodge the strongest defence in the game and cost nothing. A TAP is a
+    // step out of the way (0.14, 23% uptime); the three-second crouch is
+    // what buys a dodge that beats a real attack (0.42 at a full coil).
+    iframes: 0.14,         // seconds of invulnerability on a tapped dash
+    iframesCharged: 0.28,  // ...plus this much again at a full coil
   },
 
   // ---- AIR SOMERSAULT ------------------------------------------------------
@@ -276,6 +290,11 @@ export const TUNING = {
     hitstunHeavy: 0.42,    // seconds of stun from a heavy hit
     hitstunLight: 0.24,
     softFlinchChance: 0.35, // odds per chip tick of a torso rock
+    // HOW EARLY A PRESS MAY ARRIVE and still be honoured (see
+    // Fighter.bufferInput). Long enough to cover the recovery a player reads
+    // as "over", short enough that it never replays an input they have
+    // stopped meaning.
+    inputBuffer: 0.2,      // seconds a too-early heavy/special/jump is held for
     weightKnockResist: 0.45, // how much of stats.weight resists knockback/launch
   },
 };
