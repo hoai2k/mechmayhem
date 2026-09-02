@@ -1496,17 +1496,22 @@ const _defClips = new Map();
 // every round start. A gait that is not a biped's takes the crouch at this
 // fraction — hips drop, torso/head pitch and the leg fold all scaled together,
 // so the shape is the same bow, shallower.
-const INTRO_CROUCH = { quad: 0.35, trike: 0.3, arthropod: 0.25, hexapod: 0.25 };
+const INTRO_CROUCH = { quad: 0.3, trike: 0.12, arthropod: 0.12, hexapod: 0.12 };
 function scaleCrouch(raw, k) {
-  // the arms are part of the bow too: jerry's claw-arms hang low enough that
-  // the intro's shoulder pitch alone put a claw two units under the road
-  const PITCH = new Set(['torso', 'head', 'thighL', 'thighR', 'kneeL', 'kneeR', 'ankleL', 'ankleR',
-    'shoulderL', 'shoulderR', 'elbowL', 'elbowR']);
+  const PITCH = new Set(['torso', 'head', 'thighL', 'thighR', 'kneeL', 'kneeR', 'ankleL', 'ankleR']);
+  // THE ARMS ARE LEFT ALONE. Arm clip values are ABSOLUTE (legs/torso/head are
+  // additive over the rest pose), so the intro's "arms back, then flex" is a
+  // humanoid gesture stated in humanoid angles: on jerry it hung the claw-arms
+  // straight down, two units under the road, and scaling those angles toward
+  // zero only hung them straighter. A crab, a wolf or a trike keeps its own
+  // carriage through the bow.
+  const ARMS = /^(shoulder|elbow|hand)[LR]$/;
   return {
     ...raw,
     keys: raw.keys.map((key) => {
       const pose = {};
       for (const [j, v] of Object.entries(key.pose)) {
+        if (ARMS.test(j)) continue;
         if (j === 'hipsPos') pose[j] = [v[0], v[1] * k, v[2]];
         else if (PITCH.has(j)) pose[j] = [v[0] * k, v[1], v[2]];
         else pose[j] = v;
@@ -1526,7 +1531,9 @@ export function defClipVariants(def) {
   if (def.ballPose) {
     const raw = CLIPS_RAW.ball;
     const tuck = { ...raw.keys[raw.keys.length - 1].pose, ...def.ballPose };
+    // (merged: the intro crouch above may already be in `out`)
     out = {
+      ...(out || {}),
       ball: compile('ball', {
         ...raw,
         keys: [...raw.keys.slice(0, -1), { ...raw.keys[raw.keys.length - 1], pose: tuck }],
