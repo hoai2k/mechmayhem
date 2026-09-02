@@ -1,7 +1,7 @@
 // The embed toggle: off by default, turns the frame on, and is remembered.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const base = process.argv[2] || 'http://localhost:5173';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const b = await launch();
 const ctx = await b.newContext({ viewport: { width: 1000, height: 700 } });
 const p = await ctx.newPage();
 const fails = []; const ok = (c, m) => { console.log(`${c?'  ok  ':' FAIL '} ${m}`); if (!c) fails.push(m); };

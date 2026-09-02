@@ -12,7 +12,7 @@
 //
 // Needs the dev server up: npm run dev.
 // ============================================================================
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
@@ -27,10 +27,7 @@ const roster = [...readFileSync('src/mechs/roster.js', 'utf8')
 const manifest = JSON.parse(readFileSync('public/models/manifest.json', 'utf8'));
 const want = process.argv.slice(2).length ? process.argv.slice(2) : roster;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 await mkdir(OUT, { recursive: true });
 
 // START FROM THE INDEX ALREADY ON DISK. A named run re-renders SOME mechs, and

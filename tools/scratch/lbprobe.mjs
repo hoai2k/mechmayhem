@@ -4,12 +4,9 @@
 // lowering the scope leaves the lock exactly as it found it.
 //
 // usage: node tools/scratch/lbprobe.mjs
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage();
 await page.goto('http://localhost:5173/?showcase', { waitUntil: 'domcontentloaded' });
 

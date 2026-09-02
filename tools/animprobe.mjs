@@ -4,15 +4,12 @@
 //   node tools/animprobe.mjs <mechId> <clip> [t0,t1,...] [outPrefix]
 // Samples the animator deterministically (fixed 1/60 steps) so a fast clip can
 // be inspected frame-accurately instead of gambling on a screenshot wait.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [mechId, clip, tlist = '0,0.3,0.55', prefix = `/tmp/probe_${mechId}`] = process.argv.slice(2);
 const times = tlist.split(',').map(Number);
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

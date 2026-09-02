@@ -1,10 +1,7 @@
 // Open the title screen, open SETTINGS, screenshot the modal; also assert the
 // ?procedural=1 → 'fallback' and ?design= mappings in CONFIG.
-import { chromium } from 'playwright-core';
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+import { launch } from '../lib/browser.mjs';
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 200)));
 await page.goto('http://localhost:5173/', { waitUntil: 'networkidle' });

@@ -15,16 +15,13 @@
 //
 // Each size is measured twice: with Animator.sizeMul live (what ships) and with
 // it pinned to 1 (the pre-fix behaviour), so the difference is attributable.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const mech = process.argv[2] || 'colossus';
 const SCALE = Number(process.argv[3] || 4);
 const URL = `http://localhost:5173/?debug=models&mech=${mech}&compare=solo`;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 // small viewport: SwiftShader is the bottleneck and every frame is a sample
 const page = await browser.newPage({ viewport: { width: 480, height: 320 } });
 const errors = [];

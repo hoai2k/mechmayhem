@@ -4,7 +4,7 @@
 // side. See docs/ANIME_FIDELITY_GUIDE.md (assembly turnarounds).
 //   node tools/scratch/partsheet.mjs <mech> <joint> <out.png> [render] [dist] [lookDown]
 //   node tools/scratch/partsheet.mjs titanus handR /tmp/hand.png anime 4.5 0.5
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import sharp from 'sharp';
 
 const [mech = 'titanus', joint = 'handR', out = '/tmp/part.png',
@@ -13,8 +13,7 @@ const dist = +distS, lookDown = +lookDownS;
 const T = 420;
 const base = process.env.RW_BASE || 'http://localhost:5173';
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: T, height: T } });
 page.on('pageerror', (e) => console.error('PAGE', String(e).slice(0, 160)));
 await page.goto(`${base}/?showcase=${mech}&anim=none&render=${render}`, { waitUntil: 'networkidle' });

@@ -15,7 +15,7 @@
 // SwiftShader renders this ~20x slower than a real GPU, so each frozen frame
 // gets a settle wait — the pose smoother needs a few frames to arrive at a
 // phase you jumped to.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import sharp from 'sharp';
 
 const [mech = 'viper', out = 'gait.png', throttle = '1', frames = '6', vs = ''] = process.argv.slice(2);
@@ -29,10 +29,7 @@ const base = process.env.RW_BASE || 'http://localhost:5173';
 const url = `${base}/workbench/?edit=gait&mech=${mech}&throttle=${throttle}&compare=1&prints=0`
   + (vs ? `&vs=${vs}` : '');
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e)));

@@ -25,7 +25,7 @@
 // tool re-shot the whole roster while adding two mechs, and the first report
 // of it was a human noticing the menus. Icons are art, and art needs a check
 // that looks at the pixels' existence rather than the code's intentions.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { readdirSync, existsSync } from 'node:fs';
 
 const BASE = process.argv[2] || 'http://localhost:5173';
@@ -33,10 +33,7 @@ const BASE = process.argv[2] || 'http://localhost:5173';
 const ON_DISK = existsSync('public/badges')
   ? readdirSync('public/badges').filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4))
   : [];
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--no-sandbox'],
-});
+const browser = await launch({ gl: false });
 const page = await browser.newPage();
 await page.goto(BASE, { waitUntil: 'domcontentloaded' });
 

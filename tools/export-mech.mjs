@@ -33,7 +33,7 @@
 // to sample) so the receiving engine has the index without opening the glb.
 //
 // Requires the dev server running on :5175 (npm run dev).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -52,8 +52,7 @@ if (!ids.length) {
   process.exit(1);
 }
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 
 async function waitGlobal(page, name, ms = 300000) {
   const t0 = Date.now();

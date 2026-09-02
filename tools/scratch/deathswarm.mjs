@@ -1,10 +1,9 @@
 // DEATH SWARM, measured: does the ult run the TAUNT's apparition (grow, ghost,
 // bats) and does the flock that follows actually hunt?
 //   node tools/scratch/deathswarm.mjs [enemy]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const enemy = process.argv[2] || 'titanus';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const page = await b.newPage({ viewport: { width: 800, height: 450 } });
 page.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await page.goto(`http://localhost:5173/?battle=neon&p1=wraith&p2=${enemy}&auto=1&diff=ace`, { waitUntil: 'networkidle' });

@@ -6,15 +6,12 @@
 //   node tools/weightaudit.mjs [baseUrl] [mechId,...]
 // Fix: add {"purgeFar": true} to the mech's manifest skinOps (strips the
 // minority far weights and renormalizes — keeps legitimate local blends).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const base = process.argv[2] || 'http://127.0.0.1:5175';
 const only = process.argv[3] ? process.argv[3].split(',') : null;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 200)));
 

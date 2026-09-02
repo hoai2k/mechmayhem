@@ -13,6 +13,17 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   SwiftShader runs the game ~20× slow; use waits from MECH_ART_GUIDE §4 and
   VIEW the images, don't assume.
 - Combat crash soak: `node tools/soak.mjs "http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1&diff=ace"`
+- NO-BROWSER CHECKS: `npm run check` (what CI runs before the build in
+  `deploy.yml`) = `node tools/params.mjs` + `node tools/rigmirror.mjs` + `npm test`
+  (`node --test test/*.test.mjs`, Node's own runner, no dependency): roster ↔
+  SPECIALS/ULTS ↔ clips ↔ contract cross-references, every gait key in
+  `GAIT_SCHEMA`, every roster/theme id and every literal `t('…')` has text,
+  tuning's derived rates, the shipped levels through `themeFromLevel`. Pure
+  data modules only — specials.js is read as SOURCE there because it imports
+  the world. EVERY BROWSER TOOL launches through `tools/lib/browser.mjs`
+  (`launch()` — SwiftShader args, `{gl:false}` for tools that never draw,
+  extra `args` appended); set `PW_CHROMIUM=<path to a Chromium/Chrome binary>`
+  on a machine where it is not at `/opt/pw-browsers/chromium`.
 - Debug URLs: `?showcase` (12-mech lineup) · `?showcase=<id>&anim=<clip|walk|none>`
   (single mech, judging camera) · `?battle=<arena>&p1=<id>&p2=<id>[&p3..p4][&auto=1][&diff=ace][&forcesplit=1]`
   · `?rigtest` (GLB retarget math check) · `?showall=1` (force SETTINGS → SHOW

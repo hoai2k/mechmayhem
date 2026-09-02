@@ -23,15 +23,12 @@
 // The enemy is parked at a bearing (dead ahead, out to each side, behind) and
 // the sim is stepped through world.update with the AI off, so every run is
 // repeatable.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const url = process.argv[2] ||
   'http://localhost:5173/?battle=neon&p1=tritone&p2=viper&auto=1';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));

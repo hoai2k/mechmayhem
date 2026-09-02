@@ -20,7 +20,7 @@
 //
 // `view`: front (default) | side | back | q (three-quarter). The camera frames
 // the mech's own measured height, so a crab and a colossus both fill the tile.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import sharp from 'sharp';
 
 const [mech = 'titanus', clip = 'taunt', out = '/tmp/clip.png', framesArg = '8', view = 'front'] =
@@ -32,10 +32,7 @@ const base = process.env.RW_BASE || 'http://localhost:5173';
 const VIEWS = { front: 0, q: Math.PI * 0.25, side: Math.PI * 0.5, back: Math.PI };
 const yaw = VIEWS[view] ?? VIEWS.front;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

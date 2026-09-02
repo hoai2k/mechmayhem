@@ -7,10 +7,9 @@
 // A limb that looks bare on screen is usually a limb whose vertices were handed
 // to its PARENT: the count says so immediately, and the L/R pair says whether
 // it is the model or the binding.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const [mech = 'saurion', ...want] = process.argv.slice(2);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 320, height: 240 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await p.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });

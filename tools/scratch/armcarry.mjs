@@ -7,17 +7,14 @@
 //
 // `--sig` overrides the signature's raptor carry constants live (window hook
 // below), so a candidate can be measured before it is written into the file.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const mech = process.argv[2] || 'saurion';
 const throttle = process.argv[3] ?? '1';
 const base = process.env.RW_URL || 'http://localhost:5173';
 const url = `${base}/workbench/?edit=gait&mech=${mech}&throttle=${throttle}&compare=0`;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 420, height: 320 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e)));

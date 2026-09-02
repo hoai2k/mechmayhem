@@ -1,8 +1,7 @@
 // Ghost Protocol still projects a spectre after the poseshell refactor.
 //   node tools/scratch/ghostwalkcheck.mjs
-import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const b = await launch();
 const page = await b.newPage({ viewport: { width: 420, height: 320 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 300)));

@@ -1,6 +1,6 @@
 // A close side-on look at the FORELIMBS over the run cycle.
 //   node tools/scratch/armshot.mjs <mech> <out.png> [throttle] [frames]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 import fs from 'node:fs';
 import { PNG } from 'pngjs';
 
@@ -11,10 +11,7 @@ const frames = Number(process.argv[5] ?? 4);
 const base = process.env.RW_URL || 'http://localhost:5173';
 const W = 520, H = 460;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 await page.goto(`${base}/workbench/?edit=gait&mech=${mech}&throttle=${throttle}&compare=0&prints=0`,
   { waitUntil: 'domcontentloaded' });

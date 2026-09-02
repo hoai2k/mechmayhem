@@ -7,11 +7,10 @@
 // Prints one line per match and a summary: wins, average time to kill, and the
 // average HP fraction the winner had left (how COMFORTABLE the win was, which
 // separates "wins narrowly" from "walks it").
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const [mech = 'tempest', foe = 'titanus', nArg = '6', arena = 'neon'] = process.argv.slice(2);
 const N = Number(nArg) || 6;
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 320, height: 240 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await p.goto(`http://localhost:5173/?battle=${arena}&p1=${mech}&p2=${foe}&auto=1&diff=ace`,

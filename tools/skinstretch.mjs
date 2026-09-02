@@ -14,14 +14,11 @@
 // worst offenders grouped by BONE-ISLAND — the same numbering the skin
 // workbench shows (`?edit=skin`), so a finding is directly actionable:
 // {"sel":{"comp":<id>},"to":"<bone>"}.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [id = 'jerry', clip = 'walk', ...rest] = process.argv.slice(2);
 const alt = rest.includes('--alt');
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

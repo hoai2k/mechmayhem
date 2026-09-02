@@ -10,10 +10,9 @@
 // one arc or none — which is an empty set, not a pass. The animator is stepped
 // to a given moment of the clip, and then the effect is ticked at a fixed 1/60
 // with the pose held there, so the arcs measured are the arcs that moment emits.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const shot = process.argv[2] || '/tmp/arc.png';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 520, height: 600 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 300)));
 await p.goto('http://localhost:5173/?battle=neon&p1=tempest&p2=titanus&auto=0', { waitUntil: 'networkidle' });

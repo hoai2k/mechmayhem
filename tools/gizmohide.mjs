@@ -20,11 +20,10 @@
 //   5  Shift pressed mid-drag changes nothing — a ring in hand keeps its ring
 //   6  Shift typed into a panel field changes nothing, and releasing it there
 //      still hands the gizmo back
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const base = process.env.RW_URL || 'http://localhost:5173';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 900, height: 640 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));

@@ -28,7 +28,7 @@
 //       different pivot. This is what tells you the remap was worth doing.
 //
 // Needs `npm run dev` running (default http://localhost:5173).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const argv = process.argv.slice(2);
 const id = argv.find((a) => !a.startsWith('--')) || 'colossus';
@@ -43,8 +43,7 @@ const CLIPS = ['walk', 'heavy', 'ranged', 'light1', 'victory', 'groundPound'];
 const POS_TOL = 0.01;   // mech units — anything above this is a moved anchor
 const AIM_TOL = 1.0;    // degrees
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 500, height: 400 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));

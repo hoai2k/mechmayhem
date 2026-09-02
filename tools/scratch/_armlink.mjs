@@ -1,6 +1,6 @@
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const [mech='viper'] = process.argv.slice(2);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 960, height: 540 } });
 p.on('pageerror', (e) => console.error('page error:', String(e).slice(0,200)));
 await p.goto(`http://localhost:5173/?battle=neon&p1=${mech}&p2=titanus`, { waitUntil: 'networkidle' });

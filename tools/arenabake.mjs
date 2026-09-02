@@ -8,7 +8,7 @@
 // hazards, and every terrain feature.
 //
 // Prints one line per arena and exits non-zero on any drift.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 let seed = 7;
@@ -21,10 +21,7 @@ const di = args.indexOf('--design');
 if (di >= 0) { design = args[di + 1]; args.splice(di, 2); }
 const themes = args.length ? args : null;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));

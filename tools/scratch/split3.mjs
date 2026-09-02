@@ -7,9 +7,9 @@
 // the match uses with the same plates.
 //
 // usage: node tools/scratch/split3.mjs [out.png] [waitMs]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const [out = 'split3.png', waitMs = '30000'] = process.argv.slice(2);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 300)));
 await p.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&p3=vulcan&p4=konga&forcesplit=1&diff=ace', { waitUntil: 'networkidle' });

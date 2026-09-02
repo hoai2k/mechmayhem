@@ -4,9 +4,8 @@
 // and asks the adapter's trackFor() what it maps — then proves the mapping is
 // the one the ANIMATOR actually applies, by posing a clip track and reading
 // which joint moved.
-import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 640, height: 480 } });
 const errs = [];
 p.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));

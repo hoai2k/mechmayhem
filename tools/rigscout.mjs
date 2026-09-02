@@ -20,7 +20,7 @@
 //        --focus=x,y,z:size zoom the ortho views on a point (mesh-local)
 // e.g. node tools/rigscout.mjs wraith /tmp/wraith
 //      node tools/rigscout.mjs wraith /tmp/wr_gun --only=3,25 --focus=0.05,0.4,0.25:0.2
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const argv = process.argv.slice(2);
 const flags = argv.filter((a) => a.startsWith('--'));
@@ -35,10 +35,7 @@ const focus = focusArg
   ? { c: focusArg.split(':')[0].split(',').map(Number), size: +(focusArg.split(':')[1] || 0.25) }
   : null;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 900, height: 900 } });
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 300)));
 await page.goto('http://localhost:5173/?rigtest', { waitUntil: 'networkidle' });

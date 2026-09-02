@@ -2,7 +2,7 @@
 // and stitch them into a single strip, so a recolor change can be judged at a
 // glance. One browser for the whole run (SwiftShader boot is the slow part).
 //   node tools/schemesheet.mjs <mechId> <out.png> [schemeIdxCsv] [waitMs]
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { PNG } from 'pngjs';
 import fs from 'node:fs';
 
@@ -10,10 +10,7 @@ const [id, out, list = '0,1,2,3', waitMs = '12000'] = process.argv.slice(2);
 const schemes = list.split(',').map(Number);
 const W = 480, H = 480;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));

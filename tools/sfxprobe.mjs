@@ -11,14 +11,10 @@
 //
 //   node tools/sfxprobe.mjs [http://localhost:5173/]
 // ============================================================================
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const url = process.argv[2] || 'http://localhost:5173/';
-const b = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox',
-    '--autoplay-policy=no-user-gesture-required'],
-});
+const b = await launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const p = await b.newPage();
 const errs = [];
 p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });

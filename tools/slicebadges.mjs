@@ -1,6 +1,6 @@
 // Slice the generated 4x4 badge sheet into public/thumbs/<id>.png (256px),
 // roster order, using Chromium canvas (no native image deps needed).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { readFileSync, writeFileSync } from 'fs';
 
 const IDS = ['titanus', 'vulcan', 'viper', 'rhino',
@@ -10,10 +10,7 @@ const src = process.argv[2];
 const b64 = readFileSync(src).toString('base64');
 const mime = src.endsWith('.webp') ? 'image/webp' : 'image/png';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--no-sandbox'],
-});
+const browser = await launch({ gl: false });
 const page = await browser.newPage();
 const tiles = await page.evaluate(async ({ b64, mime }) => {
   const img = new Image();

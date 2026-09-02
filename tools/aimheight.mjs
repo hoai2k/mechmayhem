@@ -12,7 +12,7 @@
 // second pass on the same page would find two idle mechs) — once with the
 // vertical aim servo live and once with it disabled (MELEE.AIM_PITCH = 0, the
 // pre-servo behaviour) — so the two columns are directly comparable.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const url = process.argv[2];
 const STEPS = Number(process.argv[3] || 5400);
@@ -20,10 +20,7 @@ if (!url) {
   console.error('usage: node tools/aimheight.mjs "<battle url>" [steps]');
   process.exit(1);
 }
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));

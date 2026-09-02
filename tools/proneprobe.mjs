@@ -26,7 +26,7 @@
 // height), which is about the thickness of a mech's back plate.
 //
 // Needs `npm run dev`.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : Number(args[i + 1]); };
@@ -35,10 +35,7 @@ const STRIDE = flag('stride', 7);
 const LIFT = flag('lift', 0.10);
 const ids = args.filter((a) => !a.startsWith('--') && !/^[\d.]+$/.test(a));
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

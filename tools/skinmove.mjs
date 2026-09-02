@@ -4,15 +4,12 @@
 // pivots), this measures where the pixels go — catches skinOps/mesh-vs-skeleton
 // mismatches ("the claw mesh sits on a bone nobody animates").
 //   node tools/skinmove.mjs <mechId> <clip> <t> [outPrefix]
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [mechId, clip, tStr = '0.23', prefix = `/tmp/skinmove_${mechId}`] = process.argv.slice(2);
 const t = Number(tStr);
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));

@@ -1,6 +1,6 @@
 // Can a page tell a REFUSED cross-origin frame from a loaded one?
-import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const b = await launch({ gl: false });
 const p = await b.newPage();
 await p.goto('http://localhost:5173/stats/', { waitUntil: 'domcontentloaded' });
 for (const [label, src] of [

@@ -18,17 +18,14 @@
 //
 // --apply writes the correction into public/models/props/manifest.json as
 // `ry` (degrees), which is what propglb.js already applies at load.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const MAN = 'public/models/props/manifest.json';
 const apply = process.argv.includes('--apply');
 const url = process.env.RW_URL || 'http://localhost:5173';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e)));

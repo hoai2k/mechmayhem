@@ -15,14 +15,11 @@
 // zero, which no held/thrown test can tell from hovering.
 //
 // Usage: node tools/finishaudit.mjs "<battletest url>" [mech ...]
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const URL = process.argv[2];
 const MECHS = process.argv.slice(3);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const rows = [];
 for (const mech of MECHS) {
   const page = await browser.newPage({ viewport: { width: 640, height: 360 } });

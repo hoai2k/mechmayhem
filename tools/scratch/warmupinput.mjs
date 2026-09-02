@@ -10,12 +10,9 @@
 // yaw the loop hands it, world.update. Reported as the distance from that
 // fighter's own warm-up camera before and after, plus how far he travelled
 // along the camera's own view direction (+ = away from the viewer).
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 800, height: 450 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));

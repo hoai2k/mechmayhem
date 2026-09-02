@@ -22,7 +22,7 @@
 // "reversed" while the model is perfectly correct. A prop with a GLB is the
 // one that can genuinely disagree, and that is what this checks.
 import { readFileSync } from 'node:fs';
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const [url, ...props] = process.argv.slice(2);
 let modelled = new Set();
@@ -30,10 +30,7 @@ try {
   modelled = new Set(Object.keys(JSON.parse(
     readFileSync(new URL('../../public/models/props/manifest.json', import.meta.url), 'utf8'))));
 } catch { /* no prop manifest — nothing is modelled */ }
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 200)));
 await page.goto(url, { waitUntil: 'domcontentloaded' });

@@ -1,8 +1,7 @@
 // Load a URL headless, dump console messages matching a filter (default: all warn/error + [contract]).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 const [url, waitMs = '30000'] = process.argv.slice(2);
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage();
 page.on('console', (m) => {
   const t = m.type(), txt = m.text();

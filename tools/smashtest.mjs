@@ -1,13 +1,10 @@
 // Destruction check: loads a battle, blows a crater into the first massed
 // building, fast-forwards the collapse, and screenshots the wreck up close.
 // usage: node tools/smashtest.mjs <url> <out.png> [waitMs]
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [url, out, waitMs = '26000'] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));

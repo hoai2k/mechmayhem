@@ -11,13 +11,10 @@
 //   · ONE person against three CPUs is a gauntlet, not a brawl — no respawns
 //
 // usage: node tools/brawl.mjs [waitMs]
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [waitMs = '30000'] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 300)));
 page.on('console', (m) => { if (m.type() === 'error') console.error('console:', m.text().slice(0, 200)); });

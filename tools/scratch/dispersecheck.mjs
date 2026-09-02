@@ -1,10 +1,9 @@
 // Is the apparition actually there? Reports the detached shell's presence,
 // size, opacity and world bounding box across wraith's taunt exit.
 //   node tools/scratch/dispersecheck.mjs
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const page = await b.newPage({ viewport: { width: 420, height: 320 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 300)));

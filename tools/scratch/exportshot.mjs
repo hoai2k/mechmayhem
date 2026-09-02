@@ -1,7 +1,7 @@
 // exportshot — render an exported glb with a PLAIN three scene, nothing of the
 // game in it, so the picture is what another engine would draw.
 //   node tools/scratch/exportshot.mjs <mech> [clip] [t]
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 
 const PORT = process.env.PORT || '5175';
 const id = process.argv[2] || 'saurion';
@@ -9,8 +9,7 @@ const clip = process.argv[3] || null;
 const at = Number(process.argv[4] || 0.5);
 const OUT = `/tmp/claude-0/-home-user-mechmayhem/27a6bc4b-932a-5b1a-a1d9-b717cc420b05/scratchpad/export-${id}${clip ? '-' + clip : ''}.png`;
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 640 } });
 page.on('pageerror', (e) => console.log('ERR', String(e).slice(0, 200)));
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'networkidle' });

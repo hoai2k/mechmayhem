@@ -5,10 +5,9 @@
 //
 // Bearing 0 is dead ahead of the caster, 90 is their right, 180 behind. The
 // world is stepped at a fixed 1/60 so the answer does not depend on frame rate.
-import { chromium } from 'playwright-core';
+import { launch } from '../lib/browser.mjs';
 const mech = process.argv[2] || 'tempest', foe = process.argv[3] || 'titanus';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 400, height: 300 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 300)));
 await p.goto(`http://localhost:5173/?battle=neon&p1=${mech}&p2=${foe}&auto=0`, { waitUntil: 'networkidle' });

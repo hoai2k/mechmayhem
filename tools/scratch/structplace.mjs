@@ -5,9 +5,8 @@
 // the match. This checks both ends: that the proxy builds real geometry, and
 // that a level carrying that object comes back as chunks in the right
 // material system when the game loads it.
-import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 800, height: 500 } });
 p.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 200)));
 await p.goto('http://localhost:5173/workbench/?edit=level&theme=frozen', { waitUntil: 'domcontentloaded' });

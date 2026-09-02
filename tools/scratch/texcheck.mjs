@@ -2,9 +2,8 @@
 // (buildings.facadeTex) and only gets it when the images exist, so this
 // reports the resolved answer per theme — the check that a delivered
 // texture set is really in play rather than silently ignored.
-import { chromium } from 'playwright-core';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+import { launch } from '../lib/browser.mjs';
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 200)));
 await page.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1',

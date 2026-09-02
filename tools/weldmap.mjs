@@ -20,7 +20,7 @@
 // Runs on the skindebug workbench page, which already builds the mech through
 // the game's own path (so it sees skinOps and any seamCuts already applied) and
 // exposes a camera to point. Needs the dev server on :5173.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 import sharp from 'sharp';
 import { mkdirSync } from 'node:fs';
 
@@ -34,10 +34,7 @@ const outDir = flag('out', 'docs/welds');
 const minDist = +flag('minDist', 2);
 const wantPairs = flag('pairs') ? flag('pairs').split(',') : null;
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 700, height: 640 } });
 page.on('pageerror', (e) => console.log('PAGE ERROR:', String(e).slice(0, 200)));
 await page.goto(`${base}/workbench/?edit=skindebug&mech=${mech}&scan=0`, { waitUntil: 'domcontentloaded' });

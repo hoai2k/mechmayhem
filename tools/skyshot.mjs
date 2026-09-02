@@ -7,13 +7,10 @@
 //
 // The prop form frames the nearest instance of that prop (placeProp names
 // every group `prop:<name>`) from `dist` metres away.
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [url, out, waitMs = '25000', pitch = '8', yaw = '0', height = '14'] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));

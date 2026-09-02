@@ -13,14 +13,11 @@
 //
 // It also dumps each mech's measured capsule spec, which is the quickest way
 // to spot a model whose hurtbox came out wrong (missing parts, silly radii).
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const url = process.argv[2];
 const STEPS = Number(process.argv[3] || 7200);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));

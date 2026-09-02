@@ -2,13 +2,10 @@
 // fighter into one, verifies the charge/collect/spend lifecycle, and
 // screenshots the fountain + the collect flash.
 // usage: node tools/fountaintest.mjs <battle url> <outPrefix> [waitMs]
-import { chromium } from 'playwright-core';
+import { launch } from './lib/browser.mjs';
 
 const [url, prefix, waitMs = '30000'] = process.argv.slice(2);
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'],
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
