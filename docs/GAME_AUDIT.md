@@ -41,8 +41,8 @@ The shortlist, if you want an order:
 1. **Play a match first.** Kinetic impact, the dash economy and the input
    buffer all changed how neutral feels, and three of the twelve arenas now
    have a rule they did not have. Nothing below is worth deciding before that.
-2. **A "MASH A" prompt over a downed human** the first two times (2.4) — the
-   escape jump exists, is now genuinely needed, and nothing in the game says so.
+2. **A prompt over a downed human** the first two times (2.3) — the escape now
+   answers either button and is free, but nothing in the game says it exists.
 3. **Clips through the floor** (3.1): jerry's claws and wraith's rifle, the
    two worst that survived the intro fix.
 4. **The three animation polish items** (3.3): slope foot planting,
@@ -148,9 +148,10 @@ number.
 
 ### 2.3 Smaller confirmed bugs
 
-- **No "MASH A" prompt** over a downed human. The escape jump exists and the
-  knockdown now grants 0.3 s of iframes, but nothing in the game's text says
-  the escape is there. First two knockdowns per player would do it.
+- **Nothing tells a downed player they can get up.** The escape answers JUMP
+  or DASH, costs no stamina and clears the attacker's reach — and no text in
+  the game mentions it. A prompt on the first two knockdowns per player would
+  do it.
 - Saurion's pounce arc (`sickleRush`'s `hunt`) re-imposes its horizontal
   velocity every tick through a hitstun. A cancel guard was added, but 0.4 s
   of takeoff iframes plus 0.5 s of latch iframes still make anti-air mostly
@@ -471,6 +472,7 @@ for its first beat; and several stale strings were corrected.
 | **Kinetic impact retuned** | `KNOCKDOWN_KICK` 9.5 → 60, `CLOSING_MIN` 5 → 12, the damage bonus capped at +50% instead of +110%, and `HEAVY_SHOVE`: mass past 1.5 adds 20 u/s of closing speed to every blow, so a heavy frame floors a scout with no run-up. Over the 272 ordered pairs, floored from a standstill 0 → 10 (titanus, colossus and cranky on viper, wraith and saurion), at a walk 241 → 68, at a sprint 263 → 105. A body that has just hit the floor now carries 0.3 s of iframes, so a launcher cannot relaunch it off the ground |
 | **Balance nudges** | Serpent storm pins each victim once per cast; raptor-pack minions throw no specials; wraith's ghost walk cooldown 9 → 7; viper's and wraith's guard leak 0.20 → 0.15 |
 | **The dash economy** | I-frames are the coil's, not the button's: a tap gives 0.14 s and a full three-second coil 0.42 s, where it used to be a flat 0.26 s on a 0.6 s cooldown. An empty tank refuses a tapped dash (a wound coil is exempt — it paid in advance), and the cost 0.09 → 0.18 now exceeds what regrows between two dashes. Measured with `tools/scratch/dashbuffer.mjs` on a real fight: i-frame uptime under mashing 43% → 21.6%, a sustained mash runs the bar to 0.169 and is refused, and a coil still fires on an empty tank at 0.387 s |
+| **Getting up is free, and either button does it** | Both JUMP and DASH now answer a knockdown — on the floor with something standing over you the dash is what a hand reaches for, and B did nothing at all while downed before (its coil path refuses every state but normal/attack). It is read as a fresh PRESS, so a sprint interrupted by the knockdown does not escape it by itself. Nothing on the path touches stamina: the dash economy charges for a dodge you chose, and being floored is not a choice. Measured from a 3-unit knockdown with an EMPTY tank: both buttons spring at vy 11.3 with 0.87 s of iframes, and when the invulnerability ends he is 10.41 units away against the attacker's 6.05 of reach — the bar meanwhile refills 0.019 → 0.192, never spent |
 | **The input buffer** | A heavy, special or jump pressed during an attack's recovery is remembered for 0.2 s and replayed on the first frame control returns; only `light` was ever caught before. Measured: the same press 0.105 s before control returns is eaten without the buffer and comes out with it. A stale press is dropped rather than queued, and only the body's own action fills the buffer — mashing through a knockdown no longer produces a hop on the getup. Dash needs no buffer: its B-button path already runs during an attack, so a dash mid-swing is a cancel |
 | **Arena pass** | Frozen's lakes and river are ICE (steering gain and dash bleed scale by a per-frame grip: stopping distance 2.1 → 8.8 units, a right-angle turn 0.22 → 0.85 s). Sky Terrace has three VOID drops between its decks (0.6 s fall, 15% hp, respawn on the far pad with iframes; the skybridges span them) and Orbital three LOWGRAV pads (jump apex 2.8 → 10.9) plus a freezing cryo-tank blast. Every arena paints its plaza ring. Foundry, harbor and scrapyard build 36 sites instead of 26–30; harbor has one lobed basin and container nests; harbor and scrapyard keep their facade colour. Snow drifts no longer bloom white; ice has a slate shore. The per-round rotation excludes an arena's twin |
 | **CPU floor sense** | One body length ahead is probed for lava, acid, void, prop bodies and live fuel tanks; the CPU takes the clear perpendicular or holds, and walks out of lava it is standing in. Volcano, veteran, 60 s: titanus' time in lava 9.7% → 0.7%, viper's 6.4% → 0.9%, prop contact frames 56/160 → 0 |

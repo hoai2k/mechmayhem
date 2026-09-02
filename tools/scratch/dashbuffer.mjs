@@ -183,6 +183,103 @@ check('a wound coil still fires on an empty tank', coil.dashes === 1 && coil.sta
   JSON.stringify(coil));
 check('…and it is the real dodge (~0.42s of i-frames)', coil.iframes > 0.35, `iframes=${coil.iframes}`);
 
+// -------------------------------------------------- 3. the way up is FREE
+// Being floored is not a dodge you chose, so the tank must never be able to
+// keep you down. Worst case every time: the bar is EMPTY and an enemy is
+// standing inside his own reach.
+await page.evaluate(() => {
+  window.__floor = (gap) => {
+    const [f, e] = window.__fighters;
+    e.controlsLocked = true;
+    e.pos.set(f.pos.x + gap, 0, f.pos.z);
+    f.vel.set(0, 0, 0);
+    f._onBack = false; f._buffered = null;
+    f.sprintEnergy = 0;                       // nothing left to spend
+    f.iframes = 0;
+    f.setState('knockdown', 0.75);
+    f.animator.play('knockdown');
+  };
+  // step to the moment the escape's invulnerability runs out — that is when
+  // "did it get me clear" is actually decided
+  window.__untilVulnerable = () => {
+    const [f, e] = window.__fighters;
+    let n = 0;
+    while (f.iframes > 0 && n < 240) { window.__sim(1); n++; }
+    return {
+      gap: +Math.hypot(f.pos.x - e.pos.x, f.pos.z - e.pos.z).toFixed(2),
+      tank: +f.sprintEnergy.toFixed(3),
+      frames: n,
+      reach: +(e.def.moves.light.range * e.scale + f.hitRadius).toFixed(2),
+    };
+  };
+});
+const START_GAP = 3;
+async function escapeFrom(key) {
+  await page.evaluate((g) => window.__floor(g), START_GAP);
+  await sim(6);                                  // lie there a moment
+  const tankDown = await read(() => window.__fighters[0].sprintEnergy);
+  await tap(key, 2);                             // mash it once
+  const sprung = await read(() => {
+    const f = window.__fighters[0];
+    return { state: f.state, vy: +f.vel.y.toFixed(1), iframes: +f.iframes.toFixed(2) };
+  });
+  const clear = await read(() => window.__untilVulnerable());
+  return { sprung, clear, tankDown };
+}
+const byJump = await escapeFrom('Space');
+const byDash = await escapeFrom('ShiftLeft');
+console.log('  escape by JUMP:', JSON.stringify(byJump));
+console.log('  escape by DASH:', JSON.stringify(byDash));
+check('the dash button escapes a knockdown (it did nothing before)',
+  byDash.sprung.state === 'getup' && byDash.sprung.vy > 5, JSON.stringify(byDash.sprung));
+check('the jump button still does', byJump.sprung.state === 'getup' && byJump.sprung.vy > 5,
+  JSON.stringify(byJump.sprung));
+// COSTS NOTHING means the bar never goes DOWN across the escape. It does not
+// mean the bar stays at zero: lying on the floor is exactly when the tank
+// refills, so it is a little higher on the way up than it was on the way down.
+check('…on an EMPTY tank, and it spends nothing',
+  byDash.clear.tank >= byDash.tankDown && byJump.clear.tank >= byJump.tankDown,
+  `tank ${byDash.tankDown.toFixed(3)} -> ${byDash.clear.tank} (dash), ` +
+  `${byJump.tankDown.toFixed(3)} -> ${byJump.clear.tank} (jump)`);
+// far enough: when the invulnerability ends he is outside the reach of the
+// mech that floored him, standing where it stood
+for (const [name, r] of [['jump', byJump], ['dash', byDash]]) {
+  check(`the ${name} escape clears his reach before the i-frames end`,
+    r.clear.gap > r.clear.reach + 1,
+    `gap ${r.clear.gap} vs reach ${r.clear.reach} (from ${START_GAP})`);
+}
+// and doing nothing does NOT get you out — the escape is the press
+const idle = await page.evaluate(() => {
+  window.__floor(3);
+  const [f, e] = window.__fighters;
+  window.__sim(20);
+  return { state: f.state, gap: +Math.hypot(f.pos.x - e.pos.x, f.pos.z - e.pos.z).toFixed(2) };
+});
+check('lying there does not escape by itself', idle.state === 'knockdown' && idle.gap < 3.5,
+  JSON.stringify(idle));
+
+// A SPRINT INTERRUPTED BY THE KNOCKDOWN MUST NOT ESCAPE IT. B is a HELD
+// button — that is why the escape reads a fresh press — or every player who
+// was running when they were floored would spring up on frame one without
+// asking, and a knockdown would stop meaning anything to them.
+await page.keyboard.down('ShiftLeft');           // already sprinting…
+await sim(4);
+const held = await page.evaluate(() => {         // …and then floored
+  window.__floor(3);
+  window.__sim(20);
+  return window.__fighters[0].state;
+});
+check('a knockdown taken with B already held does not escape itself',
+  held === 'knockdown', `state=${held}`);
+const freshPress = await page.evaluate(() => {   // a fresh press still does
+  const f = window.__fighters[0];
+  f._chargePrev = false;                         // the release the player makes
+  window.__sim(2);
+  return f.state;
+});
+await page.keyboard.up('ShiftLeft');
+check('…but a fresh press off that same hold does', freshPress === 'getup', `state=${freshPress}`);
+
 console.log(fails ? `\n${fails} FAILED` : '\nall checks passed');
 await browser.close();
 process.exit(fails ? 1 : 0);
