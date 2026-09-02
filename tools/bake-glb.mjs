@@ -57,6 +57,16 @@
 // again. No browser and no fidelity check: it is a file-for-file rollback of
 // exactly what the bake folded in.
 //
+// RANDOMNESS IS A CONSTANT IN THE CAPTURES. Animator seeds its phase from
+// Math.random() and several signatures twitch off it (nullbot's head ticks,
+// jerry's nerves), so the captures replace Math.random. A SEEDED SEQUENCE was
+// the first answer, and it only matches while both builds draw the same number
+// of times — the custom-rig load path and the baked one do not, so the sequence
+// slid and nullbot's head ticks landed on different frames: SKIN 1.73% worst on
+// hitFlinch with a mean of 0.006%, on a bake that was faithful. Every draw now
+// returns 0.5: no tick ever fires (`random() < dt * 0.7` is false), every phase
+// is the same phase, and the comparison measures geometry rather than luck.
+//
 // THE FIDELITY CHECK ONLY SEES JOINTS. It compares the 15 game joints across
 // three poses, which catches a broken skeleton and nothing else — it cannot see
 // skinning, and it cannot see a glbanim profile hook that stopped firing. Baking
@@ -232,8 +242,8 @@ async function getBakedGlb(browser) {
 const SEED_SCRIPT = `
   let _seed = 0x2f6e2b1;
   Math.random = () => {
-    _seed ^= _seed << 13; _seed ^= _seed >>> 17; _seed ^= _seed << 5;
-    return ((_seed >>> 0) % 1e6) / 1e6;
+    void _seed;   // see RANDOMNESS IS A CONSTANT in the header
+    return 0.5;
   };`;
 
 async function capturePoses(browser, tag) {
@@ -254,8 +264,8 @@ async function capturePoses(browser, tag) {
     // tolerance that exists to catch an anchor left on a stale bone.
     let _seed = 0x2f6e2b1;
     Math.random = () => {
-      _seed ^= _seed << 13; _seed ^= _seed >>> 17; _seed ^= _seed << 5;
-      return ((_seed >>> 0) % 1e6) / 1e6;
+      void _seed;   // see RANDOMNESS IS A CONSTANT in the header
+      return 0.5;
     };
     const F = window.__fighters, f = F[0];
     if (!f?.mech?.isGLB) return { err: 'mech is not GLB (fell back to procedural?)' };
@@ -404,8 +414,8 @@ async function captureSkin(browser, tag) {
     // instead would have walked straight past it.
     let _seed = 0x2f6e2b1;
     Math.random = () => {
-      _seed ^= _seed << 13; _seed ^= _seed >>> 17; _seed ^= _seed << 5;
-      return ((_seed >>> 0) % 1e6) / 1e6;
+      void _seed;   // see RANDOMNESS IS A CONSTANT in the header
+      return 0.5;
     };
     const THREE = await import('/node_modules/three/build/three.module.js');
     const { ROSTER } = await import('/src/mechs/roster.js');

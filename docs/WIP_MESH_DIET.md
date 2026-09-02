@@ -30,10 +30,16 @@ Delete this file (fold the result into TASKS.md) when the work lands on main.
 - tools/mechopt.mjs written; dry run: glacier/konga/saurion 50% tris, drift <0.06%.
 
 ## Bake status of the four unbaked mechs
-- tritone: dry run PASSES now (main's "bake keeps a rig's game fields") -> bake with --apply.
-- titanus: re-running dry run with the fist gate fix (log: scratch bake_titanus2.log).
-- nullbot: SKIN 1.73% worst on hitFlinch, mean 0.006% -> investigate (single-frame outlier?).
-- jerry: dry run hit a playwright navigation timeout at captureSkin -> re-run.
+- tritone: dry run PASSES (main's "bake keeps a rig's game fields") -> bake with --apply.
+- titanus: dry run PASSES with the fist gate fix (skin 0.001%, 3 skinned meshes both sides).
+- nullbot: the 1.73% was the SEEDED PRNG sliding between the two load paths (his
+  signature fires random head ticks); captures now return a CONSTANT 0.5 ->
+  re-running dry run.
+- jerry: first dry run hit a playwright navigation timeout -> re-running.
+- Texture decision MEASURED: select-screen framing, control shot (ship vs ship)
+  noise floor mean 2.88/255, PSNR 25.4; 1024 -> 2.26/27.0, 512 -> 3.52/24.2 on
+  titanus; crops at 2x show no visible difference on decals. Dials: tex 1024,
+  mr 512, q85 (mechopt defaults).
 
 ## TODO
 1. Texture size decision: poster-route shots (select-screen framing, 1600x900)
