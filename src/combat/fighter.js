@@ -3039,21 +3039,25 @@ export class Fighter {
           if (this._flipT <= 0) this.animator.play('proneBack', { fade: 0 });
         }
         // GETTING UP IS FREE, AND EITHER BUTTON DOES IT. Both JUMP and DASH
-        // answer here — on the floor with something standing over you, the
+        // answer here — on the floor with something standing over you the
         // dash is what a hand reaches for, and until now B did nothing at all
-        // while downed (the coil path refuses every state but normal/attack).
-        // Read as a fresh PRESS rather than a hold, so a sprint that was
-        // interrupted by the knockdown does not escape it by itself, and so
-        // mashing works the way mashing is meant to. `_chargePrev` is still
-        // last frame's value here — the B section that updates it runs later
-        // in this same update.
+        // while downed (its coil path refuses every state but normal/attack).
+        //
+        // THE DASH IS READ AS A HOLD, NOT AS A PRESS, and that is the whole
+        // rule: what gets you up is the controller as it is NOW, never what
+        // it was at the moment you fell. An edge test looks equivalent and is
+        // not — a player already holding B when the blow landed (which is
+        // every player who was sprinting) would have to notice, release and
+        // press again, and until they did they would lie there with the
+        // button already down and nothing happening. Holding "get me out of
+        // here" IS the input.
         //
         // AND IT COSTS NOTHING. The dash economy charges the tank for a dodge
         // you chose to spend; being floored is not a choice, and a stamina
         // gate on the way up is a player who cannot get up at the one moment
         // they most need to. Nothing on this path touches sprintEnergy —
         // deliberately, and it must stay that way.
-        const escape = I.jump || (!!I.chargeDash && !this._chargePrev);
+        const escape = I.jump || !!I.chargeDash;
         // on his back there is no spring to make and no getup to rush: the
         // stick and both buttons go to the righting roll instead
         if (this._onBack) {

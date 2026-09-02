@@ -258,27 +258,29 @@ const idle = await page.evaluate(() => {
 check('lying there does not escape by itself', idle.state === 'knockdown' && idle.gap < 3.5,
   JSON.stringify(idle));
 
-// A SPRINT INTERRUPTED BY THE KNOCKDOWN MUST NOT ESCAPE IT. B is a HELD
-// button — that is why the escape reads a fresh press — or every player who
-// was running when they were floored would spring up on frame one without
-// asking, and a knockdown would stop meaning anything to them.
+// WHAT GETS YOU UP IS THE CONTROLLER NOW, NOT WHAT IT WAS WHEN YOU FELL.
+// A player already holding B when the blow landed — every player who was
+// sprinting — must not have to notice, release and press again while lying
+// there with the button already down.
 await page.keyboard.down('ShiftLeft');           // already sprinting…
 await sim(4);
-const held = await page.evaluate(() => {         // …and then floored
+const heldThrough = await page.evaluate(() => {  // …and then floored, still held
   window.__floor(3);
-  window.__sim(20);
+  window.__sim(3);
   return window.__fighters[0].state;
 });
-check('a knockdown taken with B already held does not escape itself',
-  held === 'knockdown', `state=${held}`);
-const freshPress = await page.evaluate(() => {   // a fresh press still does
-  const f = window.__fighters[0];
-  f._chargePrev = false;                         // the release the player makes
-  window.__sim(2);
-  return f.state;
-});
 await page.keyboard.up('ShiftLeft');
-check('…but a fresh press off that same hold does', freshPress === 'getup', `state=${freshPress}`);
+check('a dash held through the fall gets him up (no re-press needed)',
+  heldThrough === 'getup', `state=${heldThrough}`);
+// …and pressing it fresh while down works just the same
+await page.evaluate(() => window.__floor(3));
+await sim(10);
+const pressedWhileDown = await read(() => window.__fighters[0].state);
+await tap('ShiftLeft', 2);
+check('lying there with nothing held stays down until a button says otherwise',
+  pressedWhileDown === 'knockdown', `state=${pressedWhileDown}`);
+check('…and pressing dash while down gets him up',
+  await read(() => window.__fighters[0].state) === 'getup');
 
 console.log(fails ? `\n${fails} FAILED` : '\nall checks passed');
 await browser.close();
