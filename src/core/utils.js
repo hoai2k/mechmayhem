@@ -7,7 +7,6 @@ export const DEG = Math.PI / 180;
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 export const lerp = (a, b, t) => a + (b - a) * t;
-export const invLerp = (a, b, v) => clamp01((v - a) / (b - a));
 
 // Frame-rate independent exponential smoothing.
 export const damp = (a, b, rate, dt) => lerp(a, b, 1 - Math.exp(-rate * dt));
@@ -69,7 +68,6 @@ export function makeRng(seed) {
 }
 
 export const rand = (a = 1, b) => (b === undefined ? Math.random() * a : a + Math.random() * (b - a));
-export const randInt = (a, b) => Math.floor(rand(a, b + 1));
 export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 // ---- device detection (touch/mobile) ----
@@ -95,29 +93,11 @@ export const _v3 = new THREE.Vector3();
 export const _q1 = new THREE.Quaternion();
 
 // Flat-ground distance between two Vector3s.
-export function distXZ(a, b) {
-  const dx = a.x - b.x, dz = a.z - b.z;
-  return Math.sqrt(dx * dx + dz * dz);
-}
 export function yawTo(from, to) {
   return Math.atan2(to.x - from.x, to.z - from.z);
 }
 
 // ---- simple pool ----
-export class Pool {
-  constructor(create, reset, size = 0) {
-    this.create = create;
-    this.reset = reset;
-    this.free = [];
-    for (let i = 0; i < size; i++) this.free.push(create());
-  }
-  get() {
-    const item = this.free.pop() || this.create();
-    if (this.reset) this.reset(item);
-    return item;
-  }
-  release(item) { this.free.push(item); }
-}
 
 export function removeFromArray(arr, item) {
   const i = arr.indexOf(item);
