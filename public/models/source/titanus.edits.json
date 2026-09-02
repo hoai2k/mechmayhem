@@ -1,6 +1,6 @@
 {
   "mech": "titanus",
-  "bakedAt": "2026-08-15T15:00:59.437Z",
+  "bakedAt": "2026-09-02T01:46:55.318Z",
   "note": "These edits were folded into public/models/mech_titanus.glb by tools/bake-glb.mjs. The untouched service asset is mech_titanus.glb in this directory. To start over: copy it back, restore these manifest fields and the rig file below.",
   "sourceGlb": "public/models/source/mech_titanus.glb",
   "manifestFieldsFolded": {

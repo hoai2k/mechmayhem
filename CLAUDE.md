@@ -1596,10 +1596,26 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   posts, `dropGeo`/`dropBones`, and the BONE NAMES (an auto-rig's `bone_28`
   becomes `shoulderR`, so `boneOverrides` goes too) — INTO the .glb, strips
   those manifest fields and deletes the rig file, leaving one revertible commit.
-  13 OF THE 17 ARE BAKED; titanus, tritone, jerry and nullbot are not, and
-  `--apply` REFUSES to write a mech whose check failed, rolling back just that
+  ALL 17 ARE BAKED — titanus, tritone, jerry and nullbot were the last four,
+  and none of them was failing for a reason in the model: titanus lost his
+  ROCKET FIST post-bake (the split was gated on the rig FILE, not on the
+  `fistL`/`fistR` bones the bake keeps — the check saw three skinned meshes
+  against one), nullbot's random head ticks slid between the two load paths
+  (see THE SEQUENCE IS RESEEDED PER CLIP in the tool's header), tritone
+  needed a bake to keep a rig's game fields (`tailFloor`), and jerry's first
+  run was a browser timeout. So `src/mechs/rigs/` carries only rhino's
+  orphaned rig file and every manifest entry is url + scale + yaw + muzzles
+  (viper keeps `boneCorrections`, which is a runtime lever by design). A mech
+  that comes back from the archive for re-rigging goes through the bake again
+  before anything below can touch it. `--apply` REFUSES to write a mech whose
+  check failed, rolling back just that
   mech (it used to `git checkout` the whole tree, which threw away every mech
-  baked earlier in a batch).
+  baked earlier in a batch). THE ROLLBACK TAKES THE ARCHIVE BACK TOO: the
+  sidecar and source copy are written before the check can run, and a refused
+  bake used to leave `source/<id>.edits.json` claiming the edits had been
+  folded — the four unbaked mechs sat like that, byte-identical to their
+  "source" with the whole correction layer still in the manifest. A sidecar on
+  disk now always describes a bake that landed.
   ORIENTATION AND SIZE ARE NOT FOLDED (`yawOffset`, `modelScale`,
   `heightScale`): they describe the model and belong in a file, but the GAME
   derives live quantities from the runtime scale (`RigAdapter.hipsScale`,
@@ -1630,6 +1646,57 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   and `tools/weldmap.mjs <id> --list` (same welds?).
   A baked model keeps its seam record as `rwSeam` mesh extras, so the skin audit
   still knows a deliberate split from a crack.
+- THE MECH DIET (`node tools/mechopt.mjs [--apply] [id …]`, sidecar
+  `public/models/source/<id>.opt.json`): every shipped mech GLB is HALF the
+  triangles the service delivered and carries 1024² colour/normal + 512²
+  metallic-roughness maps instead of three 2048² — roster 2.29M -> 1.16M
+  triangles, texture VRAM ~1088 -> ~204 MB, 122 -> 55 MB on disk before
+  dist.mjs' compression. THE SIZE WAS MEASURED AT THE LARGEST VIEW THE GAME
+  HAS (mech select, one picker, 1600x900 through `?poster=<id>`): the shipped
+  model shot twice disagrees with itself by mean 2.9/255 (the idle phase is
+  unseeded), 2048 -> 1024 measured 2.3 and 512 3.5 on titanus, and crops at 2x
+  of his shoulder lettering, konga's face and glacier's arm cannot be told
+  apart — so 1024 is free and 512 on the low-frequency roughness map costs
+  nothing either. Decimation is meshoptimizer's `simplifyWithAttributes` with
+  NORMALS AND SKIN WEIGHTS in the metric, so a collapse across a bone border
+  is charged for the weight it moves, and it only ever REMOVES vertices: every
+  survivor keeps the joints/weights the file authored — and a baked seam
+  record (`rwSeam`, vertex-index lists) is remapped through the same
+  compaction plan, or the skin audit reads the wrong vertices and reports the
+  cut as a tear (jerry, the first time). propopt's rule holds
+  here too — the error budget tightens until the bounding box matches
+  (`--audit` proves it against the pre-diet commit; worst drift on the roster
+  0.095%), because a shrunken extremity moves the ground fit and the hurtbox.
+  ONLY A BAKED MECH MAY BE SIMPLIFIED (the tool refuses otherwise): skinOps,
+  dropGeo and seamCuts name VERTEX INDICES and simplification renumbers every
+  one; a baked entry is bone-keyed throughout, so nothing in it can break.
+  What CHANGES is what is MEASURED off the vertices at load — the hurtbox
+  capsules (which sample in file order), the foot calibration, the ground fit
+  — so the gates after `--apply` are `tools/hurtboxfit.mjs` (containment must
+  not fall, bloat near 1), `tools/skindebug.mjs` (same findings in the same
+  places), `tools/groundprobe.mjs` (the lowest vertex may change OWNER bone
+  at the same depth, which flips a pass/fail on the per-part limit without
+  the body moving — read the depth, not the count), `tools/posters.mjs` (the
+  asset changed) and a soak. NOTHING IS ARCHIVED, GIT IS THE ARCHIVE: the
+  sidecar records the commit the diet was applied on top of and `--restore
+  --apply` reads those bytes back out of it. The shipped file stays a PLAIN
+  glb — float attributes, no meshopt, no quantization — because it is still
+  the authoring master every workbench and tools/*.mjs reads.
+  `public/models/opt/` is NOT this: those files are gltfpack over the
+  PORTABLE EXPORT (folded transform, baked rigs, renamed bones, 30 baked
+  clips, unnormalized uint16 positions `dequantize.js` does not unfold, a
+  missing fallback .bin) and load through the manifest at 50x size. Delete
+  them.
+- A SESSION CACHE IS NOT AN ASSET (`tools/stripcache.mjs`). GLTFExporter
+  writes `geometry.userData` into a GLB as primitive extras, and feather.js
+  keeps its geodesic graph there — so two bakes shipped with the cache inside
+  them: konga at 29.6 MB with 21.7 MB of JSON, saurion 45.7 with 33.9, parsed
+  on every load and read by nothing (the skinOp it served was folded into the
+  weights by the same bake, and the release build carried it too). The bake
+  drops every `__`-prefixed key before exporting now; `stripcache.mjs` is the
+  same rule for a file already on disk, rewriting ONLY the JSON chunk so the
+  BIN chunk — vertex order, accessors, skin — stays byte-identical. `rwSeam`
+  is the one record meant to leave with the model.
 - THE PORTABLE EXPORT (`node tools/export-mech.mjs --all`, then
   `tools/export-bundle.mjs` + `tools/export-chars.mjs` + `tools/export-art.mjs`)
   writes `public/models/export/` — gitignored, ~240MB, regenerate it. A bake

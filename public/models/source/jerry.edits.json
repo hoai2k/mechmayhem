@@ -1,8 +1,8 @@
 {
   "mech": "jerry",
-  "bakedAt": "2026-08-15T15:07:36.698Z",
+  "bakedAt": "2026-09-02T01:49:24.182Z",
   "note": "These edits were folded into public/models/mech_jerry_alt.glb by tools/bake-glb.mjs. The untouched service asset is mech_jerry_alt.glb in this directory. To start over: copy it back, restore these manifest fields and the rig file below.",
-  "sourceGlb": "public/models/source/mech_jerry_alt.glb (kept from an earlier bake)",
+  "sourceGlb": "public/models/source/mech_jerry_alt.glb",
   "manifestFieldsFolded": {
     "skinOps": [
       {

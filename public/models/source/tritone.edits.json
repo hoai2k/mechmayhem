@@ -1,6 +1,6 @@
 {
   "mech": "tritone",
-  "bakedAt": "2026-08-15T15:15:17.182Z",
+  "bakedAt": "2026-09-02T01:48:09.494Z",
   "note": "These edits were folded into public/models/mech_tritone.glb by tools/bake-glb.mjs. The untouched service asset is mech_tritone.glb in this directory. To start over: copy it back, restore these manifest fields and the rig file below.",
   "sourceGlb": "public/models/source/mech_tritone.glb",
   "manifestFieldsFolded": {

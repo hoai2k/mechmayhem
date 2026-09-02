@@ -39,6 +39,16 @@
 // So the baked model stays explainable and re-derivable without digging through
 // git history, and a re-bake from source is one copy away.
 //
+// A REFUSED BAKE LEAVES NO ARCHIVE. The sidecar and the source copy are written
+// before the fidelity check can run (the check needs the baked file on disk),
+// so a --apply the check then refused used to roll back the GLB, the manifest
+// and the rig file and leave a <id>.edits.json behind saying the edits had been
+// folded in — four mechs sat in that state, byte-identical to their "source"
+// with the whole correction layer still in the manifest. The archive is now
+// part of the undo record: a refused or crashed --apply puts the previous
+// sidecar back (or removes the one it wrote) and deletes a source copy it made
+// on this run, so a sidecar on disk always describes a bake that landed.
+//
 // --restore IS THE INVERSE, off that same sidecar: it copies the untouched asset
 // back, merges the folded manifest fields into the entry, rewrites the rig file
 // and re-registers it. Use it when a baked mech has to go back under the
@@ -46,6 +56,18 @@
 // reads as "no custom rig to edit" until its rig comes back. Edit, then bake
 // again. No browser and no fidelity check: it is a file-for-file rollback of
 // exactly what the bake folded in.
+//
+// THE SEQUENCE IS RESEEDED PER CLIP. Animator seeds its phase from
+// Math.random() and several signatures twitch off it (nullbot's head ticks,
+// jerry's nerves), so the captures install a seeded PRNG. One seed for the
+// whole capture only matches while both builds draw the same NUMBER of times
+// before a clip starts, and the custom-rig load path and the baked one do not
+// — the sequence slid and nullbot's head ticks landed on different frames:
+// SKIN 1.73% worst on hitFlinch with a mean of 0.006%, on a faithful bake. So
+// captureSkin puts the seed back at the start of every clip it samples: from
+// there the two builds run the same animator over the same skeleton and draw
+// in step. (A CONSTANT random was tried and crashed the page on both builds —
+// something in the pipeline does not survive a random that never changes.)
 //
 // THE FIDELITY CHECK ONLY SEES JOINTS. It compares the 15 game joints across
 // three poses, which catches a broken skeleton and nothing else — it cannot see
@@ -438,6 +460,7 @@ async function captureSkin(browser, tag) {
         // itself measured a 4.2% noise floor on fast clips, which is larger
         // than anything a bake does. poseStatic() reseats `cur` on the rest
         // target, which is a deterministic function of the mech alone.
+        _seed = 0x2f6e2b1;   // same sequence from here, whatever the build drew while loading
         anim.t = 0; anim.phase = 0; anim.action = null;
         anim.poseStatic();
         let dur = 0.6;
@@ -613,6 +636,8 @@ function archiveSource(entry, removedFields, manifestText, report) {
   // baked one. The first archive is the pristine service asset, forever.
   const firstTime = !fs.existsSync(src);
   if (firstTime) fs.copyFileSync(glbPath, src);
+  const sidecarPath = path.join(dir, `${id}.edits.json`);
+  const prevSidecar = fs.existsSync(sidecarPath) ? fs.readFileSync(sidecarPath, 'utf8') : null;
 
   const before = JSON.parse(manifestText)[id];
   const edits = {};
@@ -636,8 +661,11 @@ function archiveSource(entry, removedFields, manifestText, report) {
       ? { path: `src/mechs/rigs/${id}.rig.js`, text: fs.readFileSync(rigPath, 'utf8') }
       : null,
   };
-  fs.writeFileSync(path.join(dir, `${id}.edits.json`), JSON.stringify(sidecar, null, 2) + '\n');
+  fs.writeFileSync(sidecarPath, JSON.stringify(sidecar, null, 2) + '\n');
   console.log(`     archived source${firstTime ? '' : ' (already present)'} + edit list -> public/models/source/`);
+  // what rollback() needs to take this back: the sidecar as it was (null =
+  // there was none) and whether the source copy is this run's to delete.
+  return { sidecarPath, prevSidecar, srcPath: src, copied: firstTime };
 }
 
 // ---- un-bake (--restore) ----------------------------------------------------
@@ -761,6 +789,7 @@ if (NOISE) {
 }
 
 let mutated = false;
+let landed = false;  // set only when an --apply passed its check and stays
 let undo = null;
 function rollback() {
   if (!undo) return;
@@ -770,6 +799,15 @@ function rollback() {
   const rp = path.join(ROOT, `src/mechs/rigs/${id}.rig.js`);
   if (undo.rig !== null) fs.writeFileSync(rp, undo.rig);
   else if (fs.existsSync(rp)) fs.rmSync(rp);
+  // THE ARCHIVE COMES BACK TOO (see the header): a sidecar describes a bake
+  // that landed, so one written for a bake that did not is removed — or the
+  // previous bake's sidecar restored — and a source copy made this run goes.
+  if (undo.archive) {
+    const { sidecarPath, prevSidecar, srcPath, copied } = undo.archive;
+    if (prevSidecar !== null) fs.writeFileSync(sidecarPath, prevSidecar);
+    else if (fs.existsSync(sidecarPath)) fs.rmSync(sidecarPath);
+    if (copied && fs.existsSync(srcPath)) fs.rmSync(srcPath);
+  }
 }
 try {
   const origManifest = fs.readFileSync(MANIFEST, 'utf8');
@@ -809,7 +847,7 @@ try {
       ? fs.readFileSync(path.join(ROOT, `src/mechs/rigs/${id}.rig.js`), 'utf8') : null,
     rigIndex: fs.readFileSync(path.join(ROOT, 'src/mechs/rigs/index.js'), 'utf8'),
   };
-  if (APPLY) archiveSource(entry, removed, origManifest, report);
+  if (APPLY) undo.archive = archiveSource(entry, removed, origManifest, report);
   fs.writeFileSync(glbPath, buffer);                 // overwrite (restored below if dry run)
   fs.writeFileSync(MANIFEST, cleanManifest);
   const rigChanged = customRig ? removeRigFile(id) : [];
@@ -889,6 +927,7 @@ try {
     process.exit(2);
   }
   if (APPLY) {
+    landed = true;
     fs.writeFileSync(bakedPath, Buffer.alloc(0)); // no leftover
     fs.rmSync(bakedPath);
     console.log(`\nAPPLIED. Review 'git status' / 'git diff', then commit — that commit is the revertible changelist.`);
@@ -904,12 +943,15 @@ try {
     console.log(`Re-run with --apply to write the changes.`);
   }
 } finally {
-  // A DRY RUN LEAVES NOTHING BEHIND, even when a step throws. The baked GLB,
-  // the cleaned manifest and the removed rig file all land on disk before the
-  // fidelity check can run, so an exception in between used to leave the repo
-  // half-baked and the next command working against it.
-  if (!APPLY && mutated) {
-    try { rollback(); console.log(`(dry run: ${id} restored)`); }
+  // NOTHING LANDS UNLESS THE CHECK PASSED, even when a step throws. The baked
+  // GLB, the cleaned manifest, the removed rig file and the archive all land on
+  // disk before the fidelity check can run, so an exception in between used to
+  // leave the repo half-baked and the next command working against it — and an
+  // --apply that threw mid-check left the archive claiming a bake that never
+  // happened. A dry run always comes back here; an --apply only when it did
+  // not land.
+  if (mutated && !landed) {
+    try { rollback(); console.log(`(${APPLY ? 'apply did not land' : 'dry run'}: ${id} restored)`); }
     catch (e) { console.error('COULD NOT RESTORE — check git status:', e.message); }
   }
   await browser.close();

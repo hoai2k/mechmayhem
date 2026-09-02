@@ -1,6 +1,6 @@
 {
   "mech": "nullbot",
-  "bakedAt": "2026-08-15T15:02:52.445Z",
+  "bakedAt": "2026-09-02T01:50:39.257Z",
   "note": "These edits were folded into public/models/mech_nullbot.glb by tools/bake-glb.mjs. The untouched service asset is mech_nullbot.glb in this directory. To start over: copy it back, restore these manifest fields and the rig file below.",
   "sourceGlb": "public/models/source/mech_nullbot.glb",
   "manifestFieldsFolded": {

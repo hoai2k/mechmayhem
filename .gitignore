@@ -18,3 +18,8 @@ public/models/export/
 
 # dry-run bake output (tools/bake-glb.mjs) — never committed
 public/models/*.baked.glb
+
+# session scratch: underscore-prefixed probe folders under public/models (served by
+# the dev server for A/B harnesses) and *.tmp.* harness scripts in tools/scratch
+public/models/_*/
+tools/scratch/_*.tmp.*

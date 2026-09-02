@@ -21,7 +21,18 @@ export async function runBake(id) {
     const boneNames = [];
     model.traverse((o) => {
       if (o.isBone) boneNames.push(o.name);
-      if (o.isMesh || o.isSkinnedMesh) { meshes++; verts += o.geometry?.attributes?.position?.count || 0; }
+      if (o.isMesh || o.isSkinnedMesh) {
+        meshes++; verts += o.geometry?.attributes?.position?.count || 0;
+        // GLTFExporter writes geometry.userData into the file as primitive
+        // extras, and feather.js caches its geodesic graph THERE (an object of
+        // per-vertex adjacency, tens of MB as JSON). It is a session cache for a
+        // skinOp the bake has just folded away, so in the file it is dead weight
+        // the loader parses on every load: konga shipped at 29.6 MB with 21.7 MB
+        // of it this graph, saurion 45.7 with 33.9. Only `rwSeam` (the seam
+        // record the skin audit reads) is meant to leave with the model.
+        const ud = o.geometry?.userData;
+        if (ud) for (const k of Object.keys(ud)) if (k.startsWith('__')) delete ud[k];
+      }
     });
 
     const exporter = new GLTFExporter();
