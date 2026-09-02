@@ -265,7 +265,9 @@ export class AIController {
       // the CPU spends a real, earned meter whatever the setting says.
       if (this.d.useUlt && f.ult >= 1 && dist < ultRange && Math.random() < dt / this.d.ultDelay) {
         I.ult = true;
-      } else if (f.specialCd <= 0 && dist < spRange && Math.random() < dt * 1.4) {
+      } else if (!f.isMinion && f.specialCd <= 0 && dist < spRange && Math.random() < dt * 1.4) {
+        // (a SUMMON throws no specials: three raptors with the full sickle
+        // pounce were an ult inside an ult)
         I.special = true;
       } else if ((melee || dist < 6) && dist < f.def.moves.light.range * f.scale + 1.2) {
         if (this._atkT <= 0) {

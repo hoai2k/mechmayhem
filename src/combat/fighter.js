@@ -161,6 +161,7 @@ const SOFT_FLINCH_CHANCE = TUNING.melee.softFlinchChance;
 const DASH_SPEED_MULT = TUNING.dash.speedMult;
 const DASH_CHARGE_BOOST = TUNING.dash.chargeBoost;
 const DASH_COOLDOWN = TUNING.dash.cooldown;
+const KNOCKDOWN_IFRAMES = 0.3;   // no re-launch off the floor for this long
 const ESCAPE_JUMP_MULT = 2.6;    // knockdown escape spring: ground speed x this
 const ESCAPE_JUMP_VY = 13;
 // ---- ROLLOVER (roster `rollover` — CRANKY) ----
@@ -200,7 +201,8 @@ const WEIGHT_DMG_BASE = 0.7;     // attacker mass lean at weightless (w=0)...
 const WEIGHT_DMG_GAIN = 0.6;     // ...rising to BASE+GAIN for a max-weight bruiser
 const IMPACT_FLOOR = 6;          // no damage bonus below this wallop
 const IMPACT_DMG_RATE = 0.05;    // +5% damage per unit of wallop past the floor
-const IMPACT_DMG_CAP = 1.1;      // capped at +110% on a full-speed collision
+const IMPACT_DMG_CAP = 0.5;      // capped at +50% on a full-speed collision (was +110%:
+                                 // a target walking into a standing jab ate double)
 const IMPACT_KNOCK_RATE = 0.07;  // knockback grows a little faster than damage
 const IMPACT_KNOCK_CAP = 1.6;
 // KNOCKDOWN: the shove velocity the target eats = closing speed × (attacker mass
@@ -208,8 +210,24 @@ const IMPACT_KNOCK_CAP = 1.6;
 // (or even at a fast walk) but NEVER a heavy, however fast it runs; a heavy
 // floors a light almost by leaning on it. Below CLOSING_MIN nothing floors, so
 // standing jab-trades and gentle jostling never knock anyone down.
-const CLOSING_MIN = 5;           // real forward motion required before any floor
-const KNOCKDOWN_KICK = 9.5;      // shove velocity (u/s) that puts a target down
+// THE NUMBERS ARE SET AGAINST WALK SPEEDS OF 15-39 u/s. At the old
+// CLOSING_MIN 5 / KNOCKDOWN_KICK 9.5 a WALKING jab floored anything under
+// about twice the attacker's mass — titanus at a walk floored the whole
+// roster, viper at a walk half of it — and neutral was "first moving jab
+// wins the knockdown". Now: walking contact alone never floors (CLOSING_MIN
+// sits above every walk speed's contribution for a same-mass pair), a sprint
+// or a real mass gap does, and a HEAVY FRAME has a shove of its own that
+// needs no run-up at all (HEAVY_SHOVE below), so titanus and colossus still
+// put a scout on the floor from a standstill.
+const CLOSING_MIN = 12;          // real forward motion required before speed counts
+const KNOCKDOWN_KICK = 60;       // shove velocity (u/s) that puts a target down
+// A heavy frame leans on you: mass past HEAVY_MASS adds this much closing
+// speed to every blow, run-up or not. Titanus (mass 2.10) standing still
+// carries 12 into a jab, x7 against viper's 0.30 = 84 -> down; against
+// vulcan (0.97) 26 -> not from a standstill, 71 at a walk -> down. Tempest
+// (0.50) walking into viper reads 55 -> stays up; sprinting, 88 -> down.
+const HEAVY_MASS = 1.5;
+const HEAVY_SHOVE = 20;
 const IMPACT_LAUNCH_MIN = 11;    // launch velocity injected right at the threshold
 const IMPACT_LAUNCH_RATE = 0.4;  // extra launch per u/s of shove beyond it...
 const IMPACT_LAUNCH_MAX = 20;    // ...clamped so a lopsided mass ratio can't orbit
@@ -1510,7 +1528,8 @@ export class Fighter {
         // floors a same-size rival by charging in, but can't budge a heavy one no
         // matter how fast; a heavy bowls over a light almost by leaning on it.
         let launch = atk.launch || 0;
-        const kick = closing >= CLOSING_MIN ? closing * this.massFactor() / f.massFactor() : 0;
+        const shove = HEAVY_SHOVE * Math.max(0, this.massFactor() - HEAVY_MASS);
+        const kick = ((closing >= CLOSING_MIN ? closing : 0) + shove) * this.massFactor() / f.massFactor();
         if (kick >= KNOCKDOWN_KICK) {
           launch = Math.max(launch,
             Math.min(IMPACT_LAUNCH_MAX, IMPACT_LAUNCH_MIN + (kick - KNOCKDOWN_KICK) * IMPACT_LAUNCH_RATE));
@@ -2877,6 +2896,11 @@ export class Fighter {
         break;
       case 'launched':
         if (this.grounded) {
+          // A BODY THAT HAS JUST HIT THE FLOOR IS NOT A TARGET for a beat:
+          // without it a launcher landed during the 0.75 s knockdown relaunched
+          // him straight off the ground, and the only way out was the escape
+          // jump nobody is told about
+          this.iframes = Math.max(this.iframes, KNOCKDOWN_IFRAMES);
           if (this._onBack) {
             // ROLLOVER: he doesn't sit down, he goes over. Longer on the floor
             // than a normal knockdown — a stranded shell is a real penalty.
