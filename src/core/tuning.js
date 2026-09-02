@@ -82,6 +82,39 @@ export const TUNING = {
     iframesCharged: 0.28,  // ...plus this much again at a full coil
   },
 
+  // ---- HOVER JETS ----------------------------------------------------------
+  // A TANK IS NOT THE PROBLEM, REFUELLING IS. `hoverFuelMax` (fighter.js —
+  // 1.5s + 1.9s of lightness, so viper carries 2.83) has always bought a good
+  // FIRST flight; what nobody ever got was a SECOND one. Fuel regrows only
+  // while grounded, and at a flat 0.9/s that is 3.13s standing still to
+  // replace a 2.83s flight — a price no fight ever pays. Measured on viper
+  // before this block, four flights in a row with half a second on the ground
+  // between them: 2.83s, 0.47, 0.47, 0.47, with the peak dropping 37.8 units
+  // to 9.3. The first flight was the mech; the other three were a hop.
+  //
+  // So the refill is stated as a TIME rather than a rate, the same way
+  // stamina.refillSeconds is, and every mech's tank fills in that time
+  // whatever its size — a flat rate quietly punished the light mechs, whose
+  // tanks are the big ones, for being the fliers.
+  //
+  // NOTHING HERE TOUCHES THE CEILING: `hoverFuelMax`, the climb rate and the
+  // thrust are all exactly what they were, so one flight off a full tank is
+  // unchanged (measured: 2.83s, peak 37.8, both before and after).
+  hover: {
+    refillSeconds: 1.4,  // grounded, empty -> full
+    // Fuel to LIGHT them at all. It stops a tank with a frame's worth left in
+    // it from coughing, and is deliberately a floor on the ignition rather
+    // than on the burn — jets already lit run until the tank is dry.
+    relight: 0.2,
+    // AIRBORNE REGEN IS DELIBERATELY ZERO, and this is the interesting one.
+    // A trickle while coasting is the obvious second lever and it was
+    // measured and rejected: thrust burns exactly 1 fuel a second, so ANY
+    // airborne regen r makes a duty cycle of r sustainable forever, and the
+    // jets stop being a resource and become a descent rate. Flight stays
+    // something the GROUND pays for.
+    airRefill: 0,
+  },
+
   // ---- AIR SOMERSAULT ------------------------------------------------------
   // The ball tuck: bought by pressing BLOCK while airborne, and paid for out
   // of the stamina bar at the standard block rate for as long as it is held.
