@@ -3038,15 +3038,31 @@ export class Fighter {
           this._flipT -= dt;
           if (this._flipT <= 0) this.animator.play('proneBack', { fade: 0 });
         }
+        // GETTING UP IS FREE, AND EITHER BUTTON DOES IT. Both JUMP and DASH
+        // answer here — on the floor with something standing over you, the
+        // dash is what a hand reaches for, and until now B did nothing at all
+        // while downed (the coil path refuses every state but normal/attack).
+        // Read as a fresh PRESS rather than a hold, so a sprint that was
+        // interrupted by the knockdown does not escape it by itself, and so
+        // mashing works the way mashing is meant to. `_chargePrev` is still
+        // last frame's value here — the B section that updates it runs later
+        // in this same update.
+        //
+        // AND IT COSTS NOTHING. The dash economy charges the tank for a dodge
+        // you chose to spend; being floored is not a choice, and a stamina
+        // gate on the way up is a player who cannot get up at the one moment
+        // they most need to. Nothing on this path touches sprintEnergy —
+        // deliberately, and it must stay that way.
+        const escape = I.jump || (!!I.chargeDash && !this._chargePrev);
         // on his back there is no spring to make and no getup to rush: the
-        // stick and the jump button both go to the righting roll instead
+        // stick and both buttons go to the righting roll instead
         if (this._onBack) {
-          if (I.jump || this.stateT <= 0) this.startRollUp();
+          if (escape || this.stateT <= 0) this.startRollUp();
           break;
         }
-        // escape jump: mash jump while downed to spring clear instead of
-        // eating the same knockdown loop again
-        if (I.jump) {
+        // escape spring: mash to clear out instead of eating the same
+        // knockdown loop again
+        if (escape) {
           const ex = Math.abs(I.moveX) + Math.abs(I.moveZ) > 0.2
             ? _v.set(I.moveX, 0, I.moveZ).normalize()
             : _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); // default: backward
