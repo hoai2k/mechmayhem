@@ -103,6 +103,73 @@ export class AIController {
     }
   }
 
+  // ---- THE FLOOR SENSE. The CPU used to walk straight down a lava lane
+  // after its target and shoulder fuel tanks on the way, so on volcano and
+  // foundry a fight against it was decided by the floor. It now samples the
+  // ground ONE BODY LENGTH AHEAD along the direction it has already decided
+  // on (`f.radius * 2.5`) and, if that point is lava/acid, a living prop body
+  // or a live explosive, tries the two perpendiculars and takes the clear one
+  // that leans toward the target — or holds where it is rather than walk in.
+  // Already standing IN the hazard, the only question is the shortest way
+  // out: eight bearings are probed at a few steps each and the nearest clear
+  // ground wins. Wrap-aware through world.wrapDelta / terrain.wrapD; the
+  // whole thing is a handful of distance checks per CPU per frame.
+  // `avoidSide` remembers which perpendicular it took so an obstacle dead
+  // ahead does not flip it left-right-left every frame.
+  steerClear(mx, mz, nx, nz) {
+    const f = this.f, w = f.world, A = w.arena, T = A?.terrain;
+    if (!T) return [mx, mz];
+    const R = f.radius;
+    const hot = (x, z, m) => {
+      const h = T.onLane(x, z, m)?.hazard || T.onPatch(x, z, m)?.hazard;
+      return h === 'lava' || h === 'acid';
+    };
+    const solid = (x, z) => {
+      for (const p of A.propBodies) {
+        if (!p.alive) continue;
+        if (Math.hypot(w.wrapDelta(p.x - x), w.wrapDelta(p.z - z)) < p.r + R + 1) return true;
+      }
+      for (const e of A.explosives) {
+        if (e.dead) continue;
+        if (Math.hypot(w.wrapDelta(e.x - x), w.wrapDelta(e.z - z)) < e.bodyR + R + 2) return true;
+      }
+      return false;
+    };
+    const px = f.pos.x, pz = f.pos.z;
+    // IN it already (the hazard's own containment margin): shortest way out
+    if (f.grounded && f.pos.y <= 0.5 && hot(px, pz, -0.4)) {
+      let bx = 0, bz = 0, best = Infinity;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2, cx = Math.cos(a), cz = Math.sin(a);
+        for (let k = 1; k <= 4; k++) {
+          const d = k * R * 1.5;
+          if (hot(px + cx * d, pz + cz * d, 0.6)) continue;
+          // nearer exits win; at a tie, the one that keeps closing on the target
+          const score = d - (cx * nx + cz * nz) * 0.5 * R;
+          if (score < best) { best = score; bx = cx; bz = cz; }
+          break;
+        }
+      }
+      return best < Infinity ? [bx, bz] : [mx, mz];
+    }
+    if (!mx && !mz) return [mx, mz];
+    const L = R * 2.5;
+    const blocked = (dx, dz) => hot(px + dx * L, pz + dz * L, 0.4) || solid(px + dx * L, pz + dz * L);
+    if (!blocked(mx, mz)) { this.avoidSide = 0; return [mx, mz]; }
+    // the two perpendiculars, the remembered one first
+    const sides = [[-mz, mx], [mz, -mx]];
+    let pick = null, pickDot = -Infinity;
+    for (let i = 0; i < 2; i++) {
+      const [sx, sz] = sides[i];
+      if (blocked(sx, sz)) continue;
+      const dot = sx * nx + sz * nz + (this.avoidSide === i + 1 ? 0.5 : 0);
+      if (dot > pickDot) { pickDot = dot; pick = i; }
+    }
+    if (pick === null) { this.avoidSide = 0; return [0, 0]; }   // hemmed in: hold
+    this.avoidSide = pick + 1;
+    return sides[pick];
+  }
+
   nearestCrate() {
     const f = this.f;
     let box = null, boxD = Infinity;
@@ -193,6 +260,8 @@ export class AIController {
         if (d > 1.2) { mx = bx / d; mz = bz / d; }
       }
     }
+    // ---- the floor sense: don't walk INTO lava, a tank or a pillar ----
+    [mx, mz] = this.steerClear(mx, mz, nx, nz);
     I.moveX = mx; I.moveZ = mz;
 
     // occasional hops

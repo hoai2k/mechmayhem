@@ -42,6 +42,17 @@ import { Warmup } from './warmup.js';
 import { createBattle, rebuildArena } from './battle.js';
 import { Training } from './training.js';
 
+// ARENA TWINS: pairs that play the same game under different paint — the
+// per-round rotation (prepareNextArena) never follows one with the other.
+//   skyterrace / orbital  — a deck of platforms over a drop
+//   uptown / harbor       — open plaza-and-blocks city
+//   foundry / volcano     — both lava
+const ARENA_TWINS = [['skyterrace', 'orbital'], ['uptown', 'harbor'], ['foundry', 'volcano']];
+function arenaTwinOf(id) {
+  for (const [a, b] of ARENA_TWINS) { if (a === id) return b; if (b === id) return a; }
+  return null;
+}
+
 export async function bootGame() {
   const engine = new Engine(document.getElementById('game-canvas'));
   const input = new Input();
@@ -740,7 +751,13 @@ export async function bootGame() {
       if (prepping || !CONFIG.arenaPerRound || training) return;   // one round, one city
       prepping = true;
       const here = S.battle?.arena?.theme?.id;
-      const pool = THEMES.filter((t) => t.id !== here);
+      // A MATCH'S THREE ARENAS SHOULD DIFFER IN MECHANIC, NOT ONLY IN SKY, so
+      // the round after one of these never draws its twin. The pool falls
+      // back to "anything but here" when the twin is all that is left (a
+      // themes list of two), and to THEMES[0] when there is nothing else.
+      const twin = arenaTwinOf(here);
+      let pool = THEMES.filter((t) => t.id !== here && t.id !== twin);
+      if (!pool.length) pool = THEMES.filter((t) => t.id !== here);
       const pick = pool[(Math.random() * pool.length) | 0] || THEMES[0];
       resolveArenaTheme(pick)
         .then(async (rt) => {
