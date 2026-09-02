@@ -586,7 +586,6 @@ export class Fighter {
     if (this.status.buff) m *= this.status.buff.dmg;
     // NOVA: every attack surges while her halo burns at apex alignment —
     // a full-apex strike hits TWICE as hard as a dark-halo one
-    if (this.def.id === 'nova') m *= 1 + 1.0 * (this.animator?.novaGlow || 0);
     return m;
   }
 
@@ -1537,83 +1536,11 @@ export class Fighter {
   // ---- signature heavy FX: the mid-clip charge beat ('fx' event) ----
   heavyChargeFx(atk) {
     const w = this.world;
-    if (atk.fx === 'starSmash') {
-      // NOVA: a shaft of starlight strikes the raised staff and sets it blazing
-      const tip = this.mech.anchors.muzzleR?.getWorldPosition(_v) || this.center();
-      w.effects.beams.spawn(new THREE.Vector3(tip.x, tip.y + 36, tip.z), tip.clone(),
-        { radius: 0.5, dur: 0.45, color: 0xffd8f8 });
-      const g = this.animator?.novaGlow || 0.5;
-      for (let i = 0; i < 14; i++) {
-        const a = rand(TAU), rr = rand(0, 1.2);
-        w.effects.glows.emit(tip.x + Math.cos(a) * rr, tip.y + rand(-0.4, 0.8), tip.z + Math.sin(a) * rr,
-          Math.cos(a) * 2, rand(1, 4), Math.sin(a) * 2,
-          { life: rand(0.3, 0.6), size: rand(0.6, 1.4) * (1 + g), color: i % 3 ? 0xff3ce8 : 0xfff0ff, alpha: 0.95 });
-      }
-      w.effects.glows.emit(tip.x, tip.y, tip.z, 0, 0, 0,
-        { life: 0.4, size: 3 + 2.5 * g, color: 0xffffff, alpha: 0.95 });
-    }
   }
 
   // ---- signature heavy FX: on the impact frame ----
   heavyImpactFx(atk, cx, cy, cz, reach) {
     const w = this.world;
-    if (atk.fx === 'starSmash') {
-      // NOVA: the staff hits like a falling star — area burst around the point
-      const g = this.animator?.novaGlow || 0;
-      const p = new THREE.Vector3(cx, 0, cz);
-      w.effects.rings.spawn(p, { from: 0.6, to: 7 + 4 * g, dur: 0.5, color: 0xff3ce8, y: 0.35 });
-      w.effects.explosion(new THREE.Vector3(cx, 1, cz), 3.5 + 2 * g, { color: 0xff5ce8, smoke: false });
-      w.groundShockwave(this, p, 5.5 + 2 * g, atk.dmg * 0.35, 10, 0xff3ce8);
-      this.sfx('plasma');
-    } else if (atk.fx === 'wingLasers') {
-      // WRAITH: every spread wing-tip fires a red beam converging on the mark
-      const target = new THREE.Vector3(cx, Math.max(1.5, cy * 0.7), cz);
-      for (let k = 0; k < 6; k++) {
-        const a = this.mech.anchors['wing' + k];
-        if (!a) continue;
-        w.effects.beams.spawn(a.getWorldPosition(new THREE.Vector3()), target.clone(),
-          { radius: 0.11, dur: 0.32, color: 0xff2030 });
-      }
-      w.effects.glows.emit(target.x, target.y, target.z, 0, 0, 0,
-        { life: 0.35, size: 3.4, color: 0xff2030, alpha: 0.95 });
-      w.effects.impactSparks(target, 0xff2030, 16, 10);
-      this.sfx('zap');
-    } else if (atk.fx === 'apeQuake') {
-      // KONGA: both fists land together — the floor answers. A tight crater
-      // ring at the fists plus a wider ground shock that only staggers, so the
-      // slam's real damage stays on the melee sweep and this is the punctuation.
-      const p = new THREE.Vector3(cx, 0, cz);
-      w.effects.rings.spawn(p, { from: 0.8, to: 8.5, dur: 0.42, color: 0xd8b070, y: 0.3 });
-      w.effects.explosion(new THREE.Vector3(cx, 0.9, cz), 3.0, { color: 0xc8a060, smoke: true, sparks: false });
-      w.effects.dustPuff(p, 16, 0x9a8878);
-      w.groundShockwave(this, p, 7.5, atk.dmg * 0.3, 12, 0xd8b070);
-      // slabs of dirt thrown up around the impact
-      for (let i = 0; i < 14; i++) {
-        const a = rand(TAU), rr = rand(0.8, 3.4);
-        w.effects.smoke.emit(cx + Math.cos(a) * rr, 0.3, cz + Math.sin(a) * rr,
-          Math.cos(a) * 5, rand(3, 8), Math.sin(a) * 5,
-          { life: rand(0.5, 0.95), size: rand(1.0, 2.2), color: 0x9a8878, alpha: 0.6 });
-      }
-      this.sfx('hitHeavy');
-    } else if (atk.fx === 'hornQuake') {
-      // TRITONE: the horns rip UP through the target, so the punctuation is a
-      // vertical burst at the horn tips rather than a floor ring.
-      const target = new THREE.Vector3(cx, Math.max(1.2, cy), cz);
-      w.effects.explosion(target, 2.6, { color: 0xffa040, smoke: true, sparks: false });
-      w.effects.impactSparks(target, 0xffc070, 20, 14);
-      w.effects.rings.spawn(new THREE.Vector3(cx, 0, cz), { from: 1.0, to: 6.0, dur: 0.38, color: 0xffa040, y: 0.25 });
-      // dirt sprayed forward off the horn tips
-      for (const key of ['hornL', 'hornR', 'hornNose']) {
-        const a = this.mech.anchors[key];
-        if (!a) continue;
-        const hp = a.getWorldPosition(new THREE.Vector3());
-        for (let i = 0; i < 5; i++) {
-          w.effects.smoke.emit(hp.x, hp.y, hp.z, rand(-3, 3), rand(4, 9), rand(-3, 3),
-            { life: rand(0.4, 0.8), size: rand(0.7, 1.5), color: 0x8c8266, alpha: 0.55 });
-        }
-      }
-      this.sfx('hitHeavy');
-    }
   }
 
   // ---- shared hold-phase scaffold for the two hold-to-charge attacks
@@ -2382,8 +2309,19 @@ export class Fighter {
     } else if (this.state !== 'launched' && this.state !== 'knockdown') {
       const stun = heavy ? HITSTUN_HEAVY : HITSTUN_LIGHT;
       this.setState('hitstun', stun);
-      this.animator.play('hitFlinch', { speed: heavy ? 0.8 : 1.15 });
-      this.animator.addImpulse('torso', [-0.25, 0, 0], 30, 11);
+      // WHICH WAY THE BLOW CAME FROM picks the flinch: to the face, from the
+      // left or right (shoved sideways, near arm flung), or from behind (folded
+      // forward). One clip whatever the angle read as the same stagger in a
+      // four-way brawl where half the hits land from the side.
+      const nx = dirX / dLen, nz = dirZ / dLen;                 // the blow's travel
+      const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+      const along = nx * fx + nz * fz;                          // >0: travelling his way = from behind
+      const fromLeft = nx * -fz + nz * fx < 0;                  // source on his left (left = -x at yaw 0)
+      let flinch = 'hitFlinch', imp = [-0.25, 0, 0];
+      if (along > 0.5) { flinch = 'hitFlinchBack'; imp = [0.25, 0, 0]; }
+      else if (along > -0.5) { flinch = fromLeft ? 'hitFlinchL' : 'hitFlinchR'; imp = [0, 0, fromLeft ? -0.25 : 0.25]; }
+      this.animator.play(flinch, { speed: heavy ? 0.8 : 1.15 });
+      this.animator.addImpulse('torso', imp, 30, 11);
     }
     if (this.isAI === false && navigator.getGamepads) this.world.input?.rumble(this.playerIndex, heavy ? 0.7 : 0.35, heavy ? 220 : 120);
   }
@@ -3620,7 +3558,6 @@ export class Fighter {
     if (this.def.bladeTrail) this.updateBladeTrail(dt);
     // NOVA: the staff apex crackles while the halo burns — brighter and
     // bigger the closer the crescents are to apex alignment
-    if (this.def.id === 'nova' && this.alive) this.updateNovaAura(dt);
     // NULLBOT: ambient corruption flickering over his own frame
     if (this.def.id === 'nullbot' && this.alive) this.updateNullbotAura(dt);
     // INFERNO: his shoulder chimneys BURN — flickering flames and a smoke
@@ -4582,33 +4519,6 @@ export class Fighter {
       } else {
         this._trailPrev[name] = p.clone();
       }
-    }
-  }
-
-  updateNovaAura(dt) {
-    const g = this.animator?.novaGlow || 0;
-    this._novaFxT = (this._novaFxT ?? 0) - dt;
-    if (g < 0.45 || this._novaFxT > 0) return;
-    this._novaFxT = 0.055;
-    const fx = this.world.effects;
-    const tip = this.mech.anchors.muzzleR;
-    if (tip) {
-      // orbiting star-motes swirl around the staff apex; their size and
-      // spread scale with how bright the ring is burning
-      tip.getWorldPosition(_v);
-      const a = rand(TAU), rr = (0.25 + 0.9 * g) * this.scale;
-      fx.glows.emit(_v.x + Math.cos(a) * rr, _v.y + rand(-0.3, 0.5) * g, _v.z + Math.sin(a) * rr,
-        Math.cos(a + 1.6) * 2.2, rand(0.5, 2.2), Math.sin(a + 1.6) * 2.2,
-        { life: rand(0.25, 0.5), size: (0.5 + 1.5 * g) * this.scale,
-          color: Math.random() < 0.3 ? 0xfff0ff : 0xff3ce8, alpha: 0.9, drag: 1.2 });
-    }
-    // at full burn the halo itself sheds sparks
-    if (g > 0.78 && this.mech.joints.halo && Math.random() < 0.6) {
-      this.mech.joints.halo.getWorldPosition(_v);
-      const a = rand(TAU);
-      fx.glows.emit(_v.x + Math.cos(a) * 0.9 * this.scale, _v.y + rand(-0.2, 0.4), _v.z + Math.sin(a) * 0.9 * this.scale,
-        Math.cos(a) * 1.5, rand(1, 3), Math.sin(a) * 1.5,
-        { life: rand(0.3, 0.6), size: 0.4 * this.scale, color: 0xff9df2, alpha: 0.9 });
     }
   }
 
