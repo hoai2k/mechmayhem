@@ -153,8 +153,25 @@ function simplifyPrim(prim, ratio, error) {
   const [out, err] = stride
     ? MeshoptSimplifier.simplifyWithAttributes(indices, positions, 3, attrs, stride, weights, null, target, error, [])
     : MeshoptSimplifier.simplify(indices, positions, 3, target, error, []);
-  idx.setArray(out.length > 65535 || pos.getCount() > 65535 ? out : new Uint16Array(out));
-  compactPrimitive(prim);
+  idx.setArray(out);
+  // COMPACT WITH OUR OWN PLAN, so the seam record can follow it. A baked seam
+  // cut leaves `rwSeam` on the primitive — plain vertex-index lists saying which
+  // vertices sit on which side of which cut, which is how the skin audit tells
+  // a deliberate split from a crack — and compaction renumbers every vertex.
+  // Left alone the record names the wrong vertices afterwards (jerry's cut
+  // came back as a "tear" at the hands the first time), so the remap is built
+  // here (first use wins, the same rule createCompactPlan applies) and applied
+  // to the lists too; a vertex the simplifier removed simply leaves the list.
+  const srcCount = pos.getCount();
+  const remap = new Uint32Array(srcCount).fill(0xffffffff);
+  let dstCount = 0;
+  for (let i = 0; i < out.length; i++) if (remap[out[i]] === 0xffffffff) remap[out[i]] = dstCount++;
+  compactPrimitive(prim, remap, dstCount);
+  const extras = prim.getExtras();
+  if (Array.isArray(extras?.rwSeam)) {
+    const mapList = (l) => (Array.isArray(l) ? l.map((v) => remap[v]).filter((v) => v !== 0xffffffff) : l);
+    prim.setExtras({ ...extras, rwSeam: extras.rwSeam.map((sm) => ({ ...sm, a: mapList(sm.a), b: mapList(sm.b) })) });
+  }
   const after = prim.getAttribute('POSITION').getCount();
   if (after <= 65535 && !(prim.getIndices().getArray() instanceof Uint16Array)) {
     prim.getIndices().setArray(new Uint16Array(prim.getIndices().getArray()));

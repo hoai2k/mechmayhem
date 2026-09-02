@@ -1,0 +1,39 @@
+{
+  "mech": "rhino",
+  "file": "public/models/mech_rhino.glb",
+  "commit": "7b0e6040a79bf447e60a084a6aa17db1f9c8a50a",
+  "appliedAt": "2026-09-02T01:53:23.490Z",
+  "note": "Diet applied by tools/mechopt.mjs on top of the model at `commit`; --restore reads that version back out of git.",
+  "dials": {
+    "ratio": 0.5,
+    "error": 0.02,
+    "tex": 1024,
+    "mr": 512,
+    "quality": 85,
+    "simplified": true
+  },
+  "before": {
+    "bytes": 7335492,
+    "tris": 144380,
+    "verts": 82111,
+    "textures": [
+      "2048x2048",
+      "2048x2048",
+      "2048x2048"
+    ],
+    "vram": 67092087
+  },
+  "after": {
+    "bytes": 3145116,
+    "tris": 72189,
+    "verts": 43428,
+    "textures": [
+      "512x512",
+      "1024x1024",
+      "1024x1024"
+    ],
+    "vram": 12579766
+  },
+  "shapeDrift": 0.00019280866895443616,
+  "simplifyError": 0.0016557604540139437
+}
