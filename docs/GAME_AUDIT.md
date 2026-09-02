@@ -476,3 +476,58 @@ for its first beat; and several stale strings were corrected.
 | **The input buffer** | A heavy, special or jump pressed during an attack's recovery is remembered for 0.2 s and replayed on the first frame control returns; only `light` was ever caught before. Measured: the same press 0.105 s before control returns is eaten without the buffer and comes out with it. A stale press is dropped rather than queued, and only the body's own action fills the buffer — mashing through a knockdown no longer produces a hop on the getup. Dash needs no buffer: its B-button path already runs during an attack, so a dash mid-swing is a cancel |
 | **Arena pass** | Frozen's lakes and river are ICE (steering gain and dash bleed scale by a per-frame grip: stopping distance 2.1 → 8.8 units, a right-angle turn 0.22 → 0.85 s). Sky Terrace has three VOID drops between its decks (0.6 s fall, 15% hp, respawn on the far pad with iframes; the skybridges span them) and Orbital three LOWGRAV pads (jump apex 2.8 → 10.9) plus a freezing cryo-tank blast. Every arena paints its plaza ring. Foundry, harbor and scrapyard build 36 sites instead of 26–30; harbor has one lobed basin and container nests; harbor and scrapyard keep their facade colour. Snow drifts no longer bloom white; ice has a slate shore. The per-round rotation excludes an arena's twin |
 | **CPU floor sense** | One body length ahead is probed for lava, acid, void, prop bodies and live fuel tanks; the CPU takes the clear perpendicular or holds, and walks out of lava it is standing in. Volcano, veteran, 60 s: titanus' time in lava 9.7% → 0.7%, viper's 6.4% → 0.9%, prop contact frames 56/160 → 0 |
+
+### 7.4 Fourth pass — three bug reports, measured against two earlier builds
+
+Three reports came in together: *the flying jets aren't as strong as before,
+or run out sooner* · *the hitboxes are a little weird, and I tried hitting
+Jerry and nothing seemed to land* · *pressing block in the air for a bot like
+Viper should do a forward tumbling spin, but I'm not seeing it anymore*, with
+the question **did any of these change recently**.
+
+**THE ANSWER IS NO, AND IT IS MEASURED** rather than read off a diff. Two git
+worktrees were served alongside the current tree — `29c6525` (the
+pre-session build) and `7b0e604` (the last commit before the MECH DIET, since
+halving every model's triangles is exactly the change that would move a
+hurtbox measured off vertices) — and every reading below is the same on all
+three. `tools/scratch/flightprobe.mjs` and `tools/scratch/tuckreal.mjs` drive
+the real input path on a deterministically stepped sim, because all three
+reports are about what a BUTTON does.
+
+| Report | Measured | Verdict |
+|---|---|---|
+| Jets weaker / shorter | viper: peak 37.76 units, 2.83 s of thrust, rise 12.6, tank 2.83 s — **identical** on all three builds | not a regression |
+| Hitboxes / Jerry | roster containment moved ≤3 points either way across the diet (jerry 83% → 82%, cranky 73% → 78%); jerry's missing `pelvis`/`thighR` capsules are present **before** the diet too | not a regression |
+| No air tumble | the ball runs 0.8 s / 4.35 turns from a bare jump on every build, at a full bar, an emptied bar and under the guard lockout | not a regression *as tested that way* — see below |
+
+**WHAT WAS ACTUALLY WRONG WITH THE TUMBLE, AND IT IS REAL.** Testing it from a
+bare ballistic jump is testing the case nobody is in. Being in the air on
+purpose means the JETS ARE LIT, and `hovering` sat in the tuck's own gate — so
+LT gave a plain standing block and the ball never came. Measured on the
+pre-fix build with the boosters on: `rolled=false`, 0 turns; after: 1.02 s and
+5.64 turns. Two more vetoes went with it, both silent: the GUARD LOCKOUT
+reached the tuck through `blocking`, so a bar that had just run dry refused it
+with no signal; and `sprintEnergy > 0` let the ball start on a sliver, where
+`updateAirRoll`'s release maths lands `endAt` at 0 and it opens on the very
+next frame — which looks exactly like the tuck not existing. It asks for
+`guardRelock` worth of tank up front now (~1 s of ball), and paying that
+clears the lock.
+
+**JERRY'S HURTBOX IS NORMAL** and was left alone: 82% containment against
+titanus' 66%, and the two capsules he has no name for (`pelvis` is built on
+`hips`, which owns almost no skin; `thighR`'s bone owns **zero** vertices) are
+geometry his `x:strutMidL`/`x:strutMidR` extra capsules already cover. His
+legs are skinned to the struts, not to the thigh bones —
+`tools/scratch/jerrybuckets.mjs` is the census that says so.
+
+**THE JETS ARE UNCHANGED, AND THE FELT PROBLEM IS THE REFUELLING** — left as
+found, because it is a balance question rather than a bug: `hoverFuel`
+regenerates ONLY while grounded and at 0.9×, and re-ignition needs more than
+0.2 s in the tank, so a full 2.83 s flight wants 3.1 s standing still to buy
+the next one. The first flight of a sequence is as strong as it ever was; the
+second is short, which is what "they run out sooner" is as a number.
+
+| Done | What |
+|---|---|
+| **The air tuck's three silent vetoes** | The jets no longer refuse it (BLOCK MEANS CURL UP — the press cuts the boosters and takes the ball; the ignition branch already refuses to relight while `_airRoll` is set, so a still-held A cannot fight it), the guard lockout no longer reaches it, and a bar too empty to spin refuses honestly instead of giving a one-frame ball. Measured with jets lit: `rolled=false`/0 turns → 1.02 s/5.64 turns |
+| **Fullscreen button** | ⛶ as the fourth stop in the bottom-right cluster, left of ⓘ, same row and size, with a tooltip that names the direction and the lit state as its readout. Driven off the document's own `fullscreenchange`, so F11 and Esc keep the icon honest; never mounted where `requestFullscreen` is absent (iOS Safari), since a button that silently does nothing is worse than no button. It is a controller stop like the other three. `node tools/scratch/fsbtn.mjs` asserts nine things |

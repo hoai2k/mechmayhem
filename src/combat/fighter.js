@@ -3204,8 +3204,30 @@ export class Fighter {
     // eat the tuck's prone-landing risk without asking for it. This is the
     // ONLY way into the ball: A no longer tucks on the way down, so nobody
     // curls up by accident while mashing the jets.
-    if (this.blocking && !this.grounded && !this.hovering && !this._airRoll && !this.climb &&
-        this.state === 'normal' && I.block && !this._blockPrev) {
+    // THREE THINGS VETOED IT THAT SHOULD NOT HAVE, and each one reads to a
+    // player as "I pressed block in the air and nothing happened".
+    //   (1) THE JETS. `hovering` was in this gate — and with the boosters lit
+    //       is most of the time anyone spends in the air, so LT gave a plain
+    //       standing block and the ball never came. BLOCK MEANS CURL UP: the
+    //       press cuts the jets and takes the tuck. Nothing fights back over
+    //       it, because the ignition branch above already refuses to relight
+    //       while `_airRoll` is set, so a still-held A cannot re-open them.
+    //   (2) THE GUARD LOCKOUT. It exists to stop a ground turtle's guard
+    //       flickering back up under a held LT; a deliberate airborne press
+    //       is not that. It reached here through `blocking`, so a bar that
+    //       had just run dry refused the tuck with no signal at all.
+    //   (3) A BAR TOO EMPTY TO SPIN. `sprintEnergy > 0` let the ball start on
+    //       a sliver, and updateAirRoll's release math then lands `endAt` at
+    //       0 — so it opened on the very next frame, which looks exactly like
+    //       the tuck not existing. It asks for `guardRelock` worth of tank up
+    //       front now (~1s of ball, several turns), and PAYING that is the
+    //       breath the lockout wanted, so it clears the lock.
+    const wantTuck = acting && I.block && !this._blockPrev && !this.grounded &&
+      !this._airRoll && !this.climb && this.state === 'normal';
+    if (wantTuck && this.sprintEnergy >= GUARD_RELOCK) {
+      this._guardLock = false;
+      this.blocking = true;
+      this.hovering = false;
       this.startAirRoll();
     }
     this._blockPrev = !!I.block;
