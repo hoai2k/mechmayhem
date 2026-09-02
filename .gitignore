@@ -23,3 +23,7 @@ public/models/*.baked.glb
 # the dev server for A/B harnesses) and *.tmp.* harness scripts in tools/scratch
 public/models/_*/
 tools/scratch/_*.tmp.*
+
+# the training harness screenshot: a throwaway of the last run, not an asset
+# (tools/training.mjs writes it in cwd unless a path is given)
+training.png
