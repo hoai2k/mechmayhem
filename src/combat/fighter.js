@@ -128,6 +128,9 @@ const BLOCK_DASH_MULT = TUNING.stamina.dashCostBlockMult;
 const DASH_COST = TUNING.stamina.dashCost;
 const BLOCK_MOVE_MULT = TUNING.movement.blockMoveMult;
 const GUARD_RELOCK = TUNING.stamina.guardRelock;
+const HOVER_REFILL = TUNING.hover.refillSeconds;
+const HOVER_RELIGHT = TUNING.hover.relight;
+const HOVER_AIR_REFILL = TUNING.hover.airRefill;
 const BACK_MOVE_MULT = TUNING.movement.backMult;
 // The half-arc a raised guard covers, as a COSINE. takeHit tests the same
 // arc in radians; the bubble shader fades out past it, so what you see
@@ -3385,7 +3388,7 @@ export class Fighter {
         this.vel.y = this.jumpSpeed();
         this.sfx('jump');
       } else if (wantJump && !this.grounded && !this.hovering && !this._airRoll &&
-                 this.hoverFuel > 0.2) {
+                 this.hoverFuel > HOVER_RELIGHT) {
         // second jump press in the air ignites the hover jets (never out of
         // the tuck — release the ball first, then the jets answer)
         this.hovering = true;
@@ -3435,9 +3438,18 @@ export class Fighter {
         this.hovering = false;
       }
     }
+    // REFUELLING IS WHAT MAKES A SECOND FLIGHT POSSIBLE (TUNING.hover): the
+    // tank fills in `refillSeconds` whatever its size, rather than at a flat
+    // rate that made the biggest tanks — the light mechs', the fliers' —
+    // the slowest to replace. Airborne regen is off by design; see the note
+    // there for why a trickle cannot be small enough to be safe.
     if (this.grounded) {
       this.hovering = false;
-      this.hoverFuel = Math.min(this.hoverFuelMax, this.hoverFuel + dt * 0.9);
+      this.hoverFuel = Math.min(this.hoverFuelMax,
+        this.hoverFuel + (this.hoverFuelMax / HOVER_REFILL) * dt);
+    } else if (HOVER_AIR_REFILL > 0 && !this.hovering) {
+      this.hoverFuel = Math.min(this.hoverFuelMax,
+        this.hoverFuel + (this.hoverFuelMax / HOVER_REFILL) * HOVER_AIR_REFILL * dt);
     }
 
     // block anim — but never over the air roll's ball tuck: an LT-held

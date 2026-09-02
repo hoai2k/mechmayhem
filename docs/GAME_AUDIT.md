@@ -520,14 +520,16 @@ geometry his `x:strutMidL`/`x:strutMidR` extra capsules already cover. His
 legs are skinned to the struts, not to the thigh bones —
 `tools/scratch/jerrybuckets.mjs` is the census that says so.
 
-**THE JETS ARE UNCHANGED, AND THE FELT PROBLEM IS THE REFUELLING** — left as
-found, because it is a balance question rather than a bug: `hoverFuel`
-regenerates ONLY while grounded and at 0.9×, and re-ignition needs more than
-0.2 s in the tank, so a full 2.83 s flight wants 3.1 s standing still to buy
-the next one. The first flight of a sequence is as strong as it ever was; the
-second is short, which is what "they run out sooner" is as a number.
+**THE JETS ARE UNCHANGED, AND THE FELT PROBLEM IS THE REFUELLING.** The first
+flight of a sequence is as strong as it ever was; every one after it is a
+stub, which is what "they run out sooner" is as a number. Measured on viper,
+four flights in a row with half a second on the ground between them: **2.83 s,
+0.47, 0.47, 0.47**, peak height 37.8 units dropping to 9.3. At a flat 0.9/s of
+ground-only regen, replacing a 2.83 s flight costs 3.13 s standing still — a
+price no fight ever pays. Fixed below.
 
 | Done | What |
 |---|---|
 | **The air tuck's three silent vetoes** | The jets no longer refuse it (BLOCK MEANS CURL UP — the press cuts the boosters and takes the ball; the ignition branch already refuses to relight while `_airRoll` is set, so a still-held A cannot fight it), the guard lockout no longer reaches it, and a bar too empty to spin refuses honestly instead of giving a one-frame ball. Measured with jets lit: `rolled=false`/0 turns → 1.02 s/5.64 turns |
+| **The jets refuel in a time, not at a rate** (`TUNING.hover`) | The tank now fills in `refillSeconds` (1.4) whatever its size, where a flat rate quietly punished the light mechs — whose tanks are the big ones — for being the fliers. Nothing about the ceiling moved: `hoverFuelMax`, the climb rate and the thrust are untouched, so one flight off a full tank measures 2.83 s and peak 37.8 exactly as before. Four flights with 1.5 s on the ground between: **1.35 s → the full 2.83 s each**, peak 19.9 → 37.8; with only 0.5 s between, 0.47 → 1.02 s, so a short touchdown still costs you and flight stays a resource. Full refill 3.13 → 1.38 s, relight 0.22 → 0.08 s; titanus (a 1.5 s tank) likewise flies full every time. **Airborne regen is deliberately 0** — thrust burns exactly 1 fuel/s, so any airborne trickle `r` makes a duty cycle of `r` sustainable forever and the jets stop being a resource and become a descent rate. The check is that mashing A for 20 s buys only 4.5 s of thrust on viper (3.83 on titanus) and leaves both on the ground. `node tools/scratch/jetprobe.mjs` |
 | **Fullscreen button** | ⛶ as the fourth stop in the bottom-right cluster, left of ⓘ, same row and size, with a tooltip that names the direction and the lit state as its readout. Driven off the document's own `fullscreenchange`, so F11 and Esc keep the icon honest; never mounted where `requestFullscreen` is absent (iOS Safari), since a button that silently does nothing is worse than no button. It is a controller stop like the other three. `node tools/scratch/fsbtn.mjs` asserts nine things |
