@@ -163,6 +163,23 @@ const HITSTUN_HEAVY = TUNING.melee.hitstunHeavy;
 const HITSTUN_LIGHT = TUNING.melee.hitstunLight;
 const SOFT_FLINCH_CHANCE = TUNING.melee.softFlinchChance;
 const DASH_SPEED_MULT = TUNING.dash.speedMult;
+const DASH_IFRAMES = TUNING.dash.iframes;
+const DASH_IFRAMES_CHARGED = TUNING.dash.iframesCharged;
+const INPUT_BUFFER = TUNING.melee.inputBuffer;
+// WHICH PRESSES ARE REMEMBERED when they arrive too early (see bufferInput).
+// Not `light`: the combo chain catches that one its own way (queuedLight).
+// Not `dash`, which needs no help — the B-button path runs during an attack
+// already, so a dash mid-swing is a CANCEL that lands on the frame it is
+// pressed. Not `ult`: a queued ult spends a charge on an ask the player has
+// already stopped making.
+const BUFFERED_ACTIONS = ['heavy', 'special', 'jump'];
+// …and WHEN. Only the tail of the body's OWN action is remembered. A press
+// made while being HIT — through a knockdown, a launch, a freeze — is not an
+// input that arrived early, it is mashing at a body that is not answering,
+// and replaying the last of it puts a jump or a swing on the first frame of
+// the getup that nobody asked for. (The escape spring already reads a mashed
+// jump where it means something: in the knockdown itself.)
+const BUFFER_STATES = new Set(['attack', 'special', 'ult', 'channel', 'dash']);
 const DASH_CHARGE_BOOST = TUNING.dash.chargeBoost;
 const DASH_COOLDOWN = TUNING.dash.cooldown;
 const KNOCKDOWN_IFRAMES = 0.3;   // no re-launch off the floor for this long
@@ -396,6 +413,7 @@ export class Fighter {
     this.comboIdx = 0;
     this.comboWindow = 0;
     this.queuedLight = false;
+    this._buffered = null;   // a press that arrived too early (see bufferInput)
     this.blocking = false;
     this.firing = false;
     this.dashT = 0;
@@ -1369,12 +1387,46 @@ export class Fighter {
 
   // charge (seconds of crouch wind-up, 0..CHARGE_DASH_MAX) scales the dash:
   // an uncharged tap is the classic dodge, a full coil is a screaming lunge
+  // ---- THE INPUT BUFFER ----------------------------------------------------
+  // The action chain in update() only runs while control is actually
+  // available, and the RECOVERY of every attack is not — so a heavy, a
+  // special or a jump pressed in the last fraction of a swing was simply
+  // thrown away. Only `light` was ever caught (queuedLight, which is the
+  // combo chain and stays its own thing). An eaten input is the fastest way
+  // there is to make a fighting game feel unresponsive, so a press that
+  // arrives too early is REMEMBERED and replayed on the first frame control
+  // comes back.
+  //
+  // It fills only while control is GONE and empties the moment it returns,
+  // consumed or not: a press carried over from an attack is a statement
+  // about the next instant, never a queue to be worked through. Returns the
+  // action to replay this frame, or ''.
+  bufferInput(I, canAct) {
+    if (canAct) {
+      const b = this._buffered;
+      this._buffered = null;
+      return b && this.world.time - b.t <= INPUT_BUFFER ? b.act : '';
+    }
+    if (!BUFFER_STATES.has(this.state)) return '';
+    for (const act of BUFFERED_ACTIONS) {
+      if (I[act]) this._buffered = { act, t: this.world.time };
+    }
+    return '';
+  }
+
   doDash(charge = 0) {
-    if (this.dashCd > 0 && charge < 0.2) return;
-    // stamina: a small flat bite, MULTIPLIED if the guard is up — burning
-    // the tank two ways at once is meant to be expensive
-    this.sprintEnergy = Math.max(0,
-      this.sprintEnergy - DASH_COST * (this.blocking ? BLOCK_DASH_MULT : 1));
+    // A WOUND COIL IS ITS OWN CURRENCY: three seconds of crouch, paid in
+    // advance and in the open, so it answers to neither the cooldown nor the
+    // tank. Everything else is the tap, and a tap has to be affordable.
+    const coil = charge >= 0.2;
+    if (this.dashCd > 0 && !coil) return;
+    // stamina: a flat bite, MULTIPLIED if the guard is up — burning the tank
+    // two ways at once is meant to be expensive. AN EMPTY TANK REFUSES now:
+    // the cost used to sit under what regrew between two dashes, so the
+    // dodge worked on an empty bar forever and mashing B was free.
+    const cost = DASH_COST * (this.blocking ? BLOCK_DASH_MULT : 1);
+    if (!coil && this.sprintEnergy < cost) { this.sfx('servo'); return; }
+    this.sprintEnergy = Math.max(0, this.sprintEnergy - cost);
     const k = clamp(charge / CHARGE_DASH_MAX, 0, 1);
     const ix = this.intent.moveX, iz = this.intent.moveZ;
     let dir;
@@ -1394,7 +1446,7 @@ export class Fighter {
     this.dashCd = DASH_COOLDOWN;
     this.dashT = 0.3 + 0.32 * k;
     this._dashDur = this.dashT;   // animator reads progress = 1 - dashT/dur
-    this.iframes = Math.max(this.iframes, 0.26 + 0.28 * k);
+    this.iframes = Math.max(this.iframes, DASH_IFRAMES + DASH_IFRAMES_CHARGED * k);
     this.setState('dash', this.dashT);
     this.sfx('dash');
     this.world.effects.rings.spawn(this.pos, {
@@ -3240,13 +3292,19 @@ export class Fighter {
     this.height = this.baseHeight * (1 - 0.42 * dk);
     this.hitRadius = this.baseHitRadius * (1 - 0.22 * dk);
 
-    if (acting && !this.blocking) {
+    // a press that arrived during an attack's recovery, replayed now that
+    // control is back (see bufferInput). `canDo` is the same gate the chain
+    // runs on, so the buffer fills exactly while the chain is shut.
+    const canDo = acting && !this.blocking;
+    const buf = this.bufferInput(I, canDo);
+    const wantJump = I.jump || buf === 'jump';
+    if (canDo) {
       if (I.ult && (this.ult >= 1 || this.ultCheat())) this.doUlt();
-      else if (I.special) this.doSpecial();
+      else if (I.special || buf === 'special') this.doSpecial();
       else if (I.light) {
         if (this.state === 'attack') this.queuedLight = true;
         else this.doLight();
-      } else if (I.heavy) this.doHeavy();
+      } else if (I.heavy || buf === 'heavy') this.doHeavy();
       else if (I.dash) this.doDash();
       else if (I.ranged) this.doRanged();
       else if (I.taunt && this.state === 'normal' && !wantsAction(I)) {
@@ -3265,7 +3323,7 @@ export class Fighter {
           },
         }) * 0.9);
       }
-      if (I.jump && this.grounded && this.state === 'normal') {
+      if (wantJump && this.grounded && this.state === 'normal') {
         if (st.jumpWindup) {
           // spring-loader: crouch first, launch when the wind-up expires
           if (!this._jumpCharge) this._jumpCharge = st.jumpWindup;
@@ -3275,16 +3333,16 @@ export class Fighter {
           this.sfx('jump');
           this.world.effects.dustPuff(this.pos, 6);
         }
-      } else if (I.jump && this.climb) {
+      } else if (wantJump && this.climb) {
         // ON A WALL, A is the way OFF it (climb.js springs him clear) — never
         // the jets, never the tuck
-      } else if (I.jump && !this.grounded && this._hangCoyote > 0 && this.state === 'normal') {
+      } else if (wantJump && !this.grounded && this._hangCoyote > 0 && this.state === 'normal') {
         // just let go of a wall: for a beat, a jump still fires in mid-air —
         // that's the release-then-jump climbing rhythm
         this._hangCoyote = 0;
         this.vel.y = this.jumpSpeed();
         this.sfx('jump');
-      } else if (I.jump && !this.grounded && !this.hovering && !this._airRoll &&
+      } else if (wantJump && !this.grounded && !this.hovering && !this._airRoll &&
                  this.hoverFuel > 0.2) {
         // second jump press in the air ignites the hover jets (never out of
         // the tuck — release the ball first, then the jets answer)
