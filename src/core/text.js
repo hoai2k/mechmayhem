@@ -234,6 +234,8 @@ export const MESSAGES = {
   'settings.btn.sound': 'sound on/off',
   'settings.btn.settings': 'settings',
   'settings.btn.instructions': 'how to play',
+  'settings.btn.fullscreen': 'fullscreen',
+  'settings.btn.fullscreenExit': 'leave fullscreen',
 
   // ------------------------------------------------------- controls (ⓘ modal)
   // The IN-GAME controls, and only those: what each button does with a mech on

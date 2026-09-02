@@ -355,9 +355,62 @@ export async function bootGame() {
   }
   infoBtn.addEventListener('click', () => openInstructions());
 
+  // ---- fullscreen: ⛶ button left of the ⓘ, the fourth stop in the corner
+  // cluster. A LOCAL 4-PLAYER GAME IS A SPLIT SCREEN, so the browser's own
+  // chrome is costing every seat a slice of an already-quartered viewport —
+  // which is exactly the game that wants the whole display.
+  //
+  // IT IS ONLY OFFERED WHERE IT WORKS. `requestFullscreen` is absent on
+  // iOS Safari's phone layout, and a button that silently does nothing is
+  // worse than no button, so the element is never mounted there.
+  const fsAvailable = !!(document.documentElement.requestFullscreen
+    || document.documentElement.webkitRequestFullscreen);
+  const fsBtn = document.createElement('div');
+  fsBtn.id = 'fullscreen-btn';
+  fsBtn.textContent = '⛶';
+  fsBtn.style.cssText =
+    'position:absolute;right:136px;bottom:58px;z-index:40;cursor:pointer;font-size:26px;' +
+    'opacity:0.8;user-select:none;text-shadow:0 2px 6px #000;pointer-events:auto;';
+  if (fsAvailable) uiRoot.appendChild(fsBtn);
+  const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+  function updateFsBtn() {
+    // THE GLYPH STAYS PUT and the STATE is carried by the tooltip and the
+    // lit opacity: there is no second fullscreen glyph with the font coverage
+    // the first one has, and a button that changes shape under the cursor is
+    // harder to hit again than one that just brightens.
+    const id = fsOn() ? 'settings.btn.fullscreenExit' : 'settings.btn.fullscreen';
+    fsBtn.title = t(id);
+    fsBtn.dataset.tip = t(id);
+    fsBtn.style.opacity = fsOn() ? '1' : '0.8';
+  }
+  function toggleFullscreen() {
+    // Both halves can REJECT (a browser that refuses outside a user gesture,
+    // a permissions policy in an iframe). A rejection is not an error worth
+    // stopping for — the view simply stays as it was — so it is swallowed and
+    // the icon re-read from the document rather than assumed.
+    audio.play('uiSelect');
+    try {
+      if (!fsOn()) {
+        const el = document.documentElement;
+        const p = el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen?.();
+        if (p?.catch) p.catch(() => { /* refused: nothing to undo */ });
+      } else {
+        const p = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen?.();
+        if (p?.catch) p.catch(() => { /* ok */ });
+      }
+    } catch (e) { /* unsupported: the button simply does nothing */ }
+  }
+  fsBtn.addEventListener('click', () => toggleFullscreen());
+  // The state can change WITHOUT the button — F11, or Esc leaving it — so the
+  // icon is driven off the document's own event, never off the click.
+  document.addEventListener('fullscreenchange', updateFsBtn);
+  document.addEventListener('webkitfullscreenchange', updateFsBtn);
+  updateFsBtn();
+
   // hover tooltips on all three corner buttons (native `title` is the
   // fallback; .hot-btn styles the styled bubble)
-  for (const [btn, id] of [[infoBtn, 'settings.btn.instructions'],
+  for (const [btn, id] of [[fsBtn, 'settings.btn.fullscreen'],
+    [infoBtn, 'settings.btn.instructions'],
     [gearBtn, 'settings.btn.settings'], [muteBtn, 'settings.btn.sound']]) {
     btn.title = t(id);
     btn.dataset.tip = t(id);
@@ -368,6 +421,8 @@ export async function bootGame() {
   // (mech select) and the title screen both walk this list, and pad pointers
   // can click the elements directly
   const hotButtons = [
+    ...(fsAvailable
+      ? [{ id: 'fullscreen', el: fsBtn, activate: () => toggleFullscreen() }] : []),
     { id: 'instructions', el: infoBtn, activate: () => openInstructions() },
     { id: 'settings', el: gearBtn, activate: () => openSettings() },
     { id: 'mute', el: muteBtn, activate: () => setMuted(!muted) },
@@ -389,6 +444,7 @@ export async function bootGame() {
       muteBtn.style.display = show ? '' : 'none';
       gearBtn.style.display = show ? '' : 'none';
       infoBtn.style.display = show ? '' : 'none';
+      fsBtn.style.display = show ? '' : 'none';
     }
   }
 
