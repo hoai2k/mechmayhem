@@ -19,7 +19,7 @@ const GONE_T = 0.5;
 const RESPAWN_IFRAMES = 1.6;
 
 export class Match {
-  constructor({ engine, world, fighters, hud, onEnd, humans = 0 }) {
+  constructor({ engine, world, fighters, hud, onEnd, humans = 0, training = false }) {
     this.engine = engine;
     this.world = world;
     this.fighters = fighters;
@@ -48,6 +48,13 @@ export class Match {
     this.brawl = fighters.length >= 3 && humans >= 2;
     this.humans = humans;
     this.respawns = [];   // {f, t} — a wreck fading out on the floor
+    // ---- TRAINING (game/training.js) -----------------------------------
+    // No clock and no end: the round never times out and a KO is nobody's
+    // business here — the trainer respawns the body on its own pad. Everything
+    // else (the intro, FIGHT!, control locks) is the ordinary round, so a
+    // training session opens exactly like a match. Off by default, and a match
+    // built without it is byte-identical to one built before it existed.
+    this.training = !!training;
   }
 
   begin() {
@@ -76,7 +83,7 @@ export class Match {
     this.state = 'intro';
     this.stateT = 2.5;
     this.timeLeft = CONFIG.roundTime;
-    this.hud.announce(t('match.round', { n: this.round }), true);
+    this.hud.announce(this.training ? t('training.announce') : t('match.round', { n: this.round }), true);
     this.world.audio?.play('stingRound');
     // a bit of personality: someone talks trash at the start of each round
     const talker = this.fighters[(this.round - 1) % this.fighters.length];
@@ -85,6 +92,7 @@ export class Match {
 
   onKO({ fighter, attacker }) {
     if (this.state !== 'fight') return;
+    if (this.training) return;   // the trainer respawns them; nothing ends
     // a SUMMON (a raptor, a wolf) dying is not a contestant dying: the world
     // removes it on its own, and in a brawl it used to be pushed onto the
     // respawn queue — a phantom ring and a "powerup" sting on an empty pad for
@@ -170,6 +178,7 @@ export class Match {
 
       case 'fight': {
         if (this.brawl && this.respawns.length) this.updateRespawns(dt);
+        if (this.training) break;    // no clock: the session runs until QUIT
         this.timeLeft -= dt;
         if (this.timeLeft <= 0) {
           // TIMEOUT. A duel is decided on hp%; a brawl is decided on DEATHS —

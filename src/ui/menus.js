@@ -19,7 +19,7 @@ export const RANDOM_PICK = {
 };
 const pickFrom = (list, cursor) => (cursor >= list.length ? RANDOM_PICK : list[cursor]);
 
-function el(tag, cls, html) {
+export function el(tag, cls, html) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
   if (html !== undefined) e.innerHTML = html;
@@ -953,7 +953,10 @@ export class MechSelectScreen {
 
 // ---------------- ARENA SELECT ----------------
 // Card 0 (top-left) is RANDOM: confirming it spins the selector visibly
-// through every arena before landing on the roulette's pick.
+// through every arena before landing on the roulette's pick. Card 1 is
+// TRAINING — the same line-up on a fixed open arena under training rules
+// (game/training.js); `onDone(themeId, { training: true })` says so.
+const TRAINING_ARENA = 'uptown';   // open, flat, low-hazard
 export class ArenaSelectScreen {
   // `pickRandom` supplies the RANDOM tile's arena. boot hands over the one the
   // idle prefetcher pre-rolled and has been downloading since the title screen
@@ -986,6 +989,24 @@ export class ArenaSelectScreen {
       wrap.appendChild(c);
       this.cards.push(c);
     }
+    // beside it: TRAINING
+    {
+      const c = el('div', 'arena-card training');
+      const art = document.createElement('canvas');
+      art.className = 'arena-art';
+      art.width = 256; art.height = 144;
+      this.drawTrainingArt(art);
+      c.appendChild(art);
+      c.appendChild(el('div', 'arena-name', t('arena.training.name')));
+      c.appendChild(el('div', 'arena-desc', t('arena.training.desc')));
+      c.title = t('arena.training.desc');
+      c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = 1; this.refresh(); } });
+      c.addEventListener('click', () => this.confirm());
+      wrap.appendChild(c);
+      this.cards.push(c);
+    }
+    const FIRST = this.cards.length;   // where the arenas start
+    this.firstArena = FIRST;
     THEMES.forEach((t, i) => {
       const c = el('div', 'arena-card');
       const art = document.createElement('canvas');
@@ -1002,7 +1023,7 @@ export class ArenaSelectScreen {
       c.appendChild(el('div', 'arena-name', t.name));
       c.appendChild(el('div', 'arena-desc', t.desc));
       c.title = t.desc;
-      c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = i + 1; this.refresh(); } });
+      c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = i + FIRST; this.refresh(); } });
       c.addEventListener('click', () => this.confirm());
       wrap.appendChild(c);
       this.cards.push(c);
@@ -1044,6 +1065,38 @@ export class ArenaSelectScreen {
     ctx.shadowColor = 'rgba(56,232,255,0.9)';
     ctx.shadowBlur = 18;
     ctx.fillText('?', W / 2, H / 2 + 3);
+  }
+
+  // TRAINING tile art: a target on a practice-range grid
+  drawTrainingArt(canvas) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0c1c2c');
+    g.addColorStop(1, '#06101c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(56,232,255,0.16)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= W; x += 16) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y <= H; y += 16) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    const cx = W / 2, cy = H / 2 + 4;
+    [46, 34, 22, 10].forEach((r, i) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 ? '#ffb43c' : '#122a3c';
+      ctx.fill();
+    });
+    ctx.strokeStyle = '#38e8ff';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(56,232,255,0.9)';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(cx - 58, cy); ctx.lineTo(cx - 14, cy);
+    ctx.moveTo(cx + 14, cy); ctx.lineTo(cx + 58, cy);
+    ctx.moveTo(cx, cy - 56); ctx.lineTo(cx, cy - 14);
+    ctx.moveTo(cx, cy + 14); ctx.lineTo(cx, cy + 56);
+    ctx.stroke();
   }
 
   // Swap a card's procedural canvas for its painted art once that image has
@@ -1101,7 +1154,8 @@ export class ArenaSelectScreen {
     if (this.rolling) return;
     if (this.cursor === 0) { this.startRoulette(); return; }
     this.audio?.play('uiSelect');
-    this.onDone(THEMES[this.cursor - 1].id);
+    if (this.cursor === 1) { this.onDone(TRAINING_ARENA, { training: true }); return; }
+    this.onDone(THEMES[this.cursor - this.firstArena].id);
   }
 
   // RANDOM: the selector sweeps through every arena card — fast at first,
@@ -1111,10 +1165,11 @@ export class ArenaSelectScreen {
     this.audio?.play('uiSelect');
     const picked = this.pickRandom?.();
     const pickedIdx = picked ? THEMES.findIndex((th) => th.id === picked) : -1;
-    const target = 1 + (pickedIdx >= 0 ? pickedIdx : (Math.random() * THEMES.length) | 0);
+    const F = this.firstArena;
+    const target = F + (pickedIdx >= 0 ? pickedIdx : (Math.random() * THEMES.length) | 0);
     const seq = [];
-    for (let r = 0; r < 2; r++) for (let i = 1; i <= THEMES.length; i++) seq.push(i);
-    for (let i = 1; i <= target; i++) seq.push(i); // final lap ends ON the pick
+    for (let r = 0; r < 2; r++) for (let i = F; i < F + THEMES.length; i++) seq.push(i);
+    for (let i = F; i <= target; i++) seq.push(i); // final lap ends ON the pick
     let s = 0;
     const step = () => {
       this.cursor = seq[s];
@@ -1123,7 +1178,7 @@ export class ArenaSelectScreen {
       s++;
       if (s >= seq.length) {
         this.audio?.play('uiSelect');
-        this._rollT = setTimeout(() => this.onDone(THEMES[target - 1].id), 225);
+        this._rollT = setTimeout(() => this.onDone(THEMES[target - F].id), 225);
         return;
       }
       const f = s / seq.length;
