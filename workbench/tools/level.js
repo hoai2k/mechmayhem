@@ -363,7 +363,8 @@ export async function runLevelWorkbench(config, params) {
   }
   function patchColor(kind) {
     return ({ lake: 0x2e86b0, water: 0x2e86b0, lava: 0xff5a10, acid: 0x7bff2a, oil: 0x2c3a44,
-      mud: 0x4a3a22, ice: 0x9be8ff, sand: 0x8a704c, grass: 0x4f9a44, ash: 0x4a4640 }[kind]) || 0x777777;
+      mud: 0x4a3a22, ice: 0x9be8ff, sand: 0x8a704c, grass: 0x4f9a44, ash: 0x4a4640,
+      void: 0x0a0d14, lowgrav: 0x1e2a3c }[kind]) || 0x777777;
   }
 
   function buildPatchProxy(def) {
@@ -734,7 +735,7 @@ export async function runLevelWorkbench(config, params) {
     } else if (p.k === 'bridge') {
       def = { k: 'bridge', x: snap(world.x), z: snap(world.z), axis: 'x', flat: 12, H: 3.2, color: AR.bridgeColor(level.theme), edge: 0x53e8ff };
     } else if (p.k === 'patch') {
-      def = { k: 'patch', kind: p.kind, x: snap(world.x), z: snap(world.z), r: 9, glow: null, color: null };
+      def = { k: 'patch', kind: p.kind, x: snap(world.x), z: snap(world.z), r: 9, glow: p.glow ?? null, color: null };
     } else if (p.k === 'spawn') {
       def = { k: 'spawn', x: snap(world.x), z: snap(world.z), yaw: Math.atan2(-world.x, -world.z) };
     } else { // prop

@@ -272,22 +272,10 @@ export class Match {
   }
 
   // Where a respawn lands: the arena's own spawn points, furthest from the
-  // robots who are still up. Coming back INTO the fight you just lost is not a
-  // second chance, it is a second death.
+  // robots who are still up (Arena.respawnSpot — sky terrace's drop uses the
+  // same rule).
   respawnSpot(f) {
-    const pts = this.world.arena.spawnPoints(this.fighters.length);
-    let best = pts[0], bestD = -1;
-    for (const p of pts) {
-      let d = Infinity;
-      for (const o of this.fighters) {
-        if (o === f || !o.alive) continue;
-        // on the torus, the near image: a robot across the seam is close
-        const w = this.world;
-        d = Math.min(d, Math.hypot(w.wrapDelta(o.pos.x - p.pos.x), w.wrapDelta(o.pos.z - p.pos.z)));
-      }
-      if (d > bestD) { bestD = d; best = p; }
-    }
-    return best;
+    return this.world.arena.respawnSpot(f, this.fighters);
   }
 
   destroy() {

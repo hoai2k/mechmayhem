@@ -122,7 +122,7 @@ export class AIController {
     const R = f.radius;
     const hot = (x, z, m) => {
       const h = T.onLane(x, z, m)?.hazard || T.onPatch(x, z, m)?.hazard;
-      return h === 'lava' || h === 'acid';
+      return h === 'lava' || h === 'acid' || h === 'void';   // (void: the sky terrace's drop)
     };
     const solid = (x, z) => {
       for (const p of A.propBodies) {
