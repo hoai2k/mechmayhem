@@ -103,7 +103,10 @@ export async function bootGame() {
   // the combat SFX. Falls back to the sequencer's theme track if src/music/ is
   // empty or <audio> is unavailable.
   const music = new MusicPlayer();
-  const nowPlaying = new NowPlaying(uiRoot, music);
+  // the chip's transport auditions while the fight is PAUSED — see
+  // NowPlaying. `S` is declared further down; this only ever runs on a click.
+  const nowPlaying = new NowPlaying(uiRoot, music,
+    { paused: () => !!(S.battle && S.battle.paused) });
 
   // ---- menu theme: the recorded track in public/sound/, looped behind the
   // title and select screens. The procedural sequencer's `menu` pattern is

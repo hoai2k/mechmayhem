@@ -104,6 +104,21 @@ export const MENU_TRACKS = [{
 
 const STORE_KEY = 'rw.musicOn';
 
+// ---- the now-playing chip's transport (ui/nowplaying.js) -------------------
+// How many songs back the BACK button can walk. It is a listening history,
+// not a playlist: a handful is every press anyone makes in a match.
+const HISTORY_MAX = 16;
+// THE BACK BUTTON IS TWO BUTTONS and this is the window that tells them
+// apart — press it once to rewind, again within this many seconds to step to
+// the previous song. Long enough to be a deliberate double-press, short
+// enough that coming back to the chip much later rewinds (which is what the
+// button says it does) rather than silently skipping backwards.
+const BACK_AGAIN = 5;
+// Auditioning from the PAUSE MENU plays at this share of the music bus. A
+// menu you are picking a song on wants to be heard under a conversation, not
+// to open at fight volume — and the moment the fight resumes it is full.
+const PREVIEW_MIX = 0.35;
+
 export class MusicPlayer {
   /**
    * @param {object} [opts]
@@ -128,6 +143,9 @@ export class MusicPlayer {
     this.muted = false;     // global SOUND: OFF
     this.enabled = true;    // the player's own music toggle
     this.onChange = null;   // UI hook: re-render the "now playing" readout
+    this._history = [];     // songs already played, newest last (the BACK button)
+    this._backAt = 0;       // when BACK last rewound — see BACK_AGAIN
+    this._preview = false;  // auditioning from the pause menu, at PREVIEW_MIX
     try {
       const s = localStorage.getItem(STORE_KEY);
       if (s !== null) this.enabled = s !== '0';
@@ -191,6 +209,10 @@ export class MusicPlayer {
     const own = arenaTracksFor(theme);
     this.tracks = own.length ? own : this._pool;
     this._bag = [];
+    // the songs behind us belong to the pool we just left; stepping BACK into
+    // one would leave the arena playing music that is not its own
+    this._history = [];
+    this._backAt = 0;
     if (!this.tracks.includes(this.next)) { this.next = null; this._roll(); }
   }
 
@@ -243,7 +265,16 @@ export class MusicPlayer {
   /** Continue a paused song (or start one if nothing is loaded yet). */
   resume() {
     if (!this.available) return;
-    if (this.playing) return;
+    // A PREVIEW IS ALREADY PLAYING, which is exactly why this cannot just
+    // return on `playing`: auditioning from the pause menu leaves the player
+    // running quietly, and the unpause that ends it is this call. Clearing
+    // the flag and re-applying the volume IS the hand back to full.
+    const wasPreview = this._preview;
+    this._preview = false;
+    if (this.playing) {
+      if (wasPreview) { this._applyVolume(); this._changed(); }
+      return;
+    }
     this.playing = true;
     if (!this.track) { this._advance(); return; }
     this._play();
@@ -255,6 +286,9 @@ export class MusicPlayer {
     if (!this.available) return;
     this.playing = false;
     this.track = null;
+    this._history = [];     // a new match is a new rotation to walk back through
+    this._backAt = 0;
+    this._preview = false;
     const prev = this._playingWarm;
     this._playingWarm = null;
     try { this.el.pause(); this.el.removeAttribute('src'); this.el.load(); } catch (e) { /* ok */ }
@@ -272,10 +306,69 @@ export class MusicPlayer {
     if (this.el.paused) this._play();
   }
 
-  /** Skip to the next pre-rolled song. */
+  /**
+   * Skip to the next pre-rolled song. PRESSING IT IS A REQUEST TO HEAR
+   * SOMETHING, so unlike every other control here it starts a player that is
+   * merely paused — which is what makes the chip's transport work from the
+   * pause menu, where `playing` is false by construction.
+   */
   skip() {
-    if (!this.available || !this.playing) return;
+    if (!this.available) return false;
+    this.playing = true;
+    this._backAt = 0;
     this._advance();
+    return true;
+  }
+
+  /** Is there a song behind this one to step back to? */
+  get hasPrev() { return this._history.length > 0; }
+
+  /**
+   * THE BACK BUTTON IS TWO BUTTONS, and which one you get is decided by the
+   * press before it: the first REWINDS to the top of the song, and a second
+   * within `BACK_AGAIN` seconds steps to the PREVIOUS song. That order is
+   * deliberate and is not the same rule as a media player's (those compare
+   * the playhead, so a press ten seconds in skips back and a press two
+   * minutes in rewinds) — here the first press always rewinds, whatever the
+   * playhead says, so the button does the same thing every time you reach
+   * for it and the second press is the one that needs intent.
+   *
+   * Returns 'restart' or 'prev' for what it did, so the UI can say so.
+   */
+  back() {
+    if (!this.available) return null;
+    this.playing = true;
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    const again = this._backAt && now - this._backAt < BACK_AGAIN && this._history.length;
+    if (!again) {
+      this._backAt = now;
+      if (!this.track) { this._advance(); return 'restart'; }
+      try { this.el.currentTime = 0; } catch (e) { /* ok */ }
+      this._applyVolume();
+      this._play();
+      this._changed();
+      return 'restart';
+    }
+    this._backAt = 0;
+    // the song being left is where NEXT should go, so the two buttons are
+    // each other's undo rather than both walking the shuffle bag forward
+    if (this.track) this.next = this.track;
+    this._switchTo(this._history.pop());
+    this._changed();
+    return 'prev';
+  }
+
+  /**
+   * AUDITIONING, at `PREVIEW_MIX` of the bus: the pause menu's own volume for
+   * the transport. Set when a nav button is pressed with the fight paused and
+   * cleared by `resume()`, which is the unpause.
+   */
+  setPreview(on) {
+    const v = !!on;
+    if (v === this._preview) return;
+    this._preview = v;
+    this._applyVolume();
+    this._changed();
   }
 
   // ------------------------------------------------------------------ volume
@@ -317,7 +410,8 @@ export class MusicPlayer {
     // player the graph cannot reach, so music and effects rise together. An
     // element's gain stops at 1, so a slider dragged to the very top gives
     // some of it back — the only place in the range where it can.
-    const want = this.enabled && !this.muted ? Math.min(1, this.volume * OUTPUT_TRIM) : 0;
+    const mix = this._preview ? PREVIEW_MIX : 1;
+    const want = this.enabled && !this.muted ? Math.min(1, this.volume * OUTPUT_TRIM * mix) : 0;
     this.el.volume = want;
     // THIS IS THE ONE PLACE THAT DECIDES WHETHER THE ELEMENT RUNS, and it has
     // to answer both halves of the question or the answers drift apart. Silent
@@ -358,7 +452,26 @@ export class MusicPlayer {
   _advance() {
     if (!this.available) return;
     if (!this.next) this._roll();
-    this.track = this.next;
+    if (this.track) {
+      this._history.push(this.track);
+      if (this._history.length > HISTORY_MAX) this._history.shift();
+    }
+    this._switchTo(this.next);
+    this._roll();
+    this._changed();
+  }
+
+  /**
+   * Point the element at `track` and play it — the half of `_advance` that
+   * `back()` also needs. It is one function because the WARM BLOB's ownership
+   * is the fiddly part (the element must be pointed elsewhere before the
+   * previous object URL is revoked) and two copies of that is one copy too
+   * many. It does NOT touch the history or the bag: who goes where is the
+   * caller's business.
+   */
+  _switchTo(track) {
+    if (!track) return;
+    this.track = track;
     // play the primed blob when this is the song we pre-fetched; otherwise
     // stream it from the network as usual
     const warm = this._warm?.track === this.track ? this._warm : null;
@@ -376,8 +489,6 @@ export class MusicPlayer {
     if (prev) { try { URL.revokeObjectURL(prev.url); } catch (e) { /* ok */ } }
     this._applyVolume();
     this._play();
-    this._roll();
-    this._changed();
   }
 
   _play() {
