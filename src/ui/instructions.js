@@ -149,7 +149,7 @@ function drawPad(svg) {
 export function compactPadSvg() {
   // wider than the page's viewBox: the labels live INSIDE this picture, out
   // past the leader ends, where the page has DOM callouts instead
-  const MARGIN = 275;
+  const MARGIN = 320;
   const svg = mk('svg', { viewBox: `${END_L - MARGIN} ${PAD_TOP} ${END_R - END_L + 2 * MARGIN} ${PAD_H}`, class: 'ls-pad-svg' });
   drawPad(svg);
   for (const c of CONTROLS) {
@@ -168,7 +168,7 @@ export function compactPadSvg() {
     const tx = mk('text', {
       x: left ? endX - 8 : endX + 8, y: ly + 5,
       'text-anchor': left ? 'end' : 'start', 'font-family': 'inherit',
-      fill: '#dfeefb', 'font-size': 17, 'font-weight': 600,
+      fill: '#dfeefb', 'font-size': 19, 'font-weight': 600,
     });
     const name = mk('tspan', { fill: '#38e8ff', 'font-weight': 800 });
     name.textContent = t(`controls.${c.id}.name`) + ' ';
