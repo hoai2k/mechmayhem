@@ -19,6 +19,7 @@ import { sunYawOf, frontClear, traitYaw } from './designs/util.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
+import { measureHorizonColor, horizonGradientColor } from './horizon.js';
 
 // texture-pack material names per arena / building style
 export const GROUND_TEX = {
@@ -78,6 +79,10 @@ const _v = new THREE.Vector3();
 
 // recipe numbers are read by a human in the level editor's export — a placement
 // is not more accurate for carrying fifteen decimals
+// where full fog lands, as a fraction of the wrap period (see the fog note
+// in the constructor)
+const FOG_FAR = 0.97;
+
 const round1 = (v) => Math.round(v * 10) / 10;
 const round2 = (v) => Math.round(v * 1000) / 1000;
 
@@ -179,19 +184,31 @@ export class Arena {
     // LONG SIGHT LINES: the world is ghost-tiled ±1 cell in every direction
     // (corners included), and fighters are never cloned — so the view can
     // legally run almost a full cell period before the scene would repeat
-    // through your own position. Fog opens at the theme's near distance and
-    // closes just short of P; everything past the ghost ring (>1.5P) sits
-    // beyond full fog, so there is no pop-out to hide.
-    // (0.92P, not 1.0P: a chase camera sits a little outside its fighter's
-    // folded position, so the ghost ring must still cover the far edge)
+    // through your own position. Everything past the ghost ring (>1.5P)
+    // sits beyond full fog, so there is no pop-out to hide.
     //
-    // The band starts at 0.45–0.62P — far enough out that the WHOLE play
-    // area (radius B = 0.37P) is crisp, so haze only ever eats the wrap
-    // ring and the tile beyond it. The theme's own near distance still
-    // steers where in that window it lands, keeping murky arenas murky.
-    // Silhouettes inside the band are softened by core/hazeblur.js.
-    this.scene.fog = new THREE.Fog(theme.fog.color,
-      clamp(theme.fog.near * 1.5, P * 0.45, P * 0.62), P * 0.92);
+    // FOG ONLY WHERE IT IS NEEDED. Nothing is culled by fog — every chunk,
+    // prop and ghost inside the camera's far plane is drawn whether it is
+    // hazed or crisp — so the haze costs nothing to push out and buys
+    // nothing to pull in; the ONE limit is the wrap: past a full period P
+    // the view is looking at THIS tile again, so full fog must land before
+    // that. The wall is at FOG_FAR (0.97P — a chase camera sits a little
+    // outside its fighter's folded position, so it stays just inside the
+    // ghost ring's cover), and the band opens at 0.66–0.80P, with the
+    // theme's own near distance steering where in that window it lands so
+    // a murky arena stays murkier than a clear one. Everything inside
+    // ~two thirds of a period — the whole cell and the seam ring beyond it
+    // — is crisp. `CONFIG.fogReach` (?fogreach=0..1) scales the band back
+    // toward the old 0.45–0.62P / 0.92P for comparison. Silhouettes inside
+    // the band are softened by core/hazeblur.js.
+    {
+      const k = clamp(CONFIG.fogReach ?? 1, 0, 1);
+      const nearK = clamp((theme.fog.near - 70) / 45, 0, 1);      // 70 → 115
+      const n0 = 0.45 + 0.17 * nearK, n1 = 0.66 + 0.14 * nearK;   // old band → new band
+      const near = P * (n0 + (n1 - n0) * k);
+      const far = P * (0.92 + (FOG_FAR - 0.92) * k);
+      this.scene.fog = new THREE.Fog(theme.fog.color, near, far);
+    }
     this.scene.background = null;
 
     const { sun, hemi, rim } = engine;
@@ -255,10 +272,11 @@ export class Arena {
     // The generated horizon strip (below) IS the distant scenery when it
     // exists — the box silhouettes would only stand in front of it as flat
     // fog-coloured slabs, so they are the FALLBACK, not an extra layer.
+    let skyMatDark = null;
     if (!hasHorizonTex) {
       const bdR0 = P * 0.88, bdR1 = P * 1.08;
       const bdScale = bdR0 / 230;
-      const skyMatDark = new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fog.color).multiplyScalar(0.55) });
+      skyMatDark = new THREE.MeshBasicMaterial({ color: new THREE.Color(theme.fog.color).multiplyScalar(0.55) });
       for (let i = 0; i < 40; i++) {
         const a = (i / 40) * Math.PI * 2 + rng.range(-0.05, 0.05);
         const r = rng.range(bdR0, bdR1);
@@ -311,6 +329,24 @@ export class Arena {
     this.scene.add(skyline);
     this.objects.push(skyline);
     engine.backdrop = skyline;
+    // THE FOG TAKES THE BACKDROP'S COLOUR (see horizon.js): measured off the
+    // strip's ground-haze band, else the panorama's horizon row, once the
+    // image is in — the loader is asynchronous, and the loading screen holds
+    // the reveal until it has landed, so the match opens on the matched
+    // colour. Without a texture pack the gradient dome is the backdrop, so
+    // its own horizon colour is the answer, taken here and now.
+    {
+      const fog = this.scene.fog;
+      const apply = (c) => {
+        fog.color.copy(c);
+        // the fallback skyline boxes are darker silhouettes of the same haze
+        if (skyMatDark) skyMatDark.color.copy(c).multiplyScalar(0.55);
+      };
+      const strip = hasHorizonTex ? loadMap('sky', `horizon_${theme.id}`, 'albedo', { srgb: true }) : null;
+      const pano = this.sky.material.uniforms.uPano.value;
+      if (strip || pano) this._horizonCancel = measureHorizonColor({ strip, pano }, apply);
+      else apply(horizonGradientColor(theme));
+    }
 
     // ---- destructible buildings ----
     const styleIdx = theme.buildings.styles[0];
@@ -1395,6 +1431,7 @@ export class Arena {
   }
 
   dispose() {
+    this._horizonCancel?.();
     for (const o of this.objects) {
       this.scene.remove(o);
       o.traverse?.((c) => {

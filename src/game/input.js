@@ -33,10 +33,10 @@ export class Input {
     this.keysPressed = new Set();   // edge (consumed per frame)
     this.padsPrev = [{}, {}, {}, {}];
     this.padsCur = [{}, {}, {}, {}];
-    this._lockLatch = [false, false, false, false]; // LB target-lock toggles
-    // when LB went down, per pad (null = up). A TAP toggles the lock on
+    this._lockLatch = [false, false, false, false]; // LT target-lock toggles
+    // when LT went down, per pad (null = up). A TAP toggles the lock on
     // release; a HOLD is sniper mode instead — see readIntent.
-    this._lbDown = [null, null, null, null];
+    this._ltDown = [null, null, null, null];
     this.onPadConnect = null;
     this._navHold = new Map();      // "src:dir" -> {t0, last} for menu auto-repeat
 
@@ -144,7 +144,7 @@ export class Input {
       intent.special = kp('special');
       intent.specialHeld = k('special');
       intent.ult = kp('ult');
-      // dash key is HELD like pad B: standing hold winds the coil, moving
+      // dash key is HELD like pad LB: standing hold winds the coil, moving
       // hold sprints (fighter.js owns the mechanics); tap = classic dash
       intent.dash = false;
       intent.chargeDash = k('dash');
@@ -152,7 +152,7 @@ export class Input {
       intent.strafe = k('strafe');
       intent.duck = k('duck');
       intent.lockOn = false;
-      intent.sniper = false;   // LB hold — pads only (see below)
+      intent.sniper = false;   // LT hold — pads only (see below)
       intent.lookX = intent.lookY = 0;
     } else if (device.startsWith('pad')) {
       const i = +device[3];
@@ -169,19 +169,22 @@ export class Input {
       intent.lightHeld = this.padHeld(i, 'X');
       intent.heavy = this.padPressed(i, 'Y');
       intent.heavyHeld = this.padHeld(i, 'Y');
-      intent.block = this.padHeld(i, 'LT');
+      // B BLOCKS. The guard lives on a face button, where a thumb already
+      // resting on the cluster can hold it through a punch exchange.
+      intent.block = this.padHeld(i, 'B');
       // bumper shoots (hold RB = aim crosshair, release = fire), trigger specials
       intent.ranged = this.padHeld(i, 'RB');
       intent.rangedHeld = this.padHeld(i, 'RB');
       intent.special = this.padPressed(i, 'RT');
       intent.specialHeld = this.padHeld(i, 'RT');
       intent.ult = this.padPressed(i, 'DU');
-      // B: standing hold CROUCHES and winds a dash coil (fires the moment a
+      // LB: standing hold CROUCHES and winds a dash coil (fires the moment a
       // direction is pushed); held on the move it's a dash-into-SPRINT
-      // (fighter.js owns the mechanics)
-      intent.chargeDash = this.padHeld(i, 'B');
-      intent.dash = false;    // pads dash via the B coil/sprint
-      // LB DOES TWO THINGS, TOLD APART BY HOW LONG IT IS DOWN.
+      // (fighter.js owns the mechanics). A bumper is the sprint button on
+      // most pads, and it leaves the face cluster free for the strikes.
+      intent.chargeDash = this.padHeld(i, 'LB');
+      intent.dash = false;    // pads dash via the LB coil/sprint
+      // LT DOES TWO THINGS, TOLD APART BY HOW LONG IT IS DOWN.
       //   TAP  — TARGET LOCK, a toggle: lock on (face the locked enemy, camera
       //          tracks them, sideways movement becomes a natural strafe), tap
       //          again to release. Was hold-to-lock; a toggle frees the finger
@@ -192,17 +195,19 @@ export class Input {
       //          camera mode.
       // The toggle therefore fires on RELEASE, and only for a press that never
       // became a hold — otherwise raising the scope would flip the lock every
-      // time, which is the one thing a held button must not do.
+      // time, which is the one thing a held button must not do. (It lived on
+      // LB until the bumper became the sprint; a trigger is the natural "aim
+      // down sights" hold on every shooter pad.)
       const now = performance.now() / 1000;
       const holdT = TUNING.aim.holdTime;
-      if (this.padPressed(i, 'LB')) this._lbDown[i] = now;
-      const lbHeld = this.padHeld(i, 'LB');
-      const t0 = this._lbDown[i];
-      if (!lbHeld && t0 != null) {
+      if (this.padPressed(i, 'LT')) this._ltDown[i] = now;
+      const ltHeld = this.padHeld(i, 'LT');
+      const t0 = this._ltDown[i];
+      if (!ltHeld && t0 != null) {
         if (now - t0 < holdT) this._lockLatch[i] = !this._lockLatch[i];
-        this._lbDown[i] = null;
+        this._ltDown[i] = null;
       }
-      intent.sniper = lbHeld && t0 != null && now - t0 >= holdT;
+      intent.sniper = ltHeld && t0 != null && now - t0 >= holdT;
       intent.lockOn = this._lockLatch[i];
       intent.strafe = false;
       // D-PAD DOWN, the twin of the ultimate on UP: the taunt lives on the pad

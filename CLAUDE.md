@@ -264,10 +264,10 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   THE LEFT STICK MOVES THE ROBOT AND NOTHING ELSE — no target re-pick, no drift
   on the crosshair (asserted: run about under a lock and the aim stays on the
   same target, still on its head).
-  A HELD LB IS SNIPER MODE, and that is why the lock became a TAP toggle to
+  A HELD LT IS SNIPER MODE, and that is why the lock became a TAP toggle to
   release on: the toggle now fires on RELEASE and only for a press that never
   became a hold, so raising the scope cannot flip the lock (`node
-  tools/scratch/lbprobe.mjs` asserts all four transitions). It needs no lock and
+  tools/scratch/ltprobe.mjs` asserts all four transitions). It needs no lock and
   no target — unlocked, the stick swings camera and crosshair as one thing and
   the aim ray is TRACED into the world (enemy hurtboxes first, then the terrain
   under it), which is what lets a LOBBED shell land where the crosshair is drawn
@@ -1959,6 +1959,48 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   count, crates, fountains, wrapHalf, and a fighter who still walks and stands
   on the new terrain) and `node tools/scratch/roundswap.mjs`, which does it in
   the REAL game through the menus.
+- A MATCH OPENS ON A STAGE THAT IS READY (`src/game/loadscreen.js`, CSS under
+  `.ls`, probe `node tools/scratch/loadscreen.mjs [out-prefix]`). The card
+  that covers the wait is FULL-SCREEN AND OPAQUE — the arena's painting and
+  name with the loading bar under them, every fighter's canonical concept art
+  (`public/art/<id>.jpg`, written from `docs/canonical/` by `node
+  tools/canonart.mjs`, ~55 KB each) on an angled panel with a VS between, and
+  the pad diagram small (`compactPadSvg` in ui/instructions.js — the SAME
+  control table and strings as the ⓘ page, so a rebinding is one edit for
+  both). The REAL scene renders underneath it through the real cameras the
+  whole time, which is what warms the shaders and textures; one explicit
+  `compile()`/`initTexture` pass runs before the reveal. THE GATE is at least
+  3s AND the texture loader idle for a beat AND no fighter still waiting on a
+  model AND that prewarm frame, and only then does the card fade (0.9s) over a
+  stage that was already drawing. The old warm-up (per-fighter cameras over a
+  grey sandbox floor the humans could romp on) is gone with it; `world.sandbox`
+  survives as the "the arena must not touch anyone under the card" flag.
+  A ROUND FOUGHT SOMEWHERE NEW GETS THE SAME CARD: boot's `onRoundStart` swaps
+  the arena, sets `match.holdRound` and starts the screen; `Match.startRound`
+  resets the bodies onto the new pads and then parks in state `held` — the
+  announcement, the sting and the intro clock are all in `openRound()`, which
+  `match.release()` runs when the card is down. Round 1's reveal calls
+  `match.begin()` instead. Nothing in the match can run under a card.
+- THE FOG IS THE COLOUR OF WHAT IS BEHIND IT (`src/arena/horizon.js`). Fog
+  lerps a fragment toward one flat colour, so a tower at the wall IS that
+  colour — and the only colour that makes it dissolve is the backdrop behind
+  the wall. The themes' authored fog colours predate the painted backdrops
+  and disagreed with them (RUINS: a grey-beige wall in front of an orange
+  sand strip — sandstone, then white haze, then sand again). So it is
+  MEASURED: the horizon strip's opaque ground-haze band (rows 4-34% up the
+  image), else the panorama's horizon rows, else the gradient dome's own
+  horizon colour, averaged in sRGB and set on `scene.fog.color` (and the
+  fallback skyline boxes) the moment the image is in — the loading screen
+  holds the reveal past that, so the match opens matched. The authored
+  `theme.fog.color` is only the value until then.
+  AND FOG ONLY WHERE IT IS NEEDED: nothing is culled by fog (every chunk,
+  prop and ghost inside the far plane is drawn hazed or crisp), so pushing
+  the band out costs nothing and pulling it in buys nothing; the one limit
+  is the wrap — past one period P the view is looking at this tile again, so
+  full fog lands at `FOG_FAR` 0.97P (was 0.92P) and the band opens at
+  0.66-0.80P (was 0.45-0.62P), the theme's own `fog.near` steering where in
+  the window it lands. `CONFIG.fogReach` (`?fogreach=0..1`) scales back toward
+  the old band for a side-by-side.
 - TWO OR MORE PEOPLE IN A FIGHT OF THREE OR MORE PLAY A DIFFERENT GAME
   (`Match.brawl` — it counts HUMANS, not fighters, and the reason it
   because ONE PLAYER AGAINST A CROWD IS NOT A BRAWL: a solo player against three

@@ -38,7 +38,7 @@ import { TouchControls, installTouchZoomGuards } from './touch.js';
 import { isTouchDevice } from '../core/utils.js';
 import { MenuStage } from './menustage.js';
 import { PadPointers } from './padpointers.js';
-import { Warmup } from './warmup.js';
+import { LoadScreen } from './loadscreen.js';
 import { createBattle, rebuildArena } from './battle.js';
 import { Training } from './training.js';
 
@@ -652,10 +652,10 @@ export async function bootGame() {
     }));
   }
 
-  // pre-fight warm-up (asset loading) flow — see src/game/warmup.js.
-  // Per-battle loading state lives on S.battle.loading (read by the main
-  // loop and teardownBattle below).
-  const warmup = new Warmup({ engine, uiRoot, touchControls });
+  // the loading / intro card — see src/game/loadscreen.js. Per-battle
+  // loading state lives on S.battle.loading (read by the main loop and
+  // teardownBattle below).
+  const loadScreen = new LoadScreen({ engine, uiRoot, touchControls });
 
   // ---------------- battle ----------------
   async function startBattle() {
@@ -695,8 +695,8 @@ export async function bootGame() {
     S.mode = 'battle';
     S.starting = false;
     // shared world/arena/camera wiring (arenaObjs = everything the arena
-    // adds, hidden behind the warm-up's neutral backdrop and revealed
-    // fully-warmed later)
+    // adds — it draws behind the loading card from the first frame, which is
+    // what warms it)
     let { world, arena, arenaObjs, cameraSys } = createBattle(engine, {
       theme, audio, input, seed: (Math.random() * 9999) | 0,
     });
@@ -725,11 +725,12 @@ export async function bootGame() {
       for (let t = 0; clash() && t < SCHEME_COUNT; t++) d.variant = (d.variant + 1) % SCHEME_COUNT;
     });
     const finalDefs = defs.map((d) => applyColorScheme(d.base, d.variant));
-    // never gate the warm-up screen on slow model downloads: whoever's
+    // never stall the fighter build on slow model downloads: whoever's
     // model is ready within the grace window (procedural, or a GLB already
     // cached by the arena-select preload) spawns now; the rest spawn as
-    // hidden procedural placeholders that swap to the real model mid-warm-up
-    // (a spinner marks their panel until then — see warmup.start)
+    // hidden procedural placeholders that swap to the real model while the
+    // loading card is up (which waits for them — `_modelPending` holds the
+    // gate, see loadscreen.js)
     const mechPromises = finalDefs.map((d) => createMech(d));
     const grace = new Promise((res) => setTimeout(() => res(null), 400));
     const mechs = await Promise.all(mechPromises.map((p) => Promise.race([p, grace])));
@@ -745,8 +746,6 @@ export async function bootGame() {
         f.group.visible = false;
         mechPromises[i].then((m) => {
           f._modelPending = false;
-          f._wuSpin?.remove();
-          f._wuSpin = null;
           if (!world.fighters.includes(f)) return; // battle torn down
           if (m.isGLB) f.swapMech(m);
           f.group.visible = true;
@@ -838,7 +837,13 @@ export async function bootGame() {
         cameraSys.init = false;          // reframe on the new stage
         for (const ch of cameraSys.chase) ch.init = false;
         music.setArena(t2);              // …and its own songs, if it has any
-        hud.announce(t2.name, true);
+        ambience.setArena(t2.id);
+        // THE NEW CITY GETS ITS OWN INTRO CARD: the match holds the round
+        // (startRound reads the flag right after this returns) while the new
+        // textures stream in and the stage warms behind the card, and the
+        // reveal releases it — see loadscreen.js
+        match.holdRound = true;
+        if (S.battle) loadScreen.start(S.battle, t2, { round });
       }
       prepareNextArena();                // …the one after this
       if (round >= 2) {
@@ -907,9 +912,9 @@ export async function bootGame() {
     music.setArena(theme);
     if (music.available) { audio.stopMusic(); music.start(); }
     else audio.music(theme.music);
-    // pre-fight warm-up screen: the match is gated behind it while the
-    // texture pack streams in and the first frames compile every shader
-    warmup.start(S.battle, theme);
+    // the loading card: the match is gated behind it while the texture pack
+    // streams in and the stage renders warm underneath
+    loadScreen.start(S.battle, theme, { round: 1 });
 
     // pad rumble helper reaches humans by playerIndex
     world.input.rumble = ((orig) => (playerIndex, s, ms) => {
@@ -925,11 +930,7 @@ export async function bootGame() {
     audio.stopAllLoops?.();   // a loop whose owner is gone plays forever
     nowPlaying.setVisible(false);
     touchControls?.setVisible(false);
-    if (S.battle.loading) { // quit mid-warm-up: drop the overlay + cameras
-      S.battle.loading.ov.remove();
-      S.battle.loading = null;
-      engine.views = null;
-    }
+    if (S.battle.loading) loadScreen.cancel(S.battle);   // quit mid-load
     S.battle.training?.destroy();   // (hands the ult cheat back as it was)
     S.battle.match.destroy();
     S.battle.hud.destroy();
@@ -972,26 +973,17 @@ export async function bootGame() {
       if (!B.paused) {
         for (const h of B.humans) {
           if (h.fighter.alive && !h.fighter.controlsLocked) {
-            // the warm-up screen has its own per-fighter camera, so it owns
-            // the control frame while it is up (see Warmup.inputYawFor)
-            const camYaw = (B.loading ? warmup.inputYawFor(B, h.fighter) : null)
-              ?? B.cameraSys.inputYawFor(h.fighter, h.idx);
+            const camYaw = B.cameraSys.inputYawFor(h.fighter, h.idx);
             input.readIntent(h.device, h.fighter.intent, camYaw);
-            if (B.loading) {
-              // warm-up playground: melee/movement only — no shots, no
-              // specials, no ults before the bell
-              const I = h.fighter.intent;
-              I.ranged = I.rangedHeld = I.special = I.specialHeld = I.ult = false;
-            }
           } else {
             h.fighter.intent.moveX = h.fighter.intent.moveZ = 0;
           }
         }
         for (const ai of B.ais) ai.update(dt);
         world_update(B, dt);
-        if (B.loading) warmup.update(B, dt);
+        if (B.loading) loadScreen.update(B, dt);
         B.match.update(dt);
-        // the warm-up sandbox is not training: nothing ticks until the bell
+        // the loading card is not training: nothing ticks until the bell
         if (B.training && !B.loading) B.training.update(dt);
         const ev = input.menuEvents();
         if (ev.pause) pauseBattle();
@@ -1020,7 +1012,6 @@ export async function bootGame() {
 
   engine.onRender = (dtReal) => {
     const B = S.battle;
-    if (B?.loading) return; // warm-up owns the fixed per-fighter cameras
     if ((S.mode === 'battle' || S.mode === 'results') && B) {
       // right stick = camera control, per player
       if (!B.paused) {
@@ -1083,7 +1074,7 @@ export async function bootGame() {
   // other fighting game does and the only fair option in local multiplayer.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      // mid-warm-up is not a pausable state (the loading flow owns the
+      // mid-load is not a pausable state (the loading flow owns the
       // cameras); it is time-gated and harmless to leave running.
       if (S.mode === 'battle' && S.battle && !S.battle.paused && !S.battle.loading) pauseBattle();
       audio.suspend();

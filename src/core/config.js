@@ -214,6 +214,10 @@ export const CONFIG = {
   // spelling too: an unknown URL param is ignored, though boot now warns
   // about one. See core/knobs.js.)
   neonBuzzVolume: readParam01('neonbuzz', 0.15),
+  // How far the crisp view reaches before the distance fog: 1 opens the
+  // band as far as the wrap allows (full fog just inside one cell period,
+  // see arena.js), 0 is the old shorter band. ?fogreach=0.5 to compare.
+  fogReach: readParam01('fogreach', 1),
 
   // SPLIT-SCREEN POST FX: local multiplayer runs the same post chain as the
   // single view (distance haze blur, bloom, FXAA) — one composer per

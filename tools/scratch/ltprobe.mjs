@@ -1,9 +1,9 @@
-// LB IS TWO CONTROLS: a TAP toggles the target lock, a HOLD is sniper mode and
+// LT IS TWO CONTROLS: a TAP toggles the target lock, a HOLD is sniper mode and
 // must NOT toggle it. Drives the real Input class with a stubbed pad and checks
 // every transition, including the one that matters most — that raising and
 // lowering the scope leaves the lock exactly as it found it.
 //
-// usage: node tools/scratch/lbprobe.mjs
+// usage: node tools/scratch/ltprobe.mjs
 import { launch } from '../lib/browser.mjs';
 
 const browser = await launch();
@@ -20,7 +20,7 @@ const rows = await page.evaluate(async () => {
   let down = false;
   const frame = () => {
     inp.padsPrev[0] = inp.padsCur[0];
-    inp.padsCur[0] = { connected: true, LB: down };
+    inp.padsCur[0] = { connected: true, LT: down };
     inp.readIntent('pad0', intent, 0);
     return { lock: intent.lockOn, sniper: intent.sniper };
   };
@@ -66,6 +66,6 @@ for (const r of rows) {
   if (!ok) bad++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${r.case.padEnd(24)} ${JSON.stringify(r)}`);
 }
-console.log(`\n${rows.length - bad}/${rows.length} LB behaviours correct`);
+console.log(`\n${rows.length - bad}/${rows.length} LT behaviours correct`);
 await browser.close();
 process.exit(bad ? 1 : 0);

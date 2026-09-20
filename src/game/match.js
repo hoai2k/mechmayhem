@@ -80,6 +80,27 @@ export class Match {
       f.controlsLocked = true;
       f.animator.play('intro');
     });
+    // A ROUND MAY OPEN BEHIND A LOADING SCREEN. When onRoundStart swapped the
+    // arena in, the new city is still streaming its textures, so boot asks
+    // for a HOLD: the bodies are reset onto their pads (above) and everything
+    // that is the round OPENING — the announcement, the sting, the intro
+    // clock — waits in openRound() until release() says the stage is ready.
+    if (this.holdRound) {
+      this.holdRound = false;
+      this.state = 'held';
+      this.stateT = 0;
+      return;
+    }
+    this.openRound();
+  }
+
+  // the loading screen is down: the round opens now
+  release() {
+    if (this.state !== 'held') return;
+    this.openRound();
+  }
+
+  openRound() {
     this.state = 'intro';
     this.stateT = 2.5;
     this.timeLeft = CONFIG.roundTime;
