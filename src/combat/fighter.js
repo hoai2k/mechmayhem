@@ -3711,7 +3711,7 @@ export class Fighter {
     if (this._punchHold != null) this.updatePunchHold(dt);
     this.updateChargeGlow(dt);
     // ---- THE CROSSHAIR (combat/aim.js): under a target lock, or in sniper
-    // mode with LB held, the player's own aim — steered by the camera stick,
+    // mode with LT held, the player's own aim — steered by the camera stick,
     // drawn by the HUD, and the point any ranged attack fired while it is up
     // flies at, height included ----
     updateAim(this, dt);
@@ -4727,7 +4727,7 @@ export class Fighter {
   // fighter knows: how hard he is WORKING, and whether smoke belongs here.
   //
   // NO SMOKE IN THE WARM-UP SANDBOX. The loading screen parks the fighters on a
-  // grey plinth inside their own leash radius (warmup.js) — a trail with
+  // grey plinth under the loading card (loadscreen.js, world.sandbox) — a trail with
   // nowhere to trail to just fills the frame with fog while the arena streams
   // in. Flames only there, same as the menus.
   updateStackFlames(dt) {

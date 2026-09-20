@@ -653,63 +653,139 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
   background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
 #loading-screen .load-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #1c86c8, #38e8ff); transition: width 0.2s; }
 
-/* ---------- pre-fight warm-up (asset loading) ---------- */
-/* Transparent chrome over the live per-fighter camera views: the 3D scene
-   renders (and warms textures/shaders) behind these captions. */
-.warmup-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 12; }
-.warmup-overlay .wu-head {
-  position: absolute; top: 2.2vh; left: 0; right: 0; text-align: center;
+/* ---------- THE LOADING SCREEN (game/loadscreen.js) ---------- */
+/* Opaque card over the live scene, which renders warm underneath it. Angled
+   panels throughout: every frame is a clip-path parallelogram, so the whole
+   card reads as one diagonal composition rather than a stack of boxes. The
+   theme's sky colours tint the backdrop (--ls-sky-top/--ls-sky-bot). */
+.ls {
+  position: absolute; inset: 0; z-index: 12; pointer-events: none; overflow: hidden;
+  display: grid; grid-template-rows: 27% 44% 29%;
+  background:
+    linear-gradient(115deg, rgba(4,8,16,0.92) 0%, rgba(4,8,16,0.72) 55%, rgba(4,8,16,0.9) 100%),
+    linear-gradient(180deg, var(--ls-sky-top, #0a0e18), var(--ls-sky-bot, #1a2030));
+  color: #fff; font-family: var(--font-display); text-transform: uppercase;
+  opacity: 1; transition: opacity var(--ls-fade, 0.9s) ease-in-out;
 }
-.warmup-overlay .wu-sub {
-  font-size: 12px; letter-spacing: 0.5em; text-transform: uppercase; color: #9fd8ef; text-indent: 0.5em;
+.ls.out { opacity: 0; }
+.ls .ls-stripes {
+  position: absolute; inset: -20%; pointer-events: none; opacity: 0.35;
+  background: repeating-linear-gradient(115deg, rgba(255,255,255,0.045) 0 22px, transparent 22px 96px);
+  animation: ls-drift 14s linear infinite;
 }
-.warmup-overlay .wu-arena {
-  font-size: clamp(28px, 4.6vw, 58px); font-weight: 900; font-style: italic;
-  letter-spacing: 0.08em; text-transform: uppercase; color: #fff;
-  text-shadow: 0 0 26px rgba(56, 232, 255, 0.6), 0 3px 5px rgba(0, 0, 0, 0.8);
+@keyframes ls-drift { from { transform: translateX(0); } to { transform: translateX(-118px); } }
+
+/* -- top band: arena painting + name + bar -- */
+.ls .ls-top {
+  position: relative; display: flex; align-items: center; gap: 2.4vw;
+  padding: 2.4vh 4vw 0 4vw;
 }
-.warmup-overlay .wu-bar {
-  margin: 1.4vh auto 0; width: min(46vw, 520px); height: 7px;
-  border: 1px solid rgba(56, 232, 255, 0.45); border-radius: 5px;
-  background: rgba(10, 18, 28, 0.75); overflow: hidden;
-  box-shadow: 0 0 14px rgba(56, 232, 255, 0.25), inset 0 1px 3px rgba(0, 0, 0, 0.7);
+.ls .ls-arena-frame {
+  flex: 0 0 auto; width: min(34vw, 46vh); aspect-ratio: 16 / 9;
+  clip-path: polygon(0 0, 100% 0, 92% 100%, 0 100%);
+  background: #000; box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  border-left: 5px solid var(--hud-cyan);
 }
-.warmup-overlay .wu-bar-fill {
+.ls .ls-arena-img { width: 100%; height: 100%; background-size: cover; background-position: center;
+  animation: ls-kb 12s ease-in-out infinite alternate; }
+@keyframes ls-kb { from { transform: scale(1); } to { transform: scale(1.08); } }
+.ls .ls-arena-text { flex: 1 1 auto; min-width: 0; }
+.ls .ls-sub { font-size: clamp(10px, 1.2vw, 14px); letter-spacing: 0.5em; color: #9fd8ef; }
+.ls .ls-round { color: #fff; opacity: 0.85; }
+.ls .ls-arena {
+  font-size: clamp(26px, 4.4vw, 62px); font-weight: 900; font-style: italic; line-height: 1;
+  letter-spacing: 0.06em; margin-top: 0.4vh;
+  text-shadow: 0 0 26px rgba(56, 232, 255, 0.55), 0 3px 5px rgba(0, 0, 0, 0.8);
+}
+.ls .ls-desc {
+  font-family: var(--font-ui); text-transform: none; color: #cfe4f4;
+  font-size: clamp(11px, 1.15vw, 15px); margin-top: 0.8vh; max-width: 46vw;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ls .ls-bar {
+  margin-top: 1.6vh; width: min(46vw, 620px); height: 9px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+  background: rgba(10, 18, 28, 0.85); box-shadow: inset 0 1px 3px rgba(0,0,0,0.7);
+  border-left: 2px solid rgba(56, 232, 255, 0.6);
+}
+.ls .ls-bar-fill {
   height: 100%; width: 0%;
-  background: linear-gradient(90deg, #1a7fae, #38e8ff);
-  box-shadow: 0 0 10px rgba(56, 232, 255, 0.9);
+  background: linear-gradient(90deg, #1a7fae, #38e8ff 70%, #dffbff);
+  box-shadow: 0 0 12px rgba(56, 232, 255, 0.9);
   transition: width 0.15s linear;
 }
-.warmup-overlay .wu-cap { position: absolute; text-align: center; padding: 0 2vw; }
-.warmup-overlay .wu-name {
-  font-size: clamp(18px, 2.4vw, 34px); font-weight: 900; font-style: italic;
-  letter-spacing: 0.07em; text-transform: uppercase;
-  text-shadow: 0 0 18px rgba(0, 0, 0, 0.9), 0 2px 3px #000;
-}
-.warmup-overlay .wu-quote {
-  margin-top: 4px; font-size: clamp(11px, 1.25vw, 15px); font-style: italic;
-  color: #cfe4f4; text-shadow: 0 1px 3px #000;
-}
-.warmup-overlay .wu-loading {
-  position: absolute; bottom: 1.8vh; right: 2.2vw;
-  font-size: 12px; letter-spacing: 0.32em; text-transform: uppercase; color: #7fa8c4;
+.ls .ls-status {
+  margin-top: 0.7vh; font-size: clamp(9px, 1vw, 12px); letter-spacing: 0.34em; color: #7fa8c4;
   animation: pulse 1.2s ease-in-out infinite;
 }
-/* spinner over a warm-up panel whose fighter model is still downloading */
-.warmup-overlay .wu-spinwrap {
-  position: absolute; transform: translate(-50%, -50%);
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
+
+/* -- middle band: the fighters, on angled panels, VS between -- */
+.ls .ls-cards {
+  position: relative; display: flex; align-items: stretch; justify-content: center;
+  gap: 0; padding: 1vh 3vw;
 }
-.warmup-overlay .wu-spin {
-  width: 52px; height: 52px; border-radius: 50%;
-  border: 4px solid rgba(143, 232, 255, 0.16); border-top-color: #8fe8ff;
-  animation: wu-rot 0.9s linear infinite;
+.ls .ls-card {
+  position: relative; flex: 0 1 28vw; max-width: 36vh; min-width: 0; margin: 0 -0.6vw;
+  clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--glow) 35%, #0a0e18), #05080f 80%);
+  animation: ls-card-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
 }
-.warmup-overlay .wu-spinlabel {
-  font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase; color: #7fa8c4;
-  animation: pulse 1.2s ease-in-out infinite;
+.ls .ls-card:nth-child(3) { animation-delay: 0.1s; }
+.ls .ls-card:nth-child(5) { animation-delay: 0.2s; }
+.ls .ls-card:nth-child(7) { animation-delay: 0.3s; }
+/* a slide only — no opacity keyframe, so a card whose animation has not
+   started yet (a main thread busy building the arena) is still on screen */
+@keyframes ls-card-in { from { transform: translateY(6vh); } to { transform: none; } }
+.ls .ls-card-in { position: absolute; inset: 0; }
+.ls .ls-art {
+  position: absolute; inset: 0; background-size: cover; background-position: center 18%;
 }
-@keyframes wu-rot { to { transform: rotate(360deg); } }
+.ls .ls-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--glow) 22%, transparent) 0%, transparent 30%, transparent 62%, rgba(4,8,16,0.9) 100%);
+}
+.ls .ls-tag {
+  position: absolute; top: 1.2vh; left: 16%; z-index: 2;
+  padding: 0.3em 0.9em; font-size: clamp(9px, 1vw, 13px); font-weight: 900; letter-spacing: 0.24em;
+  color: #05080f; background: var(--glow);
+  clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%);
+}
+.ls .ls-card.cpu .ls-tag { color: #fff; background: rgba(90,110,140,0.9); }
+.ls .ls-name {
+  position: absolute; left: 0; right: 0; bottom: 1.6vh; z-index: 2; text-align: center;
+  font-size: clamp(14px, 2vw, 30px); font-weight: 900; font-style: italic; letter-spacing: 0.07em;
+  color: #fff; text-shadow: 0 0 14px var(--glow), 0 2px 3px #000;
+}
+.ls .ls-vs {
+  align-self: center; z-index: 3; margin: 0 -0.4vw; padding: 0.15em 0.35em;
+  font-size: clamp(16px, 2.6vw, 40px); font-weight: 900; font-style: italic;
+  color: #ffb43c; text-shadow: 0 0 18px rgba(255,180,60,0.7), 0 2px 3px #000;
+  transform: rotate(-8deg);
+}
+
+/* -- bottom band: the pad, small, and a tip -- */
+.ls .ls-foot {
+  position: relative; display: flex; align-items: center; gap: 2vw; padding: 0 4vw 1.6vh 4vw;
+  border-top: 1px solid rgba(120,190,235,0.18);
+}
+.ls .ls-pad { flex: 0 0 auto; width: min(52vw, 27vh * 1.9); height: 100%; }
+.ls .ls-pad-svg { width: 100%; height: 100%; display: block; }
+.ls .ls-tips { flex: 1 1 auto; min-width: 0; }
+.ls .ls-tips-title { font-size: clamp(9px, 1vw, 12px); letter-spacing: 0.5em; color: #9fd8ef; }
+.ls .ls-tip {
+  font-family: var(--font-ui); text-transform: none; color: #eaf5fb;
+  font-size: clamp(12px, 1.5vw, 20px); margin-top: 0.6vh; line-height: 1.35;
+  transition: opacity 0.18s; opacity: 1;
+}
+.ls .ls-tip.swap { opacity: 0; }
+
+@media (max-aspect-ratio: 5/4) {
+  .ls { grid-template-rows: 28% 44% 28%; }
+  .ls .ls-arena-frame { width: 38vw; }
+  .ls .ls-desc { display: none; }
+  .ls .ls-foot { flex-direction: column; align-items: stretch; gap: 0.6vh; }
+  .ls .ls-pad { width: 100%; height: 60%; }
+}
 
 /* ============ TOUCH CONTROLS (phones / tablets) ============ */
 /* Overlay layer above the HUD; only the controls themselves catch pointers. */

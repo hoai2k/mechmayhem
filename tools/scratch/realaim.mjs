@@ -8,7 +8,7 @@
 // NOTE the clock: under SwiftShader the sim runs ~50x slower than the wall
 // clock, so every wait here is in tens of seconds for a fraction of a game
 // second — and a real LB TAP cannot be timed at all at ~1.5fps, which is why
-// the lock is set through the latch (tools/scratch/lbprobe.mjs tests the tap).
+// the lock is set through the latch (tools/scratch/ltprobe.mjs tests the tap).
 //
 // usage: node tools/scratch/realaim.mjs
 import { launch } from '../lib/browser.mjs';

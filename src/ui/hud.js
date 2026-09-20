@@ -48,8 +48,8 @@ export class Hud {
     this.calloutT = 0;
 
     // lock-aim crosshairs: one per human — a LIGHT reticle projected onto
-    // the player's lock-aim point (drifts onto the locked enemy) while LB
-    // target lock is held; ranged shots fired during the lock fly at it
+    // the player's lock-aim point (drifts onto the locked enemy) while LT
+    // target lock (LT) is on; ranged shots fired during the lock fly at it
     this.crosshairs = [];
     for (let i = 0; i < 4; i++) {
       const c = document.createElement('div');
@@ -67,7 +67,7 @@ export class Hud {
       this.crosshairs.push(c);
     }
 
-    // SNIPER MODE (LB held): a scope vignette over that player's own viewport,
+    // SNIPER MODE (LT held): a scope vignette over that player's own viewport,
     // faded in by the same `sniperK` the camera zooms on — so the frame closing
     // in and the view magnifying are one move. It is a HINT, not an occluder:
     // it darkens the corners and leaves the middle of the shot clear.

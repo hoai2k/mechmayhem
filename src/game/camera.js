@@ -560,7 +560,7 @@ export class CameraSystem {
       // chases a bearing built from his yaw, and a wall-walker's yaw is
       // whatever the stick last said — the whirling camera was exactly that.
       if (lockT && !player.climb) {
-        // TARGET LOCK (LB held): the camera swings behind the player and
+        // TARGET LOCK (LT toggled on): the camera swings behind the player and
         // aims straight down the line at the locked enemy — it owns the
         // view for as long as the lock is held
         const lockAz = this.azimuthBehind(player, lockT);
@@ -744,7 +744,7 @@ export class CameraSystem {
       ch.lookCd = stickActive ? 0.6 : Math.max(0, (ch.lookCd || 0) - dt);
       const lockT = f.lockTarget && f.lockTarget.alive ? f.lockTarget : null;
       if (lockT && !stickActive && !f.climb) {
-        // TARGET LOCK (LB held): this viewport swings behind its player and
+        // TARGET LOCK (LT toggled on): this viewport swings behind its player and
         // keeps the locked enemy dead ahead (stick input still overrides).
         // Unlocked, nothing turns this orbit but the player's own stick —
         // see the note on the combined view: an orbit that chases the mech's

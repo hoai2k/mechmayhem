@@ -124,8 +124,8 @@ export const MESSAGES = {
   'training.btn.pad.hover': 'A IN MID-AIR, HOLD',
   'training.btn.pad.light': 'X',
   'training.btn.pad.heavy': 'Y',
-  'training.btn.pad.block': 'HOLD LT',
-  'training.btn.pad.dash': 'HOLD B + STICK',
+  'training.btn.pad.block': 'HOLD B',
+  'training.btn.pad.dash': 'HOLD LB + STICK',
   'training.btn.pad.ranged': 'RB',
   'training.btn.pad.special': 'RT',
   'training.btn.pad.ult': 'D-PAD ▲',
@@ -174,10 +174,10 @@ export const MESSAGES = {
   'pause.controls.html': `
       <b style="color:#fff">KEYBOARD P1</b> — WASD move · SPACE jump · F light · G heavy · H block · R ranged · T special · Y ultimate · SHIFT dash · Q strafe (face the camera) · C duck · B taunt<br>
       <b style="color:#fff">KEYBOARD P2</b> — Arrows move · Num0 jump · Num1 light · Num2 heavy · Num3 block · Num4 ranged · Num5 special · Num6 ult · NumEnter dash · Num7 strafe (face the camera) · Num8 duck<br>
-      <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera (free look, nothing auto-swings it) · A jump · X light · Y heavy · RB ranged · RT special · LT block · L-stick CLICK camera adjust (R-stick ↑↓ zooms in/out) · D-pad ↑ ultimate · D-pad ↓ taunt<br>
-      <b style="color:#fff">B / SHIFT — DASH &amp; SPRINT</b> — standing still, HOLD to wind up a dash coil (3s cap, crouches); the moment you push a direction it FIRES a dash that way — longer wind-up, farther dash. Already moving, press-and-HOLD for a short dash into a SPRINT that drains the yellow stamina bar (refills when you let go)<br>
-      <b style="color:#fff">PAD LB — TAP: TARGET LOCK</b> — lock onto the nearest enemy: you face them, the camera keeps them framed, and sideways movement becomes a strafe. Tap again to release<br>
-      <b style="color:#fff">PAD LB — HOLD: SNIPER MODE</b> — the view drops in behind your own head and sights down the barrel for as long as you hold it, in either camera mode and with or without a lock (holding never changes the lock). SHOVE the right stick at anything shootable — another robot, or a prop — to switch targets; let go of a prop and the aim returns to the nearest robot<br>
+      <b style="color:#fff">XBOX PAD</b> — L-stick move · R-stick camera (free look, nothing auto-swings it) · A jump · X light · Y heavy · RB ranged · RT special · B block · L-stick CLICK camera adjust (R-stick ↑↓ zooms in/out) · D-pad ↑ ultimate · D-pad ↓ taunt<br>
+      <b style="color:#fff">LB / SHIFT — DASH &amp; SPRINT</b> — standing still, HOLD to wind up a dash coil (3s cap, crouches); the moment you push a direction it FIRES a dash that way — longer wind-up, farther dash. Already moving, press-and-HOLD for a short dash into a SPRINT that drains the yellow stamina bar (refills when you let go)<br>
+      <b style="color:#fff">PAD LT — TAP: TARGET LOCK</b> — lock onto the nearest enemy: you face them, the camera keeps them framed, and sideways movement becomes a strafe. Tap again to release<br>
+      <b style="color:#fff">PAD LT — HOLD: SNIPER MODE</b> — the view drops in behind your own head and sights down the barrel for as long as you hold it, in either camera mode and with or without a lock (holding never changes the lock). SHOVE the right stick at anything shootable — another robot, or a prop — to switch targets; let go of a prop and the aim returns to the nearest robot<br>
       <b style="color:#fff">AIM</b> — the crosshair IS your ranged target: every shot fired while it is up flies at it, height included. The RIGHT STICK LEADS IT — push toward where a strafing enemy is going and the camera follows your aim; let go and it eases back onto them. UP/DOWN still moves the CAMERA (except in sniper mode, where it aims). Unlocked shots fire along your facing<br>
       <b style="color:#fff">HOVER JETS</b> — press JUMP again in mid-air and HOLD to fly (lighter mechs fly higher)<br>
       <b style="color:#fff">CHARGED STRIKES</b> — TITANUS &amp; COLOSSUS: HOLD light (X) to keep the punch wound up, or heavy (Y) to keep the pound raised — release to strike with banked power<br>
@@ -254,25 +254,25 @@ export const MESSAGES = {
   'controls.dpad.action': '▲ ultimate · ▼ taunt',
   'controls.dpad.detail': 'UP fires your ultimate once you\'ve collected a charge from a golden fountain — the big one, named on your mech\'s card. You can pocket two. DOWN strikes your mech\'s pose and calls its line — free, and worth nothing, except that standing still to do it in front of someone holding an ultimate charge is its own kind of statement. LEFT and RIGHT walk you around as a backup for the left stick.',
   'controls.lb.name': 'LB',
-  'controls.lb.action': 'target lock · hold to snipe',
-  'controls.lb.detail': 'TAP to lock onto the nearest enemy: you turn to face them, the camera keeps them framed, sideways movement becomes a strafe, and the crosshair sits on them so ranged shots fly their way — steer it with the right stick to lead a moving target. HOLD LB instead and the view zooms in around the crosshair for as long as you hold it.',
+  'controls.lb.action': 'dash & sprint',
+  'controls.lb.detail': 'standing still, HOLD to wind up a dash coil — it fires the moment you push a direction, and the longer the wind-up the further you go. Already moving, hold it to dash into a sprint that drains your stamina bar.',
   'controls.lt.name': 'LT',
-  'controls.lt.action': 'block',
-  'controls.lt.detail': 'holds your guard up: blocking bleeds incoming damage down and stops chip knockback. A heavy swing will break it, so it buys you a beat rather than safety.',
+  'controls.lt.action': 'target lock · hold to snipe',
+  'controls.lt.detail': 'TAP to lock onto the nearest enemy: you turn to face them, the camera keeps them framed, sideways movement becomes a strafe, and the crosshair sits on them so ranged shots fly their way — steer it with the right stick to lead a moving target. HOLD LT instead and the view zooms in around the crosshair for as long as you hold it.',
   'controls.start.name': 'START',
   'controls.start.action': 'pause',
   'controls.start.detail': 'pauses the match: also access settings, sound and exiting to main menu.',
   'controls.rstick.name': 'RIGHT STICK',
   'controls.rstick.action': 'camera',
-  'controls.rstick.detail': 'orbits the battle camera around your mech. When target lock (LB) is on, camera moves back to lock when right stick is released.',
+  'controls.rstick.detail': 'orbits the battle camera around your mech. When target lock (LT) is on, camera moves back to lock when right stick is released.',
   // The four face buttons get a callout each — the buttons a player reaches for
   // most, so each says exactly what it does in a fight.
   'controls.a.name': 'A',
   'controls.a.action': 'jump',
   'controls.a.detail': 'jumps. Press it again in mid-air and HOLD to fly on your hover jets — lighter mechs climb higher. It is also the way up off the floor: press it while knocked down to spring clear.',
   'controls.b.name': 'B',
-  'controls.b.action': 'dash & sprint',
-  'controls.b.detail': 'standing still, HOLD to wind up a dash coil — it fires the moment you push a direction, and the longer the wind-up the further you go. Already moving, hold it to dash into a sprint that drains your stamina bar.',
+  'controls.b.action': 'block',
+  'controls.b.detail': 'holds your guard up: blocking bleeds incoming damage down and stops chip knockback. A heavy swing will break it, so it buys you a beat rather than safety. Pressed in mid-air it tucks you into a ball.',
   'controls.x.name': 'X',
   'controls.x.action': 'light attack',
   'controls.x.detail': 'fast, cheap to throw, and it chains — the button you poke with. TITANUS and COLOSSUS can HOLD it to keep the punch wound up and release with banked power.',
@@ -281,7 +281,7 @@ export const MESSAGES = {
   'controls.y.detail': 'a slow, committed swing that hits hard and breaks a guard. It leaves you open on a whiff, so it wants a dash or a block to set it up.',
   'controls.rb.name': 'RB',
   'controls.rb.action': 'ranged weapon',
-  'controls.rb.detail': 'fires your mech\'s ranged weapon. Every one of them runs on AMMO — grab the yellow crates — and while you are target-locked (tap LB) the shots fly at the crosshair on whoever you are locked onto.',
+  'controls.rb.detail': 'fires your mech\'s ranged weapon. Every one of them runs on AMMO — grab the yellow crates — and while you are target-locked (tap LT) the shots fly at the crosshair on whoever you are locked onto.',
   'controls.rt.name': 'RT',
   'controls.rt.action': 'special attack',
   'controls.rt.detail': 'throws your mech\'s signature special attack — the move named on its card. Each one has its own cooldown, so it is something to open with, not a button to lean on.',
@@ -299,9 +299,28 @@ export const MESSAGES = {
   'nav.skip': 'SKIP',
 
   // -------------------------------------------------------------------- warmup
-  'warmup.nowEntering': 'NOW ENTERING',
-  'warmup.loadingArena.html': 'LOADING ARENA… &nbsp;·&nbsp; warm up! <b>MOVE</b> · <b>ATTACK</b> · <b>BLOCK</b> · <b>CROUCH</b>',
-  'warmup.loadingModel': 'LOADING MODEL',
+  // ------------------------------------------------ loading / intro screen
+  // (game/loadscreen.js — the full-screen card up while an arena streams in,
+  // before the first round and before every round fought somewhere new)
+  'load.nowEntering': 'NOW ENTERING',
+  'load.nextRound': 'NEXT ROUND',
+  'load.loading': 'LOADING',
+  'load.models': 'LOADING ROBOTS',
+  'load.warming': 'WARMING UP THE ARENA',
+  'load.ready': 'READY',
+  'load.vs': 'VS',
+  'load.tag.p': 'P{n}',
+  'load.tag.cpu': 'CPU',
+  'load.howToPlay': 'HOW TO PLAY',
+  'load.tip.0': 'Every ranged weapon runs on AMMO — grab the yellow crates.',
+  'load.tip.1': 'Tap LT to lock onto an enemy; hold it to look down the scope.',
+  'load.tip.2': 'Hold LB standing still to wind a dash, then push a direction to fire it.',
+  'load.tip.3': 'Golden fountains charge your ULTIMATE — you can pocket two.',
+  'load.tip.4': 'Press JUMP again in mid-air and hold to fly on your hover jets.',
+  'load.tip.5': 'The arena wraps: walk off one side and you come round the other.',
+  'load.tip.6': 'A heavy swing breaks a guard. Block a poke, dash a haymaker.',
+  'load.tip.7': 'Knocked down? Press JUMP or DASH to spring clear.',
+  'load.tip.8': 'Every round of a match is fought somewhere new.',
 
   // ----------------------------------------------------------------------- HUD
   'hud.cpu': 'CPU',

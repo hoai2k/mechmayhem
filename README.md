@@ -95,14 +95,14 @@ resolved and preloaded while the current round is still being fought.
 | Jump / hover | Space | Numpad 0 | A |
 | Light attack | F | Numpad 1 | X |
 | Heavy attack | G | Numpad 2 | Y |
-| Block | H | Numpad 3 | LT |
+| Block | H | Numpad 3 | B |
 | Ranged | R | Numpad 4 | RB |
 | Special | T | Numpad 5 | RT |
 | Ultimate | Y | Numpad 6 | D-pad ↑ |
-| Dash | Shift | Numpad Enter | B (crouch-charged, see below) |
-| Target lock | — (Q = strafe: face the camera while held) | Numpad 7 (strafe) | LB **tap** (toggle) |
+| Dash | Shift | Numpad Enter | LB (crouch-charged, see below) |
+| Target lock | — (Q = strafe: face the camera while held) | Numpad 7 (strafe) | LT **tap** (toggle) |
 | Sniper scope | — | — | LB **hold** |
-| Duck (hold) | C | Numpad 8 | — (pad crouches on the B coil) |
+| Duck (hold) | C | Numpad 8 | — (pad crouches on the LB coil) |
 | Camera zoom (hold) | — | — | L-stick click + right stick |
 | Taunt | B | Numpad . | D-pad ↓ |
 | Pause | Esc / P | — | Start |
@@ -110,14 +110,14 @@ resolved and preloaded while the current round is still being fought.
 Keyboard 2 also has a right-hand cluster for keyboards without a numpad (`,`
 `.` `/` `M` `N` `'` `Enter` `Shift` `J` `K` `;`). Players 3 and 4 need pads.
 
-**Pad B — charged dash.** Hold B to wind up a dash charge (3-second cap).
+**Pad LB — charged dash.** Hold LB to wind up a dash charge (3-second cap).
 Standing still crouches you and winds the coil at full rate; you can also
-keep moving while holding B, but the charge builds much more slowly on the
+keep moving while holding LB, but the charge builds much more slowly on the
 move. Release with a direction held on the left stick to dash that way —
 the longer the wind-up, the faster and farther the dash (i-frames scale
 too). Release with no direction held and the charge simply cancels.
 
-**Pad LB — target lock, or the scope.** LB does two things, told apart by how
+**Pad LT — target lock, or the scope.** LT does two things, told apart by how
 long it is down. **Tap** it to toggle **target lock**: your mech squares up and
 keeps facing the enemy (so sideways movement becomes a natural strafe) and the
 camera swings to keep them in frame; tap again to release. **Hold** it for

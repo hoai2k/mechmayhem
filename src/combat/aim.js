@@ -16,7 +16,7 @@
 // eases back onto the target after `hold` seconds — the old behaviour, arrived
 // at rather than enforced.
 //
-// SNIPER MODE (LB HELD — see input.js: a TAP is still the lock toggle) is the
+// SNIPER MODE (LT HELD — see input.js: a TAP is still the lock toggle) is the
 // same aim with the view zoomed in around it. It needs no lock and no target:
 // unlocked, the base direction is the camera's, so the stick swings both
 // together and the aim ray is TRACED into the world (enemies first, then the

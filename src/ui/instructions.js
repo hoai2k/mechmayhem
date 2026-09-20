@@ -140,6 +140,45 @@ function drawPad(svg) {
   }
 }
 
+// THE SAME PAD, SMALL, FOR THE LOADING SCREEN. One SVG with the art, the
+// leaders and SHORT labels drawn as SVG text — no DOM callouts, no detail
+// line — so it scales as one picture wherever it is dropped. Same CONTROLS
+// table, same leader routing, same viewBox: move a control up there and this
+// follows. The labels take the callout's NAME and ACTION strings, so a
+// rebinding is one edit in the text catalogue for both diagrams.
+export function compactPadSvg() {
+  // wider than the page's viewBox: the labels live INSIDE this picture, out
+  // past the leader ends, where the page has DOM callouts instead
+  const MARGIN = 320;
+  const svg = mk('svg', { viewBox: `${END_L - MARGIN} ${PAD_TOP} ${END_R - END_L + 2 * MARGIN} ${PAD_H}`, class: 'ls-pad-svg' });
+  drawPad(svg);
+  for (const c of CONTROLS) {
+    const left = c.side === 'left';
+    const endX = left ? END_L : END_R;
+    const [fx, fy] = c.from;
+    const ly = c.route === 'flat' ? fy : c.y;
+    const points = {
+      flat: () => `${fx},${fy} ${endX},${ly}`,
+      elbow: () => `${fx},${fy} ${fx},${ly} ${endX},${ly}`,
+      lane: () => `${fx},${fy} ${c.lane},${fy} ${c.lane},${ly} ${endX},${ly}`,
+    }[c.route]();
+    svg.appendChild(mk('polyline', {
+      points, fill: 'none', stroke: 'rgba(120,190,235,0.55)', 'stroke-width': 2,
+    }));
+    const tx = mk('text', {
+      x: left ? endX - 8 : endX + 8, y: ly + 5,
+      'text-anchor': left ? 'end' : 'start', 'font-family': 'inherit',
+      fill: '#dfeefb', 'font-size': 19, 'font-weight': 600,
+    });
+    const name = mk('tspan', { fill: '#38e8ff', 'font-weight': 800 });
+    name.textContent = t(`controls.${c.id}.name`) + ' ';
+    tx.appendChild(name);
+    tx.appendChild(document.createTextNode(t(`controls.${c.id}.action`)));
+    svg.appendChild(tx);
+  }
+  return svg;
+}
+
 export class InstructionsScreen {
   constructor(root, { audio, onBack }) {
     this.audio = audio;
