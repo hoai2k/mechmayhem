@@ -603,7 +603,29 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
 }
 #now-playing:hover { opacity: 1; color: #dff0ff; }
 #now-playing.np-off { color: rgba(170,190,205,0.5); }
-#now-playing .np-icon { font-size: 13px; filter: saturate(0.4); }
+#now-playing .np-icon { font-size: 13px; filter: saturate(0.4); flex: none; }
+
+/* THE TRANSPORT OPENS ON HOVER. At rest the two buttons are zero-width, so
+   the chip is exactly the one-line readout it has always been; on hover they
+   take their width and the title is pushed off the left edge into the middle
+   of them, which is the whole animation — one transition on `width`, and the
+   label moves because the buttons made room, not because anything moves it.
+   `max-width` on the label is what lets a long song title give ground rather
+   than push the chip across the screen. */
+#now-playing .np-label { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#now-playing .np-btn {
+  flex: none; width: 0; overflow: hidden;
+  padding: 0; border: 0; background: none; color: inherit;
+  font: inherit; font-size: 12px; line-height: 1;
+  cursor: pointer; pointer-events: auto; opacity: 0;
+  transform: scale(0.7);
+  transition: width 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
+}
+#now-playing:hover .np-btn { width: 17px; opacity: 0.82; transform: scale(1); }
+#now-playing .np-btn:hover { opacity: 1; color: var(--hud-cyan); }
+#now-playing .np-btn:active { transform: scale(0.88); }
+/* music off: the chip's only job is turning it back on */
+#now-playing.np-nonav:hover .np-btn { width: 0; opacity: 0; }
 
 /* controller connect toast */
 #toast-layer { position: absolute; bottom: 3vh; right: 2vw; display: flex; flex-direction: column; gap: 8px; }

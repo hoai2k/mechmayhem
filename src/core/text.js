@@ -316,6 +316,9 @@ export const MESSAGES = {
   'music.nowPlaying': 'NOW PLAYING · {name}',
   'music.off': 'MUSIC OFF',
   'music.btn': 'music on/off',
+  'music.next': 'next song',
+  'music.prev': 'restart · again for the previous song',
+  'music.restart': 'restart song',
 
   // --------------------------------------------------------------------- match
   'battle.loading': 'LOADING {arena}…',
