@@ -587,22 +587,55 @@ export class World {
     // muzzle that sits well above head height. This is the game's own
     // no-target behaviour; ?debug=models previews it rather than parking
     // stand-in bodies on the stage.
+    // …and how FAR down that line the shot is meant to arrive. Kept because a
+    // second barrel needs a POINT to solve its own line to — see `dirFrom`.
+    let aimDist = f.idealAimDist(mv);
     if (!aimP) {
       const onTarget = barrelDot > 0.86;
       const to = onTarget ? toTarget(e) : toTarget(f.aimPhantom(f.idealAimDist(mv)));
       const d = Math.hypot(to.x, to.z) || 1;
       dir.y = clamp(to.y / d, -0.7, 0.7);
       dir.normalize();
+      aimDist = Math.hypot(to.x, to.y, to.z) || d;
     }
-    if (aimP) dir.copy(aimP).sub(from).normalize();
+    if (aimP) {
+      dir.copy(aimP).sub(from);
+      aimDist = dir.length() || 1;
+      dir.normalize();
+    }
     // The barrel has the last word: a muzzle authored with an explicit `rot`
     // deflects the finished aim along its own +Z, so a cannon modelled splayed
     // outward actually fires outward. No-rot muzzles leave the aim untouched.
     // `dirFrom` gives any OTHER barrel its own deflection off the same base
     // aim, so a twin-cannon mech's two sides splay independently.
     const baseDir = dir.clone();
-    const dirFrom = (a, out = new THREE.Vector3()) =>
-      out.copy(baseDir).applyQuaternion(barrelDeflect(f, a, _bOff)).normalize();
+    // A SECOND BARREL AIMS FROM WHERE IT IS.
+    //
+    // The aim is solved once, from the PRIMARY muzzle — and every other barrel
+    // used to be handed that same DIRECTION, which is parallel fire from a
+    // point several units to one side. The miss is pure parallax, so it grows
+    // as the target gets CLOSER: measured on KONGA's shoulder salvo under a
+    // target lock, his right pod (the primary) landed within 3° at every range
+    // while his left pod was 6.8° wide at 30 units, 10.8° at 22, 16° at 14 and
+    // 31° at 8 — a brawling-range volley leaving at a third of a right angle
+    // to the thing it was aimed at. This file already states the rule it was
+    // breaking, a dozen lines up: the aim has to range off the muzzle that is
+    // actually firing.
+    //
+    // So barrels converge on a POINT rather than running parallel: the place
+    // the primary's own line reaches at the target's range. That is the one
+    // choice that removes the parallax and adds nothing — it is NOT horizontal
+    // auto-aim, because the point is taken off the aim rather than off the
+    // enemy, so a line that misses by three units still misses by three units
+    // out of every barrel. The primary itself is unchanged: its own solve
+    // gives back exactly the direction it came in with.
+    const aimAt = baseDir.clone().multiplyScalar(aimDist).add(from);
+    const dirFrom = (a, out = new THREE.Vector3()) => {
+      a.getWorldPosition(_bPos);
+      out.copy(aimAt).sub(_bPos);
+      if (out.lengthSq() < 1e-9) out.copy(baseDir);
+      return out.normalize().applyQuaternion(barrelDeflect(f, a, _bOff)).normalize();
+    };
     dirFrom(muzzle, dir);
 
     // THE AIM'S OWN HEADING, for the handlers that build a SHAPE rather than
@@ -741,6 +774,7 @@ function flamePartRadius(part) {
 
 const _bQ = new THREE.Quaternion(), _bOff = new THREE.Quaternion();
 const _bFwd = new THREE.Vector3(), _bFace = new THREE.Vector3();
+const _bPos = new THREE.Vector3();   // a barrel's own world position (dirFrom)
 // How far past the aim an ARM-HELD barrel may still steer the shot: the residue
 // gunaim.js could not turn out (`f._gunAimErr`). Inside it, the round follows
 // the barrel; outside it, the arm plainly did not get there and the shot goes
