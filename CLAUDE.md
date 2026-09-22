@@ -15,7 +15,12 @@ fallback bank are all generated. Progress history: `TASKS.md`.
 - Combat crash soak: `node tools/soak.mjs "http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1&diff=ace"`
 - NO-BROWSER CHECKS: `npm run check` (what CI runs before the build in
   `deploy.yml`) = `node tools/params.mjs` + `node tools/rigmirror.mjs` + `npm test`
-  (`node --test test/*.test.mjs`, Node's own runner, no dependency): roster ↔
+  (`node --test test/*.test.mjs`, Node's own runner, no dependency — THE GLOB IS
+  UNQUOTED ON PURPOSE, so the SHELL expands it into five real paths: quoting it
+  asks NODE to glob, which only works from Node 22, and CI runs Node 20, where
+  the quoted form is read as one literal filename. That is what silently broke
+  every deploy between Sept 1 and Sept 20 — `npm run check` passed on a dev box
+  and failed in Actions with "Could not find …/test/*.test.mjs"): roster ↔
   SPECIALS/ULTS ↔ clips ↔ contract cross-references, every gait key in
   `GAIT_SCHEMA`, every roster/theme id and every literal `t('…')` has text,
   tuning's derived rates, the shipped levels through `themeFromLevel`. Pure

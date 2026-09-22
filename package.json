@@ -14,8 +14,8 @@
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:web": "node tools/dist.mjs",
-    "test": "node --test \"test/*.test.mjs\"",
-    "check": "node tools/params.mjs && node tools/rigmirror.mjs && node --test \"test/*.test.mjs\""
+    "test": "node --test test/*.test.mjs",
+    "check": "node tools/params.mjs && node tools/rigmirror.mjs && node --test test/*.test.mjs"
   },
   "dependencies": {
     "three": "^0.166.0"
