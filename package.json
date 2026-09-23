@@ -4,6 +4,9 @@
   "description": "MECH MAYHEM — browser-based 3D mech battle arena. 17 mechs, 12 destructible arenas, local multiplayer, Xbox controllers, AI opponents.",
   "type": "module",
   "main": "electron/main.cjs",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
