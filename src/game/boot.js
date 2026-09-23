@@ -839,7 +839,12 @@ export async function bootGame() {
         if (S.battle) { S.battle.arena = arena; S.battle.arenaObjs = arenaObjs; }
         cameraSys.init = false;          // reframe on the new stage
         for (const ch of cameraSys.chase) ch.init = false;
-        music.setArena(t2);              // …and its own songs, if it has any
+        // A round swap keeps the battle player alive. Changing its playlist
+        // alone leaves the previous arena's song playing until it ends.
+        if (music.available) music.stop();
+        music.setArena(t2);
+        if (music.available) music.start();
+        else audio.music(t2.music);
         ambience.setArena(t2.id);
         // THE NEW CITY GETS ITS OWN INTRO CARD: the match holds the round
         // (startRound reads the flag right after this returns) while the new
