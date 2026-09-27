@@ -850,19 +850,23 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
 .ls .ls-f { position: absolute; bottom: 0; top: 0; width: 34vw; transform: translateX(-50%);
   --h: 100%; animation: ls-f-in .65s cubic-bezier(.2,.9,.3,1.05) both; animation-delay: calc(var(--i) * .08s); }
 .ls .ls-cards.n3 .ls-f { width: 28vw; }
-.ls .ls-cards.n4 .ls-f { width: 23vw; --h: 90%; }
+.ls .ls-cards.n4 .ls-f { width: 23vw; }
+.ls .ls-cards.n4 .ls-panel { bottom: 10vh; }
 /* a slide only — no opacity keyframe, so a fighter whose animation has not
    started yet (a main thread busy building the arena) is still on screen */
 @keyframes ls-f-in { from { transform: translateX(calc(-50% - 6vw)); } }
 .ls .ls-f.right { animation-name: ls-f-in-r; }
 @keyframes ls-f-in-r { from { transform: translateX(calc(-50% + 6vw)); } }
-.ls .ls-cut { position: absolute; left: 50%; bottom: 12%; height: var(--h); max-width: 118%;
-  transform: translateX(-50%); object-fit: contain; object-position: bottom;
-  filter: drop-shadow(0 0 30px color-mix(in srgb, var(--glow) 55%, transparent)) drop-shadow(0 12px 18px rgba(0,0,0,.6)); }
-/* no cutout: the hero card on an angled panel */
-.ls .ls-panel { position: absolute; left: 12%; right: 12%; top: 0; bottom: 12%;
-  clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%); background: #05080f; }
-.ls .ls-art { position: absolute; inset: 0; background-size: cover; background-position: center 22%; }
+.ls .ls-panel { position: absolute; left: 50%; top: 0; bottom: 12vh; transform: translateX(-50%);
+  aspect-ratio: 4 / 5; max-width: 100%; background: #05080f;
+  clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%);
+  filter: drop-shadow(0 12px 22px rgba(0,0,0,.6)); }
+.ls .ls-art { position: absolute; inset: 0; background-size: cover; background-position: center 26%; }
+.ls .ls-panel::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, transparent 62%, rgba(4,6,12,.75) 100%); }
+/* the lit diagonal down the leading edge, the title strip's own mark */
+.ls .ls-edge { position: absolute; inset: 0; z-index: 2; background: var(--glow);
+  clip-path: polygon(12% 0, calc(12% + 7px) 0, 7px 100%, 0 100%); box-shadow: 0 0 18px var(--glow); }
 .ls .ls-plate { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; }
 .ls .ls-tag { display: inline-block; padding: 0.3em 0.9em; font: 700 clamp(10px, .95vw, 14px) var(--font-label);
   letter-spacing: 0.24em; color: #05080f; background: var(--pc);

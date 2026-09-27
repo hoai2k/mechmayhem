@@ -162,7 +162,7 @@ Each mech has up to three, in order of authority:
 | Reference | URL | What it settles |
 | --- | --- | --- |
 | **Canonical concept art** | `https://raw.githubusercontent.com/hoai2k/mechmayhem/main/docs/canonical/mech_<id>.png` | the design: silhouette, proportions, decals, palette. **This is the subject.** |
-| **In-game render** | `https://raw.githubusercontent.com/hoai2k/mechmayhem/main/public/posters/<id>.png` | what the mech actually looks like in the shipped build, from its real model |
+| **In-game render** | `https://raw.githubusercontent.com/hoai2k/mechmayhem/main/public/posters/<id>.webp` | what the mech actually looks like in the shipped build, from its real model |
 | **Written spec** | `https://raw.githubusercontent.com/hoai2k/mechmayhem/main/docs/canonical/SPECS.md` | the per-mech paragraph, for anything the images leave ambiguous |
 
 The card is **that mech**, not an interpretation of it: same silhouette, same
@@ -257,7 +257,7 @@ is the character direction, not decoration.
 > hits like the end of the world.
 
 `#bd9226` crane yellow · `#3e4148` gunmetal · glow `#ffa832` amber
-· canonical `…/docs/canonical/mech_titanus.png` · render `…/public/posters/titanus.png`
+· canonical `…/docs/canonical/mech_titanus.png` · render `…/public/posters/titanus.webp`
 · world: the ironworks that built him — style `…/public/arenas/foundry.jpg`
 
 > Colossal super-heavy brawler mech in a battle pose, both enormous fists
@@ -276,7 +276,7 @@ is the character direction, not decoration.
 > Believes every problem is just insufficient ammunition.
 
 `#cfc9bd` bone white · `#9c2f28` oxide red · glow `#ff8c30` orange
-· canonical `…/docs/canonical/mech_vulcan.png` · render `…/public/posters/vulcan.png`
+· canonical `…/docs/canonical/mech_vulcan.png` · render `…/public/posters/vulcan.webp`
 · world: a desert ordnance dump — style `…/public/arenas/scrapyard.jpg`
 
 > Mid-weight fire-support mech in a battle pose, both six-barrel gatling
@@ -295,7 +295,7 @@ is the character direction, not decoration.
 > from angles geometry teachers refuse to acknowledge.
 
 `#4a3566` purple · `#1a1522` black · glow `#5aff2e` neon green
-· canonical `…/docs/canonical/mech_viper.png` · render `…/public/posters/viper.png`
+· canonical `…/docs/canonical/mech_viper.png` · render `…/public/posters/viper.webp`
 · world: the neon district he hunts in — style `…/public/arenas/neon.jpg`
 
 > Slim lightweight assassin mech in a battle pose, coiled low mid-lunge with
@@ -313,7 +313,7 @@ is the character direction, not decoration.
 > buildings to win an argument he was already winning.
 
 `#5c6066` steel grey · `#8c3a32` rust red · glow `#ff2a20` red
-· canonical `…/docs/canonical/mech_rhino.png` · render `…/public/posters/rhino.png`
+· canonical `…/docs/canonical/mech_rhino.png` · render `…/public/posters/rhino.webp`
 · world: a city plaza he is demolishing — style `…/public/arenas/uptown.jpg`
 
 > Heavy charger mech in a battle pose, head down mid-charge with the single
@@ -330,7 +330,7 @@ is the character direction, not decoration.
 > concert, every lightning bolt a chord.
 
 `#2a3560` storm navy · `#1e2740` black · glow `#3fd8ff` electric cyan
-· canonical `…/docs/canonical/mech_tempest.png` · render `…/public/posters/tempest.png`
+· canonical `…/docs/canonical/mech_tempest.png` · render `…/public/posters/tempest.webp`
 · world: a storm over the cloud deck — style `…/public/arenas/skyterrace.jpg`
 
 > Agile caster mech in a battle pose, arms flung wide with cyan lightning
@@ -348,7 +348,7 @@ is the character direction, not decoration.
 > pack, answers to no handler, howls at every full moon — and every explosion.
 
 `#b4b9c0` pale steel · `#3a3e44` graphite · glow `#6cd8ff` ice blue
-· canonical `…/docs/canonical/mech_fenrir.png` · render `…/public/posters/fenrir.png`
+· canonical `…/docs/canonical/mech_fenrir.png` · render `…/public/posters/fenrir.webp`
 · world: the frozen wild he ran to — style `…/public/arenas/frozen.jpg`
 
 > Quadruped wolf-frame mech in a battle pose, mid-pounce with forelegs
@@ -365,7 +365,7 @@ is the character direction, not decoration.
 > every shell placed three moves ahead of where you plan to be.
 
 `#a08a64` desert tan · `#4a4640` charcoal · glow `#ffc23c` amber
-· canonical `…/docs/canonical/mech_colossus.png` · render `…/public/posters/colossus.png`
+· canonical `…/docs/canonical/mech_colossus.png` · render `…/public/posters/colossus.webp`
 · world: a shelled plain under his guns — style `…/public/arenas/scrapyard.jpg`
 
 > Enormous artillery mech in a battle pose, braced wide with the back mortar
@@ -382,7 +382,7 @@ is the character direction, not decoration.
 > off mechs from 800 meters. Officially, you are perfectly safe.
 
 `#232228` near black · `#1a191e` void · glow `#ff2030` red
-· canonical `…/docs/canonical/mech_wraith.png` · render `…/public/posters/wraith.png`
+· canonical `…/docs/canonical/mech_wraith.png` · render `…/public/posters/wraith.webp`
 · world: a dead city district in fog — style `…/public/arenas/neon.jpg`
 
 > Tall gaunt sniper mech in a battle pose, long anti-materiel rifle shouldered
@@ -399,7 +399,7 @@ is the character direction, not decoration.
 > genuinely hilarious.
 
 `#8a3626` scorched red · `#2a2624` soot · glow `#ff8a1e` flame orange
-· canonical `…/docs/canonical/mech_inferno.png` · render `…/public/posters/inferno.png`
+· canonical `…/docs/canonical/mech_inferno.png` · render `…/public/posters/inferno.webp`
 · world: a live caldera — style `…/public/arenas/volcano.jpg`
 
 > Heavy demolition mech in a battle pose, both hand flamethrowers roaring
@@ -416,7 +416,7 @@ is the character direction, not decoration.
 > Guardian of a polar research station, promoted to war machine by boredom.
 
 `#9fb2c2` frost grey · `#4c5560` slate · glow `#7ce0ff` pale cyan
-· canonical `…/docs/canonical/mech_glacier.png` · render `…/public/posters/glacier.png`
+· canonical `…/docs/canonical/mech_glacier.png` · render `…/public/posters/glacier.webp`
 · world: research station K-9 — style `…/public/arenas/frozen.jpg`
 
 > Heavy cryo mech in a battle pose, cryo cannon arm levelled and firing a
@@ -434,7 +434,7 @@ is the character direction, not decoration.
 > trailing kelp and grudges, shell first, questions never.
 
 `#a64a28` rust orange · `#46759e` sea blue · glow `#4fc3ff` cyan
-· canonical `…/docs/canonical/mech_cranky.png` · render `…/public/posters/cranky.png`
+· canonical `…/docs/canonical/mech_cranky.png` · render `…/public/posters/cranky.webp`
 · world: the dock he came ashore on — style `…/public/arenas/harbor.jpg`
 
 > Six-legged crab mech in a battle pose, both enormous claws spread wide and
@@ -453,7 +453,7 @@ is the character direction, not decoration.
 > went hunting.
 
 `#33343a` gunmetal black · `#17181c` void · glow `#ff2418` red
-· canonical `…/docs/canonical/mech_saurion.png` · render `…/public/posters/saurion.png`
+· canonical `…/docs/canonical/mech_saurion.png` · render `…/public/posters/saurion.webp`
 · world: the black-site lab the jungle took back — style `…/public/arenas/jungle.jpg`
 
 > Raptor-frame theropod mech in a battle pose, crouched mid-stride with the
@@ -471,7 +471,7 @@ is the character direction, not decoration.
 > indoor voice. Jumps like gravity is a suggestion, lands like a lawsuit.
 
 `#7cb420` slime green · `#262b20` dark olive · glow `#aef23c` acid green
-· canonical `…/docs/canonical/mech_frogger.png` · render `…/public/posters/frogger.png`
+· canonical `…/docs/canonical/mech_frogger.png` · render `…/public/posters/frogger.webp`
 · world: the vat farm he was poured in — style `…/public/arenas/jungle.jpg`
 
 > Squat amphibian mech in a battle pose, coiled on powerful folded hind legs
@@ -489,7 +489,7 @@ is the character direction, not decoration.
 > mech. The cannons are full of something alive.
 
 `#b9816b` shell pink · `#35291f` wet brown · glow `#ff2818` red
-· canonical `…/docs/canonical/mech_jerry.png` · render `…/public/posters/jerry.png`
+· canonical `…/docs/canonical/mech_jerry.png` · render `…/public/posters/jerry.webp`
 · world: the flooded aquaculture lab — style `…/public/arenas/harbor.jpg`
 
 > Arthropod shrimp-frame mech in a battle pose, reared up on its rear limbs
@@ -508,7 +508,7 @@ is the character direction, not decoration.
 > NaN.
 
 `#17131e` void black · `#0a080d` deeper void · glow `#ff1f2a` error red
-· canonical `…/docs/canonical/mech_null.png` **(note the filename)** · render `…/public/posters/nullbot.png`
+· canonical `…/docs/canonical/mech_null.png` **(note the filename)** · render `…/public/posters/nullbot.webp`
 · world: the arena, corrupted — style `…/public/arenas/neon.jpg`
 
 > Humanoid glitch mech in a battle pose, one arm thrown forward mid-attack
@@ -528,7 +528,7 @@ is the character direction, not decoration.
 > the smaller fist.
 
 `#33302e` dark iron · `#a8532c` copper · glow `#ffa432` amber
-· canonical `…/docs/canonical/mech_konga.png` · render `…/public/posters/konga.png`
+· canonical `…/docs/canonical/mech_konga.png` · render `…/public/posters/konga.webp`
 · world: the highland jungle they took him from — style `…/public/arenas/jungle.jpg`
 
 > Cyborg gorilla mech in a battle pose, knuckles down and shoulders rolled
@@ -546,7 +546,7 @@ is the character direction, not decoration.
 > but nobody told the animal underneath.
 
 `#62684a` olive green · `#a8532c` rust · glow `#ff8a24` orange
-· canonical `…/docs/canonical/mech_tritone.png` · render `…/public/posters/tritone.png`
+· canonical `…/docs/canonical/mech_tritone.png` · render `…/public/posters/tritone.webp`
 · world: the desert excavation he stampedes across — style `…/public/arenas/ruins.jpg`
 
 > Quadruped triceratops siege mech in a battle pose, mid-gallop with the head
@@ -562,7 +562,7 @@ is the character direction, not decoration.
 ## Checking one before you generate the other eighteen
 
 1. **Is it the right robot?** Card beside `docs/canonical/mech_<id>.png` and
-   `public/posters/<id>.png`. Silhouette, decals, accent colour, and which arm
+   `public/posters/<id>.webp`. Silhouette, decals, accent colour, and which arm
    carries which weapon.
 2. **Does it survive the panel?** Mask the outer 15% either side and the
    bottom 18% and look again — that is what the splash actually shows.

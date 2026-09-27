@@ -2,7 +2,7 @@
 // snapshot.js — a mech as a PICTURE, rendered exactly the way the posters are.
 //
 // The fighter-select screen and the VS loading card show every fighter as a
-// still image, not a live body: public/posters/<id>.png, pre-rendered from the
+// still image, not a live body: public/posters/<id>.webp, pre-rendered from the
 // GLB by tools/posters.mjs. A poster is the STOCK paint, though, and a player
 // can repaint their robot eleven ways. So when the paint changes, the real
 // model is built in the background, wearing that scheme, and photographed
@@ -290,7 +290,10 @@ async function make(id, v) {
     if (g !== gen) { shots.delete(key(id, v)); return null; }
     const shot = renderPoster(mech);
     if (shot.error) throw new Error(shot.error);
-    const blob = await new Promise((res) => shot.canvas.toBlob(res, 'image/png'));
+    // WebP with alpha, like the shipped posters: at this size a PNG encode is
+    // the slow part of a snapshot (a browser without a WebP encoder hands
+    // back a PNG, which works just the same)
+    const blob = await new Promise((res) => shot.canvas.toBlob(res, 'image/webp', 0.92));
     const url = URL.createObjectURL(blob);
     shots.set(key(id, v), { url, promise: null });
     trim();

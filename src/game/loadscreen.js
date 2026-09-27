@@ -8,9 +8,9 @@
 // It is a FULL-SCREEN OPAQUE card, not a chrome over the live cameras (which
 // is what the old warm-up sandbox was): the arena's painting fills the whole
 // screen behind everything — the match is these robots in THIS place — with
-// its name over it, every fighter standing on it as a cutout in the paint they
-// chose with a VS between, a loading bar, and the pad diagram, small, so the
-// wait teaches the game. The REAL scene renders behind it the whole time — the renderer
+// its name over it, every fighter's painted hero card on an angled panel with
+// a VS between, a loading bar, and the pad diagram, small, so the wait teaches
+// the game. The REAL scene renders behind it the whole time — the renderer
 // draws the actual arena through the actual cameras into a frame nobody sees,
 // which is what compiles the shaders and uploads the textures, plus one
 // explicit compile()/initTexture pass before the reveal so nothing is left
@@ -36,7 +36,7 @@ import { t } from '../core/text.js';
 import { compactPadSvg } from '../ui/instructions.js';
 import { arenaArtUrl } from '../ui/arenaart.js';
 import { hasCard, cardUrl } from '../ui/cards.js';
-import { shotUrl } from './snapshot.js';
+import { ROSTER_BY_ID } from '../mechs/roster.js';
 
 const MIN_T = 3.0;        // the card is up at least this long
 const SETTLE_T = 0.45;    // loader idle for this long = the pack is in
@@ -86,22 +86,20 @@ export class LoadScreen {
     ov.style.setProperty('--ls-sky-bot', skyBot);
     const sub = round > 1 ? t('load.nextRound') : t('load.nowEntering');
     const roundLine = t('match.round', { n: round });
-    // THE FIGHTERS STAND IN THE ARENA: each one a cutout of the real body in
-    // the paint it chose — the photograph the select screen took of it
-    // (game/snapshot.js), else its stock poster — spread evenly across the
-    // painting with a VS between each pair. A body with no picture at all (a
-    // roster the posters do not depict) falls back to its hero card on an
-    // angled panel.
+    // THE FIGHTERS ARE THEIR HERO CARDS: the painted portrait of each one
+    // (ui/cards.js — its canonical concept art where a card has not been
+    // painted), on an angled panel, spread evenly across the arena with a VS
+    // between each pair. The cards are STOCK paint; the chosen paint is
+    // already on the robot the player picked and is about to be on screen,
+    // so the card's job is the character, and its edge and glow are the
+    // mech's own colour for the same reason.
     const n = fighters.length;
     const cards = fighters.map((f, i) => {
-      const glow = hexCss(f.def.colors.glow);
+      const glow = hexCss((ROSTER_BY_ID[f.def.id] || f.def).colors.glow);
       const pc = PLAYER_COLORS_CSS[f.playerIndex % 4];
       const tag = f.isAI ? t('load.tag.cpu') : t('load.tag.p', { n: f.playerIndex + 1 });
       const id = f.def.id;
-      const cut = shotUrl(id, f.def.variant || 0) || shotUrl(id, 0);
-      const pic = cut
-        ? `<img class="ls-cut" src="${cut}" alt="" draggable="false">`
-        : `<div class="ls-panel"><div class="ls-art" style="background-image:url(${hasCard(id) ? cardUrl(id) : `art/${id}.jpg`})"></div></div>`;
+      const pic = `<div class="ls-panel"><div class="ls-art" style="background-image:url(${hasCard(id) ? cardUrl(id) : `art/${id}.jpg`})"></div><div class="ls-edge"></div></div>`;
       const x = ((i + 0.5) / n) * 100;
       const vs = i < n - 1
         ? `<div class="ls-vs" style="left:${((i + 1) / n) * 100}%"><span>${t('load.vs')}</span></div>` : '';

@@ -46,9 +46,15 @@
 export const POSTER_YAW = 0.15;
 // Margin around the measured body box, so glow and antialiasing never clip.
 export const POSTER_PAD = 1.12;
-// Reference render height in pixels, and the aspect it is rendered at. Big
-// enough for a large stage without being a download worth worrying about.
-export const POSTER_PX = 900;
+// Reference render height in pixels, and the aspect it is rendered at. The
+// SELECT SCREEN shows a poster at up to ~85% of the window's height, so the
+// crop (the body only, about 55-65% of this frame) has to be at least that
+// many DEVICE pixels or it is visibly soft: at 900 a poster came out ~500px
+// tall and was drawn at 750+ on a 1600x900 window, twice that on a HiDPI one.
+// 2400 gives a 1300-1600px crop. Shipped as WebP with alpha (POSTER_EXT), which
+// keeps the file ~200 KB where the same PNG is several MB.
+export const POSTER_PX = 2400;
+export const POSTER_EXT = 'webp';
 export const POSTER_ASPECT = 16 / 9;
 // The engine camera's vertical fov (core/engine.js). The generator builds its
 // camera from this, so a change there is a regenerate, not a silent misfit.
@@ -79,5 +85,5 @@ export function loadPosterIndex() {
 export function posterMeta(id) { return (index && index[id]) || null; }
 
 export function posterUrl(id) {
-  return new URL(`${POSTER_DIR}/${id}.png`, document.baseURI).href;
+  return new URL(`${POSTER_DIR}/${id}.${POSTER_EXT}`, document.baseURI).href;
 }
