@@ -96,7 +96,7 @@ export class LoadScreen {
     const n = fighters.length;
     const cards = fighters.map((f, i) => {
       const glow = hexCss((ROSTER_BY_ID[f.def.id] || f.def).colors.glow);
-      const pc = PLAYER_COLORS_CSS[f.playerIndex % 4];
+      const pc = PLAYER_COLORS_CSS[f.playerIndex % PLAYER_COLORS_CSS.length];
       const tag = f.isAI ? t('load.tag.cpu') : t('load.tag.p', { n: f.playerIndex + 1 });
       const id = f.def.id;
       const pic = `<div class="ls-panel"><div class="ls-art" style="background-image:url(${hasCard(id) ? cardUrl(id) : `art/${id}.jpg`})"></div><div class="ls-edge"></div></div>`;

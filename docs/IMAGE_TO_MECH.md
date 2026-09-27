@@ -1,5 +1,10 @@
 > Part of the mech art pipeline — start at [MECH_ART_GUIDE.md](MECH_ART_GUIDE.md)
 > (this file is the deep dive for the hand-built route (B)).
+>
+> **Status (2026-09-27):** every shipped mech is a baked rigged GLB (route A).
+> What this route produces — the procedural parts-kit body — is now only the
+> FALLBACK (`?render=fallback`, or a mech with no/broken GLB) and the base the
+> dev-only anime mode (`?render=anime`) repaints.
 
 # Image → In-Engine Mech: the hand-built pipeline
 
@@ -12,9 +17,9 @@ are synthesized to match its palette and wear.
 ## The five steps
 
 ### 1. Palette & material read
-Drop the concept PNG in the repo (e.g. `docs/canonical/vulcan-front.png`) and:
+Drop the concept PNG in the repo (e.g. `docs/canonical/mech_vulcan.png`) and:
 ```bash
-node tools/palette.mjs docs/canonical/vulcan-front.png
+node tools/palette.mjs docs/canonical/mech_vulcan.png
 ```
 K-means over the foreground pixels prints the dominant colors with roles
 (primary plate / saturated accent / dark frame / glow) and a ready-to-paste
@@ -57,7 +62,7 @@ forearm length ≈ 0.28 of total height...), and only then add greebles.
 Nothing load-bearing should be a plain box — chamfer, taper or bulge it.
 
 #### Original step 3 notes
-Rebuild the mech's design function in `src/mechs/designs.js` using the parts
+Rebuild the mech's design function in `src/mechs/designs/<id>.js` using the parts
 kit (`src/mechs/parts.js`). Work the image top-to-bottom:
 silhouette/proportions first (roster `body` block: scale, torsoW, armLen,
 bulk...), then per-region: head → shoulders/back gear → chest → arms/weapons
@@ -65,7 +70,7 @@ bulk...), then per-region: head → shoulders/back gear → chest → arms/weapo
 `barrelCluster`, `vents`, `piston` (brass hydraulics), `blade` (fins/crests),
 `ring`, `custom` (one-off parts with a dedicated material — see below).
 Attach spinnable/animated bits (gatlings, halos) via `addJoint` and drive
-them in `Animator.signature()`.
+them in `SIGNATURES[<id>]` (`src/mechs/signatures.js`).
 
 ### 4. Decals & markings
 `decalTexture(recipe, {text, emblem, stripes...})` renders unit names,

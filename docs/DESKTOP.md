@@ -5,6 +5,8 @@ Electron. Users download a zip, unzip, and double-click — no install, no
 internet, no dev tools. Under the hood the app boots a tiny localhost static
 server for the built bundle and opens it in a bundled Chromium window (so
 WebGL, gamepads, and `.glb` loading behave exactly like the real browser).
+Like any Chromium, it exposes at most 4 gamepads, so a desktop match seats up
+to 6 humans (2 keyboards + 4 pads) of its 8 fighters; CPUs fill the rest.
 
 ## Files
 

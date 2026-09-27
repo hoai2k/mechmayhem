@@ -1,7 +1,9 @@
 # Retired mechs
 
 Mechs that are no longer part of the game. Everything needed to understand or
-revive one is here; nothing in `src/` or `public/` references them, and the
+revive one is here; nothing in `src/` or `public/` loads them — what is left
+there is inert (comments in gaits/signatures/hurtbox/animations, leftover
+`mech.nova.*` strings in `src/core/text.js`, the `aegis*` clips below) — and the
 roster does not contain them, so they cannot be picked, rolled by RANDOM,
 chosen by a CPU, or shown in the title line-up — including with
 SETTINGS → SHOW ALL ROBOTS on, which is what used to reveal them.
@@ -43,9 +45,7 @@ so). Then fix the rig before anything else: `node tools/rigmirror.mjs <id>`.
 
 ## One loose end, deliberately left
 
-`src/combat/fighter.js` still carries a few branches behind
-`if (this.def.id === 'nova')` (an aura, a glow term). They are unreachable with
-no such mech in the roster, and unpicking them from a shared 4,000-line combat
-file is a bigger risk than leaving them inert. `src/mechs/animations.js` keeps
-the `aegis*`-prefixed clips for the same reason — clip data is shared library
-data and other mechs' entries index into it.
+`src/mechs/animations.js` keeps the `aegis*`-prefixed clips — clip data is
+shared library data and other mechs' entries index into it, so unpicking them
+is a bigger risk than leaving them inert. (The `nova` branches that
+`src/combat/fighter.js` once carried are gone.)

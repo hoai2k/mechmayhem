@@ -15,16 +15,25 @@ faction crest the mech would wear painted on its shoulder plate.
 > `archive/mechs/`), and **nullbot, konga and tritone** were badged later and
 > never appeared in this grid. For a new badge, use the single-badge prompt
 > with its own symbol concept rather than this key.
+>
+> **The current spec is `public/badges/README.md`** — a badge is a MARK, not a
+> picture (it is drawn at 17px in the HUD), and that README carries the size
+> rules and a prompt template built to keep a generator away from a portrait.
+> Read it before using the prompts below.
 
 ## How to use
 
 1. Generate the full set with the **all-at-once grid prompt** below (or the
    two 8-badge half sheets if your generator muddles a 16-tile grid).
-2. Slice the sheet into individual squares, downscale each to 256×256, and
-   save as `public/thumbs/<id>.png` — same filenames as the rendered
-   portraits, so they flow into the roster grid, player cards, results
-   banner and battle HUD automatically. (Keep row-major order: the slice at
-   row r, column c is badge number r*4 + c + 1.)
+2. Slice the sheet into individual squares (row-major order: the slice at
+   row r, column c is badge number r*4 + c + 1) and land each one with
+   `node tools/badgekey.mjs <in.png> <id>`, which keys out the flat backdrop,
+   trims and squares it into `public/badges/<id>.png` AND adds the id to
+   `BADGES` in `src/ui/icons.js` (the list is the declaration — a file alone
+   is not used). Do NOT save badges into `public/thumbs/`: that folder is the
+   auto-captured BACKUP (`node tools/thumbs.mjs`, which on a bare run only
+   fills in mechs with no icon at all). `node tools/iconcheck.mjs` checks the
+   file and the `BADGES` entry agree.
 3. If a single badge needs a re-roll, use the **single-badge prompt** at the
    bottom with that mech's line.
 

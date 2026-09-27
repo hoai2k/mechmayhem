@@ -3,14 +3,14 @@
 // clicks whatever it hovers. While a pad's pointer is up its normal menu
 // events are muted (input.pointerPads), so the sticks don't also drive menu
 // cursors — SELECT again (or a battle starting) puts the pad back to normal.
-import { PLAYER_COLORS, hexCss } from '../core/colors.js';
+import { PLAYER_COLORS, hexCss, MAX_PADS } from '../core/colors.js';
 
 export class PadPointers {
   constructor(input, root, audio) {
     this.input = input;
     this.root = root;
     this.audio = audio;
-    this.ptrs = [null, null, null, null];
+    this.ptrs = new Array(MAX_PADS).fill(null);
   }
 
   toggle(i) {
@@ -21,7 +21,7 @@ export class PadPointers {
       this.audio?.play('uiBack');
       return;
     }
-    const col = hexCss(PLAYER_COLORS[i % 4]);
+    const col = hexCss(PLAYER_COLORS[i % PLAYER_COLORS.length]);
     const el = document.createElement('div');
     el.className = 'pad-pointer';
     el.innerHTML = `
@@ -40,7 +40,7 @@ export class PadPointers {
 
   // active = a menu screen is up (title/select/pause/results — not live combat)
   update(dt, active) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < MAX_PADS; i++) {
       if (!this.input.padConnected(i)) {
         if (this.ptrs[i]) { this.ptrs[i].el.remove(); this.ptrs[i] = null; }
         this.input.pointerPads.delete(i);

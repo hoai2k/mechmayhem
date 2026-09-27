@@ -1,16 +1,17 @@
 # 🤖 MECH MAYHEM —  3D Robot Battle Arena
 
-A fully featured browser-based 3D mech arena fighter. **17 unique mechs**, **12 destructible city
-arenas**, local multiplayer for up to **4 players** (keyboard + Xbox
-controllers), and AI opponents across three difficulty tiers.
+A fully featured browser-based 3D mech arena fighter. **17 unique mechs**, **12 destructible
+arenas**, local matches of up to **8 fighters** (any mix of keyboards, Xbox
+controllers and CPUs, split-screen for every human), and AI opponents across
+three difficulty tiers.
 
-![Title](docs/title.png)
-![Mech select](docs/mech-select.png)
+![Title screen](docs/readme/title.jpg)
 
 | | |
 |---|---|
-| ![Neon District](docs/arena-neon.png) | ![Volcanic Forge](docs/arena-volcano.png) |
-| ![Frozen Outpost](docs/arena-frozen.png) | ![4-player split screen](docs/split-screen.png) |
+| ![Fighter select, two players](docs/readme/select.jpg) | ![Fighter select, eight fighters](docs/readme/select-8.jpg) |
+| ![Neon District](docs/readme/arena-neon.jpg) | ![Volcanic Forge](docs/readme/arena-volcano.jpg) |
+| ![Frozen Outpost](docs/readme/arena-frozen.jpg) | ![Eight-way split screen](docs/readme/split-8.jpg) |
 
 ## Running the game
 
@@ -108,7 +109,10 @@ resolved and preloaded while the current round is still being fought.
 | Pause | Esc / P | — | Start |
 
 Keyboard 2 also has a right-hand cluster for keyboards without a numpad (`,`
-`.` `/` `M` `N` `'` `Enter` `Shift` `J` `K` `;`). Players 3 and 4 need pads.
+`.` `/` `M` `N` `'` `Enter` `Shift` `J` `K` `;`). Every seat past the two
+keyboards needs a pad. Chrome, Edge and the desktop build expose at most four
+controllers, so up to six people can play there; fill the rest of the eight
+seats with CPUs.
 
 **Pad LB — charged dash.** Hold LB to wind up a dash charge (3-second cap).
 Standing still crouches you and winds the coil at full rate; you can also
@@ -160,8 +164,11 @@ screen. Rumble is supported where the browser allows it.
 - **LEGO-style dynamic camera** — one cinematic combined view while fighters
   are close; splits into per-player chase viewports when they separate,
   and merges back with hysteresis.
-- **Local multiplayer** — up to 4 fighters in free-for-all: any mix of
-  keyboards, Xbox controllers and AI (Rookie / Veteran / Ace). Three or more
+- **Local multiplayer** — up to 8 fighters in free-for-all: any mix of
+  keyboards, Xbox controllers and AI (Rookie / Veteran / Ace). Every human
+  gets their own view — side-by-side or stacked for two, an L with a stats
+  panel for three, a 2x2 for four, and a 3x2 / 3x3 grid for five to eight
+  (the spare cell holds the clock and the CPUs' health). Three or more
   fighters with **two or more humans** is a brawl: death is a respawn, and the
   round is won on fewest deaths rather than by the last mech standing.
 - **Match flow** — best-of-3 rounds (a different arena each round), intros, KO
@@ -182,8 +189,10 @@ screen. Rumble is supported where the browser allows it.
 
 - `?showcase` — the whole roster in an idle line-up ·
   `?showcase=<id>&anim=<clip|walk|none>` — one mech, judging camera
-- `?battle=<themeId>&p1=<mech>&p2=<mech>[&p3=..][&p4=..][&auto=1][&diff=ace]`
-  — jump straight into a fight (auto=1: all-AI soak test)
+- `?battle=<themeId>&p1=<mech>&p2=<mech>[&p3..&p8][&auto=1][&diff=ace]`
+  — jump straight into a fight (auto=1: all-AI soak test) · add
+  `&forcesplit=1[&humans=<n>]` to preview the split-screen layout for that
+  many players
 - `?battle=<t>&overhead=1` — park the camera straight down to read an arena
   layout from above
 - An unrecognised URL parameter warns in the console with a did-you-mean
@@ -197,10 +206,12 @@ See [workbench/README.md](workbench/README.md).
 
 ## Mech art pipeline
 
-Turn a concept image into a rigged, animated in-game mech — two routes
-(external image→3D services, or the free in-engine sculpted pipeline) —
-fully documented for future contributors (human or AI) in
-[docs/MECH_ART_GUIDE.md](docs/MECH_ART_GUIDE.md).
+Every shipped mech is a rigged GLB made from its concept art by an
+image→3D service, then rigged, skinned and **baked** in the workbenches — see
+[docs/MECH_ART_GUIDE.md](docs/MECH_ART_GUIDE.md), written for future
+contributors (human or AI). The older in-engine sculpted route
+([docs/IMAGE_TO_MECH.md](docs/IMAGE_TO_MECH.md)) now only builds the
+procedural fallback bodies (`?render=fallback`).
 
 ## Task tracking
 

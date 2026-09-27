@@ -12,21 +12,20 @@ const [out = 'split3.png', waitMs = '30000'] = process.argv.slice(2);
 const b = await launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 300)));
-await p.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&p3=vulcan&p4=konga&forcesplit=1&diff=ace', { waitUntil: 'networkidle' });
+await p.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&p3=vulcan&p4=konga&p5=rhino&p6=tempest&p7=frogger&p8=jerry&forcesplit=1&humans=3&postfx=off&diff=ace', { waitUntil: 'networkidle' });
 await p.waitForTimeout(Number(waitMs));
 
 const report = await p.evaluate(async () => {
   const { Hud } = await import('/src/ui/hud.js');
   const w = window.__world, F = window.__fighters;
-  const hud = new Hud(document.getElementById('ui-root'), w);
-  // WORST CASE ON PURPOSE: three humans AND a CPU is four plates in a quarter
-  // of the screen, which is the most the panel ever has to hold. The harness
-  // gives forcesplit every fighter a viewport, so trim its views back to the
-  // three the layout under test actually has.
+  // forcesplit already built the game's own Hud (window.__hud); reuse it, or
+  // two sets of plates are drawn on top of each other
+  const hud = window.__hud || new Hud(document.getElementById('ui-root'), w);
+  // WORST CASE ON PURPOSE: three humans AND five CPUs is eight plates in a
+  // quarter of the screen (two columns of four), which is the most the panel
+  // ever has to hold. &humans=3 gives the harness exactly the three views.
   hud.buildPlates(F);
   hud.positionPlates('3', [0, 1, 2]);
-  const eng = window.__engine || w.engine;
-  if (eng?.views?.length === 4) eng.views = eng.views.slice(0, 3);
   hud.update(1 / 60, null, 97);
   const r = (el) => { const b2 = el.getBoundingClientRect(); return { x: Math.round(b2.x), y: Math.round(b2.y), w: Math.round(b2.width), h: Math.round(b2.height) }; };
   const W = window.innerWidth, H = window.innerHeight;
@@ -50,9 +49,10 @@ const report = await p.evaluate(async () => {
   hud.positionPlates('4', [0, 1, 2, 3]);
   const restored = {
     panelHidden: document.getElementById('hud-stats').style.display === 'none',
-    platesBackInHud: hud.plates.every((pl) => pl.root.parentNode.id === 'hud'),
+    // (in a corner stack now — a stack is a child of #hud, never the panel)
+    platesBackInHud: hud.plates.every((pl) => pl.root.parentNode.id !== 'hud-stats'),
     timerBackInHud: hud.timerEl.parentNode.id === 'hud',
-    cornersAssigned: hud.plates.map((pl) => pl.root.style.cssText.split(';')[0]),
+    cornersAssigned: hud.plates.map((pl) => pl.root.parentNode.style.cssText.split(';').slice(0, 2).join(';')),
   };
   hud.positionPlates('3', [0, 1, 2]);
 

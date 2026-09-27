@@ -284,7 +284,7 @@ export class MenuStage {
    *  body's middle, a chasing ring, and a light scatter of motes. Sized to
    *  the mech, tinted to the player. */
   sparkleAt(x, slotIdx = 0, height = 7) {
-    const c = PLAYER_COLORS[slotIdx % 4];
+    const c = PLAYER_COLORS[slotIdx % PLAYER_COLORS.length];
     const mid = height * 0.52;
     this.sparkles.push(
       beamGlow(this.group, x, mid, height, 0xdff2ff, false),
@@ -677,7 +677,7 @@ export class MenuStage {
         this._built.add(e.id);
       }
       if (n > 1) {
-        const ring = ringMesh(this.engine.renderer, 2.7, 0.5, PLAYER_COLORS[e.slotIdx % 4], 0.85);
+        const ring = ringMesh(this.engine.renderer, 2.7, 0.5, PLAYER_COLORS[e.slotIdx % PLAYER_COLORS.length], 0.85);
         ring.position.set(x, 0.06, 0);
         this.group.add(ring);
         this.rings.push(ring);
@@ -700,7 +700,7 @@ export class MenuStage {
     m.fx = { t: 0, dur: 0.72, base: m.group.rotation.y };
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowTexture(), transparent: true, depthWrite: false,
-      blending: THREE.AdditiveBlending, color: PLAYER_COLORS[slotIdx % 4], opacity: 0,
+      blending: THREE.AdditiveBlending, color: PLAYER_COLORS[slotIdx % PLAYER_COLORS.length], opacity: 0,
     }));
     spr.position.set(m.stageX ?? m.group.position.x, 4.6, -1.6);
     spr.scale.setScalar(6);

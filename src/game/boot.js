@@ -741,6 +741,9 @@ export async function bootGame() {
       } else humans.push({ fighter: f, device: a.slot.device, idx: humans.length });
     });
 
+    // four humans with a CPU split onto a grid with a stats panel instead of
+    // the 2x2 — the layout has to know about the CPUs to pick it
+    cameraSys.aiCount = ais.length;
     const hud = new Hud(uiRoot, world);
     hud.buildPlates(fighters);
     hud.positionPlates(cameraSys.layoutKind(humans.length), humans.map((h) => fighters.indexOf(h.fighter)));

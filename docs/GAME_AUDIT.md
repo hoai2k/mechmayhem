@@ -6,7 +6,7 @@ the AI, animation and rigging, the twelve arenas, menus / HUD / controls, and
 the code or measured with the repo's own tools.
 
 **This half of the document is what is still OPEN.** Everything already done
-is logged at the end, in section 8, with its measurements — so the front of
+is logged at the end, in section 7, with its measurements — so the front of
 the file is only ever the work that is left.
 
 Pictures: `docs/audit/arena-overheads.jpg` (all twelve arenas from above) and
@@ -20,21 +20,21 @@ rough size for the change.
 
 ## 0. Where it stands
 
-Three passes have landed (section 8). The guard, the AI's reads, the hip
+Five passes have landed (section 7). The guard, the AI's reads, the hip
 animation every shipped body was dropping, arena placement, the menu flow,
 kinetic impact, the dash economy, the input buffer, ice/void/low-gravity, and
 a training mode are all done and measured.
 
 What is left divides into three kinds:
 
-- **Decisions.** The weapon outliers were deliberately left alone (2.1); that
+- **Decisions.** The weapon outliers were deliberately left alone (1.1); that
   decision is worth revisiting once the kinetic-impact and dash changes have
   been played, since both moved the same fight.
 - **Polish with a measured number attached.** Clips through the floor, foot
   planting, hurtbox bloat, skin severity — every one has a tool that prints
   the number, so each is a short job with a pass/fail (section 3).
 - **Structural work.** Splitting `specials.js` and `fighter.js`, and trimming
-  `CLAUDE.md` (section 7). None of it is player-facing.
+  `CLAUDE.md` (section 6). None of it is player-facing.
 
 The shortlist, if you want an order:
 
@@ -49,7 +49,7 @@ The shortlist, if you want an order:
    turn-in-place, landing that scales with the fall.
 5. **The remaining arena bugs** (5.2): thin props with no collider, and the
    prop planners still placing solids inside the spawn clearing.
-6. **`specials.js` → one file per mech** (7) — the biggest single readability
+6. **`specials.js` → one file per mech** (6) — the biggest single readability
    win left, and it follows a precedent the repo already set twice.
 
 ---
@@ -90,8 +90,10 @@ numbers are in 2.1.
   would make a jab read as contact.
 - **The charge tell only shows past 70%**, so the *player* has no read on
   their own charge below that. A small HUD arc would fix it.
-- **Target lock has no cycling** in 3–4 player except sniper shoves. Tap LB
-  while locked → next nearest.
+- **Target lock has no cycling** in a 3–8 fighter match except sniper shoves.
+  The lock is a TAP of LT (toggled on release; a held LT is the scope), so
+  cycling has to share that tap — e.g. tap LT while locked → next nearest,
+  releasing after the last.
 
 ### 1.3 A brawl rule edge
 
@@ -273,11 +275,11 @@ and it is deliberately not being fixed. Recorded so it is not re-raised.
 
 | # | Finding | Where | Fix | Impact / effort |
 |---|---|---|---|---|
-| U1 | Combined-view plates collide with the bottom-right chrome: with 3–4 fighters and one human the bottom-right plate sits exactly where `#toast-layer` and `#now-playing` live. At 540p the now-playing chip overlaps the plate and every pad toast paints over the CPU's health | `hud.js:139`, `style.css:549-565` | put the chip and toasts above the plates, or stack CPU plates under the human's | medium / small |
-| U2 | The warm-up hint overlaps the right-most fighter's quote (`.wu-loading` bottom-right against `.wu-cap` at bottom 4vh) | `style.css:627` | centre the hint under the progress bar, or pad `.wu-cap` | low / tiny |
-| U3 | SFX VOLUME "100%" draws as 2 of 10 blocks, because the ceiling is 5× the default — it reads as 20%. The selected settings row also scales 1.08 and its cursor arrows crash into the slider's own chevrons | `boot.js settingsItems`, `.menu-item.selected` | draw 0–100% with the ceiling as an "amplified" zone; stop scaling the selected row | low / small |
+| U1 | Combined-view plates collide with the bottom-right chrome: with 3–8 fighters and one human the bottom-right plate sits exactly where `#toast-layer` and `#now-playing` live. At 540p the now-playing chip overlaps the plate and every pad toast paints over the CPU's health | `hud.js:139`, `style.css:549-565` | put the chip and toasts above the plates, or stack CPU plates under the human's | medium / small |
+| U2 | ~~The warm-up hint overlaps the right-most fighter's quote~~ **Obsolete:** the warm-up (and `.wu-*`) is gone, replaced by the full-screen loading card (`src/game/loadscreen.js`) | — | — | — |
+| U3 | **Half resolved:** the volume bars now draw a thin rule at the 100% (balanced-default) point (`volBar`'s `mark` in `boot.js`), so a short bar reads against its own default. Still open: the selected settings row scales 1.08 and its cursor arrows crash into the slider's own chevrons | `.menu-item.selected` | stop scaling the selected row | low / tiny |
 | U4 | Hint bars are pad-only vocabulary even for a keyboard seat ("A JOIN · D-PAD PICK · B CANCEL"; the ready chip says "PRESS A") | `menus.js`, `text.js` | a device-aware hint line built from the seats present | low / small |
-| U5 | Arena blurbs live only in `title=` tooltips, so a pad user never sees them | `menus.js:970,991` | a caption under the grid for the selected card | low / tiny |
+| U5 | Arena blurbs live only in `title=` tooltips (the card's `.arena-desc` is `display: none`), so a pad user never sees them | `menus.js` `ArenaSelect` | a caption under the grid for the selected card | low / tiny |
 | U6 | The players row jumps ~14 px whenever the "EDITING" tag appears on a card | `menus.js` | reserve the line | low / tiny |
 | U7 | Pad BACK does nothing in battle | `input.js` | — | low |
 
@@ -304,8 +306,9 @@ and it is deliberately not being fixed. Recorded so it is not re-raised.
 6. **Pad hot-plug during a fight**: "press START to join next round" plus a
    `slots` edit at round start. Today a late pad can only join after QUIT TO
    MENU.
-7. **A one-second "ROUND 2 — <arena>" card** before the intro, so the
-   per-round arena swap reads as intentional.
+7. ~~**A one-second "ROUND 2 — <arena>" card**~~ — **done**: a round fought in
+   a new arena opens behind the same full-screen loading card as round 1
+   (`match.holdRound` → `match.release()`).
 8. **Print the pause key on the HUD once** at FIGHT.
 
 ---
@@ -375,13 +378,13 @@ container files and one very long document.
 
 | # | Item | Effort | Value |
 |---|---|---|---|
-| 1 | **`specials.js` → `src/combat/specials/<mech>.js` + `shared.js` + `summons.js`.** Dispatch is already `SPECIALS[sp.id]`, the ids are per-mech, and `finisher/shared.js` is the precedent. `GORE_*` (tritone's balance) moves into his roster block on the way | 1 day | a 3.1k-line file becomes a parallel-agent-safe fan-out |
+| 1 | **`specials.js` → `src/combat/specials/<mech>.js` + `shared.js` + `summons.js`.** Dispatch is already `SPECIALS[sp.id]`, the ids are per-mech, and `finisher/shared.js` is the precedent. `GORE_*` (tritone's balance) moves into his roster block on the way | 1 day | a 3.5k-line file becomes a parallel-agent-safe fan-out |
 | 2 | **`fighter.js` split** along the seams `climb.js` / `aim.js` / `gunaim.js` already use: taunts (~600 lines, roster-flag gated), melee (~1,500), damage and status (~550) plus the nullbot glitch (~180), ranged, sfx (~80), air and guard, locomotion. `update()` is 880 lines and 139 `if`s; the class has 118 methods and 181 `this.*` fields, 104 of them born outside the constructor. The post-pose ORDER (retarget sync → gun aim → climb limbs, and the floor guard never with the prone clamp) is the one part that must stay together, and today it is enforced by comments only | 2–3 days | halves the file |
-| 3 | Per-mech clip tables out of `animations.js` (~1.4k of its 3.1k lines are `*_TAUNT` / `*_GLB` raws) into `mechs/clips/<id>.js`; `PROPS` (105 builders in one 2.4k-line literal, and it is on the parallel-agent fan-out list) split by family | ½ day + 2 hrs | merge-conflict magnets |
+| 3 | Per-mech clip tables out of `animations.js` (~1.4k of its 3.1k lines are `*_TAUNT` / `*_GLB` raws) into `mechs/clips/<id>.js`; `PROPS` (105 builders in one ~2.6k-line literal, and it is on the parallel-agent fan-out list) split by family | ½ day + 2 hrs | merge-conflict magnets |
 | 4 | Promote the fighter privates other modules read (`_charging`, `_chargeT`, `_lockAim`, `_carry`, `_shotSide`… — specials.js reads 22, climb.js 22, world/ai/camera 8 each) to declared fields | 2 hrs | the API is real, just undeclared |
 | 5 | Fold the ~29 magic constants at the top of fighter.js into tuning.js and the roster. Three gravities exist (fighter 34, ragdoll 32, fleas 40, jets 28). fighter.js snapshots TUNING by value at import — which is why `rw.tune` has to reload — while climb.js holds a live reference; pick the live one | 1 hr | one number, one place |
 | 6 | Make the printing tools that are really checks exit non-zero: `brawl.mjs` prints JSON and exits 0 whatever the numbers say, and `hurtboxfit` / `propshell` are the same shape | 1 hr | they can then join `npm run check` |
-| 7 | `CLAUDE.md` is ~2,900 lines with the Architecture map behind 2,500 lines of per-feature essays. Move the essays to `docs/<feature>.md`; keep the commands, the map, the rules and a one-line index | ½ day | onboarding |
+| 7 | `CLAUDE.md` is ~3,100 lines with the Architecture map behind 2,500 lines of per-feature essays. Move the essays to `docs/<feature>.md`; keep the commands, the map, the rules and a one-line index | ½ day | onboarding |
 
 Also worth knowing: the browser tools are not robust to a Vite full reload
 landing mid-run — a source or `public/` edit while a tool's page is up kills it

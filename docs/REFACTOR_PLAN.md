@@ -1,5 +1,14 @@
 # Refactor plan — 2026-07-20 sweep
 
+> **Status (2026-09-27): historical — closed.** The log below records the
+> sweep as complete (A-H and J merged 2026-07-20; the boxes under F/G/H were
+> ticked retroactively, their DONE notes already said so). Two things never
+> got a tick and are left as found: Batch E's fighter↔specials import cycle
+> (still deferred — see "Remaining follow-ups") and Batch I, whose header was
+> never marked. Since then `src/game/warmup.js` has been replaced by the
+> full-screen loading card, `src/game/loadscreen.js`. File:line refs below are
+> from the 2026-07-20 tree.
+
 Tracking doc for the "keep it well factored" refactor pass requested after
 the codebase review. **If you are an agent resuming this work: read this
 file top to bottom, then continue at the first unchecked batch.** Work on
@@ -135,12 +144,12 @@ sit before CLIPS_RAW (TDZ). compile() copies pose arrays so sharing is
 safe (verified). Verified: showcase console clean both routes, lineup
 screenshot personality intact, soak matrix above.
 
-- [ ] animator.signature() 13-case switch (animator.js:479-782) →
+- [x] animator.signature() 13-case switch (animator.js:479-782) →
       SIGNATURES[id] registry module (src/mechs/signatures.js); keep
       levelHands via a def flag instead of hardcoded ids.
-- [ ] animations.js: extract the ~50 verbatim return-to-rest end keys into
+- [x] animations.js: extract the ~50 verbatim return-to-rest end keys into
       REST_KEY / returnTo(dur) helper.
-- [ ] Verify: ?showcase screenshot sweep (all 12 + anim=walk spot checks),
+- [x] Verify: ?showcase screenshot sweep (all 12 + anim=walk spot checks),
       soak, build green.
 
 ## Batch G — finisher sharding  [x DONE 2026-07-20]
@@ -151,12 +160,12 @@ titanus/colossus blocks were byte-identical except hold end 2.55 vs 2.5).
 nullbot BSOD → BSOD_HTML template fn. Verified: build green, titanus +
 nullbot finisherdemo loops 240s each, zero page errors.
 
-- [ ] Split SCRIPTS (finisher.js:384-1493, 18 scripts) into
+- [x] Split SCRIPTS (finisher.js:384-1493, 18 scripts) into
       src/game/finisher/<id>.js + index that assembles the registry; DSL
       engine stays in finisher.js. Extract shared carry() grip (titanus
       415-429 ≡ colossus 505-517). Move nullbot BSOD HTML to a template
       constant in its own file.
-- [ ] Verify: ?finishers debug page (see config.js) screenshots for
+- [x] Verify: ?finishers debug page (see config.js) screenshots for
       titanus/colossus/nullbot + one soak to KO; build green.
 
 ## Batch H — boot extraction + shared createBattle + UI dedupe  [x DONE 2026-07-20]
@@ -174,20 +183,20 @@ azimuthBehind/followAzimuth/giantFactor/giantZoomDamp; per-mode rates
 preserved at call sites. Verified: build, title screenshot, menu console
 clean, colossus giant-camera ace soaks crash:null.
 
-- [ ] Extract from boot.js: MenuStage (46-242) → src/game/menustage.js,
+- [x] Extract from boot.js: MenuStage (46-242) → src/game/menustage.js,
       PadPointers (275-359) → src/game/padpointers.js, warm-up loader
       (615-834) → src/game/warmup.js, touch zoom guards.
-- [ ] Extract createBattle() from boot.startBattle (837-918); reuse in
+- [x] Extract createBattle() from boot.startBattle (837-918); reuse in
       dev/battletest.js (currently a drifted copy, battletest.js:24-71).
-- [ ] menus.js: shared MenuList helper for Title/Pause/Settings/Results
+- [x] menus.js: shared MenuList helper for Title/Pause/Settings/Results
       vertical lists + the duplicated corner hot-button ring (88-108 vs
       928-950).
-- [ ] Move PLAYER_COLORS from fighter.js:56 → src/core/colors.js with
+- [x] Move PLAYER_COLORS from fighter.js:56 → src/core/colors.js with
       CSS-hex derivation; update hud.js/menus.js/boot.js/finisher.js
       imports; delete COLOR_CSS duplicates.
-- [ ] camera.js: share follow/lock/giant-zoom between updateCombined
+- [x] camera.js: share follow/lock/giant-zoom between updateCombined
       (246-291) and updateSplit (403-436).
-- [ ] Verify: menu flow by hand via screenshots (title→mech select→battle,
+- [x] Verify: menu flow by hand via screenshots (title→mech select→battle,
       pause, results), pad-pointer smoke if feasible, soak, build green.
 
 ## Batch I — gltf.js buildGlbMech cleanup + manifest validation  [ ]

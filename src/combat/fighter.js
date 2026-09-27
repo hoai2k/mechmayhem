@@ -1459,7 +1459,7 @@ export class Fighter {
     this.setState('dash', this.dashT);
     this.sfx('dash');
     this.world.effects.rings.spawn(this.pos, {
-      from: 0.5, to: 3.5 + 3 * k, dur: 0.3, color: PLAYER_COLORS[this.playerIndex % 4], y: 0.4,
+      from: 0.5, to: 3.5 + 3 * k, dur: 0.3, color: PLAYER_COLORS[this.playerIndex % PLAYER_COLORS.length], y: 0.4,
     });
     if (k > 0.35) { // a wound-up release detonates off the line
       this.sfx('whooshBig');
@@ -3088,7 +3088,7 @@ export class Fighter {
           this.animator.play('getup', { speed: 2.4 });
           this.sfx('jump');
           this.world.effects.dustPuff(this.pos, 8);
-          this.world.effects.rings.spawn(this.pos, { from: 0.5, to: 4, dur: 0.35, color: PLAYER_COLORS[this.playerIndex % 4], y: 0.3 });
+          this.world.effects.rings.spawn(this.pos, { from: 0.5, to: 4, dur: 0.35, color: PLAYER_COLORS[this.playerIndex % PLAYER_COLORS.length], y: 0.3 });
           break;
         }
         if (this.stateT <= 0) {
@@ -3266,7 +3266,7 @@ export class Fighter {
         this._chargeFxT = 0.5 - 0.3 * k;
         this.world.effects.rings.spawn(this.pos, {
           from: 3.5, to: 1 + (1 - k) * 1.5, dur: 0.28,
-          color: PLAYER_COLORS[this.playerIndex % 4], y: 0.3,
+          color: PLAYER_COLORS[this.playerIndex % PLAYER_COLORS.length], y: 0.3,
         });
       }
       if (was < CHARGE_DASH_MAX && this._dashCharge >= CHARGE_DASH_MAX) {
@@ -3536,7 +3536,7 @@ export class Fighter {
           this._lockFxT = 0.55;
           this.world.effects.rings.spawn(this.lockTarget.pos, {
             from: 3.4, to: 2.2, dur: 0.5,
-            color: PLAYER_COLORS[this.playerIndex % 4], y: 0.35,
+            color: PLAYER_COLORS[this.playerIndex % PLAYER_COLORS.length], y: 0.35,
           });
         }
       }
@@ -3563,12 +3563,12 @@ export class Fighter {
 
     // dash trail (sprint leaves a sparser one — moving fast, not blinking)
     if (this.dashT > 0) {
-      this.world.effects.dashTrail(this.pos, PLAYER_COLORS[this.playerIndex % 4], this.scale);
+      this.world.effects.dashTrail(this.pos, PLAYER_COLORS[this.playerIndex % PLAYER_COLORS.length], this.scale);
     } else if (this.sprinting) {
       this._sprintFxT = (this._sprintFxT ?? 0) - dt;
       if (this._sprintFxT <= 0) {
         this._sprintFxT = 0.11;
-        this.world.effects.dashTrail(this.pos, PLAYER_COLORS[this.playerIndex % 4], this.scale);
+        this.world.effects.dashTrail(this.pos, PLAYER_COLORS[this.playerIndex % PLAYER_COLORS.length], this.scale);
       }
     }
 

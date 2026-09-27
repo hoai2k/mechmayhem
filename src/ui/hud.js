@@ -2,7 +2,8 @@
 // damage popups, special/ult callouts, controller toasts.
 import { mechIcon } from './icons.js';
 import * as THREE from 'three';
-import { PLAYER_COLORS_CSS as COLOR_CSS } from '../core/colors.js';
+import { PLAYER_COLORS_CSS as COLOR_CSS, MAX_FIGHTERS } from '../core/colors.js';
+import { statsPanelRect } from '../game/camera.js';
 import { clamp01 } from '../core/utils.js';
 import { t } from '../core/text.js';
 const _v = new THREE.Vector3();
@@ -51,7 +52,7 @@ export class Hud {
     // the player's lock-aim point (drifts onto the locked enemy) while LT
     // target lock (LT) is on; ranged shots fired during the lock fly at it
     this.crosshairs = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < MAX_FIGHTERS; i++) {
       const c = document.createElement('div');
       c.style.cssText = `
         position:absolute; width:28px; height:28px; display:none;
@@ -72,7 +73,7 @@ export class Hud {
     // in and the view magnifying are one move. It is a HINT, not an occluder:
     // it darkens the corners and leaves the middle of the shot clear.
     this.scopes = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < MAX_FIGHTERS; i++) {
       const s = document.createElement('div');
       s.style.cssText = `
         position:absolute; display:none; pointer-events:none; z-index:5; opacity:0;
@@ -115,7 +116,7 @@ export class Hud {
       root.className = 'hud-plate';
       root.innerHTML = `
         <div class="hp-head">
-          <span class="hp-player" style="color:${COLOR_CSS[i % 4]}">${f.isAI ? t('hud.cpu') : t('hud.player', { n: i + 1 })}</span>
+          <span class="hp-player" style="color:${COLOR_CSS[i % COLOR_CSS.length]}">${f.isAI ? t('hud.cpu') : t('hud.player', { n: i + 1 })}</span>
           <span class="hp-name">${mechIcon(f.def, 17)}${f.def.name}</span>
         </div>
         <div class="hud-bar hp"><div class="bar-ghost"></div><div class="bar-fill"></div></div>
@@ -147,7 +148,7 @@ export class Hud {
   }
 
   // place plates to match the split layout so each human's plate lives in
-  // their own viewport. kind: 'single' | 'lr' | 'tb' | '3' | '4';
+  // their own viewport. kind: 'single' | 'lr' | 'tb' | '3' | '4' | 'g4'..'g8';
   // humanIdx: indices into the plates array that are human, in viewport order.
   //
   // '3' IS THE EXCEPTION AND IT IS THE WHOLE POINT: three views leave a spare
@@ -155,53 +156,87 @@ export class Hud {
   // corner of somebody's view. Nothing about the plates themselves changes —
   // they are the same elements, re-parented — so health, ult badges, pips,
   // ammo and death counts all keep updating through the same handles.
+  //
+  // THE GRIDS ('g4'..'g8', see camera.js gridLayout) have a panel too, but it
+  // can be one cell of nine with eight fighters to show, so there each HUMAN's
+  // plate rides the top-left of their own view (compact) and the panel carries
+  // the clock and the CPUs. Everywhere else the plates sit in CORNERS, and a
+  // corner holding more than one STACKS them — with up to eight fighters on a
+  // single view, two to a corner.
   positionPlates(kind, humanIdx = []) {
-    const panelled = kind === '3';
+    const grid = typeof kind === 'string' && kind[0] === 'g';
+    const panelled = kind === '3' || grid;
+    const rect = panelled ? statsPanelRect(kind) : null;
     this.statsPanel.style.display = panelled ? 'flex' : 'none';
+    this.statsPanel.classList.toggle('grid', grid);
+    const ps = this.statsPanel.style;
+    if (grid) {
+      ps.left = rect.x * 100 + '%'; ps.top = (1 - rect.y - rect.h) * 100 + '%';
+      ps.width = rect.w * 100 + '%'; ps.height = rect.h * 100 + '%';
+    } else ps.left = ps.top = ps.width = ps.height = '';
+    const reset = (p) => {
+      p.root.style.cssText = '';
+      p.root.classList.remove('in-view');
+      p.head.style.flexDirection = '';
+      p.pipsRow.style.justifyContent = '';
+    };
+    for (const c of Object.values(this.corners || {})) c.style.display = 'none';
+    this.el.classList.toggle('crowded', this.plates.length > 4);
     if (panelled) {
       // the round clock is a stat too, and centred on screen it straddles the
       // panel's own edge — so it goes in at the top of it
       this.statsPanel.appendChild(this.timerEl);
       this.timerEl.classList.add('in-stats');
-      this.plates.forEach((p) => {
-        this.statsPanel.appendChild(p.root);
-        p.root.style.cssText = '';          // the panel lays them out, not a corner
-        p.head.style.flexDirection = '';
-        p.pipsRow.style.justifyContent = '';
+      const views = grid ? this.world.cameraSys?.layoutRects?.(humanIdx.length) : null;
+      this.plates.forEach((p, i) => {
+        reset(p);
+        const h = grid ? humanIdx.indexOf(i) : -1;
+        if (h >= 0 && views?.[h]) {
+          const vp = views[h];
+          this.el.appendChild(p.root);
+          p.root.classList.add('in-view');
+          p.root.style.cssText = `left:calc(${vp.x * 100}% + 0.8vw);top:calc(${(1 - vp.y - vp.h) * 100}% + 1vh);`;
+        } else this.statsPanel.appendChild(p.root);
       });
       return;
     }
     if (this.timerEl.parentNode !== this.el) this.el.appendChild(this.timerEl);
     this.timerEl.classList.remove('in-stats');
-    for (const p of this.plates) if (p.root.parentNode !== this.el) this.el.appendChild(p.root);
     const POS = {
       TL: ['top:2.5vh;left:2vw;', false], TR: ['top:2.5vh;right:2vw;', true],
       BL: ['bottom:3vh;left:2vw;', false], BR: ['bottom:3vh;right:2vw;', true],
       ML: ['top:52vh;left:2vw;', false], MR: ['top:52vh;right:2vw;', true],
     };
-    // no '3' here — that layout returned above, into the stats panel
+    // no '3' or grid here — those returned above, into the stats panel
     const HUMAN_SLOTS = { lr: ['TL', 'TR'], tb: ['TL', 'ML'], 4: ['TL', 'TR', 'ML', 'MR'] };
-    const AI_SLOTS = { lr: ['BL', 'BR'], tb: ['TR', 'MR'], 4: [] };
+    const AI_SLOTS = { lr: ['BL', 'BR'], tb: ['TR', 'MR'], 4: ['BL', 'BR'] };
     const assign = [];
     if (kind === 'single' || !HUMAN_SLOTS[kind]) {
       const order = ['TL', 'TR', 'BL', 'BR'];
-      this.plates.forEach((p, i) => { assign[i] = order[i % 4]; });
+      this.plates.forEach((p, i) => { assign[i] = order[i % order.length]; });
     } else {
       const hs = HUMAN_SLOTS[kind], as = AI_SLOTS[kind];
-      const spare = ['BL', 'BR', 'MR', 'TR'];
       let h = 0, a = 0;
       this.plates.forEach((p, i) => {
-        if (humanIdx.includes(i) && h < hs.length) {
-          assign[i] = hs[h++];
-        } else {
-          assign[i] = as[a] || spare[a % spare.length];
-          a++;
-        }
+        assign[i] = humanIdx.includes(i) && h < hs.length ? hs[h++] : as[a++ % as.length];
       });
     }
+    // a corner is a flex stack; one plate in it sits exactly where a lone
+    // plate always did
+    this.corners = this.corners || {};
     this.plates.forEach((p, i) => {
-      const [css, right] = POS[assign[i]];
-      p.root.style.cssText = css;
+      const key = assign[i];
+      const [css, right] = POS[key];
+      let c = this.corners[key];
+      if (!c) {
+        c = this.corners[key] = document.createElement('div');
+        c.className = 'hud-corner' + (right ? ' right' : '') + (key[0] === 'B' ? ' bottom' : '');
+        c.style.cssText = css;
+        this.el.appendChild(c);
+      }
+      c.style.display = '';
+      reset(p);
+      c.appendChild(p.root);
       p.head.style.flexDirection = right ? 'row-reverse' : '';
       p.pipsRow.style.justifyContent = right ? 'flex-end' : '';
     });

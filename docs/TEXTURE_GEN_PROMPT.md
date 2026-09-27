@@ -9,7 +9,7 @@ Copy everything below the line into Codex. When the images come back, commit
 them to **`src/textures/<set>/<name>/`** using the exact file names given —
 the game picks them up from there and nowhere else (`src/core/texload.js`
 globs that folder at build time, which is what makes `hasTex()` a synchronous
-answer). `src/textures/` is NOT read: images put there are silently
+answer). `public/textures/` is NOT read: images put there are silently
 ignored. See ASSETS.md for the rule, and `node tools/assetcheck.mjs` will
 tell you if anything has landed in the wrong place.
 

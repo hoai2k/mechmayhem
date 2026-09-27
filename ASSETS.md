@@ -15,6 +15,7 @@ That is the whole rule. Everything below is it applied.
 | `src/textures/<set>/<name>/` | the PBR texture pack — `<name>_albedo.png`, `_normal`, `_rough`, optional `_metal` / `_emissive` | `import.meta.glob` in `src/core/texload.js` |
 | `src/textures/sprite/` | hand-made VFX sprite overrides + `manifest.json` | globbed + the manifest imported (`src/combat/effects.js`) |
 | `src/music/`, `src/music/arenas/` | the battle soundtrack | the `rw-music` Vite plugin lists them and copies to `dist/music/` (streamed, not bundled) |
+| `src/fonts/` | the menu webfonts (Oswald, Barlow Semi Condensed) + their OFL licences | `url('./fonts/…')` in `src/style.css`, bundled by Vite |
 
 **Why the texture pack is here and not in `public/`.** `hasTex(set, name)`
 has to answer **synchronously**: `arena.js` decides a building's material
@@ -34,13 +35,14 @@ the large-structure materials) · `prop` (`prop_*`) · `mech` (`mech_*`) ·
 | path | what | how it is found |
 |------|------|-----------------|
 | `public/models/` | mech, prop and building GLBs | `fetch` + `manifest.json` per family |
-| `public/models/source/` | pre-bake archives of edited GLBs + `<id>.edits.json` | never loaded; the record of what a bake folded in |
+| `public/models/source/` | pre-bake archives of edited GLBs + `<id>.edits.json`, and the mech-diet sidecars `<id>.opt.json` (`tools/mechopt.mjs`) | never loaded; the record of what a bake / the diet did |
 | `public/levels/` | authored arena levels | `fetch('levels/<name>.json')` |
 | `public/badges/` | hand-made mech emblems | `<img src="badges/<id>.png">` |
 | `public/thumbs/` | auto-captured mech icons (`tools/thumbs.mjs`) | `<img>` fallback under badges |
 | `public/posters/` | mech posters (`<id>.webp`, alpha) + `posters.json` (`tools/posters.mjs`) | `<img>` / fetch |
 | `public/arenas/` | painted arena-select card art (`<id>.jpg`) | `<img src="arenas/<id>.jpg">` |
 | `public/arenas/full/` | OPTIONAL full-size arena paintings for the big views (none delivered yet), declared in `ARENA_FULL` (`src/ui/arenaart.js`) | backdrop `url()` |
+| `public/art/` | canonical concept art, web size (`<id>.jpg`, `tools/canonart.mjs` from `docs/canonical/`) | the loading card's fighter panel when a mech has no hero card |
 | `public/cards/` | hero cards, web size, + `index.json` (`tools/cards.mjs`, from the originals in `docs/cards/`) | title film strip, loading-card fallback |
 | `public/sfx/` | the recorded sound effects + arena ambience beds + `manifest.json` (`tools/sfxgen.mjs`) | manifest fetched in the background, each file decoded on first use |
 | `public/sound/` | the menu theme and the neon buzz | `<audio>` by URL |

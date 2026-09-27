@@ -5,7 +5,7 @@ import { SCHEME_NAMES, SCHEME_COUNT, schemeSwatch } from '../mechs/colorscheme.j
 import { THEMES } from '../arena/themes.js';
 import { isTouchDevice } from '../core/utils.js';
 import { mechIcon } from './icons.js';
-import { PLAYER_COLORS_CSS as COLOR_CSS, hexCss } from '../core/colors.js';
+import { PLAYER_COLORS_CSS as COLOR_CSS, hexCss, MAX_FIGHTERS, MAX_PADS } from '../core/colors.js';
 import { t } from '../core/text.js';
 import { CONFIG } from '../core/config.js';
 import { loadCardIndex, hasCard, cardUrl } from './cards.js';
@@ -236,7 +236,7 @@ export class TitleScreen {
       <div class="tt-l3">
         <div class="tt-live"><i></i>${t('title.live')}</div>
         <div class="tt-ticker">${t('title.ticker.html', {
-          fighters: roster.length, arenas: THEMES.length, players: 4 })}</div>
+          fighters: roster.length, arenas: THEMES.length, players: MAX_FIGHTERS })}</div>
       </div>`;
     this.buildStrip(roster);
     this.audio = audio;
@@ -720,6 +720,10 @@ class PaintSpray {
   }
 }
 const LAYOUT_QUAD = 3;       // this many in the match and the sides are quadrants
+const ROWS_FROM = 5;         // this many and each half is cut into strips
+// the band's slanted edges, in % of the screen width at its top (…0) and
+// bottom (…1) — the same four numbers as --bl0/--bl1/--br0/--br1 in style.css
+const BAND = { bl0: 40, bl1: 34, br0: 66, br1: 60 };
 
 export class MechSelectScreen {
   constructor(root, { input, audio, onDone, onBack, onSettle, prev, hotButtons }) {
@@ -737,9 +741,12 @@ export class MechSelectScreen {
     // the stand-in CPU (see lockIn) belongs to a line-up that had a locked
     // player; coming back to this screen, nobody is locked yet
     this.slots = prev ? prev.map((x) => (x.auto ? { kind: 'off' } : { ...x })) : this.defaultSlots();
+    // a line-up handed back from an older, shorter slot list still gets
+    // every seat (an 'off' slot is simply an empty one)
+    while (this.slots.length < MAX_FIGHTERS) this.slots.push({ kind: 'off' });
     this.pickers = [];             // one per human slot (built by syncPickers)
-    this.picks = new Array(4).fill(null);
-    this.variants = new Array(4).fill(0);
+    this.picks = new Array(MAX_FIGHTERS).fill(null);
+    this.variants = new Array(MAX_FIGHTERS).fill(0);
     this.finished = false;
     this._padCount = this.input.connectedPadCount();
     this._settle = new Map();      // slotIdx -> { key, timer }
@@ -754,7 +761,7 @@ export class MechSelectScreen {
     this.sideState = [];
     this.sprays = [];              // one PaintSpray per side (see setPic)
     this._sprayT = performance.now();
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < MAX_FIGHTERS; i++) {
       const sd = el('div', 'sel-side');
       sd.innerHTML = `
         <div class="sd-wash"></div>
@@ -885,7 +892,7 @@ export class MechSelectScreen {
   // ---- join / slot management (folded in from the old SetupScreen) ----
   connectedPads() {
     const pads = [];
-    for (let i = 0; i < 4; i++) if (this.input.padConnected(i)) pads.push('pad' + i);
+    for (let i = 0; i < MAX_PADS; i++) if (this.input.padConnected(i)) pads.push('pad' + i);
     return pads;
   }
 
@@ -899,12 +906,12 @@ export class MechSelectScreen {
   // it stands. It goes again the moment it stops being needed: that player
   // unlocking takes it away, and a second human joining takes its seat.
   defaultSlots() {
-    const off = () => ({ kind: 'off' });
+    const fill = (first) => [...first, ...Array.from({ length: MAX_FIGHTERS - first.length }, () => ({ kind: 'off' }))];
     const pads = this.connectedPads();
-    if (pads.length >= 2) return [{ kind: 'human', device: pads[0] }, { kind: 'human', device: pads[1] }, off(), off()];
+    if (pads.length >= 2) return fill([{ kind: 'human', device: pads[0] }, { kind: 'human', device: pads[1] }]);
     const solo = pads.length === 1 ? { kind: 'human', device: pads[0] }
       : this.touch ? { kind: 'human', device: 'touch' } : { kind: 'human', device: 'kb1' };
-    return [solo, off(), off(), off()];
+    return fill([solo]);
   }
 
   autoCpu() { return this.slots.findIndex((s) => s.kind === 'ai' && s.auto); }
@@ -947,13 +954,13 @@ export class MechSelectScreen {
     if (!cell) return;
     const b = this.band.getBoundingClientRect(), r = cell.getBoundingClientRect();
     const d = el('div', 'sel-ping', `<i></i><i></i><b>${t('select.tagP', { n: pk.slotIdx + 1 })}</b>`);
-    d.style.cssText = `--pc:${COLOR_CSS[pk.slotIdx % 4]};left:${r.left - b.left}px;top:${r.top - b.top}px;` +
+    d.style.cssText = `--pc:${COLOR_CSS[pk.slotIdx % COLOR_CSS.length]};left:${r.left - b.left}px;top:${r.top - b.top}px;` +
       `width:${r.width}px;height:${r.height}px`;
     this.band.appendChild(d);
     cell.classList.remove('pinged');
     void cell.offsetWidth;
     cell.classList.add('pinged');
-    cell.style.setProperty('--ping', COLOR_CSS[pk.slotIdx % 4]);
+    cell.style.setProperty('--ping', COLOR_CSS[pk.slotIdx % COLOR_CSS.length]);
     this.audio?.play('uiMove');
     setTimeout(() => { d.remove(); cell.classList.remove('pinged'); }, 950);
   }
@@ -1227,29 +1234,71 @@ export class MechSelectScreen {
   pickAt(cursor) { return pickFrom(this.roster, cursor); }
 
   // ---- layout: which side each slot is drawn on ----
-  // 3+ in the match: every slot is a quadrant, in slot order. Otherwise two
-  // sides — the active slots, padded with the first empty one so a lone
-  // player faces a JOIN — and the next empty slot after that is the ＋ chip.
+  // Two in the match: a half each. Three or four: a quadrant each. Five to
+  // eight: ROWS — each half of the screen is cut into three or four strips
+  // down the band's slanted edge, alternating left/right in slot order.
+  // The drawn cells are the active slots plus, while there is room, the first
+  // empty one (a JOIN); once every cell is taken, the next empty slot is the
+  // ＋ chip under the grid.
   layout() {
     const active = [];
     this.slots.forEach((s, i) => { if (s.kind !== 'off') active.push(i); });
-    const pos = ['none', 'none', 'none', 'none'];
-    const quad = active.length >= LAYOUT_QUAD;
-    if (quad) {
-      ['tl', 'tr', 'bl', 'br'].forEach((p, i) => { pos[i] = p; });
-    } else {
-      const two = [...active];
-      for (let i = 0; i < 4 && two.length < 2; i++) if (!two.includes(i)) two.push(i);
-      two.sort((a, b) => a - b);
-      pos[two[0]] = 'l';
-      pos[two[1]] = 'r';
-      const chip = this.slots.findIndex((s, i) => s.kind === 'off' && !two.includes(i));
-      if (chip >= 0) pos[chip] = 'chip';
-    }
-    this.el.classList.toggle('quad', quad);
-    this.heading.textContent = quad ? t('select.brawl', { n: active.length }) : t('select.vs');
-    this.heading.classList.toggle('vs', !quad);
+    const n = active.length;
+    const pos = new Array(this.slots.length).fill('none');
+    const mode = n >= ROWS_FROM ? 'rows' : n >= LAYOUT_QUAD ? 'quad' : 'duel';
+    const cellCount = mode === 'duel' ? 2 : mode === 'quad' ? 4 : 2 * Math.ceil(n / 2);
+    const cells = [...active];
+    const off = this.slots.map((s, i) => (s.kind === 'off' ? i : -1)).filter((i) => i >= 0);
+    while (cells.length < cellCount && off.length) cells.push(off.shift());
+    cells.sort((a, b) => a - b);
+    const rows = cellCount / 2;
+    cells.forEach((slot, k) => {
+      if (mode === 'duel') pos[slot] = k === 0 ? 'l' : 'r';
+      else if (mode === 'quad') pos[slot] = ['tl', 'tr', 'bl', 'br'][k];
+      else pos[slot] = k % 2 ? 'r' : 'l';
+      this.placeRow(slot, mode === 'rows' ? Math.floor(k / 2) : -1, rows, k % 2 === 1);
+    });
+    this.slots.forEach((_, i) => { if (!cells.includes(i)) this.placeRow(i, -1); });
+    // no JOIN cell on screen and a seat still free: the ＋ chip adds one
+    if (off.length && cells.every((i) => this.slots[i].kind !== 'off')) pos[off[0]] = 'chip';
+    this.el.classList.toggle('quad', mode === 'quad');
+    this.el.classList.toggle('rows', mode === 'rows');
+    const brawl = mode !== 'duel';
+    this.heading.textContent = brawl ? t('select.brawl', { n }) : t('select.vs');
+    this.heading.classList.toggle('vs', !brawl);
     return pos;
+  }
+
+  // A ROW CELL's geometry. The band's edges are the lines in style.css
+  // (--bl0/--bl1 on the left, --br0/--br1 on the right, top to bottom), so a
+  // strip from height ya to yb is as wide as the band edge lets it be at its
+  // top and is cut along that same line — stated here as numbers because a
+  // strip's clip has to be worked out per row. row < 0 clears it back to the
+  // stylesheet's own placement.
+  placeRow(i, row, rows = 1, right = false) {
+    const st = this.sides[i].style;
+    this.sides[i].dataset.row = row;   // the top-right strip's tag clears the corner buttons
+    if (row < 0) {
+      for (const k of ['left', 'right', 'top', 'bottom', 'width', 'height', 'clipPath']) st[k] = '';
+      return;
+    }
+    const ya = row / rows, yb = (row + 1) / rows;
+    const [e0, e1] = right ? [BAND.br0, BAND.br1] : [BAND.bl0, BAND.bl1];
+    const xa = e0 + (e1 - e0) * ya, xb = e0 + (e1 - e0) * yb;
+    st.top = ya * 100 + '%';
+    st.bottom = 'auto';
+    st.height = 100 / rows + '%';
+    if (right) {
+      const lo = Math.min(xa, xb);
+      st.left = 'auto'; st.right = '0';
+      st.width = 100 - lo + '%';
+      st.clipPath = `polygon(${((xa - lo) / (100 - lo)) * 100}% 0, 100% 0, 100% 100%, ${((xb - lo) / (100 - lo)) * 100}% 100%)`;
+    } else {
+      const hi = Math.max(xa, xb);
+      st.left = '0'; st.right = 'auto';
+      st.width = hi + '%';
+      st.clipPath = `polygon(0 0, ${(xa / hi) * 100}% 0, ${(xb / hi) * 100}% 100%, 0 100%)`;
+    }
   }
 
   refresh() {
@@ -1261,14 +1310,14 @@ export class MechSelectScreen {
       for (const pk of this.pickers) {
         if (pk.cursor !== i) continue;
         c.classList.add(pk.locked ? 'locked-pick' : 'cursor');
-        c.style.setProperty('--pc', COLOR_CSS[pk.slotIdx % 4]);
-        tags.push(`<span style="--pc:${COLOR_CSS[pk.slotIdx % 4]}">${t('select.tagP', { n: pk.slotIdx + 1 })}</span>`);
+        c.style.setProperty('--pc', COLOR_CSS[pk.slotIdx % COLOR_CSS.length]);
+        tags.push(`<span style="--pc:${COLOR_CSS[pk.slotIdx % COLOR_CSS.length]}">${t('select.tagP', { n: pk.slotIdx + 1 })}</span>`);
       }
       const steer = this.cpuTarget();
       this.slots.forEach((s, j) => {
         if (s.kind === 'ai' && this.cpuCursor(j) === i) {
-          tags.push(`<span class="cpu" style="--pc:${COLOR_CSS[j % 4]}">${t('select.tagCpu')}</span>`);
-          if (j === steer) { c.classList.add('cursor'); c.style.setProperty('--pc', COLOR_CSS[j % 4]); }
+          tags.push(`<span class="cpu" style="--pc:${COLOR_CSS[j % COLOR_CSS.length]}">${t('select.tagCpu')}</span>`);
+          if (j === steer) { c.classList.add('cursor'); c.style.setProperty('--pc', COLOR_CSS[j % COLOR_CSS.length]); }
         }
       });
       c.querySelector('.cell-tags').innerHTML = tags.join('');
@@ -1276,7 +1325,7 @@ export class MechSelectScreen {
     // corner hot buttons: frame in the visiting player's color
     this.hotButtons.forEach((b, j) => {
       const ed = this.pickers.find((p) => p.sel === 'hot' + j);
-      frameHotButton(b, ed ? COLOR_CSS[ed.slotIdx % 4] : null);
+      frameHotButton(b, ed ? COLOR_CSS[ed.slotIdx % COLOR_CSS.length] : null);
     });
     // the grid scrolls once the roster outgrows it — keep cursors in view
     for (const pk of this.pickers) {
@@ -1304,7 +1353,7 @@ export class MechSelectScreen {
   deviceLabel(device) {
     if (device.startsWith('pad')) {
       let n = 0;
-      for (let i = 0; i < 4; i++) { if (this.input.padConnected(i)) { n++; if (i === +device[3]) return t('device.pad', { n }); } }
+      for (let i = 0; i < MAX_PADS; i++) { if (this.input.padConnected(i)) { n++; if (i === +device[3]) return t('device.pad', { n }); } }
       return t('device.pad', { n: +device[3] + 1 });
     }
     const id = { touch: 'device.touch', kb1: 'device.kb1', kb2: 'device.kb2' }[device];
@@ -1315,12 +1364,12 @@ export class MechSelectScreen {
   renderSide(i, pos) {
     const s = this.slots[i];
     const sd = this.sides[i];
-    const col = COLOR_CSS[i % 4];
+    const col = COLOR_CSS[i % COLOR_CSS.length];
     const cls = ['sel-side', `pos-${pos}`];
     sd.style.setProperty('--pc', col);
     // slot-selector focus: frame the side in the VISITING player's color
     const ed = this.pickers.find((p) => p.sel === i);
-    if (ed) { cls.push('editing'); sd.style.setProperty('--ed', COLOR_CSS[ed.slotIdx % 4]); }
+    if (ed) { cls.push('editing'); sd.style.setProperty('--ed', COLOR_CSS[ed.slotIdx % COLOR_CSS.length]); }
     sd.querySelector('.sd-edit').innerHTML = ed ? t('select.editing', { n: ed.slotIdx + 1 }) : '';
     const q = (sel) => sd.querySelector(sel);
 
@@ -1545,7 +1594,7 @@ export class MechSelectScreen {
     const list = [];
     if (!taken.has('kb1')) list.push('kb1');
     if (!taken.has('kb2')) list.push('kb2');
-    for (let i = 0; i < 4; i++) if (this.input.padConnected(i) && !taken.has('pad' + i)) list.push('pad' + i);
+    for (let i = 0; i < MAX_PADS; i++) if (this.input.padConnected(i) && !taken.has('pad' + i)) list.push('pad' + i);
     return list;
   }
 
@@ -1560,7 +1609,7 @@ export class MechSelectScreen {
     const padCount = this.input.connectedPadCount();
     if (padCount !== this._padCount) {
       if (padCount > this._padCount) {
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < MAX_PADS; i++) {
           if (this.input.padConnected(i) && !this.deviceTaken('pad' + i, -1) && this.joinSlot() >= 0) this.joinDevice('pad' + i);
         }
       }
