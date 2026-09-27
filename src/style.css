@@ -345,11 +345,11 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 .pos-r .sd-pic.swap, .pos-tr .sd-pic.swap, .pos-br .sd-pic.swap { animation-name: sdInR; }
 @keyframes sdIn { from { opacity: 0; transform: translateX(calc(-50% - 40px)); } }
 @keyframes sdInR { from { opacity: 0; transform: translateX(calc(-50% + 40px)); } }
-.sd-ghost { transition: opacity .45s ease; }
-.sd-ghost.out { opacity: 0; }
-/* a repaint being photographed: a slow sheen across the old picture */
-.sel-side.developing .sd-pic:not(.sd-ghost) { animation: develop 1.1s ease-in-out infinite; }
-@keyframes develop { 50% { filter: drop-shadow(0 0 34px color-mix(in srgb, var(--g) 55%, transparent)) brightness(1.18) saturate(.7); } }
+/* a REPAINT is a plain crossfade: the new paint fades up over the old,
+   which sits underneath unchanged (menus.js setPic, XFADE_MS) */
+.sd-pic.xfade { transition: opacity .6s ease; }
+/* the spray-paint canvas over the robot while it is being repainted */
+.sd-spray { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
 .sel-screen.quad .sd-pic { height: 80%; bottom: 6%; }
 /* RANDOM: no body, a big glowing question mark where it would stand */
 .sd-q { position: absolute; top: 12%; bottom: 22%; left: 0; right: 0; display: none; place-items: center;
