@@ -129,14 +129,38 @@ export function releaseSnapshots() {
  * animator eases, so a single frame would catch it mid-blend), stood on the
  * poster mark at POSTER_YAW, shot, and taken back out of the scene.
  */
-export function renderPoster(mech) {
+export function renderPoster(mech, { box: fixedBox = null } = {}) {
   const { renderer, scene, cam, composer } = getRig();
   mech.animator = mech.animator || mech.premadeAnimator || new Animator(mech);
   mech.group.position.set(PREVIEW_X, 0, 0);
   mech.group.rotation.y = POSTER_YAW;
   scene.add(mech.group);
-  for (let i = 0; i < 90; i++) {
-    mech.animator.update(1 / 60, { speed: 0, grounded: true, alwaysReady: true });
+  // ONE MOMENT OF THE IDLE, EVERY TIME. The animator seeds its gait phase and
+  // idle clock from Math.random (so a crowd of robots never breathes in step),
+  // and several signatures twitch off it too — so two photographs of the same
+  // body caught different moments of the sway, the crop (which follows the
+  // silhouette) came out a different size, and a repainted robot visibly
+  // shifted against its poster. Pinned clock + a seeded stream for the settle
+  // (all synchronous, so nothing else can draw from it meanwhile) makes the
+  // pose a function of the body alone: the poster and every repaint of it
+  // are the same pose to the pixel.
+  const anim = mech.animator;
+  anim.phase = 0;
+  anim.t = 0;
+  const realRandom = Math.random;
+  let seed = 0x9e3779b9;
+  Math.random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  try {
+    for (let i = 0; i < 90; i++) {
+      anim.update(1 / 60, { speed: 0, grounded: true, alwaysReady: true });
+    }
+  } finally {
+    Math.random = realRandom;
   }
   mech.group.updateWorldMatrix(true, true);
 
@@ -169,18 +193,29 @@ export function renderPoster(mech) {
     }
   }
   if (x1 < 0) return { error: 'nothing rendered' };
-  const padX = ((x1 - x0 + 1) * (POSTER_PAD - 1)) / 2;
-  const padY = ((y1 - y0 + 1) * (POSTER_PAD - 1)) / 2;
-  const l = Math.round(Math.max(0, x0 - padX)), r = Math.round(Math.min(W, x1 + 1 + padX));
-  const b = Math.round(Math.max(0, y0 - padY)), t = Math.round(Math.min(H, y1 + 1 + padY));
-
-  // NDC only means anything at the framing it was shot in; world units off
-  // the mech's feet are a property of the BODY
-  const ndc = { x0: (l / W) * 2 - 1, x1: (r / W) * 2 - 1, y0: (b / H) * 2 - 1, y1: (t / H) * 2 - 1 };
   const P = (x, y, z) => new THREE.Vector3(x, y, z).project(cam);
   const A = P(PREVIEW_X, 0, 0);
   const perX = P(PREVIEW_X + 1, 0, 0).x - A.x;
   const perY = P(PREVIEW_X, 1, 0).y - A.y;
+  let l, r, b, t;
+  if (fixedBox) {
+    // A REPAINT IS CROPPED TO ITS POSTER'S FRAME, not to its own silhouette,
+    // so the two pictures are the same size and line up exactly in the panel
+    // even if a paint's glow reaches a pixel further than the stock one did
+    const px = (u) => Math.round((((u * perX + A.x) + 1) / 2) * W);
+    const py = (v) => Math.round((((v * perY + A.y) + 1) / 2) * H);
+    l = Math.max(0, px(fixedBox.u0)); r = Math.min(W, px(fixedBox.u1));
+    b = Math.max(0, py(fixedBox.v0)); t = Math.min(H, py(fixedBox.v1));
+  } else {
+    const padX = ((x1 - x0 + 1) * (POSTER_PAD - 1)) / 2;
+    const padY = ((y1 - y0 + 1) * (POSTER_PAD - 1)) / 2;
+    l = Math.round(Math.max(0, x0 - padX)); r = Math.round(Math.min(W, x1 + 1 + padX));
+    b = Math.round(Math.max(0, y0 - padY)); t = Math.round(Math.min(H, y1 + 1 + padY));
+  }
+
+  // NDC only means anything at the framing it was shot in; world units off
+  // the mech's feet are a property of the BODY
+  const ndc = { x0: (l / W) * 2 - 1, x1: (r / W) * 2 - 1, y0: (b / H) * 2 - 1, y1: (t / H) * 2 - 1 };
   const box = {
     u0: (ndc.x0 - A.x) / perX, u1: (ndc.x1 - A.x) / perX,
     v0: (ndc.y0 - A.y) / perY, v1: (ndc.y1 - A.y) / perY,
@@ -288,7 +323,7 @@ async function make(id, v) {
     const mech = await createMech(def);
     warmed.add(key(id, v));
     if (g !== gen) { shots.delete(key(id, v)); return null; }
-    const shot = renderPoster(mech);
+    const shot = renderPoster(mech, { box: posterMeta(id)?.box || null });
     if (shot.error) throw new Error(shot.error);
     // WebP with alpha, like the shipped posters: at this size a PNG encode is
     // the slow part of a snapshot (a browser without a WebP encoder hands

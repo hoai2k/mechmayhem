@@ -1621,7 +1621,21 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   the new colour (`PaintSpray`: cone bursts of droplets from nozzles round the
   body plus glints on it, one 2D canvas per side). Taken through the
   SAME pipeline the posters come out of (`renderPoster` is shared with
-  `dev/postershot.js`), so it drops into the same frame. The side's glow is
+  `dev/postershot.js`), so it drops into the same frame — EXACTLY: the idle
+  is photographed at ONE moment (animator phase/t pinned, Math.random seeded
+  for the synchronous settle) and a repaint is cropped to its poster's own
+  box, so poster and repaint are the same size with the same silhouette
+  (measured IoU 1.0000, 0.00px shift). Before, each photo caught a random
+  moment of the sway, the crop followed the silhouette and a repainted robot
+  visibly shifted. Change the settle and the posters must be re-rendered.
+  THE MOUSE: with no controller connected it drives the keyboard seat as
+  before (hover moves the cursor, click locks). With ANY controller in, it is
+  nobody's cursor — hover lights nothing — but a click on a robot COMMITS it
+  for the KEYBOARD/MOUSE seat, joining it (into the stand-in CPU's seat
+  first) if it was not in, and a second click on the same robot takes that
+  seat out again (`padClick`). A TRIGGER on a pad (`ev.ping`, LT or RT)
+  flashes that player's colour round their own cell with their tag over it
+  (`ping`) — "which cursor am I?" with four on one grid. The side's glow is
   the mech's OWN stock glow whatever the paint — a backdrop recoloured to
   match the robot turns the whole side one colour. A pick that SETTLES (0.7s) or locks is built in the
   background (`predictor.warmPick` -> `warmMech`), which is most of what the
