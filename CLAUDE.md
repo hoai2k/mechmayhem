@@ -2459,6 +2459,38 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   the aim is not yours. The handlers that build a SHAPE rather than fire one
   round (wraith's fan of bats) spread around `ctx.aimYaw` — the aim's own
   heading — instead of `f.yaw`, the hips.
+- RB AUTO-AIM: A PLAYER'S UNLOCKED SHOT FINDS AN ENEMY (`src/combat/autoaim.js`,
+  probe `node tools/scratch/autoaim.mjs [mech …]`). Unlocked, every ranged
+  weapon used to fly dead along the facing with only its PITCH assisted, so
+  everything that does not home (fenrir's wave, viper's daggers, rhino's
+  shells, frogger's slime, nullbot's bolts, the streams…) missed anything not
+  already dead ahead. With no crosshair up, `pickAutoTarget` takes the enemy
+  best lined up with the facing inside a 60° cone and the weapon's reach
+  (its `range` where it has one, else 120), and `autoAimPoint` hands
+  fireRanged that enemy's chest LED by the round's flight time (horizontal
+  only; a mortar leads by `MORTAR_ARC_TIME`, the one number its arc also
+  uses) as the SAME aim point a lock gives — so every handler that knows what
+  "aimed" means reads it with no edit. PLAYERS ONLY: the CPU aims with a
+  per-difficulty yaw error and a perfect assist would erase the difficulty
+  levels. Never onto a cloaked enemy or a brawler lying gone. `doRanged`
+  picks it too (`f._autoTgt`), so the arm servo trains the gun on that enemy
+  through the wind-up. Measured on 13 weapons, enemy 35° off the facing at 22
+  units: every one within 1.6° of it (the fans' own spread), against ~35°
+  before; an enemy outside the cone and the same shot from a CPU still fly
+  along the facing.
+  TWO THINGS IT TOOK, both in `barrelDeflect`. (1) An AIMED gun's barrel is
+  measured from the AIM, not the hips: it was always the same number while
+  every shot left along the facing, and auto-aim is the first aim that does
+  not — measured from the facing, the barrel's turn toward the target counted
+  TWICE (rhino and vulcan 39.6° off). Hull mounts (`aimFlat`) still measure
+  their splay from the body, since that is authored against the body. (2) An
+  arm-held barrel is off the aim by no more than the servo's own residual
+  (`_gunAimErr`): the barrel is read when the round leaves, which for a
+  channel weapon is before this frame's servo correction, so the reading was
+  partly the clip's gun — vulcan's stream sat a steady 5-7° off while the
+  servo reported 0.2°. Moving fire only got better for it
+  (`tools/scratch/shotdiag.mjs vulcan`: barrel-vs-shot walking 75° -> 43°,
+  strafing unlocked 61° -> 15°).
 - A HULL-MOUNTED BARREL AIMS IN YAW ONLY (`"aimFlat": true` on a manifest
   muzzle spec; `gltf.js applyRot` -> `world.js barrelDeflect`). The deflection
   exists so a barrel modelled splayed actually fires down its own line, and that
@@ -2893,8 +2925,10 @@ procedural.
   players and the bed, plus `audio.away` (which makes `audio.resume()` a
   no-op), silences every source WITHOUT touching `playing` — so coming back
   restarts nothing and can start nothing that was not already meant to play,
-  and a bed or song begun while away simply waits. The FIGHT is not paused on
-  blur (only a hidden tab pauses it). Focus is tracked from blur/focus EVENTS,
+  and a bed or song begun while away simply waits. The FIGHT PAUSES on blur
+  exactly as on a hidden tab (the pause screen, no auto-resume on focus — the
+  player unpauses when they are back at the controls), except under the
+  loading card, which is not a pausable state. Focus is tracked from blur/focus EVENTS,
   never `document.hasFocus()`, so a headless harness that never blurs plays as
   before. Nothing queues while away: every WebAudio entry point already refuses
   a context that is not `running`, and the sustained loops are restated each

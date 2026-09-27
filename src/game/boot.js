@@ -1088,9 +1088,10 @@ export async function bootGame() {
   // silences every source (the WebAudio context, the soundtrack, the menu
   // theme, the arena bed) without touching whether any of them MEANS to play,
   // so coming back needs no restart logic at all and cannot start something
-  // that was not playing. The fight is NOT paused on blur: only a hidden tab
-  // pauses it, as before — a window left visible beside another is still a
-  // game somebody may be watching.
+  // that was not playing. And THE FIGHT PAUSES TOO, exactly as it does for a
+  // hidden tab: the pause screen comes up and stays up when focus returns, so
+  // the player unpauses when they are actually back at the controls — a round
+  // must not be lost to a click on another window.
   //
   // The focus state is tracked from blur/focus EVENTS, never read from
   // document.hasFocus() at load: a page that has not seen a blur is treated as
@@ -1099,6 +1100,9 @@ export async function bootGame() {
   let winFocused = true;
   const applyAway = () => {
     const away = document.hidden || !winFocused;
+    // mid-load is not a pausable state (the loading card owns the flow and is
+    // time-gated); anything else in a live fight stops here
+    if (away && S.mode === 'battle' && S.battle && !S.battle.paused && !S.battle.loading) pauseBattle();
     audio.away = away;
     music.setAway(away);
     menuMusic.setAway(away);
