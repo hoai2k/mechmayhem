@@ -1,6 +1,7 @@
 // Fighter: movement physics, combat state machine, resources, hit reactions.
 // Driven each frame by an intent (from human input or AI).
 import * as THREE from 'three';
+import { pickAutoTarget } from './autoaim.js';
 import { clamp, clamp01, lerp, damp, angleDamp, angleDiff, TAU, rand } from '../core/utils.js';
 import { buildMech } from '../mechs/factory.js';
 import { Animator, LEG_BACK_OFF } from '../mechs/animator.js';
@@ -1109,6 +1110,11 @@ export class Fighter {
     this._gunAimT = Math.max(this._gunAimT || 0, 0.45 + (mv.aimWindup || 0));
     // LB lock-aim: shots fired during a target lock fly at the crosshair
     if (this._lockAim) this._aimPoint = this._lockAim.clone();
+    // …and without one, a player's shot goes for the enemy it is pointed
+    // nearest (combat/autoaim.js). Picked HERE as well as at the round leaving,
+    // so the arm servo trains the gun on that enemy through the wind-up —
+    // fireRanged re-picks at the shot, and a lock always wins.
+    this._autoTgt = this._lockAim ? null : pickAutoTarget(this, mv);
 
     // A TRAVERSING-TURRET SHOT is not fired on a keyframe: the trigger opens an
     // AIM WINDOW and the guns decide when they are ready (combat/cannonaim.js).

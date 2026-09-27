@@ -5,6 +5,7 @@ import { Finisher } from './finisher.js';
 import { Effects, GOO_TINTS } from '../combat/effects.js';
 import { FlameFX, fireTint } from '../combat/flamefx.js';
 import { ProjectileSystem } from '../combat/projectiles.js';
+import { pickAutoTarget, autoAimPoint, MORTAR_ARC_TIME } from '../combat/autoaim.js';
 import { FleaSystem } from '../combat/fleas.js';
 import { EggSystem, EGG_DMG_MELEE } from '../combat/eggs.js';
 import { overlapsY } from '../combat/movekit.js';
@@ -552,15 +553,24 @@ export class World {
     // is TARGETING, the answer is the mech under their crosshair, not whoever
     // happens to be nearest. Aiming at one enemy and having your missiles turn
     // toward another is the sharpest possible way to say the aim is not yours.
-    const e = (f.aiming && f.lockTarget?.alive) ? f.lockTarget : f.nearestEnemy();
+    let e = (f.aiming && f.lockTarget?.alive) ? f.lockTarget : f.nearestEnemy();
     // AIMED shot (human held RB): fly straight at the crosshair's world
     // point — full manual control, including pitch. No assist.
-    const aimP = f._aimPoint || null;
+    let aimP = f._aimPoint || null;
     f._aimPoint = null;
-    // Otherwise aim strictly along the mech's facing — no horizontal
-    // auto-aim. Only VERTICAL assist remains: when an enemy is roughly down
-    // the barrel, the shot pitches to their height so airborne/short
-    // targets aren't unhittable with yaw-only controls.
+    // …and a PLAYER's shot fired with no crosshair up still finds an enemy:
+    // the best-lined-up one in a forward cone, led by the round's flight time,
+    // handed over as the same aim point a lock would give (combat/autoaim.js).
+    // Players only — the CPU's aim carries its own per-difficulty error.
+    if (!aimP && !f.isAI) {
+      const auto = pickAutoTarget(f, mv);
+      f._autoTgt = auto;
+      if (auto) { aimP = autoAimPoint(f, mv, auto, from); e = auto; }
+    }
+    // Otherwise (a CPU, or a player with nobody in the auto-aim cone) aim
+    // along the mech's facing, with only VERTICAL assist: when an enemy is
+    // roughly down the barrel, the shot pitches to their height so
+    // airborne/short targets aren't unhittable with yaw-only controls.
     const dir = new THREE.Vector3(Math.sin(f.yaw), 0.02, Math.cos(f.yaw));
     // How squarely the real enemy sits down the barrel, and how far off they
     // are. Stays enemy-only (-1 / 0 with nobody around): handlers read these as
@@ -630,11 +640,12 @@ export class World {
     // out of every barrel. The primary itself is unchanged: its own solve
     // gives back exactly the direction it came in with.
     const aimAt = baseDir.clone().multiplyScalar(aimDist).add(from);
+    const baseYaw = Math.atan2(baseDir.x, baseDir.z);   // the aim's own heading (barrelDeflect)
     const dirFrom = (a, out = new THREE.Vector3()) => {
       a.getWorldPosition(_bPos);
       out.copy(aimAt).sub(_bPos);
       if (out.lengthSq() < 1e-9) out.copy(baseDir);
-      return out.normalize().applyQuaternion(barrelDeflect(f, a, _bOff)).normalize();
+      return out.normalize().applyQuaternion(barrelDeflect(f, a, _bOff, baseYaw)).normalize();
     };
     dirFrom(muzzle, dir);
 
@@ -780,8 +791,9 @@ const _bPos = new THREE.Vector3();   // a barrel's own world position (dirFrom)
 // the barrel; outside it, the arm plainly did not get there and the shot goes
 // where the player aimed instead.
 const ARM_SLOP = 0.28;   // rad (~16°)
+const _bIdent = new THREE.Quaternion();
 
-function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
+function barrelDeflect(f, anchor, out = new THREE.Quaternion(), aimYaw = f.yaw) {
   out.identity();
   if (!anchor?.userData?.aimRot) return out;
   // A BARREL MAY ONLY STEER A SHOT AS FAR AS IT IS AIMED.
@@ -823,8 +835,32 @@ function barrelDeflect(f, anchor, out = new THREE.Quaternion()) {
     _bFwd.y = 0;
     if (_bFwd.lengthSq() < 1e-9) return out;
   }
-  _bFace.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
-  return out.setFromUnitVectors(_bFace, _bFwd.normalize());
+  // MEASURED FROM WHAT? A hull mount's splay is authored against the BODY, so
+  // it is measured from the facing and added to whatever the aim is. A gun the
+  // mech AIMS — an arm-held one the servo trained, a traversing cannon — is
+  // measured from the AIM: what it contributes is how far it still points off
+  // the aim, not how far the aim itself is off the hips. These were the same
+  // number while every shot flew along the facing or squared the body onto the
+  // crosshair; RB AUTO-AIM (combat/autoaim.js) is the first aim that leaves at
+  // an angle to the hips, and measured against the facing the barrel's turn
+  // toward the target was counted TWICE — rhino's shell and vulcan's gatling
+  // left 39.6° off the enemy they were auto-aimed at, against 0.0° after.
+  const ref = anchor.userData.aimFlat ? f.yaw : aimYaw;
+  _bFace.set(Math.sin(ref), 0, Math.cos(ref));
+  out.setFromUnitVectors(_bFace, _bFwd.normalize());
+  // …AND AN ARM-HELD BARREL IS OFF THE AIM BY NO MORE THAN THE SERVO SAYS.
+  // The barrel is read at the instant the round leaves, which for a channel
+  // weapon is before gunaim has laid this frame's correction on the pose — so
+  // what is measured is partly the CLIP's gun, not the aimed one. Trusted in
+  // full, that stale reading bent vulcan's auto-aimed stream a steady 5-7° off
+  // the enemy while the servo itself reported 0.2° of residual. What the arm
+  // really could not cover is `_gunAimErr`; the deflection is capped there.
+  if (!anchor.userData.aimFlat && !hasCannons(f)) {
+    const ang = 2 * Math.acos(Math.min(1, Math.abs(out.w)));
+    const cap = Math.max(f._gunAimErr || 0, 0.005);
+    if (ang > cap) out.slerp(_bIdent, 1 - cap / ang);
+  }
+  return out;
 }
 
 // ---- ranged weapon handlers -----------------------------------------------
@@ -1132,7 +1168,7 @@ const WEAPONS = {
       size: 1 + (gf - 1) * 0.55,
       // a tall, patient lob: the longer flight lifts the peak so it sails up
       // in a proper artillery arc instead of skimming off the high muzzle
-      color: 0xffd23c, arcTo: target, arcTime: 1.8,
+      color: 0xffd23c, arcTo: target, arcTime: MORTAR_ARC_TIME,
       knock: 14 * Math.sqrt(gf), launch: 7 * Math.sqrt(gf),
     });
     w.audio?.play('mortar', gf > 1.4 ? { pitch: 0.7, vol: 1 } : undefined);

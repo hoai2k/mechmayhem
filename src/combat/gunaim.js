@@ -95,6 +95,9 @@ export function aimGun(f, dt) {
   const firing = f._gunAimT > 0 || f.state === 'channel' || f.aiming
     || (!f.isAI && f.intent.rangedHeld);
   const want = firing && f.alive && !f.controlsLocked ? 1 : 0;
+  // the auto-aim target belongs to the shot in hand: once the trigger is off
+  // it is stale, and the next press picks afresh (combat/autoaim.js)
+  if (!firing) f._autoTgt = null;
   const rate = want ? RAMP_IN : RAMP_OUT;
   f._gunAimW = (f._gunAimW || 0) + (want - (f._gunAimW || 0)) * (1 - Math.exp(-rate * dt));
   if (f._gunAimT > 0) f._gunAimT -= dt;
@@ -136,6 +139,12 @@ function aimOneArm(f, anchor, J) {
   if (f._lockAim) {
     _want.copy(f._lockAim).sub(_mp);
     // through the arena seam, like every other aim in the game
+    _want.x = f.world.wrapDelta(_want.x);
+    _want.z = f.world.wrapDelta(_want.z);
+  } else if (f._autoTgt?.alive && !f.isAI) {
+    // RB AUTO-AIM (combat/autoaim.js): no crosshair, but the shot is going for
+    // this enemy — so the gun points at them rather than out along the hips
+    _want.copy(f._autoTgt.center()).sub(_mp);   // center() returns a CLONE
     _want.x = f.world.wrapDelta(_want.x);
     _want.z = f.world.wrapDelta(_want.z);
   } else {
