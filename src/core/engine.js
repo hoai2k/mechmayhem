@@ -119,6 +119,7 @@ export class Engine {
     this.elapsed = 0;
     this.onUpdate = null;      // (dt) => {} game-time step
     this.onRender = null;      // (dtReal) => {} real-time (camera, UI)
+    this.covered = false;      // an opaque menu is over the canvas: skip drawing
     this._last = performance.now();
     this._running = false;
 
@@ -256,7 +257,12 @@ export class Engine {
       if (this.onUpdate) this.onUpdate(dt);
       if (this.onRender) this.onRender(dtReal);
 
-      this._render();
+      // COVERED: an opaque screen (the title, fighter select, arena select)
+      // sits over the whole canvas, so drawing a frame behind it is a full
+      // post chain nobody can see. The update still runs — the menus live in
+      // it. The LOADING card is opaque too and must NOT set this: rendering
+      // the arena underneath it is how its shaders and textures get warm.
+      if (!this.covered) this._render();
     };
     requestAnimationFrame(tick);
   }

@@ -31,6 +31,7 @@ import { playableRoster } from '../mechs/roster.js';
 import { preloadMechModels } from '../mechs/gltf.js';
 import { loadPosterIndex, posterUrl } from '../ui/posters.js';
 import { iconUrl } from '../ui/icons.js';
+import { warmMech } from './snapshot.js';
 
 // Pull an image into the browser's cache. decode() so the DECODE cost is paid
 // here too — a cached-but-undecoded PNG still hitches the first time it is
@@ -175,7 +176,7 @@ export class Predictor {
    * already queued. The scale that matters:
    *
    *   3  what the player is about to LOOK at (the select screen's posters
-   *      and badges, the models adjacent to a cursor)
+   *      and badges, the model of a pick a player has settled on)
    *   2  the models already picked
    *   1  the fight's other assets — arena textures, the opening song
    *
@@ -218,16 +219,19 @@ export class Predictor {
   }
 
   /**
-   * SELECT SCREEN: the models a cursor is most likely to land on next. The
-   * player flips, so the mechs either side of each cursor are the best guess
-   * available, and they go in at the same priority as the menu art — they are
-   * the next thing that has to appear, and appearing is what the poster is
-   * covering for.
+   * SELECT SCREEN: the robot a player has SETTLED on, built in the paint they
+   * picked. The select screen shows pictures, not bodies, so nothing on it
+   * needs a model — but the fight will, and a build leaves the GLB, its fit
+   * measurements and its recoloured textures cached (game/snapshot.js
+   * warmMech). A choice somebody has stopped on is the best guess there is
+   * about what the match is going to load, and far better than the old
+   * speculation about which neighbour a cursor would land on next, which
+   * downloaded models for robots nobody picked.
    */
-  warmNeighbours(ids = []) {
-    if (!this.enabled || !ids.length) return;
+  warmPick(id, variant = 0) {
+    if (!this.enabled || !id || id === 'random') return;
     this.running = true;
-    this._push('near:' + ids.join(','), () => preloadMechModels(ids), 3);
+    this._push(`pick:${id}|${variant}`, () => warmMech(id, variant), 3);
     this._pump();
   }
 

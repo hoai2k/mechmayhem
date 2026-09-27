@@ -731,13 +731,12 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   a single poke.
   THE BURNER IS NOT A COMBAT THING, which is why the emission lives in
   stackfx.js and not in fighter.js: it takes a plain `mech` plus the pools to
-  emit into, so the MENUS burn too — mech select and the title line-up are
-  models with no Fighter around them (`MenuStage.syncBurners`, feeding
-  `BurnerFx` from effects.js, a flame/ember/glow pool set with NO SMOKE POOL).
-  Smoke is off wherever there is nowhere to trail to: the menus by construction,
-  and the warm-up sandbox by `world.sandbox` (a robot on a plinth inside its own
-  leash radius just ends up in a fog bank). A POSTER still shows cold pipes —
-  it is a PNG — so mech select burns only once the real body is in.
+  emit into — a body with no Fighter around it can burn (`BurnerFx` in
+  effects.js, a flame/ember/glow pool set with NO SMOKE POOL, driven by
+  `MenuStage.syncBurners`). The GAME's menus no longer build bodies at all
+  (they are pictures — see THE MENUS ARE PICTURES), so today that path serves
+  the dev stage (`?menupose`, `tools/postercheck.mjs`). Smoke is off wherever
+  there is nowhere to trail to, and during the loading card by `world.sandbox`.
   TEMPEST IS THE SECOND KIND (`stackFx.kind: 'spark'`): his chimneys carried two
   sculpted zigzag "spark" squiggles, which is the one thing electricity is never
   still enough to be. `dropGeo` takes them off and the same block emits a live
@@ -1576,20 +1575,66 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   game wants (the key colour is measured, the edge is un-spilled by solving
   the real coverage against the recovered art colour, and the art is bled
   under the transparent rim so nothing haloes when the UI scales it down).
-- MECH-SELECT POSTERS (`public/posters/`, `src/ui/posters.js`): flipping
-  through the roster shows a pre-rendered PNG per mech and builds no model;
-  the real body appears after 0.7s of rest or on lock-in. A poster stands in
+- THE MENUS ARE PICTURES (`src/ui/menus.js`, `src/game/snapshot.js`,
+  `src/ui/cards.js`). Title, fighter select and arena select are DOM screens
+  over a canvas that DOES NOT DRAW (`engine.covered`, set by boot's main loop
+  for those three modes — never for the loading card, whose job is drawing the
+  arena underneath it to warm it). The 3D MenuStage is gone from the game
+  (menustage.js survives for the poster camera and the dev tools).
+  TITLE = FIGHT NIGHT: the sign, the roster rolling left as a FILM STRIP of
+  slanted panels (two copies of the roster translated and wrapped by exactly
+  one copy's measured width, so the loop is seamless), and a broadcast lower
+  third carrying PRESS START. Grab it and it stops dead; drag scrubs it (with
+  a fling), the wheel scrubs, a pad's ←→ steps a panel, and it rolls again
+  `STRIP_RESUME` (1.5s) after the last touch, easing up to speed. It OPENS ON A
+  RANDOM PANEL and loads its art in the order it will be SEEN — the panels on
+  screen first, then the ones about to roll on, four at a time — each picture
+  decoded off-screen and FADED IN over its panel's glow wash, never popped.
+  Only once that queue drains (`onArtReady`, or 6s) does the prefetcher start
+  on the select screen's posters and badges. A panel wears the mech's painted
+  HERO CARD (`public/cards/<id>.jpg`, listed in `public/cards/index.json`;
+  both written by `node tools/cards.mjs` from the 2048x2560 originals in
+  `docs/cards/`, ~170 KB each shipped) and falls back to its poster.
+  FIGHTER SELECT = THE VERSUS SPLIT: every fighter owns a SIDE — a half with
+  one or two in the match, a quadrant with three or four ("N-PLAYER BRAWL") —
+  and the roster grid sits in a slanted band down the middle under VS. One
+  element per SLOT whose position class changes with the line-up, so clicks,
+  LB/RB visits and pickers address it the same way in every layout; an empty
+  side reads PRESS A TO JOIN and a ＋ chip under the grid adds a third. A CPU
+  DEALS ITSELF ITS ROBOT when it joins (`slot.pick`, shown on its side and
+  tagged in the grid) rather than at the last moment. The robot on a side is
+  its stock POSTER, or — once repainted — a PHOTOGRAPH of the real model in
+  that paint (`snapshot.js requestShot`, 260ms debounce, one job per side, the
+  old picture kept up until the new one cross-fades in), taken through the
+  SAME pipeline the posters come out of (`renderPoster` is shared with
+  `dev/postershot.js`), so it drops into the same frame. The side's glow
+  follows the paint. A pick that SETTLES (0.7s) or locks is built in the
+  background (`predictor.warmPick` -> `warmMech`), which is most of what the
+  loading card would otherwise wait for: the GLB, its fit and its recoloured
+  textures are all cached by the time the match builds it.
+  ARENA SELECT paints the arena under the cursor, blurred, full-bleed behind
+  its grid. THE LOADING CARD puts that painting full-bleed too, with every
+  fighter standing on it as a cutout in the paint they chose (the select
+  screen's photograph, else the poster, else the hero card on a panel). A
+  full-size painting may be dropped in at `public/arenas/full/<id>.jpg` and
+  listed in `ARENA_FULL` (`src/ui/arenaart.js`); only the 512x288 cards exist
+  today, scaled up.
+  `releaseSnapshots()` (startBattle) frees the photographer's own WebGL
+  context, drops queued jobs and stops one already building from taking a
+  picture. Judge the screens with a real run through the menus at 1600x900 —
+  the strip, a repaint, a 4-player line-up and the loading card.
+- POSTERS (`public/posters/`, `src/ui/posters.js`): a pre-rendered PNG per mech
+  with alpha — the stock-paint picture every menu shows. A poster stands in
   for THE GLB (the default body — so that is what it must be rendered from,
-  with alpha), framed through the select stage's own camera
+  with alpha), framed through the stage's preview camera
   (`menustage.aimPreviewCamera`) and recorded as a world-space box off the
-  mech's feet, which the runtime projects live so one render serves 1-4
-  pickers. Regenerate with `node tools/posters.mjs` after any change to a
+  mech's feet. Regenerate with `node tools/posters.mjs` after any change to a
   mech's model, rig, rest pose or scale; it refuses to write a procedural or
   opaque poster. A NAMED run (`node tools/posters.mjs viper rhino`) MERGES into
   `posters.json` — it used to rewrite the map from empty, which deleted every
   other mech's box, and a mech with no box has no poster at all as far as
-  `posterMeta` is concerned (mech select quietly goes back to building a model
-  per keypress, with the unused .png still sitting on disk). Check the handover
+  `posterMeta` is concerned (the select screen quietly photographs a real body
+  for it instead, with the unused .png still sitting on disk). Check the handover
   with
   `node tools/postercheck.mjs viper cranky,jerry <4 ids>` — it reports
   poster-vs-model drift in pixels per slot at each player count. NOTE any
@@ -1808,7 +1853,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   usual shots (`?showcase=<id>&render=anime`) and
   `RW_QUERY="render=anime" node tools/clipsheet.mjs <mech> <clip>`; a
   posters note: posters are pictures OF THE GLB, so `posterFor` answers null
-  outside `models` mode and mech select builds the real body instead.
+  outside `models` mode and the menus photograph the real body instead.
 - A PROP'S COLLIDER IS ITS OWN SHELL (`src/arena/propshell.js`, `propBody.shell`).
   Every standing prop is measured as ONE VERTICAL CYLINDER off its ground band,
   which is right for a smokestack and a lie for anything that is not round. THE

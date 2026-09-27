@@ -1,7 +1,10 @@
 # IMAGE REQUESTS — menu hangar (2 images) · hero cards (17 images)
 
-> **Delivered:** both hangar backplates in `public/menus/` and all 17 active
-> mech hero cards in `public/cards/`. AEGIS and NOVA are retired, so the
+> **Delivered:** both hangar backplates and all 17 active mech hero cards.
+> The cards' ORIGINALS live in `docs/cards/`; the game ships the web-size
+> copies `node tools/cards.mjs` writes to `public/cards/` (title film strip,
+> loading-card fallback). The menus went with **Concept B — Fight Night**, so
+> the hangar plates are not used; they are kept, unshipped, in `docs/menus/`. AEGIS and NOVA are retired, so the
 > active roster has 17 cards rather than the 19 stated in the original title.
 
 > **Two requests live in this file.** The **hangar backplates** directly below

@@ -196,6 +196,14 @@ export function schemeSwatch(def, v = 0) {
   return repaint(def.colors.primary, paintSpec(def, v, S));
 }
 
+/** The glow a scheme lights a mech with, or `fallback` for a scheme that
+ *  keeps the mech's own (STOCK, and MIDNIGHT, which blacks out its paint but
+ *  not its lights). What applyColorScheme writes into `colors.glow`, without
+ *  needing a def — the select screen's RANDOM "?" has none. */
+export function schemeGlow(v, fallback) {
+  return SCHEMES[v]?.glow ?? fallback;
+}
+
 // Returns a def clone wearing the scheme; variant 0 is the stock paint.
 export function applyColorScheme(def, v = 0) {
   const S = SCHEMES[v];

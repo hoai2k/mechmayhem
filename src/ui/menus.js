@@ -1,13 +1,17 @@
 // Menu screens: Title → Setup → Mech Select → Arena Select → (battle) → Results.
 // Each screen builds DOM into #ui-root and consumes aggregated menu events.
 import { playableRoster } from '../mechs/roster.js';
-import { SCHEME_NAMES, SCHEME_COUNT, schemeSwatch } from '../mechs/colorscheme.js';
+import { SCHEME_NAMES, SCHEME_COUNT, schemeSwatch, schemeGlow, applyColorScheme } from '../mechs/colorscheme.js';
 import { THEMES } from '../arena/themes.js';
 import { isTouchDevice } from '../core/utils.js';
 import { mechIcon } from './icons.js';
 import { PLAYER_COLORS_CSS as COLOR_CSS, hexCss } from '../core/colors.js';
 import { t } from '../core/text.js';
 import { CONFIG } from '../core/config.js';
+import { loadCardIndex, hasCard, cardUrl } from './cards.js';
+import { arenaArtUrl } from './arenaart.js';
+import { loadPosterIndex, SETTLE_MS } from './posters.js';
+import { shotUrl, requestShot } from '../game/snapshot.js';
 
 // pseudo roster entry: the RANDOM pick (last cell in the grid). Locking it
 // deals you a DIFFERENT random robot every round; the color scheme you pick
@@ -172,9 +176,48 @@ export function playNeonBuzz(audio, opacity = 0.25) {
 // genuinely goes fullscreen) and the pad path asks anyway and accepts no for
 // an answer. The one thing it must never do is let a refusal cost the player
 // the press, so the screen change never waits on the display change.
+//
+// FIGHT NIGHT. The screen is a broadcast card: the sign up top, the whole
+// roster rolling past underneath it as a FILM STRIP of slanted panels, and a
+// lower third carrying the prompt. Nothing on it is 3D — the canvas is covered
+// and does not draw (engine.covered) — so the menu costs the machine nothing
+// while the prefetcher pulls the fight down behind it.
+//
+// THE STRIP. Two copies of the roster side by side, translated left at a
+// constant rate and wrapped by exactly one copy's width, so the seam is
+// invisible: the frame at offset P is pixel-for-pixel the frame at 0. It can
+// be GRABBED — pointer down stops it dead, dragging scrubs it (with a little
+// fling on release), the wheel scrubs too, and a pad's ←→ steps one panel —
+// and it starts rolling again STRIP_RESUME seconds after the last touch,
+// easing back up to speed rather than lurching. Reduced motion leaves it
+// still (but still draggable).
+//
+// A PANEL wears the mech's painted hero CARD when there is one (ui/cards.js)
+// and otherwise its poster on a wash of its own glow colour — the same PNG the
+// fighter-select screen shows, so the two screens agree about what a robot
+// looks like.
+const STRIP_PANEL_S = 6.5;   // seconds for one panel to roll past
+const STRIP_RESUME = 1.5;    // seconds after letting go before it rolls again
+const STRIP_RAMP = 0.8;      // seconds to ease back up to full speed
+const ART_WAIT = 6000;       // ms before the title's art stops holding the prefetch
+
+// fetch and DECODE an image off-screen; true once it can be shown without a
+// half-painted frame, false if it never will be
+function preload(url) {
+  return new Promise((res) => {
+    const im = new Image();
+    im.decoding = 'async';
+    im.onload = () => (im.decode ? im.decode() : Promise.resolve()).then(() => res(true), () => res(true));
+    im.onerror = () => res(false);
+    im.src = url;
+  });
+}
+
 export class TitleScreen {
-  constructor(root, { onPlay, onFullscreen, audio, hotButtons, canStart = null }) {
+  constructor(root, { onPlay, onFullscreen, onArtReady, audio, hotButtons, canStart = null }) {
     this.el = el('div', 'screen fade-in title-screen');
+    this.onArtReady = onArtReady;
+    this._artTimer = setTimeout(() => this.artReady(), ART_WAIT);
     this.canStart = canStart;
     // Each WORD of the game name is its own neon tube: alternating colors, and
     // each one flickers on its own clock (style.css). Splitting here rather
@@ -182,11 +225,20 @@ export class TitleScreen {
     // catalogue carries, in any language.
     const tubes = t('title.game').trim().split(/\s+/)
       .map((w, i) => `<span class="tube tube-${i % 2}">${w}</span>`).join(' ');
+    const roster = playableRoster();
     this.el.innerHTML = `
+      <div class="tt-tex"></div>
+      <div class="tt-strip"><div class="tt-track"></div></div>
       <div class="title-brand">
         <div class="mega-title neon-title">${tubes}</div>
         <div class="mega-sub">${t('title.tagline')}</div>
+      </div>
+      <div class="tt-l3">
+        <div class="tt-live"><i></i>${t('title.live')}</div>
+        <div class="tt-ticker">${t('title.ticker.html', {
+          fighters: roster.length, arenas: THEMES.length, players: 4 })}</div>
       </div>`;
+    this.buildStrip(roster);
     this.audio = audio;
     // The sign is AUDIBLE: every drop-out plays ONE event cut out of the neon
     // recording (public/sound/neon_buzz.mp3 is a long take with a couple of
@@ -211,14 +263,17 @@ export class TitleScreen {
     this.onFullscreen = onFullscreen;
     this.started = false;      // this screen is used exactly once
 
-    this.prompt = el('div', 'press-start', t('title.pressStart'));
+    // the prompt is the lower third's plate: white, slanted, with the pad's
+    // own A glyph on it
+    this.prompt = el('div', 'press-start',
+      `<span class="glyph-a" aria-hidden="true">A</span>${t('title.pressStart')}`);
     this.prompt.setAttribute('role', 'button');
     this.prompt.setAttribute('tabindex', '0');
     // POINTER ONLY — no fullscreen. `click` also fires for a keyboard
     // activation on a focused element in some browsers, so it is gated on a
     // real pointer having produced it (`detail` is 0 for a synthetic one).
     this.prompt.addEventListener('click', (e) => { if (e.detail !== 0) this.start(false); });
-    this.el.appendChild(this.prompt);
+    this.el.querySelector('.tt-l3').appendChild(this.prompt);
 
     // THE KEYBOARD PATH, on a real listener rather than the polled one. This is
     // the only route on which the fullscreen request carries user activation,
@@ -243,6 +298,195 @@ export class TitleScreen {
     // behind the ⓘ button (the catalogue keeps title.hint.html for anyone who
     // wants it back)
     root.appendChild(this.el);
+    this.measure();
+  }
+
+  // ---- the film strip ----
+  buildStrip(roster) {
+    this.strip = this.el.querySelector('.tt-strip');
+    this.track = this.el.querySelector('.tt-track');
+    this.n = roster.length;
+    const panel = (m, i) => `<div class="tt-pan" data-id="${m.id}" style="--g:${hexCss(m.colors.glow)}">
+        <div class="tt-card"></div>
+        <div class="tt-num">${String(i + 1).padStart(2, '0')}</div>
+        <img class="tt-mech" alt="" draggable="false">
+        <div class="tt-name">${m.name}<small>${m.title}</small></div>
+        <div class="tt-edge"></div>
+      </div>`;
+    const copy = roster.map(panel).join('');
+    this.track.innerHTML = copy + copy;
+    this.pans = [...this.track.children];
+    // the art is loaded in the order it will be SEEN (loadArt, below)
+    Promise.all([loadCardIndex(), loadPosterIndex()]).then(() => this.loadArt());
+
+    // state: offset in px along the strip (0..period), velocity for the fling
+    this.off = 0;
+    this.vel = 0;            // px/s, the fling after a drag
+    this.glide = null;       // px target for a pad step
+    this.idle = 0;           // seconds since the strip was last touched
+    this.held = false;       // a pointer has hold of it
+    this.touched = false;    // ever touched: the resume timer is running
+    this.reduced = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    this._lastT = performance.now();
+
+    let lastX = 0, lastT = 0, pid = null;
+    this._onDown = (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      pid = e.pointerId;
+      try { this.strip.setPointerCapture(pid); } catch (err) { /* synthetic */ }
+      this.held = true;
+      this.touch();
+      this.vel = 0;
+      this.glide = null;
+      lastX = e.clientX; lastT = performance.now();
+      this.strip.classList.add('grabbing');
+    };
+    this._onMove = (e) => {
+      if (!this.held || e.pointerId !== pid) return;
+      const now = performance.now();
+      const dx = e.clientX - lastX;
+      this.setOff(this.off - dx);
+      const dtm = Math.max(1, now - lastT);
+      // dragging LEFT moves the strip left = offset grows
+      this.vel = this.vel * 0.6 + (-dx / dtm * 1000) * 0.4;
+      lastX = e.clientX; lastT = now;
+      this.touch();
+    };
+    this._onUp = (e) => {
+      if (!this.held || (e.pointerId !== undefined && e.pointerId !== pid)) return;
+      this.held = false;
+      pid = null;
+      // a pointer that stopped before letting go does not fling
+      if (performance.now() - lastT > 90) this.vel = 0;
+      this.vel = Math.max(-4000, Math.min(4000, this.vel));
+      this.strip.classList.remove('grabbing');
+      this.touch();
+    };
+    this._onWheel = (e) => {
+      e.preventDefault();
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      this.setOff(this.off + d * (e.deltaMode === 1 ? 40 : 1));
+      this.vel = 0;
+      this.glide = null;
+      this.touch();
+    };
+    this.strip.addEventListener('pointerdown', this._onDown);
+    this.strip.addEventListener('pointermove', this._onMove);
+    this.strip.addEventListener('pointerup', this._onUp);
+    this.strip.addEventListener('pointercancel', this._onUp);
+    this.strip.addEventListener('lostpointercapture', this._onUp);
+    this.strip.addEventListener('wheel', this._onWheel, { passive: false });
+    this._onResize = () => this.measure();
+    window.addEventListener('resize', this._onResize);
+  }
+
+  // THE ART ARRIVES IN THE ORDER IT IS SEEN. The strip opens on a random
+  // panel, so the panels on screen at that moment load first, then the ones
+  // about to roll on from the right, then the rest — four at a time, so the
+  // first screenful is not queued behind pictures nobody can see yet. Every
+  // picture is decoded off to the side and FADED IN over its panel's glow
+  // wash; a panel that is already on screen when its art lands never pops.
+  // `onArtReady` fires once the queue is drained (or after ART_WAIT, whichever
+  // comes first): boot holds the select screen's own prefetch until then, so
+  // it does not compete with the first screenful for the connection.
+  loadArt() {
+    if (!this.el.isConnected || this.started) return;
+    const vw = this.strip.clientWidth || window.innerWidth;
+    let k0 = 0;
+    for (let k = 0; k < this.pans.length; k++) {
+      const x = this.pans[k].offsetLeft - this.off;
+      if (x + this.pans[k].offsetWidth > 0 && x < vw) { k0 = k; break; }
+    }
+    const order = [];
+    for (let j = 0; j < this.n; j++) order.push(this.pans[(k0 + j) % this.pans.length].dataset.id);
+    let next = 0, live = 0;
+    const pump = () => {
+      while (live < 4 && next < order.length) {
+        const id = order[next++];
+        live++;
+        this.artFor(id).then(() => {
+          live--;
+          if (!this.el.isConnected) return;
+          if (next >= order.length && !live) this.artReady();
+          else pump();
+        });
+      }
+    };
+    pump();
+  }
+
+  artReady() {
+    if (this._artReady) return;
+    this._artReady = true;
+    this.onArtReady?.();
+  }
+
+  // one mech's picture, on every panel that shows it (the strip carries two
+  // copies of the roster): its hero card, else its poster, else — for a
+  // roster the posters do not depict — a runtime photograph of its stock paint
+  async artFor(id) {
+    const card = hasCard(id);
+    const url = card ? cardUrl(id) : (shotUrl(id, 0) || await requestShot(id, 0, `title:${id}`));
+    if (!url || !(await preload(url)) || !this.el.isConnected) return;
+    for (const p of this.pans) {
+      if (p.dataset.id !== id) continue;
+      if (card) {
+        p.classList.add('has-card');
+        p.querySelector('.tt-card').style.backgroundImage = `url("${url}")`;
+      } else {
+        p.querySelector('.tt-mech').src = url;
+      }
+      // next frame, so the element exists at opacity 0 before it transitions
+      requestAnimationFrame(() => p.classList.add('in'));
+    }
+  }
+
+  // one copy's width (the wrap) and one panel's step, off the laid-out DOM
+  // so the CSS stays the only place the panel size is stated
+  measure() {
+    if (!this.pans?.length) return;
+    const a = this.pans[0], b = this.pans[1], c = this.pans[this.n];
+    const oldP = this.period || 0;
+    this.pitch = Math.max(1, b.offsetLeft - a.offsetLeft);
+    this.period = Math.max(1, c.offsetLeft - a.offsetLeft);
+    // the first sight of the strip starts somewhere in the roster, not
+    // always on the same mech
+    if (!oldP) this.setOff(Math.floor(Math.random() * this.n) * this.pitch);
+    else this.setOff((this.off / oldP) * this.period);
+  }
+
+  setOff(v) {
+    const P = this.period || 1;
+    const w = ((v % P) + P) % P;
+    if (this.glide != null) this.glide += w - v;   // carry the target across the wrap
+    this.off = w;
+    this.track.style.transform = `translate3d(${-w}px,0,0)`;
+  }
+
+  touch() { this.idle = 0; this.touched = true; }
+
+  stepStrip(dt) {
+    if (this.held) return;
+    this.idle += dt;
+    if (this.glide != null) {
+      const k = Math.min(1, dt * 7);
+      const next = this.off + (this.glide - this.off) * k;
+      if (Math.abs(this.glide - next) < 0.5) { this.setOff(this.glide); this.glide = null; }
+      else this.setOff(next);
+      return;
+    }
+    if (this.vel) {
+      this.setOff(this.off + this.vel * dt);
+      this.vel *= Math.exp(-dt * 4.5);
+      if (Math.abs(this.vel) < 8) this.vel = 0;
+      return;
+    }
+    if (this.reduced) return;
+    const wait = this.touched ? STRIP_RESUME : 0;
+    if (this.idle < wait) return;
+    const ramp = this.touched ? Math.min(1, (this.idle - wait) / STRIP_RAMP) : 1;
+    const speed = (this.pitch || 300) / STRIP_PANEL_S;
+    this.setOff(this.off + speed * ramp * ramp * (3 - 2 * ramp) * dt);
   }
 
   // `wantFullscreen` is about the DEVICE, not about whether it will work: a
@@ -257,8 +501,19 @@ export class TitleScreen {
   }
 
   update(ev) {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - this._lastT) / 1000);
+    this._lastT = now;
+    this.stepStrip(dt);
     this.buzz();
     if (this.list.hotNav(ev)) return;
+    // ←→ step the strip one panel, the pad's version of grabbing it
+    if (ev.left || ev.right) {
+      const base = this.glide ?? this.off;
+      this.glide = Math.round(base / this.pitch) * this.pitch + (ev.right ? 1 : -1) * this.pitch;
+      this.vel = 0;
+      this.touch();
+    }
     // A (confirm) and START both start the game — the prompt says START and a
     // player reaching for it should not have to find out which button the
     // screen meant. `ev.start` is PAD START specifically, NOT `ev.pause`, which
@@ -280,7 +535,10 @@ export class TitleScreen {
   }
 
   destroy() {
+    clearTimeout(this._artTimer);
+    this.artReady();   // leaving early: whatever was held back may go now
     window.removeEventListener('keydown', this._onKey);
+    window.removeEventListener('resize', this._onResize);
     this.list.destroy();
     this.el.remove();
   }
@@ -288,22 +546,41 @@ export class TitleScreen {
 
 // ---------------- FIGHTER SELECT (join + pick, one screen) ----------------
 // Players JOIN by connecting/pressing a controller, pressing a keyboard
-// confirm, or via the ADD PLAYER card (which can become KB / CPU / pad /
-// touch). Every joined human picks a mech + color simultaneously; CPU slots
-// randomize a mech once all humans lock in.
+// confirm, or by clicking an empty side (which can become KB / CPU / pad /
+// touch). Every joined human picks a mech + color simultaneously; a CPU slot
+// deals itself a robot the moment it is added, and shows it.
+//
+// THE VERSUS SPLIT. Each fighter gets a whole SIDE of the screen — their robot
+// big, their name bigger, their numbers under it, their paint — and the roster
+// sits in a parallelogram band down the middle with VS over it. One or two in
+// the match: a left side and a right side (an empty one reads PRESS A TO
+// JOIN), and a small ＋ chip under the grid adds a third. Three or four: the
+// sides become quadrants and the heading says BRAWL. A slot is ONE element
+// (`this.sides[i]`) whose POSITION class changes with the line-up, so a click,
+// a LB/RB visit and the pickers all address it the same way whatever the
+// layout.
+//
+// THE ROBOTS ARE PICTURES. A side shows the mech's poster, or — once its paint
+// is not the stock one — a photograph of the real body in that paint, taken by
+// game/snapshot.js through the poster pipeline so it drops into the same frame
+// (the stock poster stays up until it is ready; nothing blanks). A pick a
+// player SETTLES on is also built in the background (`onSettle` ->
+// predictor.warmPick), which leaves its model, fit and paint warm for the
+// fight — most of what the loading card would otherwise wait for.
+const SHOT_DEBOUNCE = 260;   // ms a paint must sit before it is photographed
+const LAYOUT_QUAD = 3;       // this many in the match and the sides are quadrants
+
 export class MechSelectScreen {
-  constructor(root, { input, audio, onDone, onBack, onPreview, onLockFx, onYaw, prev, hotButtons }) {
+  constructor(root, { input, audio, onDone, onBack, onSettle, prev, hotButtons }) {
     this.input = input;
     this.audio = audio;
     this.hotButtons = hotButtons || []; // corner settings/sound, LB/RB-reachable
     this.onDone = onDone;
     this.onBack = onBack;
-    this.onPreview = onPreview;
-    this.onLockFx = onLockFx;   // stage flourish when a pick locks in
-    this.onYaw = onYaw;         // right-stick rotation of a locked mech
+    this.onSettle = onSettle;   // (id, variant): a pick worth building in the background
     this.touch = isTouchDevice();
-    this.el = el('div', 'screen fade-in');
-    this.el.appendChild(el('div', 'screen-heading', t('select.heading')));
+    this.el = el('div', 'screen fade-in sel-screen');
+    this.el.appendChild(el('div', 'sel-tex'));
 
     // slot state (managed here now — the old separate setup screen is gone)
     this.slots = prev || this.defaultSlots();
@@ -312,21 +589,51 @@ export class MechSelectScreen {
     this.variants = new Array(4).fill(0);
     this.finished = false;
     this._padCount = this.input.connectedPadCount();
+    this._settle = new Map();      // slotIdx -> { key, timer }
 
     // the grid only offers the playable roster — work-in-progress mechs
     // appear when SETTINGS → SHOW ALL ROBOTS is on (CONFIG.showAllRobots)
     this.roster = playableRoster();
+    this.byId = Object.fromEntries(this.roster.map((m) => [m.id, m]));
 
-    this.grid = el('div', 'roster-grid');
+    // the SIDES: one element per slot, placed by layout()
+    this.sides = [];
+    this.sideState = [];
+    for (let i = 0; i < 4; i++) {
+      const sd = el('div', 'sel-side');
+      sd.innerHTML = `
+        <div class="sd-wash"></div>
+        <div class="sd-q">?</div>
+        <img class="sd-pic" alt="" draggable="false">
+        <div class="sd-tag"></div>
+        <div class="sd-info">
+          <div class="sd-name"></div>
+          <div class="sd-title"></div>
+          <div class="sd-stats"></div>
+          <div class="sd-moves"></div>
+          <div class="sd-paint"></div>
+        </div>
+        <div class="sd-join"></div>
+        <div class="sd-edit"></div>`;
+      sd.addEventListener('click', (e) => this.onCardClick(i, e));
+      this.el.appendChild(sd);
+      this.sides.push(sd);
+      this.sideState.push({ want: null, shownId: null, timer: 0 });
+    }
+
+    // the centre band: heading, roster grid, add chip, ready banner, prompts
+    this.band = el('div', 'sel-band');
+    this.heading = el('div', 'sel-head');
+    this.grid = el('div', 'sel-grid');
     this.cells = [...this.roster, RANDOM_PICK].map((m, i) => {
-      const c = el('div', 'roster-cell');
+      const c = el('div', 'sel-cell');
       c.innerHTML = m === RANDOM_PICK
-        ? `<div class="cell-tint" style="background:linear-gradient(150deg, #2a3a52, transparent)"></div>
-           <div class="cell-icon" style="font-size:clamp(26px,3vw,42px)">❓</div>
-           <div class="cell-name">${t('select.random.name')}</div>`
-        : `<div class="cell-tint" style="background:linear-gradient(150deg, ${hexCss(m.colors.primary)}, transparent)"></div>
-           <div class="cell-icon">${mechIcon(m, 52)}</div>
-           <div class="cell-name">${m.name}</div>`;
+        ? `<div class="cell-tint" style="--t:#2a3a52"></div>
+           <div class="cell-icon cell-rand">?</div>
+           <div class="cell-name">${t('select.random.name')}</div><div class="cell-tags"></div>`
+        : `<div class="cell-tint" style="--t:${hexCss(m.colors.primary)}"></div>
+           <div class="cell-icon">${mechIcon(m, 64)}</div>
+           <div class="cell-name">${m.name}</div><div class="cell-tags"></div>`;
       c.addEventListener('mouseenter', () => {
         if (this.mousePicker && !this.mousePicker.locked) { this.mousePicker.cursor = i; this.refresh(); }
       });
@@ -350,50 +657,30 @@ export class MechSelectScreen {
       this.grid.appendChild(c);
       return c;
     });
-    this.el.appendChild(this.grid);
-
-    this.card = el('div', 'panel mech-info-card');
-    this.el.appendChild(this.card);
-
-    // players bar: join / device / CPU controls, one card per slot.
-    // LB/RB badges ride the top corners of the card ROW (not of any one
-    // card) — the bumpers walk your focus across the slots.
-    this.playersBar = el('div', 'players-bar');
-    const cardRow = el('div', 'players-row');
-    cardRow.appendChild(el('div', 'pb-bumper left',
-      `<b>${t('select.bumperL')}</b> ${t('select.bumperHint')} ◀`));
-    cardRow.appendChild(el('div', 'pb-bumper right',
-      `▶ ${t('select.bumperHint')} <b>${t('select.bumperR')}</b>`));
-    this.playerCards = [];
-    for (let i = 0; i < 4; i++) {
-      const pc = el('div', 'player-card');
-      pc.addEventListener('click', (e) => this.onCardClick(i, e));
-      cardRow.appendChild(pc);
-      this.playerCards.push(pc);
-    }
-    this.playersBar.appendChild(cardRow);
-    this.el.appendChild(this.playersBar);
+    this.band.append(this.heading, this.grid);
+    this.el.appendChild(this.band);
 
     // everyone-locked gate: the match does NOT advance until someone
-    // confirms again, so the last player still has time to tweak colors
+    // confirms again, so the last player still has time to tweak colors.
+    // The banner is a button too — the mouse's way to say GO.
     this.ready = false;
     this.readyBar = el('div', 'ready-banner', t('select.ready.html'));
     this.readyBar.style.display = 'none';
+    this.readyBar.addEventListener('click', () => { if (this.ready) { this.audio?.play('uiSelect'); this.finish(); } });
     this.el.appendChild(this.readyBar);
 
-    this.el.appendChild(el('div', 'hint-bar', t('select.hint.html')));
+    this.el.appendChild(el('div', 'sel-prompts', t('select.prompts.html')));
     root.appendChild(this.el);
 
     // CLICKING NOTHING DESELECTS. A pointer-placed slot focus is sticky —
     // it re-aims ↑↓ at somebody else's card — so there has to be somewhere
-    // to put it down: the 3D stage, the heading, the bare backdrop. Anything
-    // that IS a control handles its own click and is exempt.
+    // to put it down: the heading, the bare backdrop. Anything that IS a
+    // control handles its own click and is exempt.
     this.onStrayClick = (e) => {
       if (this.finished) return;
-      if (e.target?.closest?.('.roster-cell, .player-card, .hot-btn, .touch-navbar, .ready-banner')) return;
+      if (e.target?.closest?.('.sel-cell, .sel-side, .hot-btn, .touch-navbar, .ready-banner')) return;
       this.clearMouseSel();
     };
-    // capture: the canvas swallows pointer events on its own way through
     window.addEventListener('click', this.onStrayClick, true);
 
     if (this.touch) {
@@ -406,6 +693,11 @@ export class MechSelectScreen {
       }));
       this.el.appendChild(bar);
     }
+
+    // pictures wait for the poster index: without it every stock pick would
+    // look posterless and be photographed from a real body instead
+    this.postersReady = false;
+    loadPosterIndex().then(() => { this.postersReady = true; if (!this.finished) this.refresh(); });
 
     this.syncPickers();
     this.refresh();
@@ -466,24 +758,33 @@ export class MechSelectScreen {
       }
       return;
     }
-    // the ◀ ▶ on a CPU card set its temper directly — the one thing the
+    // the ◀ ▶ beside the paint name step it, same as the pad's ←→
+    const pa = e.target.closest?.('.pc-paint-step');
+    if (pa && s.kind === 'human') {
+      const pk = this.pickers.find((p) => p.slotIdx === i);
+      if (pk) this.stepPaint(pk, +pa.dataset.dir);
+      return;
+    }
+    // the ◀ ▶ on a CPU tag set its temper directly — the one thing the
     // mouse does that the slot ring doesn't
     const arrow = e.target.closest?.('.pc-diff');
     if (arrow && s.kind === 'ai') { this.cycleAiDiff(i, +arrow.dataset.dir); return; }
     const pk = this.mousePicker;
-    // your own card is HOME on the slot ring: while you are visiting another
-    // slot it brings you back, and only a click with nothing visited leaves
-    // the match (mouse users; pickers otherwise use B)
+    // your own side is HOME on the slot ring: while you are visiting another
+    // slot it brings you back, and only a click on your own TAG leaves the
+    // match (mouse users; pickers otherwise use B) — the rest of your side is
+    // your robot, and clicking a picture should not throw you out
     if (pk && i === pk.slotIdx) {
-      if (pk.sel != null) this.clearMouseSel(pk); else this.removeSlot(i);
+      if (pk.sel != null) this.clearMouseSel(pk);
+      else if (e.target.closest?.('.sd-tag')) this.removeSlot(i);
       return;
     }
     // somebody else's pad/touch seat is theirs alone — same slots the
     // controller selector refuses to sit on
     if (s.kind === 'human' && s.device !== 'kb1' && s.device !== 'kb2') return;
     // A CLICK VISITS A SLOT, exactly as LB/RB do: the first click puts your
-    // focus on the card (framed in your colour, and ↑↓ now drive it), and
-    // clicking the card you are already on walks its options — so the mouse
+    // focus on the side (framed in your colour, and ↑↓ now drive it), and
+    // clicking the side you are already on walks its options — so the mouse
     // and the bumpers reach the same state rather than each having their own.
     if (pk && pk.sel !== i) {
       pk.sel = i;
@@ -506,7 +807,7 @@ export class MechSelectScreen {
   }
 
   // the ring a CLICK walks: the controller's stops minus the CPU difficulty
-  // tiers (those live on the card's ◀ ▶), so CPU is one entry
+  // tiers (those live on the tag's ◀ ▶), so CPU is one entry
   mouseOptions(i) {
     return this.remoteOptions(i).filter((o) => o.kind !== 'ai' || o.diff === 'rookie');
   }
@@ -528,7 +829,8 @@ export class MechSelectScreen {
   cycleAiDiff(i, dir) {
     const order = ['rookie', 'veteran', 'ace'];
     const cur = order.indexOf(this.slots[i].diff);
-    this.slots[i] = { kind: 'ai', diff: order[(cur + dir + 3) % 3] };
+    // the temper changes, the robot it dealt itself does not
+    this.slots[i] = { ...this.slots[i], kind: 'ai', diff: order[(cur + dir + 3) % 3] };
     this.audio?.play('uiMove');
     this.refresh();
   }
@@ -542,15 +844,17 @@ export class MechSelectScreen {
   }
 
   // ---- slot selector: LB/RB walk your focus onto any slot that isn't a
-  // controller's (empty, CPU, or keyboard seat — never a pad/touch human,
-  // never your own) so anyone at the table can add/remove/retune AI bots
-  // and stage keyboard seats. ↑/↓ cycle what lives in the focused slot,
-  // B comes home. ----
+  // controller's (the next empty seat, CPU, or keyboard seat — never a
+  // pad/touch human, never your own) so anyone at the table can add/remove/
+  // retune AI bots and stage keyboard seats. ↑/↓ cycle what lives in the
+  // focused slot, B comes home. ----
 
-  // a slot the selector may sit on: empty, CPU, or a keyboard-seat human
+  // a slot the selector may sit on: the FIRST empty seat (the only one the
+  // layout draws — you fill seats in order), CPU, or a keyboard-seat human
   editable(i, pk) {
     const s = this.slots[i];
     if (i === pk.slotIdx) return false; // that's home, not a stop
+    if (s.kind === 'off') return i === this.firstOff();
     return s.kind !== 'human' || s.device === 'kb1' || s.device === 'kb2';
   }
 
@@ -583,7 +887,10 @@ export class MechSelectScreen {
     let cur = opts.findIndex((o) => o.kind === s.kind &&
       (o.kind !== 'ai' || o.diff === s.diff) && (o.kind !== 'human' || o.device === s.device));
     if (cur < 0) cur = 0;
-    this.slots[i] = { ...opts[(cur + dir + opts.length) % opts.length] };
+    const next = { ...opts[(cur + dir + opts.length) % opts.length] };
+    // stepping between CPU tempers keeps the robot the CPU dealt itself
+    if (next.kind === 'ai' && s.kind === 'ai') next.pick = s.pick;
+    this.slots[i] = next;
     this.audio?.play(this.slots[i].kind === 'off' ? 'uiBack' : 'uiSelect');
     // NOTE: keyboard seats do NOT eject the selector — landing on kb1/kb2
     // mid-cycle is just a stop on the wheel, so a controller can keep
@@ -591,6 +898,24 @@ export class MechSelectScreen {
     // pk.sel survives the rebuild)
     this.syncPickers();
     this.refresh();
+  }
+
+  // A CPU DEALS ITSELF A ROBOT the moment it joins, rather than at the very
+  // end: it is on its side for everyone to see, and it is a pick like any
+  // other — so its body is built in the background too. Distinct from the
+  // other CPUs' and from whatever the humans are standing on, where it can be.
+  dealCpuPicks() {
+    const taken = new Set();
+    this.slots.forEach((s) => { if (s.kind === 'ai' && s.pick) taken.add(s.pick); });
+    for (const pk of this.pickers) taken.add(this.pickAt(pk.cursor).id);
+    this.slots.forEach((s, i) => {
+      if (s.kind !== 'ai' || (s.pick && this.byId[s.pick])) return;
+      const pool = this.roster.filter((m) => !taken.has(m.id));
+      const src = pool.length ? pool : this.roster;
+      s.pick = src[(Math.random() * src.length) | 0].id;
+      taken.add(s.pick);
+      this.onSettle?.(s.pick, 0);
+    });
   }
 
   // rebuild pickers to match the human slots, preserving per-slot state
@@ -607,6 +932,7 @@ export class MechSelectScreen {
     });
     this.mousePicker = this.pickers.find((p) => p.device === 'touch')
       || this.pickers.find((p) => p.device === 'kb1') || this.pickers[0];
+    this.dealCpuPicks();
     // line-up changed (join/leave/device cycle): the everyone-locked gate
     // only stays armed while every current picker is still locked
     if (this.ready && !(this.pickers.length > 0 && this.pickers.every((p) => p.locked) && this.activeCount() >= 2)) {
@@ -617,13 +943,50 @@ export class MechSelectScreen {
   // what a cursor is parked on (last cell in the grid is RANDOM)
   pickAt(cursor) { return pickFrom(this.roster, cursor); }
 
+  // ---- layout: which side each slot is drawn on ----
+  // 3+ in the match: every slot is a quadrant, in slot order. Otherwise two
+  // sides — the active slots, padded with the first empty one so a lone
+  // player faces a JOIN — and the next empty slot after that is the ＋ chip.
+  layout() {
+    const active = [];
+    this.slots.forEach((s, i) => { if (s.kind !== 'off') active.push(i); });
+    const pos = ['none', 'none', 'none', 'none'];
+    const quad = active.length >= LAYOUT_QUAD;
+    if (quad) {
+      ['tl', 'tr', 'bl', 'br'].forEach((p, i) => { pos[i] = p; });
+    } else {
+      const two = [...active];
+      for (let i = 0; i < 4 && two.length < 2; i++) if (!two.includes(i)) two.push(i);
+      two.sort((a, b) => a - b);
+      pos[two[0]] = 'l';
+      pos[two[1]] = 'r';
+      const chip = this.slots.findIndex((s, i) => s.kind === 'off' && !two.includes(i));
+      if (chip >= 0) pos[chip] = 'chip';
+    }
+    this.el.classList.toggle('quad', quad);
+    this.heading.textContent = quad ? t('select.brawl', { n: active.length }) : t('select.vs');
+    this.heading.classList.toggle('vs', !quad);
+    return pos;
+  }
+
   refresh() {
+    const pos = this.layout();
+    // grid: a tag per player whose cursor (or CPU pick) is on the cell
     this.cells.forEach((c, i) => {
-      c.className = 'roster-cell';
+      c.className = 'sel-cell';
+      const tags = [];
       for (const pk of this.pickers) {
-        if (pk.cursor === i && !pk.locked) c.classList.add(`cursor-p${pk.slotIdx + 1}`);
-        if (pk.locked && pk.cursor === i) c.classList.add('locked-pick');
+        if (pk.cursor !== i) continue;
+        c.classList.add(pk.locked ? 'locked-pick' : 'cursor');
+        c.style.setProperty('--pc', COLOR_CSS[pk.slotIdx % 4]);
+        tags.push(`<span style="--pc:${COLOR_CSS[pk.slotIdx % 4]}">${t('select.tagP', { n: pk.slotIdx + 1 })}</span>`);
       }
+      this.slots.forEach((s, j) => {
+        if (s.kind === 'ai' && s.pick && this.roster[i]?.id === s.pick) {
+          tags.push(`<span class="cpu" style="--pc:${COLOR_CSS[j % 4]}">${t('select.tagCpu')}</span>`);
+        }
+      });
+      c.querySelector('.cell-tags').innerHTML = tags.join('');
     });
     // corner hot buttons: frame in the visiting player's color
     this.hotButtons.forEach((b, j) => {
@@ -634,11 +997,23 @@ export class MechSelectScreen {
     for (const pk of this.pickers) {
       if (!pk.locked) this.cells[pk.cursor]?.scrollIntoView?.({ block: 'nearest' });
     }
-    this.renderCard();
-    this.renderPlayers();
-    this.onPreview?.(this.pickers.map((pk) => ({
-      id: this.pickAt(pk.cursor).id, slotIdx: pk.slotIdx, locked: pk.locked, variant: pk.variant,
-    })));
+    this.slots.forEach((_, i) => this.renderSide(i, pos[i]));
+    for (const pk of this.pickers) this.settle(pk);
+  }
+
+  // a pick that sits still for SETTLE_MS (or is locked) is built behind the
+  // scenes — see the header. RANDOM has no body to build.
+  settle(pk, now = false) {
+    const m = this.pickAt(pk.cursor);
+    const key = `${m.id}|${pk.variant}`;
+    const cur = this._settle.get(pk.slotIdx);
+    if (cur?.key === key && !now) return;
+    clearTimeout(cur?.timer);
+    const st = { key, timer: 0 };
+    this._settle.set(pk.slotIdx, st);
+    if (m === RANDOM_PICK) return;
+    const go = () => this.onSettle?.(m.id, pk.variant);
+    if (now || pk.locked) go(); else st.timer = setTimeout(go, SETTLE_MS);
   }
 
   deviceLabel(device) {
@@ -651,112 +1026,141 @@ export class MechSelectScreen {
     return id ? t(id) : device.toUpperCase();
   }
 
-  // players bar: join prompts, device/CPU controls, live pick + lock state
-  renderPlayers() {
-    this.slots.forEach((s, i) => {
-      const pc = this.playerCards[i];
-      const col = COLOR_CSS[i];
-      pc.className = 'player-card';
-      // slot-selector focus: frame the card in the visiting player's color
-      const ed = this.pickers.find((p) => p.sel === i);
-      const edTag = ed
-        ? `<div class="pc-sub" style="color:${COLOR_CSS[ed.slotIdx]};font-weight:800;">
-             ${t('select.editing', { n: ed.slotIdx + 1 })}</div>`
-        : '';
-      pc.style.boxShadow = ed ? `0 0 0 3px ${COLOR_CSS[ed.slotIdx]}, 0 0 18px ${COLOR_CSS[ed.slotIdx]}` : '';
-      if (s.kind === 'off') {
-        pc.classList.add('empty');
-        pc.style.borderColor = 'rgba(120,150,180,0.28)';
-        pc.innerHTML = `<div class="pc-role" style="color:#6f8aa2">${t('select.player', { n: i + 1 })}</div>
-          <div class="pc-add">${t('select.addPlayer')}</div>
-          <div class="pc-sub">${t('select.addHint')}</div>${edTag}`;
-        return;
-      }
-      pc.style.borderColor = col;
-      if (s.kind === 'ai') {
-        pc.innerHTML = `<div class="pc-role" style="color:${col}">${t('select.player', { n: i + 1 })}</div>
-          <div class="pc-dev">${t('select.cpu', { diff: t('diff.' + s.diff) })}</div>
-          <div class="pc-sub"><span class="pc-diff" data-dir="-1">◀</span>${t('select.cpuHint')}<span
-            class="pc-diff" data-dir="1">▶</span></div>${edTag}`;
-        return;
-      }
+  // ---- one side ----
+  renderSide(i, pos) {
+    const s = this.slots[i];
+    const sd = this.sides[i];
+    const col = COLOR_CSS[i % 4];
+    const cls = ['sel-side', `pos-${pos}`];
+    sd.style.setProperty('--pc', col);
+    // slot-selector focus: frame the side in the VISITING player's color
+    const ed = this.pickers.find((p) => p.sel === i);
+    if (ed) { cls.push('editing'); sd.style.setProperty('--ed', COLOR_CSS[ed.slotIdx % 4]); }
+    sd.querySelector('.sd-edit').innerHTML = ed ? t('select.editing', { n: ed.slotIdx + 1 }) : '';
+    const q = (sel) => sd.querySelector(sel);
+
+    if (pos === 'none' || s.kind === 'off') {
+      cls.push('empty');
+      sd.className = cls.join(' ');
+      this.setPic(i, null, 0);
+      q('.sd-tag').innerHTML = '';
+      q('.sd-join').innerHTML = pos === 'chip'
+        ? `${t('select.addPlayer')}`
+        : `<div><b>${t('select.join')}</b><small>${t(this.touch ? 'select.joinHintTouch' : 'select.joinHint')}</small></div>`;
+      sd.style.setProperty('--g', '#3a4a5e');
+      return;
+    }
+
+    let m, v = 0, tag, locked = false;
+    if (s.kind === 'ai') {
+      m = this.byId[s.pick] || this.roster[0];
+      cls.push('cpu');
+      tag = `${t('select.tagCpu')} · <span class="pc-diff" data-dir="-1">◀</span>${t('diff.' + s.diff)}<span class="pc-diff" data-dir="1">▶</span>`;
+    } else {
       const pk = this.pickers.find((p) => p.slotIdx === i);
-      const m = this.pickAt(pk.cursor);
-      const mc = hexCss(m.colors.glow);
-      pc.classList.toggle('locked', pk.locked);
-      pc.innerHTML = `<div class="pc-role" style="color:${col}">${t('select.playerDevice', { n: i + 1, device: this.deviceLabel(s.device) })}</div>
-        <div class="pc-dev" style="color:${mc}">${mechIcon(m, 18)}${m.name}${pk.locked ? ' ✓' : ''}</div>
-        ${pk.locked ? this.pcSchemeRow(m, pk) : `<div class="pc-sub">${t('select.picking')}</div>`}${edTag}`;
-    });
+      m = this.pickAt(pk.cursor);
+      v = pk.variant;
+      locked = pk.locked;
+      tag = t('select.tagHuman', { n: i + 1, device: this.deviceLabel(s.device) });
+      cls.push(locked ? 'locked' : 'picking');
+      q('.sd-paint').innerHTML = this.paintRow(m, pk);
+    }
+    if (s.kind === 'ai') q('.sd-paint').innerHTML = '';
+    if (m === RANDOM_PICK) cls.push('random');
+    sd.className = cls.join(' ') + (sd.classList.contains('flash') ? ' flash' : '');
+    const glow = m === RANDOM_PICK ? schemeGlow(v, m.colors.glow) : applyColorScheme(m, v).colors.glow;
+    sd.style.setProperty('--g', hexCss(glow));
+    q('.sd-tag').innerHTML = tag;
+    q('.sd-tag').dataset.lock = t('select.lockedStamp');
+    q('.sd-join').innerHTML = '';
+    q('.sd-name').textContent = m.name;
+    q('.sd-title').textContent = m.title;
+    q('.sd-stats').innerHTML = m === RANDOM_PICK
+      ? ['power', 'speed', 'defense'].map((k) => `<div><small>${t('select.stat.' + k)}</small><b>?</b></div>`).join('')
+      : ['power', 'speed', 'defense'].map((k) => `<div><small>${t('select.stat.' + k)}</small><b>${m.ui[k]}</b></div>`).join('');
+    q('.sd-moves').innerHTML = m === RANDOM_PICK
+      ? `<div>${m.blurb}</div>`
+      : `<div><small>${t('select.move.ranged')}</small>${m.moves.ranged.name}</div>
+         <div><small>${t('select.move.special')}</small>${m.moves.special.name}</div>
+         <div><small>${t('select.move.ult')}</small>${m.moves.ult.name}</div>`;
+    this.setPic(i, m === RANDOM_PICK ? null : m.id, v);
   }
 
-  // scheme selector row inside a locked player card: one clickable swatch per
-  // scheme for the picked mech (X/R and ←/→ still cycle for pads/keyboards)
-  pcSchemeRow(m, pk) {
+  // THE PICTURE ON A SIDE. The stock paint is its poster, at once. A repaint
+  // is photographed (snapshot.js) once the paint has sat still for a beat;
+  // until it lands the side keeps what it was showing if that is the same
+  // robot (the old paint), else the stock poster — never a blank. When it
+  // lands it is cross-faded in.
+  setPic(i, id, v) {
+    if (!this.postersReady) return;
+    const st = this.sideState[i];
+    const sd = this.sides[i];
+    const img = sd.querySelector('.sd-pic');
+    const want = id ? `${id}|${v}` : null;
+    if (st.want === want) return;
+    st.want = want;
+    clearTimeout(st.timer);
+    sd.classList.remove('developing');
+    if (!id) { img.removeAttribute('src'); img.classList.remove('in'); st.shownId = null; return; }
+    const show = (url) => {
+      const fresh = st.shownId !== id;
+      st.shownId = id;
+      if (img.getAttribute('src') === url) { img.classList.add('in'); return; }
+      preload(url).then((ok) => {
+        if (!ok || st.want !== want) return;
+        if (fresh) {
+          // a different robot slides in; the same robot in new paint dissolves
+          img.classList.remove('in', 'swap');
+          img.src = url;
+          void img.offsetWidth;
+          img.classList.add('in', 'swap');
+        } else {
+          sd.querySelector('.sd-ghost')?.remove();
+          const ghost = img.cloneNode();
+          ghost.className = 'sd-pic sd-ghost in';
+          img.after(ghost);
+          img.src = url;
+          requestAnimationFrame(() => ghost.classList.add('out'));
+          setTimeout(() => ghost.remove(), 500);
+        }
+      });
+    };
+    const ready = shotUrl(id, v);
+    if (ready) { show(ready); return; }
+    if (st.shownId !== id) {
+      const stock = shotUrl(id, 0);
+      if (stock) show(stock);
+      else { img.classList.remove('in'); st.shownId = null; }
+    }
+    sd.classList.add('developing');
+    st.timer = setTimeout(() => {
+      requestShot(id, v, `side${i}`).then((url) => {
+        if (st.want !== want) return;
+        sd.classList.remove('developing');
+        if (url) show(url);
+      });
+    }, SHOT_DEBOUNCE);
+  }
+
+  // the paint strip on a human's side: one clickable swatch per scheme
+  // (X/R and ←/→ once locked still cycle for pads/keyboards), and the
+  // scheme's NAME between ◀ ▶, which is what makes the cycling discoverable
+  paintRow(m, pk) {
     let row = '';
     for (let v = 0; v < SCHEME_COUNT; v++) {
       const col = hexCss(schemeSwatch(m, v));
       row += `<span class="pc-swatch${pk.variant === v ? ' on' : ''}" data-variant="${v}"
         title="${SCHEME_NAMES[v]}" style="background:${col};"></span>`;
     }
-    // the ◀ ▶ hints under the strip: the swatches are cycled with left/right,
-    // which is not otherwise discoverable once you're locked in
-    // The scheme NAME rides on the arrow row rather than after the swatches:
-    // at eleven schemes the inline version ran off the end of the card.
-    return `<div class="pc-sub pc-colors" title="${t('select.colorHint')}">${t('select.colorLabel')}${row}</div>
-      <div class="pc-color-arrows"><span>◀</span>${SCHEME_NAMES[pk.variant]}<span>▶</span></div>`;
+    return `<div class="pc-swatches" title="${t('select.colorHint')}">${row}</div>
+      <div class="pc-paint-name"><span class="pc-paint-step" data-dir="-1">◀</span>${t('select.colorLabel')} · ${SCHEME_NAMES[pk.variant]}<span class="pc-paint-step" data-dir="1">▶</span></div>`;
   }
 
-  renderCard() {
-    if (this.pickers.length === 1) {
-      const pk = this.pickers[0];
-      const m = this.pickAt(pk.cursor);
-      if (m === RANDOM_PICK) { // mystery unit: no stats to show
-        this.card.innerHTML = `
-          <div class="mi-name" style="color:#9fd8ef">❓ ${m.name}</div>
-          <div class="mi-title">${m.title}</div>
-          <div class="mi-blurb">${m.blurb}</div>
-          <div class="mi-moves"><b>${t('select.move.ranged')}</b> ${t('select.unknownMove')} &nbsp;·&nbsp; <b>${t('select.move.special')}</b> ${t('select.unknownMove')} &nbsp;·&nbsp; <b>${t('select.move.ult')}</b> ${t('select.unknownMove')}</div>`;
-        return;
-      }
-      this.card.innerHTML = `
-        <div class="mi-name" style="color:${hexCss(m.colors.glow)}">${mechIcon(m, 30)}${m.name}</div>
-        <div class="mi-title">${m.title}</div>
-        <div class="mi-blurb">${m.blurb}</div>
-        <div class="mi-stats">
-          ${this.statRow(t('select.stat.power'), m.ui.power)}
-          ${this.statRow(t('select.stat.speed'), m.ui.speed)}
-          ${this.statRow(t('select.stat.defense'), m.ui.defense)}
-        </div>
-        <div class="mi-moves">
-          <b>${t('select.move.ranged')}</b> ${m.moves.ranged.name} &nbsp;·&nbsp; <b>${t('select.move.special')}</b> ${m.moves.special.name}<br>
-          <b>${t('select.move.ult')}</b> ${m.moves.ult.name}
-        </div>`;
-      return;
-    }
-    // multi-player: one compact card per picker, tinted with player color
-    this.card.innerHTML = this.pickers.map((pk) => {
-      const m = this.pickAt(pk.cursor);
-      const pc = COLOR_CSS[pk.slotIdx % 4];
-      const movesLine = m === RANDOM_PICK
-        ? t('select.random.short')
-        : `<b>${t('select.move.rangedShort')}</b> ${m.moves.ranged.name} · <b>${t('select.move.specialShort')}</b> ${m.moves.special.name} · <b>${t('select.move.ultShort')}</b> ${m.moves.ult.name}`;
-      const nameHtml = m === RANDOM_PICK ? `❓ ${m.name}` : `${mechIcon(m, 26)}${m.name}`;
-      return `
-        <div style="border-left:3px solid ${pc}; padding:6px 10px; margin-bottom:8px;
-                    background:rgba(10,18,30,0.45); border-radius:0 6px 6px 0;">
-          <div style="font-size:11px;letter-spacing:0.2em;color:${pc};font-weight:800;">
-            ${t('select.player', { n: pk.slotIdx + 1 })} ${pk.locked ? t('select.locked') : ''}</div>
-          <div class="mi-name" style="font-size:clamp(15px,1.6vw,21px);color:${hexCss(m.colors.glow)}">${nameHtml}</div>
-          <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--hud-cyan);">${m.title}</div>
-          <div class="mi-moves" style="margin-top:6px;">${movesLine}</div>
-        </div>`;
-    }).join('');
-  }
-
-  statRow(label, v) {
-    return `<div class="stat-row"><div class="stat-label">${label}</div>
-      <div class="stat-bar"><div class="stat-fill" style="width:${v * 10}%"></div></div></div>`;
+  stepPaint(pk, dir) {
+    pk.variant = (pk.variant + dir + SCHEME_COUNT) % SCHEME_COUNT;
+    this.variants[pk.slotIdx] = pk.variant;
+    this.audio?.play('uiMove');
+    this.refresh();
   }
 
   lockIn(pk) {
@@ -774,9 +1178,14 @@ export class MechSelectScreen {
     this.audio?.play('uiSelect');
     if (pk.device.startsWith('pad')) this.input.rumble(+pk.device[3], 0.45, 130);
     this.refresh();
-    // refresh() first: an auto-bumped variant rebuilds the preview, and the
-    // flourish has to land on the mech that's actually standing there
-    this.onLockFx?.(pk.slotIdx);
+    this.settle(pk, true);
+    // the lock-in flourish: a flash across the side and the LOCKED stamp
+    const sd = this.sides[pk.slotIdx];
+    sd.classList.remove('flash');
+    void sd.offsetWidth;
+    sd.classList.add('flash');
+    clearTimeout(sd._flashT);
+    sd._flashT = setTimeout(() => sd.classList.remove('flash'), 700);
     // everyone locked AND at least two fighters in the match → ARM the
     // gate; the screen only advances on an explicit extra confirm, so the
     // last player to lock can still adjust their color scheme
@@ -810,17 +1219,9 @@ export class MechSelectScreen {
   finish() {
     if (this.finished) return;
     this.finished = true;
-    // AI slots pick random distinct-ish mechs
-    const taken = new Set(this.picks.filter(Boolean));
-    this.slots.forEach((s, i) => {
-      if (s.kind === 'ai') {
-        const pool = this.roster.filter((m) => !taken.has(m.id));
-        const src = pool.length ? pool : this.roster;
-        const m = src[(Math.random() * src.length) | 0];
-        this.picks[i] = m.id;
-        taken.add(m.id);
-      }
-    });
+    // CPU slots fight as the robot they dealt themselves (on screen all along)
+    this.dealCpuPicks();
+    this.slots.forEach((s, i) => { if (s.kind === 'ai') this.picks[i] = s.pick; });
     // brief beat so the last lock-in lands before the screen changes;
     // hand back the slots so returning here restores the same line-up
     setTimeout(() => this.onDone(this.picks, this.variants, this.slots.map((s) => ({ ...s }))), 450);
@@ -838,10 +1239,6 @@ export class MechSelectScreen {
 
   update(evAll) {
     if (this.finished) return;
-    // frame time, for the analog right-stick rotation below
-    const now = performance.now();
-    const dt = Math.min(0.05, (now - (this._lastT || now)) / 1000);
-    this._lastT = now;
 
     // a freshly connected controller auto-joins the next free slot
     const padCount = this.input.connectedPadCount();
@@ -920,17 +1317,7 @@ export class MechSelectScreen {
         }
       } else {
         // colors cycle BOTH ways: right/X steps forward, left steps back
-        if (alt || left || right) {
-          const dir = left && !right ? -1 : 1;
-          pk.variant = (pk.variant + dir + SCHEME_COUNT) % SCHEME_COUNT;
-          this.variants[pk.slotIdx] = pk.variant;
-          this.audio?.play('uiMove');
-          this.refresh();
-        }
-        // right stick spins your locked robot, overriding the idle turntable
-        // while held (releasing leaves it where you parked it)
-        const look = this.input.menuLookFor(pk.device);
-        if (look.x) this.onYaw?.(pk.slotIdx, -look.x * 2.6 * dt);
+        if (alt || left || right) this.stepPaint(pk, left && !right ? -1 : 1);
         // the everyone-locked gate: a fresh confirm (well after the lock-in
         // press itself) is what actually advances to arena select
         if (confirm && this.ready && performance.now() - this._readyAt > 350) {
@@ -947,11 +1334,14 @@ export class MechSelectScreen {
   destroy() {
     this.hotButtons.forEach((b) => frameHotButton(b, null));
     window.removeEventListener('click', this.onStrayClick, true);
+    for (const st of this._settle.values()) clearTimeout(st.timer);
+    for (const st of this.sideState) clearTimeout(st.timer);
     this.el.remove();
   }
 }
 
 // ---------------- ARENA SELECT ----------------
+
 // Card 0 (top-left) is RANDOM: confirming it spins the selector visibly
 // through every arena before landing on the roulette's pick. The LAST card is
 // TRAINING — the same line-up on a fixed open arena under training rules
@@ -968,7 +1358,15 @@ export class ArenaSelectScreen {
     this.onBack = onBack;
     this.pickRandom = pickRandom;
     this.rolling = false;
-    this.el = el('div', 'screen dim fade-in');
+    this.el = el('div', 'screen fade-in arena-screen');
+    // THE BACKDROP IS THE ARENA UNDER THE CURSOR: its painting, full-bleed,
+    // dimmed and softened behind the grid, cross-faded as the cursor moves.
+    // (The menus draw no 3D any more — engine.covered — so this screen paints
+    // its own backdrop, and it may as well be the place you are about to go.)
+    this.bgs = [el('div', 'as-bg'), el('div', 'as-bg')];
+    this.bgFront = 0;
+    this.bgId = null;
+    this.el.append(...this.bgs, el('div', 'as-scrim'));
     this.el.appendChild(el('div', 'screen-heading', t('arena.heading')));
 
     const wrap = el('div', 'arena-grid');
@@ -1152,6 +1550,20 @@ export class ArenaSelectScreen {
   refresh() {
     this.cards.forEach((c, i) => c.classList.toggle('selected', i === this.cursor));
     this.cards[this.cursor]?.scrollIntoView?.({ block: 'nearest' });
+    const th = THEMES[this.cursor - this.firstArena];
+    this.backdrop(th ? th.id : this.cursor === this.trainingIdx ? TRAINING_ARENA : null);
+  }
+
+  backdrop(id) {
+    if (id === this.bgId) return;
+    this.bgId = id;
+    const back = this.bgs[1 - this.bgFront];
+    const front = this.bgs[this.bgFront];
+    if (!id) { front.classList.remove('on'); back.classList.remove('on'); return; }
+    back.style.backgroundImage = `url("${arenaArtUrl(id)}")`;
+    back.classList.add('on');
+    front.classList.remove('on');
+    this.bgFront = 1 - this.bgFront;
   }
   confirm() {
     if (this.rolling) return;
