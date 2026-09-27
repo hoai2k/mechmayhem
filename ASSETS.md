@@ -35,7 +35,7 @@ the large-structure materials) · `prop` (`prop_*`) · `mech` (`mech_*`) ·
 | path | what | how it is found |
 |------|------|-----------------|
 | `public/models/` | mech, prop and building GLBs | `fetch` + `manifest.json` per family |
-| `public/models/source/` | pre-bake archives of edited GLBs + `<id>.edits.json`, and the mech-diet sidecars `<id>.opt.json` (`tools/mechopt.mjs`) | never loaded; the record of what a bake / the diet did |
+| `public/models/source/` | pre-bake archives of edited GLBs + `<id>.edits.json`, and the mech-diet sidecars `<id>.opt.json` (`tools/mechopt.mjs`) | never loaded, and removed from every build's output (`vite.config.js`); the record of what a bake / the diet did |
 | `public/levels/` | authored arena levels | `fetch('levels/<name>.json')` |
 | `public/badges/` | hand-made mech emblems | `<img src="badges/<id>.png">` |
 | `public/thumbs/` | auto-captured mech icons (`tools/thumbs.mjs`) | `<img>` fallback under badges |

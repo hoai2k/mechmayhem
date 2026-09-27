@@ -21,7 +21,7 @@ import path from 'node:path';
 //
 // RW_NO_MUSIC=1 builds the game WITHOUT the soundtrack: no files copied, an
 // empty track list, and the game falls back to its procedural battle themes.
-// That's the switch for a packaged build that shouldn't carry ~40MB of audio.
+// That's the switch for a packaged build that shouldn't carry ~128MB of audio.
 //
 // `src/music/arenas/` is the same thing PER ARENA: a song named for an arena
 // ("Jungle Temple 1") plays on that arena instead of the general pool. It is
@@ -58,7 +58,7 @@ function musicPlugin() {
         + `export const MUSIC_ARENA_BASE = ${JSON.stringify(base + 'arenas/')};\n`
         + `export const MUSIC_ARENA_FILES = ${JSON.stringify(arenaFiles())};\n`;
     },
-    // Copied, not emitted: routing ~40MB of audio through rollup's asset
+    // Copied, not emitted: routing ~128MB of audio through rollup's asset
     // pipeline (buffer it, hash it, account it) costs a minute and a half of
     // build time to produce files it must not rename anyway.
     writeBundle(opts) {
@@ -86,6 +86,44 @@ function musicPlugin() {
   };
 }
 
+// THE MECH SOURCE ARCHIVE STAYS HOME. `public/models/source/` holds each
+// mech's untouched original GLB plus its `<id>.edits.json` / `<id>.opt.json`
+// sidecars — written and read ON DISK by tools/bake-glb.mjs and
+// tools/mechopt.mjs, and fetched by nothing: not the game, not the
+// workbenches. Everything in public/ is copied into every build, so without
+// this each deploy (GitHub Pages runs plain `npm run build`) and the desktop
+// app carried ~118 MB of models no page ever asks for. Removed from the
+// OUTPUT only; the repo copy is untouched. (The PROP archive,
+// `models/props/source/`, is different — the props workbench compares against
+// it — so a normal build keeps it and tools/dist.mjs, which has no
+// workbench, drops it.)
+function sourceArchivePlugin() {
+  let outDir = 'dist';
+  return {
+    name: 'rw-drop-source-archive',
+    apply: 'build',
+    configResolved(cfg) { outDir = path.resolve(cfg.root, cfg.build.outDir); },
+    closeBundle() {
+      const models = path.join(outDir, 'models');
+      fs.rmSync(path.join(models, 'source'), { recursive: true, force: true });
+      // …and the same for a mech GLB the manifest no longer names (jerry's
+      // retired first model): the game and every workbench find models through
+      // the manifest, primary and `alt` alike, so an unnamed file is unreachable.
+      // tools/dist.mjs applies the same rule to its own output.
+      let manifest;
+      try { manifest = JSON.parse(fs.readFileSync(path.join(models, 'manifest.json'), 'utf8')); }
+      catch (e) { return; }   // no manifest, no way to tell — leave the models alone
+      const named = new Set();
+      for (const e of Object.values(manifest)) {
+        for (const u of [e?.url, e?.alt?.url]) if (u) named.add(path.basename(u));
+      }
+      for (const f of fs.readdirSync(models)) {
+        if (f.endsWith('.glb') && !named.has(f)) fs.rmSync(path.join(models, f));
+      }
+    },
+  };
+}
+
 // RW_DIST=1 marks a DISTRIBUTION build (tools/dist.mjs): the public artifact,
 // with no authoring surface in it. Two effects — the /workbench/ page leaves
 // the build inputs, and __RW_DIST__ compiles the dev routes out of the game
@@ -95,7 +133,7 @@ const IS_DIST = process.env.RW_DIST === '1';
 
 export default defineConfig({
   base: './',
-  plugins: [musicPlugin()],
+  plugins: [musicPlugin(), sourceArchivePlugin()],
   define: {
     __RW_DIST__: JSON.stringify(IS_DIST),
   },

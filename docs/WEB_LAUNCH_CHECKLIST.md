@@ -49,11 +49,22 @@ moved a lot since (measured 2026-09-27 with `du`): the 18 mech GLBs in
 20 MB, building donors 3.3 MB; the recorded SFX in `public/sfx/` are **8.2 MB**;
 the soundtrack in `src/music/` is **128 MB** (streamed, but copied verbatim into
 the build unless `RW_NO_MUSIC=1`); the PNG texture masters in `src/textures/`
-are 356 MB before WebP. Two things to check before quoting a payload again:
-`tools/dist.mjs` strips `public/models/props/source/` but, reading the code,
-NOT the mech archive `public/models/source/` (118 MB of pre-bake originals and
-sidecars the game never loads), and it does nothing about the music. Re-run
-`npm run dist:web` and `du -sh dist-web` for the real number.
+are 356 MB before WebP. The mech archive `public/models/source/` (118 MB of
+pre-bake originals and sidecars, read only on disk by `bake-glb`/`mechopt`) and
+any mech GLB the manifest no longer names (jerry's retired `mech_jerry.glb`,
+7.6 MB) are now dropped from EVERY build's output by a plugin in
+`vite.config.js` — `npm run build`, which is what the GitHub Pages deploy and
+the desktop app ship, went 713 MB -> 589 MB. `tools/dist.mjs` additionally
+strips `public/models/props/source/` (the props workbench's comparison
+archive, so a normal build with workbenches keeps it). It still does nothing
+about the music. Re-run `npm run dist:web` and `du -sh dist-web` for the real
+number.
+
+NOTE THE DEPLOY IS NOT THE DIST: `.github/workflows/deploy.yml` publishes
+`npm run build`, not `tools/dist.mjs`, so the live site carries the workbench
+page, uncompressed mech GLBs and the PNG texture masters (~358 MB of
+`assets/`). Switching the deploy to `dist:web` is the big remaining saving,
+and a decision (it removes the public workbenches).
 
 Source masters in `public/models/` and `src/textures/` are never touched, so
 every workbench, `anchorkeep`, `hurtboxfit` and `cliptear` keep working against
