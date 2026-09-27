@@ -407,7 +407,7 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 .sel-side.locked .sd-paint .pc-paint-name { color: #fff; }
 
 /* LOCKED: a stamp beside the tag and a flash across the side */
-.sel-side.locked .sd-tag::after { content: '✓ LOCKED'; margin-left: 12px; padding-left: 12px;
+.sel-side.locked .sd-tag::after { content: '✓ ' attr(data-lock); margin-left: 12px; padding-left: 12px;
   border-left: 1px solid rgba(5,16,24,.45); }
 .sel-side.flash .sd-wash { animation: lockFlash .6s ease-out; }
 @keyframes lockFlash { 0% { filter: brightness(2.6) saturate(.6); } 100% { filter: none; } }
@@ -521,7 +521,7 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
 /* ---------- arena select ---------- */
 .screen.arena-screen { background: #06070d; }
 .as-bg { position: absolute; inset: -30px; background-size: cover; background-position: center;
-  filter: blur(14px) saturate(1.1); opacity: 0; transition: opacity .45s ease; pointer-events: none; }
+  filter: blur(6px) saturate(1.1); opacity: 0; transition: opacity .45s ease; pointer-events: none; }
 .as-bg.on { opacity: .9; }
 .as-scrim { position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(ellipse at 50% 45%, rgba(6,7,13,.42), rgba(6,7,13,.8) 90%); }

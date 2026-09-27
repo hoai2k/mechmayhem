@@ -42,27 +42,10 @@ export const MESSAGES = {
   'title.hint.html': '<b>↑↓</b> select&nbsp;&nbsp;<b>ENTER / A</b> confirm&nbsp;&nbsp;·&nbsp;&nbsp;<b>LB / RB</b> (Q/E) settings · sound&nbsp;&nbsp;·&nbsp;&nbsp;pad <b>SELECT</b> mouse pointer&nbsp;&nbsp;·&nbsp;&nbsp;P1 <b>WASD</b> + <b>F G H R T Y</b> · <b>SPACE</b> jump · <b>SHIFT</b> dash',
 
   // ----------------------------------------------------------- fighter select
-  'select.heading': 'CHOOSE YOUR FIGHTER',
   'select.ready.html': '<div class="rb-chip">GAME READY. PRESS <b>A</b> TO PLAY.</div>',
-  // controller vocabulary only — the ⓘ button carries the full diagram, and
-  // keyboard players have the same buttons under the same names
-  'select.hint.html': '<b>A</b> join · select&nbsp;&nbsp;<b>D-PAD</b> pick&nbsp;&nbsp;<b>◀ ▶</b> color&nbsp;&nbsp;<b>B</b> cancel&nbsp;&nbsp;<b>LB / RB</b> visit a slot&nbsp;&nbsp;<b>RIGHT STICK</b> turn&nbsp;&nbsp;·&nbsp;&nbsp;<span class="xb-btn" aria-hidden="true"><i></i><i></i><i></i></span> use pointer',
   'select.colorHint': 'change color',
-  'select.player': 'PLAYER {n}',
-  'select.playerDevice': 'PLAYER {n} · {device}',
   'select.addPlayer': '＋ ADD PLAYER',
-  'select.addHint': 'press A / ENTER to join · LB/RB from your seat, or click, to add CPU / KB',
-  'select.cpu': '🤖 CPU · {diff}',
-  // sits between the card's two clickable difficulty arrows
-  'select.cpuHint': 'difficulty',
-  // bumper badges pinned to the corners of the player-card row: LB/RB walk
-  // your focus from slot to slot
-  'select.bumperL': 'LB',
-  'select.bumperR': 'RB',
-  'select.bumperHint': 'slots',
-  'select.picking': 'picking…',
   'select.editing': '▶ P{n} EDITING · ↑↓ change · B done',
-  'select.locked': '· LOCKED ✓',
   'select.colorLabel': 'COLOR',
   'select.stat.power': 'POWER',
   'select.stat.speed': 'SPEED',
@@ -70,12 +53,7 @@ export const MESSAGES = {
   'select.move.ranged': 'RANGED',
   'select.move.special': 'SPECIAL',
   'select.move.ult': 'ULTIMATE',
-  'select.move.rangedShort': 'RNG',
-  'select.move.specialShort': 'SPC',
-  'select.move.ultShort': 'ULT',
-  'select.unknownMove': '???',
 
-  // the RANDOM roster cell (a pseudo-mech)
   // the versus split (ui/menus.js MechSelectScreen)
   'select.vs': 'VS',
   'select.brawl': '{n}-PLAYER BRAWL',
@@ -87,10 +65,10 @@ export const MESSAGES = {
   'select.tagHuman': '{n}P · {device}',
   'select.lockedStamp': 'LOCKED',
   'select.prompts.html': '<span><i class="gl a">A</i>LOCK IN</span><span><i class="gl b">B</i>BACK</span><span><i class="gl x">X</i>PAINT</span><span><i class="gl pill">LB</i><i class="gl pill">RB</i>SEATS</span>',
+  // the RANDOM roster cell (a pseudo-mech)
   'select.random.name': 'RANDOM',
   'select.random.title': 'Mystery Unit',
   'select.random.blurb': 'A different robot every round — dealt fresh at each bell. Pick a color scheme; it carries onto whatever shows up.',
-  'select.random.short': 'a different robot every round',
 
   // input device labels
   'device.touch': 'TOUCH',

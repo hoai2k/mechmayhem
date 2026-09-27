@@ -1071,6 +1071,7 @@ export class MechSelectScreen {
     const glow = m === RANDOM_PICK ? schemeGlow(v, m.colors.glow) : applyColorScheme(m, v).colors.glow;
     sd.style.setProperty('--g', hexCss(glow));
     q('.sd-tag').innerHTML = tag;
+    q('.sd-tag').dataset.lock = t('select.lockedStamp');
     q('.sd-join').innerHTML = '';
     q('.sd-name').textContent = m.name;
     q('.sd-title').textContent = m.title;
