@@ -1,4 +1,8 @@
-# IMAGE REQUESTS — menu hangar (2 images) · hero cards (19 images)
+# IMAGE REQUESTS — menu hangar (2 images) · hero cards (17 images)
+
+> **Delivered:** both hangar backplates in `public/menus/` and all 17 active
+> mech hero cards in `public/cards/`. AEGIS and NOVA are retired, so the
+> active roster has 17 cards rather than the 19 stated in the original title.
 
 > **Two requests live in this file.** The **hangar backplates** directly below
 > are new (2 images) and are only needed if the menus go with **Concept C —
