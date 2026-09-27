@@ -7,9 +7,11 @@
 > the hangar plates are not used; they are kept, unshipped, in `docs/menus/`. AEGIS and NOVA are retired, so the
 > active roster has 17 cards rather than the 19 stated in the original title.
 
-> **Two requests live in this file.** The **hangar backplates** directly below
-> are new (2 images) and are only needed if the menus go with **Concept C —
-> The Hangar** from the menu redesign (`docs/menu-concepts/`). The **hero
+> **Two requests lived in this file, and both are closed.** The **hangar
+> backplates** directly below (2 images) were only needed for **Concept C —
+> The Hangar** from the menu redesign (`docs/menu-concepts/`); they were
+> delivered but Concept B shipped, so they sit unshipped in `docs/menus/`
+> rather than the `public/menus/` path the delivery block names. The **hero
 > cards** after them are the original request, and they now serve twice: the VS
 > splash they were made for, and **Concept B — Fight Night**'s select panels.
 > Concept A needs no new art at all.
@@ -125,16 +127,18 @@ carry the mech-select picker and the in-match portrait later.
 > kept as the backup. Nothing is outstanding there, and those prompts are gone
 > from this file — the delivered images are the record.
 
-**19 images outstanding**, one per roster mech. Any subset is useful: nothing
-in the game waits on them, they land per mech, and a mech with no card simply
-has no card yet.
+**Nothing outstanding** — all 17 were delivered. (Originally 19, one per
+roster mech; AEGIS and NOVA have since been retired.) The 2048×2560 originals
+live in `docs/cards/`, and `node tools/cards.mjs` writes the web-size copies to
+`public/cards/<id>.jpg` plus `public/cards/index.json`.
 
 ---
 
 ## Delivery
 
 ```
-public/cards/<mechId>.jpg      portrait 4:5 · 2048×2560 preferred, 1280×1600 minimum · quality ~88
+docs/cards/<mechId>.jpg        portrait 4:5 · 2048×2560 preferred, 1280×1600 minimum · quality ~88
+                               (tools/cards.mjs → public/cards/<mechId>.jpg, ~170 KB)
 ```
 
 `public/` because these are fetched by name at runtime (the rule in
@@ -243,7 +247,7 @@ brush texture.
 
 ---
 
-## THE NINETEEN
+## THE SEVENTEEN
 
 Each entry gives the palette the game lights that mech with, its reference
 URLs, the world its background comes from with the arena image to anchor the
@@ -559,7 +563,7 @@ is the character direction, not decoration.
 
 ---
 
-## Checking one before you generate the other eighteen
+## Checking one before you generate the other sixteen
 
 1. **Is it the right robot?** Card beside `docs/canonical/mech_<id>.png` and
    `public/posters/<id>.png`. Silhouette, decals, accent colour, and which arm

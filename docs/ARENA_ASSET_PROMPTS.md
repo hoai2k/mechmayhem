@@ -1,5 +1,13 @@
 # Arena redesign — asset generation prompts
 
+> **Status (2026-09-27): historical — everything requested here was delivered.**
+> The skies and horizon strips are in `src/textures/sky/`, the 20 feature props
+> are GLBs in `public/models/props/` (manifested), the 8 building massing
+> donors are in `public/models/buildings/`, and NEON DISTRICT has since been
+> hand-authored (`public/levels/`, registered in `src/arena/authored.js`). The
+> "renders every arena fully procedurally today" line below describes July.
+> Outstanding art asks live in `docs/ASSET_REQUESTS_STRUCTURES.md`.
+
 Companion to the 2026-07 arena redesign pass. Everything in here is
 OPTIONAL: the game renders every arena fully procedurally today. Each asset
 you generate and drop in the right folder upgrades one thing in place, with

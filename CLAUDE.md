@@ -2,7 +2,8 @@
 
 Browser 3D mech arena fighter (Three.js + Vite, plain ES modules, no TS).
 17 mechs (all playable — no `hidden` ones today), 12 destructible arenas,
-4-player local multiplayer (KB + Xbox pads), AI opponents. Models are rigged
+local matches of up to 8 fighters (KB + Xbox pads + CPUs, split-screen per
+human), AI opponents. Models are rigged
 GLBs over a procedural parts-kit fallback; ANIMATION, textures and the SFX
 fallback bank are all generated. Progress history: `TASKS.md`.
 
@@ -30,7 +31,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   extra `args` appended); set `PW_CHROMIUM=<path to a Chromium/Chrome binary>`
   on a machine where it is not at `/opt/pw-browsers/chromium`.
 - Debug URLs: `?showcase` (12-mech lineup) · `?showcase=<id>&anim=<clip|walk|none>`
-  (single mech, judging camera) · `?battle=<arena>&p1=<id>&p2=<id>[&p3..p4][&auto=1][&diff=ace][&forcesplit=1]`
+  (single mech, judging camera) · `?battle=<arena>&p1=<id>&p2=<id>[&p3..p8][&auto=1][&diff=ace][&forcesplit=1[&humans=<n>]]`
   · `?rigtest` (GLB retarget math check) · `?showall=1` (force SETTINGS → SHOW
   ALL ROBOTS on for the session)
 - WORKBENCHES LIVE ON THEIR OWN PAGE: `/workbench/?edit=<tool>&mech=<id>` —
@@ -1596,7 +1597,10 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   both written by `node tools/cards.mjs` from the 2048x2560 originals in
   `docs/cards/`, ~170 KB each shipped) and falls back to its poster.
   FIGHTER SELECT = THE VERSUS SPLIT: every fighter owns a SIDE — a half with
-  one or two in the match, a quadrant with three or four ("N-PLAYER BRAWL") —
+  one or two in the match, a quadrant with three or four, a STRIP of a half
+  with five to eight (three or four rows a side, alternating left/right in
+  slot order, each cut along the band's slanted edge — `placeRow` in
+  menus.js works the clip out per row) ("N-PLAYER BRAWL") —
   and the roster grid sits in a slanted band down the middle under VS. One
   element per SLOT whose position class changes with the line-up, so clicks,
   LB/RB visits and pickers address it the same way in every layout; an empty
@@ -1653,8 +1657,8 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   against one), nullbot's random head ticks slid between the two load paths
   (see THE SEQUENCE IS RESEEDED PER CLIP in the tool's header), tritone
   needed a bake to keep a rig's game fields (`tailFloor`), and jerry's first
-  run was a browser timeout. So `src/mechs/rigs/` carries only rhino's
-  orphaned rig file and every manifest entry is url + scale + yaw + muzzles
+  run was a browser timeout. So `src/mechs/rigs/` carries only its
+  (empty) `index.js` registry and every manifest entry is url + scale + yaw + muzzles
   (viper keeps `boneCorrections`, which is a runtime lever by design). A mech
   that comes back from the archive for re-rigging goes through the bake again
   before anything below can touch it. `--apply` REFUSES to write a mech whose
@@ -2087,15 +2091,40 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   and NOBODY'S VIEW CARRIES A PLATE. The plates are the same elements, so
   health, ult badges, pips, ammo and death counts all keep updating through
   the same handles, and switching layout puts them back in their corners —
-  '3' is the only layout that re-parents anything. THE PANEL IS OPAQUE ON
+  '3' and the grids are the only layouts with a panel. THE PANEL IS OPAQUE ON
   PURPOSE: that quadrant is outside every viewport's scissor rect, so there is
-  nothing behind it to show through. FOUR PLATES IS THE SIZE IT MUST FIT
-  (three humans and a CPU in a quarter of the screen), which is why everything
+  nothing behind it to show through. EIGHT PLATES IS THE SIZE IT MUST FIT
+  (three humans and five CPUs in a quarter of the screen), which is why everything
   inside the panel wears tighter measurements than the same plate does alone
-  in a viewport corner. `node tools/scratch/split3.mjs [out.png]` is the check
+  in a viewport corner — and with more than four fighters (three humans and up
+  to five CPUs) it wraps into two columns of four. `node tools/scratch/split3.mjs [out.png]` is the check
   — it reads the quadrant from camera.js rather than restating it, and fails
   if the panel is not exactly that quadrant, if any plate lands outside it, or
   if the stack outgrows it by a single pixel.
+- UP TO EIGHT FIGHTERS (`MAX_FIGHTERS`/`MAX_PADS` + `PLAYER_COLORS` in
+  core/colors.js — the colour list IS the seat count). A match is up to eight
+  slots, any mix of humans and CPUs; human seats are bounded by devices, and
+  CHROMIUM (Chrome, Edge, the Electron build) exposes at most FOUR gamepads,
+  so six humans is the practical ceiling there (kb1 + kb2 + four pads). Every
+  loop over pads runs to `MAX_PADS` so a browser that exposes more gets them.
+  FIVE TO EIGHT HUMANS — AND FOUR WITH A CPU — ARE A GRID WITH A PANEL
+  (camera.js `gridLayout`, kinds `g4`..`g8`): views fill a 3x2 (≤5 cells) or
+  3x3 grid in reading order and the cells left at the end of the bottom row
+  are the stats panel, the same idea as the 3-player L. A 3x3 cell is 16:9,
+  which is why it beats a 4x2 of portrait cells. Unlike '3', each HUMAN's
+  plate rides the top-left of their OWN view (compact, `.in-view`) and the
+  panel holds the clock and the CPUs — one cell of nine cannot hold eight
+  plates. Four humans with no CPU keep the plain 2x2; the layout needs
+  `cameraSys.aiCount` to choose, which boot sets before placing plates.
+  Everywhere else plates live in CORNER STACKS (`.hud-corner`), so eight
+  fighters on one view sit two to a corner instead of on top of each other,
+  and the 3-player quadrant wraps into two columns of four. The loading card
+  drops its VS and narrows the cutouts past four. Judge it with
+  `node tools/scratch/select8.mjs <n> out.png` (the select screen with n
+  seats filled, no pad scripting) and `node tools/scratch/playershot.mjs
+  "<battle url>&forcesplit=1&humans=<n>&postfx=off" out.png` — post FX off,
+  because SwiftShader cannot draw eight post chains before a screenshot
+  times out.
 - NOT EVERY LARGE STRUCTURE IS A BUILDING (`src/arena/structures.js`, asset
   prompts in `docs/ASSET_REQUESTS_STRUCTURES.md`). A big destructible mass has
   a gameplay job — block sight, give cover, be climbed, come down — and every
@@ -2798,9 +2827,10 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   which is the only thing a page view cannot say (did anybody get past the
   title screen). Country, browser and screen size are derived from the request
   at their end.
-  EMPTY MEANS OFF, and that is the shipped state: with `GOATCOUNTER_CODE`
-  blank no script is loaded and no request is made anywhere, so a FORK reports
-  to nobody. Everything else that must not be counted is in one function
+  EMPTY MEANS OFF: with `GOATCOUNTER_CODE` blank no script is loaded and no
+  request is made anywhere. The shipped code is set (`'hoai'`), so a FORK that
+  keeps it reports to the owner's dashboard — a fork should blank it or put its
+  own in. Everything else that must not be counted is in one function
   (`reasonToSkip`) rather than scattered: DNT/GPC, the Electron desktop build,
   the `/workbench/` pages, and a player who said no (`?stats=0` / the button on
   `/stats/`, one `rw.noStats` key for both). `?battle=...` counts nothing

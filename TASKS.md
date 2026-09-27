@@ -1,8 +1,8 @@
 # MECH MAYHEM — 3D Mech Battle Game — Task Tracker
 
 Browser-based 3D mech arena fighter in the spirit of **Override: Mech City Brawl**.
-17 unique mechs, 12 destructible city arenas, local multiplayer (keyboard + Xbox
-controllers via Gamepad API), AI opponents.
+17 unique mechs, 12 destructible city arenas, local matches of up to 8 fighters
+(keyboard + Xbox controllers via Gamepad API + CPUs), AI opponents.
 
 > **Process note:** This file is the source of truth for progress. Update the
 > checkboxes and the "Current status" section after every phase and commit it,
@@ -18,8 +18,9 @@ controllers via Gamepad API), AI opponents.
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE MECH DIET — every model baked, half the triangles, a quarter
-  of the texture memory (see the entry at the end). Previous: THE STEPPER STOPS FLICKERING: LONGER STRIDES, FRONT LIMBS
+- **Latest:** EIGHT FIGHTERS, AND THE DOCS CAUGHT UP (see the entry at the
+  end). Previous: THE MECH DIET — every model baked, half the triangles, a
+  quarter of the texture memory. Before that: THE STEPPER STOPS FLICKERING: LONGER STRIDES, FRONT LIMBS
   ANTICIPATE, TWO LIMBS STAY DOWN. Owner: "Jerry's legs are moving a bit too
   fast (looks like flickering) when climbing... reach them a bit further and
   when moving in a direction first move the closest foot (aiming for the
@@ -7143,3 +7144,48 @@ clean; build green.
 WHAT IS LEFT is the honest cost: a 2-point containment change is a balance
 change, and `node tools/hitprobe.mjs` A/B'd over several runs is the way to
 see whether it is felt. `public/models/opt/` is deleted.
+
+## 2026-09-27 — Eight fighters, and the docs caught up
+
+Owner: "I looked at the base readme and saw that it had images of procedural
+models. We don't use the procedural versions anymore. Also, I saw that it says
+we support up to 4 players... can we support up to 8 players instead?"
+
+EIGHT SEATS. `MAX_FIGHTERS`/`MAX_PADS` in core/colors.js (the colour list is
+the seat count — P5-P8 are violet, white, orange, magenta), and every hard 4
+in input, pad pointers, fighter select, camera, HUD, finisher skip and the
+battle harness now reads them. Human seats are still bounded by DEVICES:
+Chromium (Chrome, Edge, the Electron build) exposes at most four gamepads, so
+six humans is the practical ceiling there; CPUs fill the rest.
+
+- FIGHTER SELECT: 5-8 in the match cut each half into three or four STRIPS
+  along the band's slanted edge (`placeRow`, geometry per row); the ＋ chip now
+  appears whenever every drawn side is taken, and the top-right side's tag
+  drops below the corner buttons (it sat under them in the 4-player quad too).
+- SPLIT SCREEN: 5-8 humans — and four humans with a CPU — are a 3x2 / 3x3 GRID
+  whose spare cells at the end of the bottom row are the stats panel
+  (`gridLayout`, kinds g4..g8). Each human's plate rides the top-left of their
+  own view; the panel holds the clock and the CPUs.
+- HUD: every non-panel layout places plates in CORNER STACKS, so eight on one
+  view sit two to a corner instead of on top of each other; the 3-player
+  quadrant wraps into two columns (worst case three humans + five CPUs —
+  `tools/scratch/split3.mjs` updated to it, 8/8 plates inside, 0px overflow).
+- LOADING CARD: past four, narrower cutouts and no VS between neighbours.
+- `?battle=` takes `p1..p8`, and `&forcesplit=1&humans=<n>` previews an n-human
+  split with the real plates. New checks: `tools/scratch/select8.mjs <n>` and
+  `tools/scratch/playershot.mjs` (1600x900, jpeg-capable).
+
+Measured: an 8-CPU ace soak on neon (120s, specials/ults forced) ran clean;
+screenshots of 2/4/5/6/8-seat select and 4+4 / 5+3 / 8-human splits judged by
+eye; `npm run check` 27/27; build green.
+
+DOCS: the README's screenshots were the ROBOTWORLD-era procedural bodies and
+retired mechs — replaced with `docs/readme/*.jpg` (title film strip, 2- and
+8-seat select, three arenas on the GLB roster, the 8-way split) and the six old
+PNGs deleted. An audit of every Markdown doc fixed 23 files (all 17 baked, no
+rig files or alts, recorded SFX, Concept B shipped, the unread texture folder
+stated backwards, badge pipeline, payload sizes to re-measure, settings list),
+and TRIPO_STATUS / REFACTOR_PLAN / ARENA_ASSET_PROMPTS carry historical/closed
+headers. Left open: `tools/dist.mjs` does not strip `public/models/source/`
+(118 MB of archived originals) from a web build — flagged in
+WEB_LAUNCH_CHECKLIST.md rather than changed here.

@@ -96,7 +96,8 @@ owns (`holoTaunt`).
 
 ### Phase 0 — palette + proportion extraction (tooling, ~a day)
 
-`node tools/animepalette.mjs <mech>`: mask by alpha (≥0.95 — the keyed
+*(Proposed; `tools/animepalette.mjs` was never built — palettes were set by
+hand in `ANIME[id]`.)* `node tools/animepalette.mjs <mech>`: mask by alpha (≥0.95 — the keyed
 backgrounds carry chroma smear), k-means the figure pixels into 4–7
 clusters, split emissive by saturation×value, and emit a paste-ready roster
 `skin` patch plus the cel ramp stops (lit / shade / ink) for Phase 3.
@@ -140,7 +141,8 @@ parallel-safe):
    beside the PNG, iterate. SwiftShader waits per MECH_ART_GUIDE §4; VIEW
    the images. `tools/thumbs.mjs`-style side-by-side sheet
    (`tools/animecompare.mjs`: render front pose at the drawing's camera,
-   composite next to the reference) makes the loop one command.
+   composite next to the reference) makes the loop one command. *(Proposed;
+   never built.)*
 
 Order of attack: one Tier-1 mech end-to-end first (titanus — the current
 procedural build is closest to its drawing already) to calibrate effort and
@@ -154,8 +156,8 @@ cel shading, and matching it is a bounded, shared pass:
 
 - **Cel ramp material**: a `MeshToonMaterial`-style ramp (3 stops from the
   Phase-0 palette: lit, shade, ink-shadow) as an alternative material set in
-  `factory.js`, toggled per build (`?render=toon` url knob through
-  `core/knobs.js`). The mechbrawler repo already derives per-mech
+  `factory.js`, toggled per build (shipped as `?render=anime` — `RENDERING_MODES` in
+  `core/config.js`, listed in `core/knobs.js`). The mechbrawler repo already derives per-mech
   `toon.cel.palette` + `shadeTint` from these very images — port that
   derivation, don't reinvent it.
 - **Ink outline**: inverted-hull backface pass per merged mesh (the

@@ -15,6 +15,7 @@ import { RagdollSim } from '../combat/ragdollphys.js';
 // map; shared engine/script helpers live in ./finisher/shared.js)
 import { SCRIPTS } from './finisher/index.js';
 import { smooth } from './finisher/shared.js';
+import { MAX_PADS } from '../core/colors.js';
 
 // Seconds at the end of a scene over which a victim left in the air is eased
 // down to the floor (see the settle in update). Long enough to read as a
@@ -261,7 +262,7 @@ export class Finisher {
     const inp = this.w.input;
     if (!inp || this.ended) return;
     let held = inp.key?.('Space') || inp.key?.('Enter');
-    for (let i = 0; i < 4 && !held; i++) if (inp.padHeld?.(i, 'A')) held = true;
+    for (let i = 0; i < MAX_PADS && !held; i++) if (inp.padHeld?.(i, 'A')) held = true;
     if (!held && inp.touch?.held?.has('jump')) held = true;
     if (held) {
       this.skipT = (this.skipT || 0) + dt;

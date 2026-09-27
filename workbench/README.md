@@ -5,7 +5,8 @@ through a config object. Nothing here ships with the game: a `RW_DIST=1` build
 (tools/dist.mjs) drops this whole page from the build inputs.
 
 ```
-/workbench/?edit=animation&mech=colossus   GLB vs procedural, trigger moves, anchors
+/workbench/?edit=animation&mech=colossus   trigger moves, anchors; solo by default
+                                           (&compare=proc|alt adds a 2nd body)
 /workbench/?edit=pose&mech=colossus        pose joints, edit clip keyframes,
                                            scrub the generated walk/run
 /workbench/?edit=gait&mech=viper           TUNE that walk/run: the gait's dials
@@ -53,7 +54,9 @@ workbench/
                       config.arena, so the tool itself knows no theme, no prop
                       and no level format
     stretchscan.js    the skin-deformation maths ?edit=skindebug measures with
-  ui/                 shared chrome: panel, subject picker, variant picker, save
+  ui/                 shared chrome: panel, subject picker, variant picker
+    gizmo.js          addGizmo — hold Shift and the transform handles get
+                      out of the way (pose, rig, level editors)
     mobile.js         the small-touch-screen layout (see below)
 ```
 

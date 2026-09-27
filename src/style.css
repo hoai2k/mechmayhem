@@ -295,7 +295,8 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 }
 
 /* ---------- fighter select: THE VERSUS SPLIT ---------- */
-/* Each fighter owns a SIDE (a half, or a quadrant with 3-4 in the match); the
+/* Each fighter owns a SIDE (a half, a quadrant with 3-4 in the match, a strip
+   of a half with 5-8); the
    roster sits in a slanted band down the middle. The band is one
    parallelogram: its left edge runs from --bl0 at the top to --bl1 at the
    bottom and its right edge from --br0 to --br1, and every side's inner edge
@@ -323,6 +324,11 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 .sel-side.pos-br { right: 0; bottom: 0; height: 50%; width: calc(100% - var(--br1));
   clip-path: polygon(calc((var(--bmr) - var(--br1)) / (100% - var(--br1)) * 100%) 0, 100% 0, 100% 100%, 0 100%); }
 .sel-screen.quad .sel-side.pos-tl, .sel-screen.quad .sel-side.pos-tr { border-bottom: 2px solid #06070d; }
+/* ROWS (5-8 in the match): each half is cut into three or four strips. Their
+   geometry is worked out per row in menus.js placeRow (a strip is clipped
+   along the band's slanted edge, which is a different cut on every row), so
+   only the dressing lives here. */
+.sel-screen.rows .sel-side { border-bottom: 2px solid #06070d; }
 
 .sd-wash { position: absolute; inset: 0; transition: background .35s ease;
   background: radial-gradient(ellipse at 30% 25%, color-mix(in srgb, var(--g) 58%, transparent), transparent 70%),
@@ -362,6 +368,8 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
   color: #051018; background: var(--pc); white-space: nowrap; }
 .pos-r .sd-tag, .pos-tr .sd-tag, .pos-br .sd-tag { left: auto; right: 3vw; }
 .sel-screen.quad .sd-tag { top: 2.4vh; }
+/* the top-right side's tag drops below the corner buttons (⛶ ⓘ ⚙ 🔊) */
+.sel-screen.quad .pos-tr .sd-tag { top: 7.5vh; }
 .sd-tag:empty { display: none; }
 .sd-tag .pc-diff { display: inline-block; padding: 0 .5em; cursor: pointer; }
 .sd-tag .pc-diff:hover { color: #fff; }
@@ -390,6 +398,19 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 .sel-screen.quad .sd-name { font-size: clamp(30px, 4.2vw, 72px); }
 .sel-screen.quad .sd-stats { margin-top: 1.2vh; }
 .sel-screen.quad .sd-info { bottom: 2.4vh; }
+/* a strip is a third or a quarter of the screen tall: name, tag and paint
+   only — the robot's stats and moves are one step away on the grid */
+.sel-screen.rows .sd-pic { height: 94%; bottom: 3%; }
+.sel-screen.rows .sd-tag { top: 1vh; padding: 4px 9px; font-size: clamp(9px, .75vw, 12px); }
+.sel-screen.rows .sel-side.pos-r[data-row="0"] .sd-tag { top: 7.5vh; }
+.sel-screen.rows .sd-title, .sel-screen.rows .sd-stats, .sel-screen.rows .sd-moves { display: none; }
+.sel-screen.rows .sd-name { font-size: clamp(20px, 2.6vw, 44px); }
+.sel-screen.rows .sd-info { bottom: 1.2vh; }
+.sel-screen.rows .sd-paint { margin-top: .8vh; gap: 3px; }
+.sel-screen.rows .pc-swatch { width: 11px; height: 11px; }
+.sel-screen.rows .sd-q { font-size: min(18vh, 12vw); }
+.sel-screen.rows .sd-join { font-size: clamp(13px, 1.2vw, 20px); }
+.sel-screen.rows .sd-join small { margin-top: 4px; }
 
 /* the paint strip: clickable swatches + the scheme name between ◀ ▶ */
 .sd-paint { margin-top: 1.8vh; pointer-events: auto; display: inline-flex; flex-direction: column; gap: 6px; }
@@ -592,6 +613,45 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
   position: static; transform: none; text-align: center;
   font-size: clamp(18px, 2vw, 28px); line-height: 1; margin-bottom: 0.2vh;
 }
+/* CORNER STACKS (ui/hud.js positionPlates): a corner holding more than one
+   plate stacks them — up to two a corner with eight fighters on one view */
+.hud-corner { position: absolute; display: flex; flex-direction: column; gap: 0.6vh; }
+.hud-corner.right { align-items: flex-end; }
+.hud-corner.bottom { flex-direction: column-reverse; }
+.hud-corner .hud-plate { position: relative; }
+/* more than four fighters: every plate is on the tighter measurements */
+#hud.crowded .hud-plate { width: min(18vw, 260px); padding: 5px 9px 6px; }
+#hud.crowded .hud-plate .hp-head { margin-bottom: 2px; }
+#hud.crowded .hud-bar.hp { height: 10px; }
+#hud.crowded .round-pips { margin-top: 2px; }
+/* THE GRIDS (5-8 humans, or four with a CPU): each human's plate rides the
+   top-left of their own view, and the panel is a wrapping row of the CPUs */
+.hud-plate.in-view { width: min(14vw, 220px); padding: 4px 8px 5px; }
+.hud-plate.in-view .hp-name { font-size: clamp(11px, 1vw, 15px); }
+.hud-plate.in-view .hud-bar.hp { height: 9px; }
+.hud-plate.in-view .hud-bar.sprint { height: 4px; margin-top: 2px; }
+.hud-plate.in-view .ult-badges { height: 12px; margin-top: 1px; }
+.hud-plate.in-view .ult-badge { font-size: 12px; }
+.hud-plate.in-view .round-pip { width: 8px; height: 8px; }
+#hud-stats.grid { flex-direction: row; flex-wrap: wrap; align-content: center; justify-content: center; gap: 0.8vh 1vw; }
+#hud-stats.grid > .hud-timer.in-stats { flex-basis: 100%; }
+#hud-stats.grid .hud-plate { width: min(15vw, 240px); }
+/* the 3-player quadrant with CPUs filling the other five seats: eight plates
+   is two columns of four */
+#hud.crowded #hud-stats:not(.grid) { flex-direction: row; flex-wrap: wrap; align-content: center; gap: 0.6vh 0.8vw; }
+#hud.crowded #hud-stats:not(.grid) > .hud-timer.in-stats { flex-basis: 100%; }
+#hud.crowded #hud-stats:not(.grid) { padding-top: 0.6vh; padding-bottom: 0.6vh; gap: 0.4vh 0.8vw; }
+#hud.crowded #hud-stats:not(.grid) .hud-plate { width: calc(50% - 0.4vw); box-sizing: border-box; padding: 2px 7px 3px; }
+#hud.crowded #hud-stats:not(.grid) .hud-plate .hp-head { margin-bottom: 1px; }
+#hud.crowded #hud-stats:not(.grid) .hp-name { font-size: clamp(11px, 1vw, 15px); }
+#hud.crowded #hud-stats:not(.grid) .hud-bar.hp { height: 7px; }
+#hud.crowded #hud-stats:not(.grid) .hud-bar.sprint { height: 3px; margin-top: 1px; }
+#hud.crowded #hud-stats:not(.grid) .ult-badges { height: 10px; margin-top: 0; }
+#hud.crowded #hud-stats:not(.grid) .ult-badge { font-size: 10px; }
+#hud.crowded #hud-stats:not(.grid) .ammo-count { font-size: 10px !important; margin-top: 0 !important; }
+#hud.crowded #hud-stats:not(.grid) .round-pips { margin-top: 1px; }
+#hud.crowded #hud-stats:not(.grid) .round-pip { width: 7px; height: 7px; }
+#hud.crowded #hud-stats:not(.grid) > .hud-timer.in-stats { font-size: clamp(14px, 1.5vw, 22px); margin-bottom: 0; }
 .hud-plate .hp-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
 .hud-plate .hp-name {
   font-weight: 900; font-style: italic; font-size: clamp(13px, 1.3vw, 18px);
@@ -881,6 +941,15 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
   animation: ls-vs-in .5s cubic-bezier(.2,1.6,.4,1) .35s both; }
 @keyframes ls-vs-in { from { transform: scale(2.2); } }
 .ls .ls-cards.n4 .ls-vs span { font-size: clamp(28px, 3.6vw, 64px); }
+/* five to eight: a crowd, not a line of duellists — narrower, shorter, and
+   no VS between neighbours (there is no pairing to announce in a brawl) */
+.ls .ls-cards.n5 .ls-f { width: 19vw; --h: 82%; }
+.ls .ls-cards.n6 .ls-f { width: 16vw; --h: 78%; }
+.ls .ls-cards.n7 .ls-f { width: 14vw; --h: 74%; }
+.ls .ls-cards.n8 .ls-f { width: 12.5vw; --h: 70%; }
+.ls .ls-cards:is(.n5, .n6, .n7, .n8) .ls-name { font-size: clamp(14px, 1.7vw, 30px); }
+.ls .ls-cards:is(.n5, .n6, .n7, .n8) .ls-title { display: none; }
+.ls .ls-cards:is(.n5, .n6, .n7, .n8) .ls-vs { display: none; }
 
 /* -- bottom: the pad, a tip, the bar -- */
 .ls .ls-foot {

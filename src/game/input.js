@@ -1,6 +1,7 @@
 // Input: keyboard (2 local layouts) + Xbox controllers via Gamepad API.
 // Produces per-fighter intents and aggregated menu navigation events.
 import { TUNING } from '../core/tuning.js';
+import { MAX_PADS } from '../core/colors.js';
 
 const KB1 = {
   up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD',
@@ -31,8 +32,8 @@ export class Input {
   constructor() {
     this.keys = new Set();
     this.keysPressed = new Set();   // edge (consumed per frame)
-    this.padsPrev = [{}, {}, {}, {}];
-    this.padsCur = [{}, {}, {}, {}];
+    this.padsPrev = Array.from({ length: MAX_PADS }, () => ({}));
+    this.padsCur = Array.from({ length: MAX_PADS }, () => ({}));
     this._lockLatch = [false, false, false, false]; // LT target-lock toggles
     // when LT went down, per pad (null = up). A TAP toggles the lock on
     // release; a HOLD is sniper mode instead — see readIntent.
@@ -73,7 +74,7 @@ export class Input {
   // call once per frame before reading
   poll() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < MAX_PADS; i++) {
       this.padsPrev[i] = this.padsCur[i];
       const gp = pads[i];
       const cur = {};
@@ -115,11 +116,11 @@ export class Input {
 
   connectedPadCount() {
     let n = 0;
-    for (let i = 0; i < 4; i++) if (this.padConnected(i)) n++;
+    for (let i = 0; i < MAX_PADS; i++) if (this.padConnected(i)) n++;
     return n;
   }
 
-  // device: 'kb1' | 'kb2' | 'pad0'..'pad3'
+  // device: 'kb1' | 'kb2' | 'pad0'..'pad7'
   // camYaw rotates stick/key direction into world space
   readIntent(device, intent, camYaw = 0) {
     let mx = 0, mz = 0;
@@ -295,7 +296,7 @@ export class Input {
     if (kp('KeyQ')) ev.lb = true;
     if (kp('KeyE')) ev.rb = true;
     let anyPad = false;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < MAX_PADS; i++) {
       if (!this.padConnected(i) || this.pointerPads.has(i)) continue;
       const src = 'agg:pad' + i;
       if (this._navRepeat(src, 'up', this.padHeld(i, 'DU') || this.padsCur[i].ly < -0.6)) ev.up = true;

@@ -1,16 +1,17 @@
 # ASSET REQUESTS — arena STRUCTURES (all delivered) + one COMBAT prop
 
-**Status: nothing outstanding.** All six landform materials are in and
-wired; `PENDING_ASSETS` in `src/core/assetcheck.js` is empty, so every one
-of them is now GUARDED — remove or rename a file and the boot check and
+**Status: one outstanding ask — `prop/prop_dino_egg`** (SAURION's egg shell,
+see OUTSTANDING below), the single entry in `PENDING_ASSETS` in
+`src/core/assetcheck.js`. The structures themselves are done: all six
+landform materials are in and wired, so every one of them is GUARDED — remove or rename a file and the boot check and
 `node tools/assetcheck.mjs` both report it. Building facades are delivered
 too (`docs/ASSET_REQUESTS_ARENA_DESIGN.md`).
 
 The nice-to-have at the bottom (`struct_basalt_column`) has landed too and
 is wired as promised: `basaltCliff` wears it (with its own `column` chunk
 shape — upright hexagonal prisms, since a colonnade drawn as boulders reads
-as neither), and `struct_basalt_rock` stays on the mounds. NOTHING is
-outstanding.
+as neither), and `struct_basalt_rock` stays on the mounds. Nothing structural
+is outstanding.
 
 This file is kept as the SPEC: it is what these materials are supposed to
 be, and the rules to follow for the next one. To add a structure material,
@@ -149,7 +150,7 @@ features (one giant blotch) will strobe as it rolls.
 ## What is NOT requested
 
 - Building facades — that is `docs/ASSET_REQUESTS_ARENA_DESIGN.md`, and all
-  twelve of those have landed too, so the ruins and jungle silhouettes now
+  ten of those have landed too, so the ruins and jungle silhouettes now
   wear sandstone and mossy temple stone rather than industrial brick.
 - Prop models — the sphinxes, gates, colonnades and crystals already exist.
 - Ground, sky and horizon sets — complete for all twelve arenas.

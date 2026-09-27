@@ -19,6 +19,7 @@ import { loadLevel, themeFromLevel } from '../arena/level.js';
 import { resolveArenaTheme } from '../arena/authored.js';
 import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
 import { Hud } from '../ui/hud.js';
+import { MAX_FIGHTERS } from '../core/colors.js';
 import { Training } from '../game/training.js';
 
 export async function runBattleTest() {
@@ -74,7 +75,7 @@ export async function runBattleTest() {
   });
 
   const ids = [];
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= MAX_FIGHTERS; i++) {
     const p = params.get('p' + i);
     if (p) ids.push(p === 'random' ? pick(ROSTER).id : p);
   }
@@ -83,14 +84,14 @@ export async function runBattleTest() {
   const spawns = arena.spawnPoints(ids.length);
   const fighters = [];
   const ais = [];
-  // &c1..c4 pick a color scheme (0-3) per fighter for testing
+  // &c1..c8 pick a color scheme per fighter for testing
   const defs = ids.map((id, i) => applyColorScheme(
     ROSTER_BY_ID[id] || pick(ROSTER), +params.get('c' + (i + 1)) || 0));
   // Build through createMech so ?debug=3d exercises the SAME GLB models the
   // real match ships (createMech falls back to procedural off-3d or on load
   // failure), letting the soak/screenshot harness reproduce GLB-only bugs.
   const builtMechs = await Promise.all(defs.map((def) => createMech(def)));
-  const humanN = auto ? 0 : training && forcesplit ? Math.max(1, Math.min(4, ids.length - 1)) : 1;
+  const humanN = auto ? 0 : training && forcesplit ? Math.max(1, Math.min(MAX_FIGHTERS, ids.length - 1)) : 1;
   defs.forEach((def, i) => {
     const f = new Fighter(world, def, {
       pos: spawns[i].pos, yaw: spawns[i].yaw, playerIndex: i, isAI: i >= humanN,
@@ -103,12 +104,15 @@ export async function runBattleTest() {
 
   let humans = fighters.slice(0, humanN);
   if (forcesplit) {
-    if (!training) humans = fighters.slice(0, Math.min(4, fighters.length));
+    // &humans=<n> leaves the rest as CPUs (e.g. four players + a CPU)
+    const hn = +params.get('humans') || fighters.length;
+    if (!training) humans = fighters.slice(0, Math.min(hn, MAX_FIGHTERS, fighters.length));
     // (a training dummy's home is its pad, so the bodies stay where they spawned)
-    if (!training) fighters.forEach((f, i) => f.pos.set((i % 2) * 90 - 45, 0, (i >> 1) * 60 - 30));
+    if (!training) fighters.forEach((f, i) => f.pos.set((i % 2) * 90 - 45, 0, (i >> 1) * 45 - 60));
   }
   const layoutParam = params.get('layout'); // lr | tb (2-human split preview)
   if (layoutParam === 'lr' || layoutParam === 'tb') cameraSys.layout2p = layoutParam;
+  cameraSys.aiCount = fighters.length - humans.length;
 
   // simple debug HUD (bottom-centre under training, where the real plates
   // own the corners)
@@ -120,10 +124,14 @@ export async function runBattleTest() {
   // TRAINING: the real HUD (plates + the checklist each seat's list hangs
   // off) and the trainer itself. Seat devices follow boot's own order.
   let realHud = null, trainer = null;
-  if (training) {
+  if (training || forcesplit) {
+    // a forced split shows the real plates too, so a 5-8 player layout can
+    // be judged with its HUD in place
     realHud = new Hud(document.getElementById('ui-root'), world);
     realHud.buildPlates(fighters);
     realHud.positionPlates(cameraSys.layoutKind(humans.length), humans.map((f) => fighters.indexOf(f)));
+  }
+  if (training) {
     realHud.setTraining(true);
     world.camera = engine.camera;
     const DEV = ['kb1', 'kb2', 'pad2', 'pad3'];

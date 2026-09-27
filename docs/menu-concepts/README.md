@@ -1,7 +1,13 @@
 # Menu redesign concepts
 
+> **Status (2026-09-27):** Concept **B — Fight night** shipped (`src/ui/menus.js`:
+> the film-strip title and the versus-split select). `0_current_*` is the
+> PRE-redesign state these mockups responded to, not what ships today. The
+> shipped select gives each fighter a half with 1-2 in the match, a quadrant
+> with 3-4, and a strip (rows down each side of the band) with 5-8.
+
 Mockups of three redesigns of the title screen and fighter select, built from
-the game's own assets. `0_current_*` is the shipped state they respond to.
+the game's own assets. `0_current_*` is the state they responded to.
 
 | Files | Concept |
 |---|---|

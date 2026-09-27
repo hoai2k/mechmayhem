@@ -16,7 +16,7 @@ still describe what to do the next time a WIP mech exists.)*
 ## Building the thing you upload
 
 ```bash
-npm run dist:web        # → dist-web/, ~97 MB
+npm run dist:web        # → dist-web/ (was ~97 MB; re-measure — see below)
 ```
 
 `npm run build` still produces the ordinary two-page dev build (game +
@@ -27,8 +27,10 @@ a *distribution* off the tree without modifying a byte of it:
   inputs and compiles out the `?debug=` / `?showcase` / level-editor routes —
   48 JS chunks become 2, and the authoring surface is absent rather than merely
   unlisted
-- drops models the shipped game cannot reach: the `hidden: true` mechs and the
-  workbench-only `alt` sub-entries, rewriting `manifest.json` in the output only
+- drops models the shipped game cannot reach: the `hidden: true` mechs, the
+  workbench-only `alt` sub-entries (none exist today, so that step is moot) and
+  any top-level GLB the manifest no longer names, rewriting `manifest.json` in
+  the output only
 - quantizes (16-bit) and meshopt-compresses every surviving GLB, verifying each
   rig is untouched
 - transcodes the PNG texture pack to WebP and rewrites the hashed references in
@@ -40,6 +42,18 @@ a *distribution* off the tree without modifying a byte of it:
 | models | 104 MB (19 files) | 53 MB (15 files) |
 | textures | 163 MB (114 PNGs) | 28 MB (WebP) |
 | JS chunks | 48 | 2 (1.5 MB) |
+
+*That table is from the original `dist:web` run and is stale.* The inputs have
+moved a lot since (measured 2026-09-27 with `du`): the 18 mech GLBs in
+`public/models/` are **63 MB** after the mech diet (`tools/mechopt.mjs`), props
+20 MB, building donors 3.3 MB; the recorded SFX in `public/sfx/` are **8.2 MB**;
+the soundtrack in `src/music/` is **128 MB** (streamed, but copied verbatim into
+the build unless `RW_NO_MUSIC=1`); the PNG texture masters in `src/textures/`
+are 356 MB before WebP. Two things to check before quoting a payload again:
+`tools/dist.mjs` strips `public/models/props/source/` but, reading the code,
+NOT the mech archive `public/models/source/` (118 MB of pre-bake originals and
+sidecars the game never loads), and it does nothing about the music. Re-run
+`npm run dist:web` and `du -sh dist-web` for the real number.
 
 Source masters in `public/models/` and `src/textures/` are never touched, so
 every workbench, `anchorkeep`, `hurtboxfit` and `cliptear` keep working against
@@ -84,7 +98,7 @@ actually reduce GPU memory.
 All five are resolved. Kept here with what was actually done, because the
 reasoning matters more than the checkmarks.
 
-### 1.1 The payload ✅ 302 MB → 97 MB
+### 1.1 The payload ✅ 302 MB → 97 MB (at the time — see the note above)
 
 Solved by `npm run dist:web` — see *Building the thing you upload* above for
 the breakdown, the quantization fold that made models safe to shrink, and the
@@ -122,10 +136,13 @@ after two frames — rendered, not merely constructed — and fades it out.
 
 ### 1.4 Visibility pause ✅
 
-`document.hidden` now pauses the fight and suspends the AudioContext. Returning
-does **not** auto-resume: the pause screen stays up and the player unpauses when
-they are actually looking, which is the only fair option in local multiplayer.
-The warm-up is exempt — it is time-gated and owns its cameras.
+`document.hidden` now pauses the fight and suspends the AudioContext — and so
+does an UNFOCUSED window (another window over the game, alt-tab): `applyAway`
+in `src/game/boot.js` treats "away" as hidden OR unfocused, pausing the fight
+and gating every audio source. Returning does **not** auto-resume: the pause
+screen stays up and the player unpauses when they are actually looking, which
+is the only fair option in local multiplayer. The loading card is exempt — it
+is time-gated (the old warm-up it replaced was exempt for the same reason).
 
 ### 1.5 Licensing ✅ / one decision left
 
@@ -151,22 +168,24 @@ remaining dev routes out of the game entry. In `dist-web/` there is no
 anywhere in the bundle — 48 chunks become 2. The authoring surface is absent,
 not merely unlisted.
 
-The dev *save* endpoints were already safe: `vite.config.js`'s `devWriter()` is
-`apply: 'serve'`, so `/__rw/manifest`, `/__rw/rig` and `/__rw/changes` never
-exist in a static build.
+The dev *save* endpoints are gone entirely: `/__rw/manifest`, `/__rw/rig` and
+`/__rw/changes` were removed from `vite.config.js` (no workbench writes to the
+repo any more — every tool exports its edit as text), so there is nothing to
+exist in any build.
 
 ### 2.2 Clean up the shipped SETTINGS menu
 
 The menu (`settingsItems()` in `src/game/boot.js`) has since grown and been
-cleaned up. It now offers: MUSIC VOLUME (only when a player is available),
-ROUND TIME, SFX VOLUME, SOUND FX (RECORDED/SYNTH), REVERSE CAMERA Y,
-SPLIT-SCREEN FX, SHOW ALL ROBOTS and ARENA DESIGN.
+cleaned up. It now offers: MUSIC VOLUME (only when a music player is
+available), ROUND TIME, ROBOT SPEED, SFX VOLUME, SOUND FX (RECORDED/SYNTH),
+REVERSE CAMERA Y, SPLIT-SCREEN FX, INFINITE ULTIMATES, SHOW ALL ROBOTS and
+ARENA DESIGN.
 
-- **INFINITE ULTIMATES is no longer a menu item** — the cheat survives only
-  behind `?debug=ultimates` / the `rw.infiniteUlts` pref, so a player cannot
-  stumble into it. (Its `settings.infiniteUlts.*` strings in `core/text.js`
-  are now orphaned, along with `settings.sound.*`, `settings.music.*` and
-  `settings.reload` — harmless, but they are dead ids.)
+- **INFINITE ULTIMATES is a menu item again** — a player cheat that fills the
+  HUMANS' ult pouch every round (the CPU never reads it), meant as practice.
+  Decide whether a store build should offer it. (`settings.sound.*`,
+  `settings.music.*` and `settings.reload` in `core/text.js` are orphaned —
+  harmless, but dead ids.)
 - SOUND: ON/OFF is deliberately *not* here: the speaker button beside the gear
   is the one control for it.
 - ~~SHOW ALL ROBOTS un-hides AEGIS and NOVA, which are unfinished.~~ **Settled:
@@ -215,11 +234,12 @@ Several things behave differently embedded:
 - **Gamepads** need the iframe focused before `navigator.getGamepads()` reports
   anything. Verify a pad works after a click into the frame; the title hint
   should say "click the game first."
-- **Fullscreen** — `src/game/boot.js:198` calls `requestFullscreen()`, which
+- **Fullscreen** — the fullscreen corner button in `src/game/boot.js` calls
+  `requestFullscreen()` (and is only offered where that API exists), which
   needs the embedding iframe to permit it. Enable itch's *Fullscreen button*
   option and confirm both routes work.
 - **Audio autoplay** — unlock is wired on the first `pointerdown`/`keydown`
-  (`boot.js:50-52`), which is the correct pattern. Confirm it survives the
+  (`resumeAudio` in `boot.js`), which is the correct pattern. Confirm it survives the
   embed, and leave itch's "automatically start on page load" **off** so the
   click-to-play is the unlock gesture.
 - `base: './'` in `vite.config.js` is already right for itch's subpath serving.
@@ -228,7 +248,7 @@ Several things behave differently embedded:
 
 There is real work here already — `src/game/touch.js`, `isTouchDevice()`
 routing to a single-player layout, and a portrait rotate hint in `index.html`.
-But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
+But a payload this size (see §1.1's note) plus this VRAM footprint is a genuine risk on iOS.
 
 - Test on a real mid-range Android and a real iPhone. If it does not hold up,
   untick "Mobile friendly" on the itch page rather than shipping a bad first
@@ -255,8 +275,11 @@ But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
       matchup. Before launch, sweep every mech against a couple of others
       across several arenas, at `diff=ace`, with ults enabled. A crash in a
       rare special is the most likely 1-star review this game will get.
-- [ ] 4-player split screen on the heaviest arena, watching frame time — that
-      is four viewports plus destructible chunk instancing, the true worst case.
+- [ ] 8-fighter split screen on the heaviest arena, watching frame time — up to
+      eight viewports in the 3x2/3x3 grid layouts plus destructible chunk
+      instancing is the true worst case. (Humans are limited by devices: 2
+      keyboards + pads, and Chromium/Chrome/Edge/Electron expose at most 4
+      gamepads, so ~6 human views there; CPUs fill the other seats.)
 - [ ] Browser pass: Chrome, Edge, **Firefox**, **Safari**. Safari is the usual
       outlier; the custom GLSL in `src/combat/fxglsl.js` and the effect passes
       are where it will break if it breaks.
@@ -278,8 +301,9 @@ But a 286 MB payload plus this VRAM footprint is a genuine risk on iOS.
 - [ ] Embed size 1280×720, Fullscreen button on, "automatically start" off.
 - [ ] Description, controls section, tags (mech, fighting, local multiplayer,
       3D, controller).
-- [ ] Screenshots — `docs/title.png`, `docs/mech-select.png`, the arena shots
-      and `docs/split-screen.png` already exist and are the right ones.
+- [ ] Screenshots — `docs/readme/title.jpg`, `select.jpg`, `arena-neon.jpg`,
+      `arena-volcano.jpg`, `arena-frozen.jpg` and `split-8.jpg` (the README's
+      set) are the right ones.
 - [ ] A short GIF or 30s video. On itch this matters more than the text.
 - [ ] A visible **version string on the title screen** so bug reports are
       actionable.

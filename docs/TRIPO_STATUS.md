@@ -1,5 +1,11 @@
 # Tripo GLB generation status
 
+> **Status (2026-09-27): historical — closed.** The Tripo intake is long
+> finished: all 17 shipped mechs are rigged GLBs, since hand-rigged or remapped
+> and BAKED (`docs/BAKE_GLB.md`), with the untouched originals archived in
+> `public/models/source/`. AEGIS and NOVA were retired to `archive/mechs/`.
+> The session log below is kept as a record.
+
 Session 2026-07-18. Goal: rigged GLBs for all 17 mechs from `docs/canonical/`
 images via Tripo API → `public/models/` + `manifest.json` → main.
 

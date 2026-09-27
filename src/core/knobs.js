@@ -137,7 +137,7 @@ export const KNOWN_PARAMS = [
   // screens and harnesses
   'battle', 'showcase', 'rigedit', 'rigtest', 'edit', 'level', 'load',
   'glbview', 'bake', 'export', 'menupose', 'poster', 'finisherdemo', 'ultfx', 'geyser',
-  'fire', 'theme', 'forcesplit', 'diff', 'auto', 'arena', 'seed', 'training',
+  'fire', 'theme', 'forcesplit', 'humans', 'diff', 'auto', 'arena', 'seed', 'training',
   // subject / model selection
   'mech', 'id', 'prop', 'variant', 'alt', 'model', 'clip', 'anim', 'key', 't',
   'at', 'compare', 'left', 'dummy', 'ball', 'spin', 'yaw', 'orbit', 'cam',
@@ -145,11 +145,11 @@ export const KNOWN_PARAMS = [
   // skin / skindebug / gait workbenches
   'ref', 'vert', 'vs', 'prints', 'scan', 'i', 'alldials',
   // player / input harness switches
-  'p', 'p1', 'p2', 'p3', 'p4', 'kb1', 'kb2', 'pad', 'input', 'touch',
+  'p', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'kb1', 'kb2', 'pad', 'input', 'touch',
   'notouch', 'desktop', 'layout', 'mobile', 'phone',
   // scripted-input harness (dev/actiontest.js)
   'light', 'heavy', 'special', 'ult', 'ranged', 'jump', 'dash', 'block',
-  'duck', 'taunt', 'strafe', 'fin', 'c', 'c1',
+  'duck', 'taunt', 'strafe', 'fin', 'c', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8',
 ];
 
 /** Say something when a param will be ignored. Cheap, once, at boot. */

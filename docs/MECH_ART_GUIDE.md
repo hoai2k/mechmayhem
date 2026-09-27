@@ -68,24 +68,28 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
    bone positions are read off the picture. `--only=3,25` isolates parts,
    `--focus=x,y,z:size` zooms, `--skin` recolors by the bone that would own
    each vertex (the headless twin of `?rigedit`'s color view).
+   (TODAY every shipped mech is BAKED — its rig is folded into the `.glb` —
+   so `src/mechs/rigs/` holds only `index.js` with `RIGS = {}`; a mech that
+   needs re-rigging comes back with `node tools/bake-glb.mjs <id> --restore`.)
 2. Write `src/mechs/rigs/<id>.rig.js` (`{ skinSpan: 'child', bones: [...] }`),
    register it in `rigs/index.js`, and point the manifest entry at it with
    `"rig": "<id>"` — that supersedes `boneOverrides`/`skinOps`.
 3. Tune live in `?rigedit=<id>` (drag bones, Export pastes back).
 4. Keep the OLD entry verbatim as `alt` (+ `profileKey` if it needs its own
    glbanim profile) so the two builds can be compared: `?rigedit=<id>&alt=1`,
-   `?debug=models`'s *Compare Alternate GLB*, `node tools/variantcheck.mjs <id>`.
+   `/workbench/?edit=animation`'s COMPARE TO (`&compare=alt`), `node tools/variantcheck.mjs <id>`.
    A rig can also be TRIALLED the other way round — the primary keeps its
    Tripo intake and the NEW rig ships as the `alt` (`{"rig": "<id>"}` on the
    alt entry), so nothing in the game moves until someone judges the two side
-   by side and promotes it. `colossus` and `inferno` are set up that way.
+   by side and promotes it. (No shipped entry carries an `alt` today:
+   inferno's hand rig was promoted to primary and every mech since baked.)
    The workbenches know about this: `?debug=skin` and `?rigedit` show an
    **Edit Alternate GLB** checkbox for any mech with an `alt` (off by
    default), and because a mech staged this way has exactly ONE editable
    build, `?rigedit=<id>` opens the alt on its own — box ticked and disabled —
    instead of refusing with "no custom rig to edit". Promotion is then a
    manifest edit only: move `rig` onto the primary, keep the old entry as
-   `alt` (src/dev/altpick.js).
+   `alt` (`workbench/ui/variantpick.js`).
 5. Measure, don't eyeball: `node tools/cliptear.mjs <id> primary 1` vs
    `... <id> alt 1` runs the real Animator over every clip and reports the
    worst seam stretch for each build. Colossus: Tripo +0.34 mesh units,
@@ -93,9 +97,11 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
    default 3-link rule the custom rig has ZERO far-hierarchy seam edges
    against the Tripo rig's 19.
 
-Precedents (rig is the PRIMARY): `cranky`, `fenrir`, `glacier`, `jerry`,
-`titanus`, `viper`, `vulcan`, `wraith`. Offered as `alt`, awaiting judgment:
-`colossus`, `inferno`, `rhino`.
+Precedents: custom rigs were authored for `cranky`, `fenrir`, `glacier`,
+`jerry`, `titanus`, `viper`, `vulcan`, `wraith`, and later promoted for
+`inferno`; all of them are now folded into their baked GLBs (the rig text is
+kept in `public/models/source/<id>.edits.json`). rhino's orphaned rig file was
+removed with the rest.
 
 **Route B steps** (also see IMAGE_TO_MECH.md): §1–§4 below.
 
@@ -103,12 +109,13 @@ Precedents (rig is the PRIMARY): `cranky`, `fenrir`, `glacier`, `jerry`,
 
 ## 1. Read the image
 
-**Palette** — commit the image to `docs/canonical/<mechId>-front.png`
+**Palette** — commit the image to `docs/canonical/mech_<mechId>.png`
+(nullbot's is `mech_null.png`)
 (the detailed visual read of every canonical image also lives in
 `docs/canonical/SPECS.md` — the fallback source of truth if a PNG is
 missing), then:
 ```bash
-node tools/palette.mjs docs/canonical/<mechId>-front.png
+node tools/palette.mjs docs/canonical/mech_<mechId>.png
 ```
 K-means prints dominant colors with roles and a ready-to-paste `skin` block.
 Needs a plain background (corners are sampled as background reference).
@@ -147,7 +154,7 @@ brass, dark, glow, glowSoft` (+ `glow2` if `colors.glow2` is set).
 Work in the mech's file: `src/mechs/designs/<id>.js`, signature
 `export function <id>(A, D, J, anchors, def)`. Reference implementations,
 best first: `vulcan.js` (canonical build), `titanus.js` (image-matched heavy),
-`nova.js` (slender), `fenrir.js` (beast head + tail), `wraith.js` (weapon).
+`fenrir.js` (beast head + tail), `wraith.js` (weapon).
 
 **Order of work: mass rhythm → per-region forms → signature elements →
 decals → greebles.** Detail on top of wrong proportions is wasted.
@@ -206,8 +213,9 @@ node tools/shot.mjs "http://localhost:5173/?showcase=<id>&anim=heavy" atk.png 85
 node tools/shot.mjs "http://localhost:5173/?showcase" lineup.png 8000
 node tools/shot.mjs "http://localhost:5173/?battle=uptown&p1=<id>&p2=viper&auto=1" battle.png 20000
 ```
-(The scripts assume a Chromium at `/opt/pw-browsers/chromium` — edit the
-`executablePath` for other environments. `?rigtest` sanity-checks the GLB
+(Every browser tool launches through `tools/lib/browser.mjs`, which defaults to
+a Chromium at `/opt/pw-browsers/chromium` — set `PW_CHROMIUM=<path>` in other
+environments. `?rigtest` sanity-checks the GLB
 retargeting math itself.)
 
 **Judging checklist** (VIEW the images — don't assume):
@@ -218,7 +226,7 @@ retargeting math itself.)
 5. Attack windup/strike: weapons clear the head/towers/back gear.
 6. Palette & wear read like the image; decals legible but weathered.
 7. Glow accents visible but not blown out (see pitfalls).
-8. Lineup: the mech sits coherently next to the other 11.
+8. Lineup: the mech sits coherently next to the other 16.
 9. Battle: readable at gameplay camera distance, distinct from opponents.
 Iterate 2–3 times; first passes always have texture-scale or proportion
 surprises.
@@ -315,7 +323,8 @@ comparing two differently-sized mechs — rhino's alt had none and every anchor
 read as moved), and the side carrying the `rig` is the one being judged. A rig
 staged on the `alt` must match the shipped primary; once it is PROMOTED the
 alt becomes a retired reference and is allowed to differ, so the tool downgrades
-those to ADVISORY (titanus, wraith, and the different-model alts aegis/jerry).
+those to ADVISORY. (Historical: no shipped entry carries an `alt` today — every
+mech is baked — so this matters only when a rig is staged again.)
 
 ## 6. Pitfalls (each of these cost an iteration once)
 
@@ -348,7 +357,7 @@ those to ADVISORY (titanus, wraith, and the different-model alts aegis/jerry).
   custom rigs or they silently measure nothing and report a vacuous pass.
 - **Leaf bones get zero weight under `skinSpan: 'child'`** — a leaf's span is a
   point its parent's span already ends at, so it can never win a vertex. End
-  every driven chain in a static tip bone (see `rigs/titanus.rig.js`).
+  every driven chain in a static tip bone (titanus' rig, kept in `public/models/source/titanus.edits.json`).
 
 ## 7. Current state
 
@@ -366,12 +375,11 @@ None of the shipped GLBs carries a baked animation clip — the game's clips are
 retargeted onto every one of them, which is what makes one animation library
 serve seventeen very different bodies.
 
-**13 of the 17 are BAKED** (`tools/bake-glb.mjs` — the custom rig, skinOps,
+**All 17 are BAKED** (`tools/bake-glb.mjs` — the custom rig, skinOps,
 seam cuts, drops and bone names folded into the .glb, those manifest fields
-stripped, the untouched original archived to `public/models/source/`). The
-four that are not, and still carry live manifest edits, are **titanus**
-(`rig`, `skinOps`), **jerry** (`rig`, `skinOps`, `boneOverrides`, `seamCuts`),
-**tritone** (`rig`, `skinOps`) and **nullbot** (`skinOps`, `boneOverrides`).
+stripped, the untouched original archived to `public/models/source/`). Every
+manifest entry is url + scale + yaw + muzzles (viper keeps `boneCorrections`,
+a runtime lever), and `src/mechs/rigs/index.js` is an empty `RIGS = {}`.
 Orientation and size (`yawOffset`, `modelScale`, `heightScale`) are never
 folded — the game derives live quantities from the runtime scale. See
 [BAKE_GLB.md](BAKE_GLB.md).

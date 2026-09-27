@@ -95,7 +95,7 @@ export class LoadScreen {
     const n = fighters.length;
     const cards = fighters.map((f, i) => {
       const glow = hexCss(f.def.colors.glow);
-      const pc = PLAYER_COLORS_CSS[f.playerIndex % 4];
+      const pc = PLAYER_COLORS_CSS[f.playerIndex % PLAYER_COLORS_CSS.length];
       const tag = f.isAI ? t('load.tag.cpu') : t('load.tag.p', { n: f.playerIndex + 1 });
       const id = f.def.id;
       const cut = shotUrl(id, f.def.variant || 0) || shotUrl(id, 0);

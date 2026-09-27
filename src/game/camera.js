@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { clamp, lerp, damp, angleDamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING } from '../core/tuning.js';
+import { MAX_FIGHTERS } from '../core/colors.js';
 
 // WHICH WAY IS UP. Every pitch input — right stick, touch look-drag, combined
 // view or split — goes through this, so the two view modes can't drift apart
@@ -187,10 +188,39 @@ const LAYOUTS = {
   4: [{ x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, { x: 0, y: 0, w: 0.5, h: 0.5 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 }],
 };
 
+// FIVE TO EIGHT PLAYERS — AND FOUR WITH A CPU — ARE A GRID WITH A PANEL. The
+// views fill a 3x2 (up to five cells) or 3x3 grid in reading order, P1
+// top-left, and the cells left over at the end of the bottom row become the
+// stats panel, exactly as the 3-player L does: nobody's view carries another
+// fighter's plate. A 3x3 cell is 16:9 at a 16:9 screen, which is why it beats
+// 4x2 (portrait cells) for seven and eight. Four humans with NO CPU keep the
+// classic 2x2 — there is no plate that would need a home outside a view.
+const gridKind = (humans) => 'g' + humans;
+function gridLayout(humans) {
+  const cols = 3, rows = humans + 1 <= 6 ? 2 : 3;
+  const views = [];
+  for (let i = 0; i < humans; i++) {
+    const c = i % cols, r = Math.floor(i / cols);
+    views.push({ x: c / cols, y: 1 - (r + 1) / rows, w: 1 / cols, h: 1 / rows });
+  }
+  // the spare cells all sit at the end of the bottom row (at most one row's worth)
+  const c0 = humans % cols;
+  const panel = { x: c0 / cols, y: 0, w: 1 - c0 / cols, h: 1 / rows };
+  return { views, panel, cols, rows };
+}
+for (let h = 4; h <= MAX_FIGHTERS; h++) LAYOUTS[gridKind(h)] = gridLayout(h).views;
+
 // The quadrant a 3-player split leaves empty — the stats panel's home, in the
 // same 0..1 bottom-left-origin coords as a viewport rect. hud.js reads it, so
 // the panel cannot drift from the layout that made room for it.
 export const STATS_PANEL_RECT = { x: 0.5, y: 0.5, w: 0.5, h: 0.5 };
+
+// The stats panel for ANY layout kind, or null for a layout that has none.
+export function statsPanelRect(kind) {
+  if (kind === '3') return STATS_PANEL_RECT;
+  if (typeof kind === 'string' && kind[0] === 'g') return gridLayout(+kind.slice(1)).panel;
+  return null;
+}
 
 export class CameraSystem {
   constructor(engine, world) {
@@ -227,7 +257,7 @@ export class CameraSystem {
     // per-player chase cams — each orbits its own azimuth/elevation so the
     // view starts BEHIND that player and the right stick steers it
     this.chase = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < MAX_FIGHTERS; i++) {
       this.chase.push({
         camera: new THREE.PerspectiveCamera(50, 1, 0.5, 2200),
         pos: new THREE.Vector3(),
@@ -262,11 +292,17 @@ export class CameraSystem {
     }
   }
 
-  // 'single' | 'lr' | 'tb' | '3' | '4' for a given human count
-  layoutKind(humanCount) {
-    if (humanCount < 2) return 'single';
-    if (humanCount === 2) return this.layout2p;
-    return String(Math.min(humanCount, 4));
+  // 'single' | 'lr' | 'tb' | '3' | '4' | 'g4'..'g8' for a given human count.
+  // `aiCount` (the CPUs in the match, set by the battle as `this.aiCount`)
+  // only matters at four humans: a CPU's plate needs the panel a grid has and
+  // the 2x2 does not.
+  layoutKind(humanCount, aiCount = this.aiCount || 0) {
+    const h = Math.min(humanCount, MAX_FIGHTERS);
+    if (h < 2) return 'single';
+    if (h === 2) return this.layout2p;
+    if (h === 3) return '3';
+    if (h === 4 && !aiCount) return '4';
+    return gridKind(h);
   }
 
   layoutRects(humanCount) {
@@ -699,12 +735,12 @@ export class CameraSystem {
   // the HUD centers that player's aim crosshair on it
   viewportRectFor(humanIdx) {
     if (this.mode !== 'split') return { x: 0, y: 0, w: 1, h: 1 };
-    const n = Math.min(this.world.fighters.filter((f) => !f.isAI).length, 4);
+    const n = Math.min(this.world.fighters.filter((f) => !f.isAI).length, MAX_FIGHTERS);
     return LAYOUTS[this.layoutKind(n)][humanIdx] || { x: 0, y: 0, w: 1, h: 1 };
   }
 
   updateSplit(dt, humans, shakeX, shakeY) {
-    const n = Math.min(humans.length, 4);
+    const n = Math.min(humans.length, MAX_FIGHTERS);
     const kind = this.layoutKind(n);
     const layout = LAYOUTS[kind];
     const views = [];
@@ -841,7 +877,19 @@ export class CameraSystem {
     // panel's own edge rather than a divider between two views, and drawing it
     // is what makes the panel read as part of the layout instead of an overlay
     else if (kind === '3') html = hLine(50) + vLine(50, 0, 100);
-    else html = vLine(50, 0, 100) + hLine(50);
+    else if (kind[0] === 'g') {
+      // the grid: every row line, and the column lines down to the bottom
+      // row — which only carries the ones up to and including the panel's
+      // left edge (a panel two cells wide is one panel, not two)
+      const n = +kind.slice(1);
+      const { cols, rows } = gridLayout(n);
+      const upper = ((rows - 1) / rows) * 100;
+      for (let c = 1; c < cols; c++) {
+        html += vLine((c / cols) * 100, 0, upper);
+        if (c <= n % cols) html += vLine((c / cols) * 100, upper, 100 - upper);
+      }
+      for (let r = 1; r < rows; r++) html += hLine((r / rows) * 100);
+    } else html = vLine(50, 0, 100) + hLine(50);
     this.dividerEl.innerHTML = html;
   }
 }

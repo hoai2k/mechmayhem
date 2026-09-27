@@ -7,8 +7,9 @@ resolves the facade it names (`node tools/assetcheck.mjs` proves it, and
 
 This file stays as the GUIDELINES for adding another building material. The
 structure materials in `docs/ASSET_REQUESTS_STRUCTURES.md` have landed too,
-so the game has NO outstanding texture asks at all — only the one
-nice-to-have listed at the bottom of that file. The original pack-wide brief
+so the game has exactly ONE outstanding texture ask — `prop/prop_dino_egg`,
+SAURION's egg shell, specced in that file and the only entry in
+`PENDING_ASSETS`. The original pack-wide brief
 is `docs/TEXTURE_GEN_PROMPT.md`.
 
 ## What is in play

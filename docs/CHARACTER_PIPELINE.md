@@ -3,8 +3,10 @@
 
 # Character Pipeline — AI-generated rigged mechs
 
-The game can replace any of its 12 procedural mechs with a high-detail rigged
-GLB model, while keeping the **entire existing animation and combat system**
+All 17 mechs ship as high-detail rigged GLB models (baked — see
+[BAKE_GLB.md](BAKE_GLB.md)); the procedural bodies are only the fallback
+(`?render=fallback`, or automatically for a mech with no manifest entry or a
+broken GLB). The GLB route keeps the **entire existing animation and combat system**
 (walk/run, 3-hit combos, heavies, blocks, knockdowns, specials, ults, victory
 poses — everything). Models are retargeted at runtime via world-space rotation
 offsets, so any standard humanoid rig works without hand-tuning.
@@ -32,11 +34,11 @@ offsets, so any standard humanoid rig works without hand-tuning.
      markers, download rigged FBX → convert to GLB, e.g. in Blender)
    Ask the service for **T-pose rig** output when offered.
 3. **Drop into the game**:
-   - Put the file at `public/models/<mechId>.glb`
+   - Put the file at `public/models/mech_<mechId>.glb`
    - Add an entry to `public/models/manifest.json`:
      ```json
      {
-       "titanus": { "url": "models/titanus.glb", "bindPose": "tpose" }
+       "titanus": { "url": "models/mech_titanus.glb", "bindPose": "tpose" }
      }
      ```
    - Run the game. That mech now uses the model; everything else is untouched.
@@ -54,7 +56,7 @@ from the canonical images (generation, rigging, download, manifest update).
 | `bindPose` | `"tpose"` | `"tpose"`, `"apose"`, `"native"` (already arms-down), or a custom `{joint:[x,y,z]}` degree map |
 | `boneOverrides` | `{}` | force joint→bone mapping, e.g. `{"torso": "Spine2"}` |
 | `modelScale` | — | **the model's size of record.** Absolute scale on the GLB's native units. Set it (see below) and it is the ONLY input to the model's size |
-| `rig` | — | use a hand-authored skeleton from `src/mechs/rigs/<name>.rig.js` instead of the file's own (see MECH_ART_GUIDE §7) |
+| `rig` | — | use a hand-authored skeleton from `src/mechs/rigs/<name>.rig.js` instead of the file's own (see MECH_ART_GUIDE §7). None ship today — every mech is baked and `RIGS` in `rigs/index.js` is empty |
 | `heightScale` | `1.0` | deliberate artist tweak multiplied on TOP of `modelScale` — "make viper 10% bigger" |
 | `yawOffset` | `0` | degrees, if the model doesn't face +Z |
 | `emissiveBoost` | — | multiply emissive intensity (make cores/visors pop with bloom) |
@@ -92,8 +94,9 @@ is almost always the wrong tool: the pinned number is the size of record, so
 re-deriving it after a rig change *is* the silent resize this mechanism exists to
 prevent. Change size deliberately by editing `modelScale` (or `heightScale`).
 
-`?debug=models` and `tools/pin-modelscale.mjs` both cover `alt` sub-entries, so a
-model variant carries its own pin.
+`/workbench/?edit=animation` and `tools/pin-modelscale.mjs` both cover `alt`
+sub-entries, so a model variant carries its own pin (no shipped entry carries an
+`alt` today).
 
 ## Verifying a model
 

@@ -1,14 +1,15 @@
-# Canonical image specs — the visual read of all 12 concept images
+# Canonical image specs — the visual read of the concept images
 
 The user-supplied canonical concept images are the source of truth for each
-mech's look. **Commit the PNGs here as `<mechId>-front.png`** (they exist in
-the design conversation; an AI session cannot save chat images itself).
-Until/alongside that, this file records the detailed image-derived spec each
-rebuild was built from — palettes are already baked into `roster.js` skin
-recipes, geometry into `src/mechs/designs/<id>.js`. If a design ever needs
-re-doing, work from the image if present, else from this spec.
+mech's look. **All 17 are committed here as `mech_<id>.png`** (NULLBOT's is
+`mech_null.png`). This file records the detailed image-derived spec the
+procedural rebuilds were made from — palettes are baked into `roster.js` skin
+recipes, geometry into `src/mechs/designs/<id>.js`, which is now the FALLBACK
+body (every shipped mech is a rigged GLB). If a design ever needs re-doing,
+work from the image; this spec covers the original twelve plus JERRY and
+NULLBOT (no written spec exists for KONGA or TRITONE — use their PNGs).
 
-Shared traits across all 12 images: full-body front view on plain gray
+Shared traits across the original 12 images: full-body front view on plain gray
 studio background, realistic PBR materials, panel lines, per-mech unit
 decals (names/numbers/emblems), one or two emissive accent colors.
 

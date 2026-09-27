@@ -1,10 +1,14 @@
 # SOUND FX — generation prompts
 
-Every sound in the game is synthesized at runtime today (`src/core/audio.js`:
-a WebAudio note/noise scheduler, 50 entries in the `SFX` bank plus four
-procedural music patterns). This document is the shopping list for replacing
-that with RECORDED FILES, one prompt per sound, in the order they should be
-made.
+**Status (2026-09-27):** the recorded set SHIPS — 122 mp3s in `public/sfx/`
+(plus its `manifest.json`), generated FROM THIS DOCUMENT by
+`node tools/sfxgen.mjs`, which parses each entry's heading and prompt (so edit
+entries with care). The WebAudio synth in `src/core/audio.js` is the fallback:
+a recording shadows the synthesized sound of the same name, and anything with
+no file — or marked **SYNTH** below — keeps its synth version.
+
+This document began as the shopping list for replacing the synth with RECORDED
+FILES, one prompt per sound, in the order they should be made.
 
 Each prompt is self-sufficient — copy one into a generator as-is, nothing
 needs to be prepended. The technical requirements are repeated inside every
@@ -14,13 +18,15 @@ prompt on purpose.
 
 ## How the files will be used
 
-**The setting.** `SETTINGS → SOUND FX: [ON | OFF | FALLBACK]`
+**The setting.** `SETTINGS → SOUND FX: RECORDED | SYNTH` (`CONFIG.sfxSamples`,
+`?sfx=0` forces SYNTH for a session)
 
 | Mode | Behaviour |
 | --- | --- |
-| **ON** (default once files exist) | Play the recorded file. Anything with no file falls through to the synthesized version, so a half-finished set is playable. |
-| **FALLBACK** | Ignore the files entirely and use the procedural synth — what ships today. Kept forever: it is the offline/zero-download path and the A/B reference. |
-| **OFF** | No sound effects at all (music unaffected). |
+| **RECORDED** (default) | Play the recorded file. Anything with no file falls through to the synthesized version, so a half-finished set is playable. |
+| **SYNTH** | Ignore the files entirely and use the procedural synth. Kept forever: it is the offline/zero-download path and the A/B reference. |
+
+(There is no separate OFF mode: the 🔊 button and SFX VOLUME cover silence.)
 
 **Naming.** A file named after an existing `SFX` key overrides it with no code
 change: `public/sfx/<key>.<ext>` — e.g. `public/sfx/hitHeavy.mp3` replaces the
