@@ -102,7 +102,7 @@ const records = ROSTER.map((d) => ({
   art: {
     canonical: `art/${d.id}/canonical.png`,   // the concept the model was built from
     badge: `art/${d.id}/badge.png`,
-    poster: `art/${d.id}/poster.png`,
+    poster: `art/${d.id}/poster.webp`,
     thumbnail: `art/${d.id}/thumb.png`,
     turnaround: `art/${d.id}/turnaround-*.png`,
   },
@@ -135,7 +135,7 @@ for (const d of ROSTER) {
   for (const [src, dst] of [
     [`docs/canonical/${canon}`, 'canonical.png'],
     [`public/badges/${d.id}.png`, 'badge.png'],
-    [`public/posters/${d.id}.png`, 'poster.png'],
+    [`public/posters/${d.id}.webp`, 'poster.webp'],
     [`public/thumbs/${d.id}.png`, 'thumb.png'],
   ]) {
     const s = path.join(ROOT, src);
@@ -178,7 +178,7 @@ for (const r of records) {
       L.push(`- **${c.title}** (\`${c.key}\`) — ${c.means}`);
     }
   }
-  L.push(`\n<img src="art/${r.id}/poster.png" height="220" alt="${r.name}">\n`);
+  L.push(`\n<img src="art/${r.id}/poster.webp" height="220" alt="${r.name}">\n`);
 }
 fs.writeFileSync(path.join(OUT, 'characters.md'), L.join('\n') + '\n');
 

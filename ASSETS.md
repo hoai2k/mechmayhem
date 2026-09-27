@@ -38,7 +38,7 @@ the large-structure materials) · `prop` (`prop_*`) · `mech` (`mech_*`) ·
 | `public/levels/` | authored arena levels | `fetch('levels/<name>.json')` |
 | `public/badges/` | hand-made mech emblems | `<img src="badges/<id>.png">` |
 | `public/thumbs/` | auto-captured mech icons (`tools/thumbs.mjs`) | `<img>` fallback under badges |
-| `public/posters/` | mech-select posters + `posters.json` (`tools/posters.mjs`) | `<img>` / fetch |
+| `public/posters/` | mech posters (`<id>.webp`, alpha) + `posters.json` (`tools/posters.mjs`) | `<img>` / fetch |
 | `public/arenas/` | painted arena-select card art (`<id>.jpg`) | `<img src="arenas/<id>.jpg">` |
 | `public/arenas/full/` | OPTIONAL full-size arena paintings for the big views (none delivered yet), declared in `ARENA_FULL` (`src/ui/arenaart.js`) | backdrop `url()` |
 | `public/cards/` | hero cards, web size, + `index.json` (`tools/cards.mjs`, from the originals in `docs/cards/`) | title film strip, loading-card fallback |

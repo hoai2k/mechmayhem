@@ -1,7 +1,7 @@
 // Menu screens: Title → Setup → Mech Select → Arena Select → (battle) → Results.
 // Each screen builds DOM into #ui-root and consumes aggregated menu events.
 import { playableRoster } from '../mechs/roster.js';
-import { SCHEME_NAMES, SCHEME_COUNT, schemeSwatch, schemeGlow, applyColorScheme } from '../mechs/colorscheme.js';
+import { SCHEME_NAMES, SCHEME_COUNT, schemeSwatch } from '../mechs/colorscheme.js';
 import { THEMES } from '../arena/themes.js';
 import { isTouchDevice } from '../core/utils.js';
 import { mechIcon } from './icons.js';
@@ -1068,7 +1068,10 @@ export class MechSelectScreen {
     if (s.kind === 'ai') q('.sd-paint').innerHTML = '';
     if (m === RANDOM_PICK) cls.push('random');
     sd.className = cls.join(' ') + (sd.classList.contains('flash') ? ' flash' : '');
-    const glow = m === RANDOM_PICK ? schemeGlow(v, m.colors.glow) : applyColorScheme(m, v).colors.glow;
+    // THE WASH IS THE MECH'S OWN GLOW, whatever the paint: a backdrop that
+    // recolours with the robot makes the whole side one colour (the "too much
+    // matching" look). The paint shows on the robot and in the swatch strip.
+    const glow = m.colors.glow;
     sd.style.setProperty('--g', hexCss(glow));
     q('.sd-tag').innerHTML = tag;
     q('.sd-tag').dataset.lock = t('select.lockedStamp');

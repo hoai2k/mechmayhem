@@ -1607,15 +1607,16 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   that paint (`snapshot.js requestShot`, 260ms debounce, one job per side, the
   old picture kept up until the new one cross-fades in), taken through the
   SAME pipeline the posters come out of (`renderPoster` is shared with
-  `dev/postershot.js`), so it drops into the same frame. The side's glow
-  follows the paint. A pick that SETTLES (0.7s) or locks is built in the
+  `dev/postershot.js`), so it drops into the same frame. The side's glow is
+  the mech's OWN stock glow whatever the paint — a backdrop recoloured to
+  match the robot turns the whole side one colour. A pick that SETTLES (0.7s) or locks is built in the
   background (`predictor.warmPick` -> `warmMech`), which is most of what the
   loading card would otherwise wait for: the GLB, its fit and its recoloured
   textures are all cached by the time the match builds it.
   ARENA SELECT paints the arena under the cursor, blurred, full-bleed behind
   its grid. THE LOADING CARD puts that painting full-bleed too, with every
-  fighter standing on it as a cutout in the paint they chose (the select
-  screen's photograph, else the poster, else the hero card on a panel). A
+  fighter's HERO CARD on an angled panel over it (canonical art where a card
+  is missing) — the character, not the paint; the paint is on the robot. A
   full-size painting may be dropped in at `public/arenas/full/<id>.jpg` and
   listed in `ARENA_FULL` (`src/ui/arenaart.js`); only the 512x288 cards exist
   today, scaled up.
@@ -1623,8 +1624,12 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   context, drops queued jobs and stops one already building from taking a
   picture. Judge the screens with a real run through the menus at 1600x900 —
   the strip, a repaint, a 4-player line-up and the loading card.
-- POSTERS (`public/posters/`, `src/ui/posters.js`): a pre-rendered PNG per mech
-  with alpha — the stock-paint picture every menu shows. A poster stands in
+- POSTERS (`public/posters/`, `src/ui/posters.js`): a pre-rendered WEBP per
+  mech with alpha — the stock-paint picture every menu shows. THEY ARE BIG ON
+  PURPOSE (`POSTER_PX` 2400, crops 990-1625px tall, ~160 KB each): the select
+  screen draws one at ~85% of the window height, and at the old 900 a ~500px
+  crop was visibly soft on an ordinary monitor. Runtime snapshots use the same
+  frame and encode WebP too. A poster stands in
   for THE GLB (the default body — so that is what it must be rendered from,
   with alpha), framed through the stage's preview camera
   (`menustage.aimPreviewCamera`) and recorded as a world-space box off the

@@ -57,6 +57,7 @@ export async function startPosterShot(params) {
   const { box } = shot;
   out({
     id, ok: true,
+    // lossless PNG across the wire; the generator encodes the shipped WebP
     png: shot.canvas.toDataURL('image/png'),
     box: { u0: +box.u0.toFixed(4), u1: +box.u1.toFixed(4),
            v0: +box.v0.toFixed(4), v1: +box.v1.toFixed(4) },
