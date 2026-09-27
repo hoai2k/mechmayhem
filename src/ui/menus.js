@@ -197,7 +197,7 @@ export function playNeonBuzz(audio, opacity = 0.25) {
 // fighter-select screen shows, so the two screens agree about what a robot
 // looks like.
 const STRIP_PANEL_S = 6.5;   // seconds for one panel to roll past
-const STRIP_RESUME = 1.5;    // seconds after letting go before it rolls again
+const STRIP_RESUME = 1.0;    // seconds after letting go before it rolls again
 const STRIP_RAMP = 0.8;      // seconds to ease back up to full speed
 const ART_WAIT = 6000;       // ms before the title's art stops holding the prefetch
 
@@ -568,6 +568,157 @@ export class TitleScreen {
 // predictor.warmPick), which leaves its model, fit and paint warm for the
 // fight — most of what the loading card would otherwise wait for.
 const SHOT_DEBOUNCE = 260;   // ms a paint must sit before it is photographed
+const XFADE_MS = 600;        // the repaint crossfade (matches .sd-pic.xfade in style.css)
+const SPRAY_TAIL = 700;      // ms the spray keeps going once the new paint starts fading in
+
+// SPRAY PAINT. What a side does while its robot is being repainted: short
+// cone-shaped bursts of droplets in the NEW paint colour, fired at the body
+// from nozzles dotted round it, with the odd glint twinkling on the
+// silhouette. One canvas per side, drawn only while there is something on
+// it, and driven by the screen's own update (dt in seconds). `start` may be
+// called again mid-spray to change colour; `stop(ms)` lets the current
+// droplets finish after the emitter has run on for `ms`.
+class PaintSpray {
+  constructor(side, canvas, pic) {
+    this.side = side;
+    this.cv = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.pic = pic;
+    this.parts = [];
+    this.on = false;
+    this.until = 0;          // performance.now() the emitter stops at (0 = no end)
+    this.puffT = 0;
+    this.rgb = [255, 255, 255];
+  }
+
+  start(css) {
+    const m = /#?([0-9a-f]{6})/i.exec(css);
+    const n = m ? parseInt(m[1], 16) : 0xffffff;
+    this.rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    this.on = true;
+    this.until = 0;
+    this.fit();
+  }
+
+  stop(ms) {
+    if (!this.on) return;
+    if (ms <= 0) { this.on = false; return; }
+    this.until = performance.now() + ms;
+  }
+
+  fit() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.round(this.side.clientWidth * dpr), h = Math.round(this.side.clientHeight * dpr);
+    if (this.cv.width !== w || this.cv.height !== h) { this.cv.width = w; this.cv.height = h; }
+    this.dpr = dpr;
+  }
+
+  // the robot's box in canvas pixels (the picture's own rect where it has
+  // one, else where a robot would stand)
+  body() {
+    const s = this.side.getBoundingClientRect();
+    const r = this.pic.naturalWidth ? this.pic.getBoundingClientRect() : null;
+    const k = this.dpr;
+    if (r && r.width > 4) {
+      // object-fit: contain — the drawn image is narrower than its box
+      const ar = this.pic.naturalWidth / this.pic.naturalHeight;
+      const w = Math.min(r.width, r.height * ar), h = w / ar;
+      const x = r.left + (r.width - w) / 2 - s.left, y = r.bottom - h - s.top;
+      return { x: x * k, y: y * k, w: w * k, h: h * k };
+    }
+    return { x: s.width * 0.25 * k, y: s.height * 0.2 * k, w: s.width * 0.4 * k, h: s.height * 0.7 * k };
+  }
+
+  puff() {
+    const b = this.body();
+    const cx = b.x + b.w / 2, cy = b.y + b.h * 0.45;
+    // a nozzle somewhere round the body, aimed at a point on it
+    const a = Math.random() * Math.PI * 2;
+    const ox = cx + Math.cos(a) * b.w * 0.62, oy = cy + Math.sin(a) * b.h * 0.5;
+    const tx = b.x + b.w * (0.25 + Math.random() * 0.5), ty = b.y + b.h * (0.12 + Math.random() * 0.7);
+    const dir = Math.atan2(ty - oy, tx - ox);
+    const dist = Math.hypot(tx - ox, ty - oy);
+    const k = this.dpr;
+    const n = 26 + ((Math.random() * 14) | 0);
+    for (let j = 0; j < n; j++) {
+      const d = dir + (Math.random() - 0.5) * 0.5;
+      const life = 0.4 + Math.random() * 0.5;
+      const sp = (dist / life) * (0.75 + Math.random() * 0.7);
+      const tint = 0.75 + Math.random() * 0.6;
+      this.parts.push({ kind: 0, x: ox, y: oy, vx: Math.cos(d) * sp, vy: Math.sin(d) * sp,
+        r: (1.4 + Math.random() * 3.2) * k, t: 0, life, tint });
+    }
+    // the MIST the droplets travel in: a few soft blobs down the cone
+    for (let j = 0; j < 3; j++) {
+      const f = 0.35 + j * 0.25;
+      this.parts.push({ kind: 2, x: ox + (tx - ox) * f, y: oy + (ty - oy) * f, vx: Math.cos(dir) * 40 * k,
+        vy: Math.sin(dir) * 40 * k, r: (14 + j * 10) * k, t: 0, life: 0.5 + Math.random() * 0.3, tint: 1 });
+    }
+    // glints on the silhouette — the fresh paint catching the light
+    for (let j = 0; j < 3; j++) {
+      if (Math.random() < 0.3) continue;
+      this.parts.push({ kind: 1, x: b.x + b.w * (0.15 + Math.random() * 0.7), y: b.y + b.h * (0.08 + Math.random() * 0.8),
+        vx: 0, vy: 0, r: (9 + Math.random() * 12) * k, t: 0, life: 0.5 + Math.random() * 0.4, tint: 1.3 });
+    }
+  }
+
+  step(dt) {
+    if (!this.on && !this.parts.length) return;
+    if (this.on && this.until && performance.now() >= this.until) this.on = false;
+    if (this.on) {
+      this.puffT -= dt;
+      while (this.puffT <= 0) { this.puff(); this.puffT += 0.07 + Math.random() * 0.05; }
+    }
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.cv.width, this.cv.height);
+    const [R, G, B] = this.rgb;
+    const col = (m, a) => `rgba(${Math.min(255, R * m) | 0},${Math.min(255, G * m) | 0},${Math.min(255, B * m) | 0},${a})`;
+    const live = [];
+    for (const p of this.parts) {
+      p.t += dt;
+      if (p.t >= p.life) continue;
+      live.push(p);
+      const u = p.t / p.life;
+      if (p.kind === 2) {
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * (1 + u));
+        g.addColorStop(0, col(1, 0.22 * Math.sin(u * Math.PI)));
+        g.addColorStop(1, col(1, 0));
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = g;
+        ctx.fillRect(p.x - p.r * 2, p.y - p.r * 2, p.r * 4, p.r * 4);
+      } else if (p.kind === 0) {
+        const drag = Math.exp(-dt * 3.2);
+        p.vx *= drag; p.vy *= drag;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = col(p.tint, (1 - u) * 0.9);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * (1 + u * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // a four-point glint: grows, holds, shrinks
+        const s = p.r * Math.sin(u * Math.PI);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = col(1.4, 0.95);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - s); ctx.lineTo(p.x + s * 0.18, p.y - s * 0.18);
+        ctx.lineTo(p.x + s, p.y); ctx.lineTo(p.x + s * 0.18, p.y + s * 0.18);
+        ctx.lineTo(p.x, p.y + s); ctx.lineTo(p.x - s * 0.18, p.y + s * 0.18);
+        ctx.lineTo(p.x - s, p.y); ctx.lineTo(p.x - s * 0.18, p.y - s * 0.18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${0.9 * Math.sin(u * Math.PI)})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, s * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    this.parts = live;
+    if (!this.on && !live.length) ctx.clearRect(0, 0, this.cv.width, this.cv.height);
+  }
+}
 const LAYOUT_QUAD = 3;       // this many in the match and the sides are quadrants
 
 export class MechSelectScreen {
@@ -599,12 +750,15 @@ export class MechSelectScreen {
     // the SIDES: one element per slot, placed by layout()
     this.sides = [];
     this.sideState = [];
+    this.sprays = [];              // one PaintSpray per side (see setPic)
+    this._sprayT = performance.now();
     for (let i = 0; i < 4; i++) {
       const sd = el('div', 'sel-side');
       sd.innerHTML = `
         <div class="sd-wash"></div>
         <div class="sd-q">?</div>
         <img class="sd-pic" alt="" draggable="false">
+        <canvas class="sd-spray"></canvas>
         <div class="sd-tag"></div>
         <div class="sd-info">
           <div class="sd-name"></div>
@@ -616,9 +770,18 @@ export class MechSelectScreen {
         <div class="sd-join"></div>
         <div class="sd-edit"></div>`;
       sd.addEventListener('click', (e) => this.onCardClick(i, e));
+      // the slide-in is a ONE-SHOT: left on, any other animation that later
+      // comes and goes on the picture (the lock pop) hands `animation` back
+      // to it and the robot slides in again — which is how a repaint used to
+      // look like a new robot arriving
+      const pic = sd.querySelector('.sd-pic');
+      pic.addEventListener('animationend', (e) => {
+        if (e.animationName.startsWith('sdIn')) pic.classList.remove('swap');
+      });
       this.el.appendChild(sd);
       this.sides.push(sd);
       this.sideState.push({ want: null, shownId: null, timer: 0 });
+      this.sprays.push(new PaintSpray(sd, sd.querySelector('.sd-spray'), pic));
     }
 
     // the centre band: heading, roster grid, add chip, ready banner, prompts
@@ -1092,40 +1255,58 @@ export class MechSelectScreen {
   // THE PICTURE ON A SIDE. The stock paint is its poster, at once. A repaint
   // is photographed (snapshot.js) once the paint has sat still for a beat;
   // until it lands the side keeps what it was showing if that is the same
-  // robot (the old paint), else the stock poster — never a blank. When it
-  // lands it is cross-faded in.
+  // robot (the old paint), else the stock poster — never a blank.
+  // A DIFFERENT ROBOT slides in. THE SAME ROBOT IN NEW PAINT is a plain
+  // CROSSFADE — the new picture fades up over the old one, nothing moves —
+  // and while it is being photographed, and on through the fade, the side
+  // is SPRAY-PAINTED in the new colour (PaintSpray): the wait is a few
+  // seconds on a slow machine, and a robot being resprayed is something to
+  // watch where a robot standing still reads as nothing happening.
   setPic(i, id, v) {
     if (!this.postersReady) return;
     const st = this.sideState[i];
     const sd = this.sides[i];
+    const spray = this.sprays[i];
     const img = sd.querySelector('.sd-pic');
     const want = id ? `${id}|${v}` : null;
     if (st.want === want) return;
     st.want = want;
     clearTimeout(st.timer);
-    sd.classList.remove('developing');
-    if (!id) { img.removeAttribute('src'); img.classList.remove('in'); st.shownId = null; return; }
+    if (!id) {
+      img.removeAttribute('src'); img.classList.remove('in'); st.shownId = null;
+      spray.stop(0);
+      return;
+    }
+    const repaint = st.shownId === id;
+    if (repaint) spray.start(hexCss(schemeSwatch(this.byId[id] || RANDOM_PICK, v)));
+    else spray.stop(0);
     const show = (url) => {
       const fresh = st.shownId !== id;
       st.shownId = id;
-      if (img.getAttribute('src') === url) { img.classList.add('in'); return; }
+      if (img.getAttribute('src') === url) { img.classList.add('in'); spray.stop(SPRAY_TAIL); return; }
       preload(url).then((ok) => {
         if (!ok || st.want !== want) return;
+        sd.querySelectorAll('.sd-ghost').forEach((g) => g.remove());
         if (fresh) {
-          // a different robot slides in; the same robot in new paint dissolves
           img.classList.remove('in', 'swap');
           img.src = url;
           void img.offsetWidth;
           img.classList.add('in', 'swap');
-        } else {
-          sd.querySelector('.sd-ghost')?.remove();
-          const ghost = img.cloneNode();
-          ghost.className = 'sd-pic sd-ghost in';
-          img.after(ghost);
-          img.src = url;
-          requestAnimationFrame(() => ghost.classList.add('out'));
-          setTimeout(() => ghost.remove(), 500);
+          return;
         }
+        // the old paint stays put UNDERNEATH while the new one fades up on
+        // top of it, then goes — two cutouts of the same pose, so what the
+        // eye sees is the colour changing and nothing else
+        const ghost = img.cloneNode();
+        ghost.className = 'sd-pic sd-ghost in';
+        img.before(ghost);
+        img.classList.add('xfade');
+        img.classList.remove('in', 'swap');
+        img.src = url;
+        void img.offsetWidth;
+        img.classList.add('in');
+        setTimeout(() => { ghost.remove(); img.classList.remove('xfade'); }, XFADE_MS + 60);
+        spray.stop(SPRAY_TAIL);
       });
     };
     const ready = shotUrl(id, v);
@@ -1135,12 +1316,10 @@ export class MechSelectScreen {
       if (stock) show(stock);
       else { img.classList.remove('in'); st.shownId = null; }
     }
-    sd.classList.add('developing');
     st.timer = setTimeout(() => {
       requestShot(id, v, `side${i}`).then((url) => {
         if (st.want !== want) return;
-        sd.classList.remove('developing');
-        if (url) show(url);
+        if (url) show(url); else spray.stop(0);
       });
     }, SHOT_DEBOUNCE);
   }
@@ -1241,6 +1420,10 @@ export class MechSelectScreen {
   }
 
   update(evAll) {
+    const nowS = performance.now();
+    const sdt = Math.min(0.05, (nowS - this._sprayT) / 1000);
+    this._sprayT = nowS;
+    for (const s of this.sprays) s.step(sdt);
     if (this.finished) return;
 
     // a freshly connected controller auto-joins the next free slot
@@ -1339,6 +1522,7 @@ export class MechSelectScreen {
     window.removeEventListener('click', this.onStrayClick, true);
     for (const st of this._settle.values()) clearTimeout(st.timer);
     for (const st of this.sideState) clearTimeout(st.timer);
+    for (const s of this.sprays) s.stop(0);
     this.el.remove();
   }
 }

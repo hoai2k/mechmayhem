@@ -1586,7 +1586,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   one copy's measured width, so the loop is seamless), and a broadcast lower
   third carrying PRESS START. Grab it and it stops dead; drag scrubs it (with
   a fling), the wheel scrubs, a pad's ←→ steps a panel, and it rolls again
-  `STRIP_RESUME` (1.5s) after the last touch, easing up to speed. It OPENS ON A
+  `STRIP_RESUME` (1s) after the last touch, easing up to speed. It OPENS ON A
   RANDOM PANEL and loads its art in the order it will be SEEN — the panels on
   screen first, then the ones about to roll on, four at a time — each picture
   decoded off-screen and FADED IN over its panel's glow wash, never popped.
@@ -1605,7 +1605,13 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   tagged in the grid) rather than at the last moment. The robot on a side is
   its stock POSTER, or — once repainted — a PHOTOGRAPH of the real model in
   that paint (`snapshot.js requestShot`, 260ms debounce, one job per side, the
-  old picture kept up until the new one cross-fades in), taken through the
+  old picture kept up until the new one CROSSFADES in — nothing moves; only a
+  different ROBOT slides in, and that slide is a one-shot class removed on
+  `animationend`, because left on it replayed whenever another animation on
+  the picture ended and made a repaint look like a new arrival). While the
+  photo is being taken, and on through the fade, the side is SPRAY-PAINTED in
+  the new colour (`PaintSpray`: cone bursts of droplets from nozzles round the
+  body plus glints on it, one 2D canvas per side). Taken through the
   SAME pipeline the posters come out of (`renderPoster` is shared with
   `dev/postershot.js`), so it drops into the same frame. The side's glow is
   the mech's OWN stock glow whatever the paint — a backdrop recoloured to
