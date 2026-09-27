@@ -1713,7 +1713,10 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   `public/models/source/<file>.glb` (once — a re-bake never overwrites the true
   original) and writes `public/models/source/<id>.edits.json`: every folded field
   with its values, plus the rig file's text, so a baked model stays explainable
-  without digging through git. Paths come from the entry's `url`, not from the
+  without digging through git. That folder is DISK-ONLY: nothing fetches it, so
+  `vite.config.js` (`sourceArchivePlugin`) deletes `models/source/` — and any
+  mech GLB the manifest no longer names — from every build's OUTPUT (the Pages
+  deploy and the desktop app ship `npm run build`: 713 -> 589 MB). Paths come from the entry's `url`, not from the
   mech id (jerry's primary model is `mech_jerry_alt.glb`). A dry run restores the
   tree even if a step throws.
   THE CHECK IS THE SKIN NOW, not 15 joints. It plays EVERY CLIP THE MECH CAN
