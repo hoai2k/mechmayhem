@@ -1600,9 +1600,17 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   and the roster grid sits in a slanted band down the middle under VS. One
   element per SLOT whose position class changes with the line-up, so clicks,
   LB/RB visits and pickers address it the same way in every layout; an empty
-  side reads PRESS A TO JOIN and a ＋ chip under the grid adds a third. A CPU
-  DEALS ITSELF ITS ROBOT when it joins (`slot.pick`, shown on its side and
-  tagged in the grid) rather than at the last moment. The robot on a side is
+  side reads PRESS A TO JOIN and a ＋ chip under the grid adds a third.
+  A CPU IS NEVER ASSUMED: the solo default is one human and an empty side. A
+  CPU is in the match only if someone ADDED one, or as the STAND-IN
+  (`slot.auto`) that fills the empty side when a LONE player locks in, so A
+  can start a fight straight away — and it goes again when that player
+  unlocks, or when a second human joins (who takes its seat, `joinSlot`). A
+  CPU's pick defaults to RANDOM (`slot.pick`, dealt at the bell like a
+  human's RANDOM); once every human is locked, the arrows or a click on a
+  robot steer the first CPU's cursor (the side says so), and a CPU seat
+  visited with LB/RB steps its pick with ←/→ — so a locked player's paint is
+  on X/R and the swatches while there is a CPU to steer. The robot on a side is
   its stock POSTER, or — once repainted — a PHOTOGRAPH of the real model in
   that paint (`snapshot.js requestShot`, 260ms debounce, one job per side, the
   old picture kept up until the new one CROSSFADES in — nothing moves; only a

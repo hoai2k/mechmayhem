@@ -734,7 +734,9 @@ export class MechSelectScreen {
     this.el.appendChild(el('div', 'sel-tex'));
 
     // slot state (managed here now — the old separate setup screen is gone)
-    this.slots = prev || this.defaultSlots();
+    // the stand-in CPU (see lockIn) belongs to a line-up that had a locked
+    // player; coming back to this screen, nobody is locked yet
+    this.slots = prev ? prev.map((x) => (x.auto ? { kind: 'off' } : { ...x })) : this.defaultSlots();
     this.pickers = [];             // one per human slot (built by syncPickers)
     this.picks = new Array(4).fill(null);
     this.variants = new Array(4).fill(0);
@@ -760,6 +762,7 @@ export class MechSelectScreen {
         <img class="sd-pic" alt="" draggable="false">
         <canvas class="sd-spray"></canvas>
         <div class="sd-tag"></div>
+        <div class="sd-steer"></div>
         <div class="sd-info">
           <div class="sd-name"></div>
           <div class="sd-title"></div>
@@ -810,7 +813,13 @@ export class MechSelectScreen {
         // it in, and clicking that same robot again lets it go — the mouse's
         // answer to B, since a locked mouse user otherwise has nothing to
         // click that undoes the lock.
-        if (pk.locked) { if (pk.cursor === i) this.unlock(pk); return; }
+        if (pk.locked) {
+          if (pk.cursor === i) { this.unlock(pk); return; }
+          // everyone is in: a click on any other robot is the CPU's pick
+          const cpu = this.cpuTarget();
+          if (cpu >= 0) this.setCpuPick(cpu, i);
+          return;
+        }
         if (this.touch) {
           if (pk.cursor !== i) { pk.cursor = i; this.audio?.play('uiMove'); this.refresh(); }
           return;
@@ -874,14 +883,44 @@ export class MechSelectScreen {
   }
 
   // Seed: connected controllers ARE players; otherwise the local keyboard/
-  // touch human + one CPU, so a lone player has an opponent to fight.
+  // touch human alone, with the second side reading PRESS A TO JOIN.
+  //
+  // A CPU IS NEVER ASSUMED. It is in the match only if somebody ADDED one, or
+  // as the STAND-IN for a lone player: when the only human locks in and
+  // nobody else is there, a CPU (`auto: true`, pick RANDOM) takes the empty
+  // side so there is someone to fight — and A starts the match with it as
+  // it stands. It goes again the moment it stops being needed: that player
+  // unlocking takes it away, and a second human joining takes its seat.
   defaultSlots() {
     const off = () => ({ kind: 'off' });
     const pads = this.connectedPads();
     if (pads.length >= 2) return [{ kind: 'human', device: pads[0] }, { kind: 'human', device: pads[1] }, off(), off()];
     const solo = pads.length === 1 ? { kind: 'human', device: pads[0] }
       : this.touch ? { kind: 'human', device: 'touch' } : { kind: 'human', device: 'kb1' };
-    return [solo, { kind: 'ai', diff: 'rookie' }, off(), off()];
+    return [solo, off(), off(), off()];
+  }
+
+  autoCpu() { return this.slots.findIndex((s) => s.kind === 'ai' && s.auto); }
+
+  // the seat a joining human takes: the stand-in CPU's first, else the first
+  // empty one
+  joinSlot() {
+    const a = this.autoCpu();
+    return a >= 0 ? a : this.firstOff();
+  }
+
+  // a lone locked player gets the stand-in; anything else drops it
+  syncAutoCpu() {
+    const a = this.autoCpu();
+    const humans = this.pickers.length;
+    const others = this.slots.filter((x, i) => x.kind !== 'off' && i !== a).length;
+    const want = humans === 1 && this.pickers[0].locked && others === 1;
+    if (want && a < 0) {
+      const slot = this.firstOff();
+      if (slot >= 0) this.slots[slot] = { kind: 'ai', diff: 'rookie', pick: 'random', auto: true };
+    } else if (!want && a >= 0 && (humans !== 1 || !this.pickers[0].locked)) {
+      this.slots[a] = { kind: 'off' };
+    }
   }
 
   deviceTaken(device, exceptSlot) {
@@ -894,7 +933,7 @@ export class MechSelectScreen {
   // add a human bound to `device` in the first free slot (join-by-press)
   joinDevice(device) {
     if (this.deviceTaken(device, -1)) return false;
-    const slot = this.firstOff();
+    const slot = this.joinSlot();
     if (slot < 0) return false;
     this.slots[slot] = { kind: 'human', device };
     this.audio?.play('uiSelect');
@@ -1063,22 +1102,44 @@ export class MechSelectScreen {
     this.refresh();
   }
 
-  // A CPU DEALS ITSELF A ROBOT the moment it joins, rather than at the very
-  // end: it is on its side for everyone to see, and it is a pick like any
-  // other — so its body is built in the background too. Distinct from the
-  // other CPUs' and from whatever the humans are standing on, where it can be.
-  dealCpuPicks() {
-    const taken = new Set();
-    this.slots.forEach((s) => { if (s.kind === 'ai' && s.pick) taken.add(s.pick); });
-    for (const pk of this.pickers) taken.add(this.pickAt(pk.cursor).id);
-    this.slots.forEach((s, i) => {
-      if (s.kind !== 'ai' || (s.pick && this.byId[s.pick])) return;
-      const pool = this.roster.filter((m) => !taken.has(m.id));
-      const src = pool.length ? pool : this.roster;
-      s.pick = src[(Math.random() * src.length) | 0].id;
-      taken.add(s.pick);
-      this.onSettle?.(s.pick, 0);
+  // A CPU'S PICK DEFAULTS TO RANDOM (`slot.pick`, a roster id or 'random'),
+  // shown on its side and tagged in the grid. It can be changed: once every
+  // human is locked in, the arrows (or a click on a robot) steer the first
+  // CPU's cursor — the fighting-game "choose your opponent" — and a CPU seat
+  // visited with LB/RB steps its pick with ←/→. A picked robot is built in
+  // the background like any settled pick.
+  ensureCpuPicks() {
+    this.slots.forEach((s) => {
+      if (s.kind === 'ai' && !(s.pick === 'random' || this.byId[s.pick])) s.pick = 'random';
     });
+  }
+
+  // the CPU the locked humans are steering: the first one, once nobody is
+  // still choosing their own robot
+  cpuTarget() {
+    if (!this.pickers.length || !this.pickers.every((p) => p.locked)) return -1;
+    return this.slots.findIndex((x) => x.kind === 'ai');
+  }
+
+  cpuCursor(i) {
+    const p = this.slots[i]?.pick;
+    const k = this.roster.findIndex((m) => m.id === p);
+    return k < 0 ? this.roster.length : k;   // RANDOM is the last cell
+  }
+
+  setCpuPick(i, cursor) {
+    const s = this.slots[i];
+    if (!s || s.kind !== 'ai') return;
+    const m = this.pickAt(cursor);
+    if (s.pick === m.id) return;
+    s.pick = m.id;
+    this.audio?.play('uiMove');
+    const key = `cpu${i}`;
+    clearTimeout(this._settle.get(key)?.timer);
+    if (m !== RANDOM_PICK) {
+      this._settle.set(key, { key, timer: setTimeout(() => this.onSettle?.(m.id, 0), SETTLE_MS) });
+    }
+    this.refresh();
   }
 
   // rebuild pickers to match the human slots, preserving per-slot state
@@ -1095,7 +1156,8 @@ export class MechSelectScreen {
     });
     this.mousePicker = this.pickers.find((p) => p.device === 'touch')
       || this.pickers.find((p) => p.device === 'kb1') || this.pickers[0];
-    this.dealCpuPicks();
+    this.syncAutoCpu();
+    this.ensureCpuPicks();
     // line-up changed (join/leave/device cycle): the everyone-locked gate
     // only stays armed while every current picker is still locked
     if (this.ready && !(this.pickers.length > 0 && this.pickers.every((p) => p.locked) && this.activeCount() >= 2)) {
@@ -1144,9 +1206,11 @@ export class MechSelectScreen {
         c.style.setProperty('--pc', COLOR_CSS[pk.slotIdx % 4]);
         tags.push(`<span style="--pc:${COLOR_CSS[pk.slotIdx % 4]}">${t('select.tagP', { n: pk.slotIdx + 1 })}</span>`);
       }
+      const steer = this.cpuTarget();
       this.slots.forEach((s, j) => {
-        if (s.kind === 'ai' && s.pick && this.roster[i]?.id === s.pick) {
+        if (s.kind === 'ai' && this.cpuCursor(j) === i) {
           tags.push(`<span class="cpu" style="--pc:${COLOR_CSS[j % 4]}">${t('select.tagCpu')}</span>`);
+          if (j === steer) { c.classList.add('cursor'); c.style.setProperty('--pc', COLOR_CSS[j % 4]); }
         }
       });
       c.querySelector('.cell-tags').innerHTML = tags.join('');
@@ -1216,8 +1280,10 @@ export class MechSelectScreen {
 
     let m, v = 0, tag, locked = false;
     if (s.kind === 'ai') {
-      m = this.byId[s.pick] || this.roster[0];
+      m = this.byId[s.pick] || RANDOM_PICK;
       cls.push('cpu');
+      if (i === this.cpuTarget()) cls.push('steer');
+      q('.sd-steer').textContent = t(this.touch ? 'select.cpuSteerTouch' : 'select.cpuSteer');
       tag = `${t('select.tagCpu')} · <span class="pc-diff" data-dir="-1">◀</span>${t('diff.' + s.diff)}<span class="pc-diff" data-dir="1">▶</span>`;
     } else {
       const pk = this.pickers.find((p) => p.slotIdx === i);
@@ -1368,6 +1434,10 @@ export class MechSelectScreen {
     sd.classList.add('flash');
     clearTimeout(sd._flashT);
     sd._flashT = setTimeout(() => sd.classList.remove('flash'), 700);
+    // a lone player locking in is joined by the stand-in CPU
+    this.syncAutoCpu();
+    this.ensureCpuPicks();
+    this.refresh();
     // everyone locked AND at least two fighters in the match → ARM the
     // gate; the screen only advances on an explicit extra confirm, so the
     // last player to lock can still adjust their color scheme
@@ -1381,6 +1451,7 @@ export class MechSelectScreen {
     pk.locked = false;
     this.picks[pk.slotIdx] = null;
     this.disarmReady();
+    this.syncAutoCpu();   // the stand-in only stands in for a locked player
     this.audio?.play('uiBack');
     this.refresh();
   }
@@ -1401,8 +1472,9 @@ export class MechSelectScreen {
   finish() {
     if (this.finished) return;
     this.finished = true;
-    // CPU slots fight as the robot they dealt themselves (on screen all along)
-    this.dealCpuPicks();
+    // CPU slots fight as what they show — a robot, or RANDOM (dealt at the
+    // bell like a human's RANDOM)
+    this.ensureCpuPicks();
     this.slots.forEach((s, i) => { if (s.kind === 'ai') this.picks[i] = s.pick; });
     // brief beat so the last lock-in lands before the screen changes;
     // hand back the slots so returning here restores the same line-up
@@ -1431,7 +1503,7 @@ export class MechSelectScreen {
     if (padCount !== this._padCount) {
       if (padCount > this._padCount) {
         for (let i = 0; i < 4; i++) {
-          if (this.input.padConnected(i) && !this.deviceTaken('pad' + i, -1) && this.firstOff() >= 0) this.joinDevice('pad' + i);
+          if (this.input.padConnected(i) && !this.deviceTaken('pad' + i, -1) && this.joinSlot() >= 0) this.joinDevice('pad' + i);
         }
       }
       this._padCount = padCount;
@@ -1439,7 +1511,7 @@ export class MechSelectScreen {
     }
 
     // join-by-press: an unassigned device that hits confirm joins the match
-    if (this.firstOff() >= 0) {
+    if (this.joinSlot() >= 0) {
       for (const dev of this.joinCandidates()) {
         if (this.input.menuEventsFor(dev).confirm) { this.joinDevice(dev); break; }
       }
@@ -1475,6 +1547,10 @@ export class MechSelectScreen {
         // confirm belong to the visited slot until B brings you home
         if (up) { this.cycleRemote(pk.sel, 1); return; }
         if (down) { this.cycleRemote(pk.sel, -1); return; }
+        if ((left || right) && this.slots[pk.sel]?.kind === 'ai') {
+          const N = this.roster.length + 1;
+          this.setCpuPick(pk.sel, (this.cpuCursor(pk.sel) + (right ? 1 : -1) + N) % N);
+        }
         if (back) { pk.sel = null; this.audio?.play('uiBack'); this.refresh(); }
         continue;
       }
@@ -1502,8 +1578,21 @@ export class MechSelectScreen {
           this.removeSlot(pk.slotIdx); return;
         }
       } else {
-        // colors cycle BOTH ways: right/X steps forward, left steps back
-        if (alt || left || right) this.stepPaint(pk, left && !right ? -1 : 1);
+        const cpu = this.cpuTarget();
+        if (cpu >= 0 && (left || right || up || down)) {
+          // everyone is in: the stick is the CPU's cursor now (paint stays
+          // on X and the swatches)
+          const N = this.roster.length + 1, cols = 4;
+          let c = this.cpuCursor(cpu);
+          if (left) c = (c + N - 1) % N;
+          if (right) c = (c + 1) % N;
+          if (up) c = (c + N - cols) % N;
+          if (down) c = (c + cols) % N;
+          this.setCpuPick(cpu, c);
+        } else if (alt || left || right) {
+          // colors cycle BOTH ways: right/X steps forward, left steps back
+          this.stepPaint(pk, left && !right ? -1 : 1);
+        }
         // the everyone-locked gate: a fresh confirm (well after the lock-in
         // press itself) is what actually advances to arena select
         if (confirm && this.ready && performance.now() - this._readyAt > 350) {
@@ -1520,7 +1609,7 @@ export class MechSelectScreen {
   destroy() {
     this.hotButtons.forEach((b) => frameHotButton(b, null));
     window.removeEventListener('click', this.onStrayClick, true);
-    for (const st of this._settle.values()) clearTimeout(st.timer);
+    for (const st of this._settle.values()) clearTimeout(st?.timer);
     for (const st of this.sideState) clearTimeout(st.timer);
     for (const s of this.sprays) s.stop(0);
     this.el.remove();

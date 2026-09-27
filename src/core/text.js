@@ -62,6 +62,10 @@ export const MESSAGES = {
   'select.joinHintTouch': 'tap to add a CPU',
   'select.tagP': '{n}P',
   'select.tagCpu': 'CPU',
+  // on the CPU's side once every human is locked in: the arrows now pick
+  // the CPU's robot (it starts on RANDOM)
+  'select.cpuSteer': '◀ ▶ CHOOSE ITS ROBOT · A TO FIGHT',
+  'select.cpuSteerTouch': 'TAP A ROBOT TO CHOOSE FOR THE CPU',
   'select.tagHuman': '{n}P · {device}',
   'select.lockedStamp': 'LOCKED',
   'select.prompts.html': '<span><i class="gl a">A</i>LOCK IN</span><span><i class="gl b">B</i>BACK</span><span><i class="gl x">X</i>PAINT</span><span><i class="gl pill">LB</i><i class="gl pill">RB</i>SEATS</span>',
