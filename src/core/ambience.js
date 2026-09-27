@@ -33,6 +33,7 @@ export class Ambience {
     this.arena = null;      // theme id whose bed is loaded
     this.master = 1.0;      // the sound master (0 while muted)
     this.playing = false;
+    this.away = false;      // page hidden / window unfocused (boot.js)
     this.el = null;
     this._fade = null;
     if (typeof Audio !== 'undefined') {
@@ -73,10 +74,26 @@ export class Ambience {
       this.el.currentTime = 0;
       this.el.volume = 0;
       this.playing = true;
-      const p = this.el.play();
-      if (p?.catch) p.catch(() => {});   // autoplay policy / missing file
-      this._to(this.target);
+      this._run();
     } catch (e) { /* no bed for this arena */ }
+  }
+
+  /** Page hidden or window unfocused: silent until back, intent kept. */
+  setAway(a) {
+    if (this.away === !!a) return;
+    this.away = !!a;
+    if (!this.el) return;
+    if (this.away) { this._clearFade(); try { this.el.pause(); } catch (e) { /* ok */ } }
+    else if (this.playing) this._run();
+  }
+
+  // start the element and fade it up — unless we are away, in which case it
+  // waits, still `playing`, for setAway(false) to do exactly this
+  _run() {
+    if (this.away || !this.el) return;
+    const p = this.el.play();
+    if (p?.catch) p.catch(() => {});   // autoplay policy / missing file
+    this._to(this.target);
   }
 
   /** Hold it where it is (pause menu, tab hidden). */
@@ -90,9 +107,7 @@ export class Ambience {
   resume() {
     if (!this.el || this.playing || !this.arena) return;
     this.playing = true;
-    const p = this.el.play();
-    if (p?.catch) p.catch(() => {});
-    this._to(this.target);
+    this._run();
   }
 
   /** End it — the fight is over. */

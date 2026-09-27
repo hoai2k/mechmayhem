@@ -953,7 +953,7 @@ export class MechSelectScreen {
 
 // ---------------- ARENA SELECT ----------------
 // Card 0 (top-left) is RANDOM: confirming it spins the selector visibly
-// through every arena before landing on the roulette's pick. Card 1 is
+// through every arena before landing on the roulette's pick. The LAST card is
 // TRAINING — the same line-up on a fixed open arena under training rules
 // (game/training.js); `onDone(themeId, { training: true })` says so.
 const TRAINING_ARENA = 'uptown';   // open, flat, low-hazard
@@ -989,22 +989,6 @@ export class ArenaSelectScreen {
       wrap.appendChild(c);
       this.cards.push(c);
     }
-    // beside it: TRAINING
-    {
-      const c = el('div', 'arena-card training');
-      const art = document.createElement('canvas');
-      art.className = 'arena-art';
-      art.width = 256; art.height = 144;
-      this.drawTrainingArt(art);
-      c.appendChild(art);
-      c.appendChild(el('div', 'arena-name', t('arena.training.name')));
-      c.appendChild(el('div', 'arena-desc', t('arena.training.desc')));
-      c.title = t('arena.training.desc');
-      c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = 1; this.refresh(); } });
-      c.addEventListener('click', () => this.confirm());
-      wrap.appendChild(c);
-      this.cards.push(c);
-    }
     const FIRST = this.cards.length;   // where the arenas start
     this.firstArena = FIRST;
     THEMES.forEach((t, i) => {
@@ -1028,6 +1012,25 @@ export class ArenaSelectScreen {
       wrap.appendChild(c);
       this.cards.push(c);
     });
+    // last: TRAINING — after every real arena, since it is a practice room
+    // rather than somewhere to fight, and its index is recorded rather than
+    // assumed so confirm() can find it wherever the list ends
+    {
+      const c = el('div', 'arena-card training');
+      const art = document.createElement('canvas');
+      art.className = 'arena-art';
+      art.width = 256; art.height = 144;
+      this.drawTrainingArt(art);
+      c.appendChild(art);
+      c.appendChild(el('div', 'arena-name', t('arena.training.name')));
+      c.appendChild(el('div', 'arena-desc', t('arena.training.desc')));
+      c.title = t('arena.training.desc');
+      c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = this.trainingIdx; this.refresh(); } });
+      c.addEventListener('click', () => this.confirm());
+      this.trainingIdx = this.cards.length;
+      wrap.appendChild(c);
+      this.cards.push(c);
+    }
     this.el.appendChild(wrap);
     this.el.appendChild(el('div', 'hint-bar', t('arena.hint.html')));
     root.appendChild(this.el);
@@ -1154,7 +1157,7 @@ export class ArenaSelectScreen {
     if (this.rolling) return;
     if (this.cursor === 0) { this.startRoulette(); return; }
     this.audio?.play('uiSelect');
-    if (this.cursor === 1) { this.onDone(TRAINING_ARENA, { training: true }); return; }
+    if (this.cursor === this.trainingIdx) { this.onDone(TRAINING_ARENA, { training: true }); return; }
     this.onDone(THEMES[this.cursor - this.firstArena].id);
   }
 

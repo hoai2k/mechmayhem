@@ -1,4 +1,110 @@
-# IMAGE REQUESTS — hero cards for the VS splash (19 images)
+# IMAGE REQUESTS — menu hangar (2 images) · hero cards (19 images)
+
+> **Two requests live in this file.** The **hangar backplates** directly below
+> are new (2 images) and are only needed if the menus go with **Concept C —
+> The Hangar** from the menu redesign (`docs/menu-concepts/`). The **hero
+> cards** after them are the original request, and they now serve twice: the VS
+> splash they were made for, and **Concept B — Fight Night**'s select panels.
+> Concept A needs no new art at all.
+
+---
+
+# MENU ART — the hangar (2 images, Concept C only)
+
+The title and fighter-select screens sit in a **mech launch hangar**: the
+title looks straight down the hall at a huge bay door with the neon sign
+mounted above it, and fighter select looks at a row of four maintenance bays,
+one per player. The game composites the mechs, the sign, every number and
+every label over these — **the images carry no mechs and no text**.
+
+## Delivery
+
+```
+public/menus/hangar_title.jpg   16:9 · 3840×2160 · quality ~88
+public/menus/hangar_bays.jpg    16:9 · 3840×2160 · quality ~88
+```
+
+## Style
+
+Same world and paint as the delivered arena images — pass
+`https://raw.githubusercontent.com/hoai2k/mechmayhem/main/public/arenas/foundry.jpg`
+as the **style reference** (industrial, sodium-warm against steel-blue). The
+mockup these replace, for layout:
+`https://raw.githubusercontent.com/hoai2k/mechmayhem/main/docs/menu-concepts/C1_title.jpg`
+and `.../C2_select.jpg`.
+
+### Negative prompt (both)
+
+> `mech, robot, person, character, vehicle in foreground, text, letters,
+> numbers, signage, logo, watermark, UI, frame, border, fisheye, tilted
+> horizon, cluttered floor, blurry, low resolution, jpeg artifacts`
+
+## 1 · `hangar_title.jpg` — down the hall
+
+**What it is for:** the title screen. Three 8–10 m mechs stand on the floor in
+the lower-middle third; the neon logo hangs on the wall above the door.
+
+**Composition — hard requirements:**
+- **One-point perspective, dead centre, level horizon at ~62% down.** The
+  camera is low (about 2 m up), looking straight at the far bay door.
+- **The bay door fills the middle ~55% of the width**, closed except for a
+  gap at the bottom that pours bright cool light across the floor toward the
+  camera. That light is the backlight the mechs are rimmed against.
+- **Clear dark wall above the door, the top ~28% of the frame, centred** —
+  the logo sign goes there. Keep it free of detail brighter than mid-grey.
+- **Empty polished-concrete floor across the whole lower third**, with a
+  single yellow-and-black hazard stripe running left to right along the door
+  line and faint expansion seams converging on the door. Reflections on the
+  floor, no puddles.
+- Gantry I-beams across the ceiling with **two industrial lamp bars**
+  throwing soft cones down onto the left and right thirds of the floor.
+- Side walls: dark alcoves of neighbouring bays, heavy pillars, cable runs,
+  a crane hook parked high — detail that recedes into shadow.
+
+> **Prompt:** interior of an enormous mech launch hangar, one-point
+> perspective looking straight at a gigantic closed bay door in the centre,
+> a bright cool light spilling under the bottom of the door across a
+> polished concrete floor, yellow and black hazard stripe along the door
+> line, empty floor in the foreground, dark steel wall above the door,
+> ceiling gantry I-beams with two industrial lamp bars casting soft light
+> cones, dark side bays with pillars and cables receding into shadow, faint
+> haze in the air, steel-blue palette with warm sodium lamp pools, realistic
+> anime background painting, physically plausible lighting, cinematic,
+> 16:9, 4k, sharp focus
+
+## 2 · `hangar_bays.jpg` — four bays
+
+**What it is for:** fighter select. The roster board is drawn over the top
+third; each player's fighter stands in one of the four bays below.
+
+**Composition — hard requirements:**
+- **A straight-on elevation of a hangar wall**, no perspective convergence —
+  the game lays its four panels over the four bays, so the bays must be
+  **four equal alcoves side by side filling the lower ~62% of the frame**,
+  with thick steel pillars between them and a shared floor ledge.
+- **Each bay:** its own lamp bar at the top of the alcove throwing a soft cone
+  down, a circular **lift pad** in the floor with a hazard-striped ring, and
+  back-wall detail (pipes, clamps, a docking cradle) kept dark and low
+  contrast. All four identical in structure; small wear differences only.
+- **The upper ~34%** is plain riveted steel wall with a catwalk railing along
+  its bottom edge — the roster board is drawn there, so keep it even-toned.
+- No numbers painted on the bays — the game draws the bay numbers in each
+  player's colour.
+
+> **Prompt:** front elevation of a mech hangar wall with four identical
+> maintenance bays side by side, thick steel pillars between the bays, each
+> bay with an overhead lamp bar casting a soft cone of light down onto a
+> circular lift pad with a yellow and black hazard ring, dark docking
+> cradles and pipes on the back wall of each bay, plain riveted steel wall
+> across the upper third with a catwalk railing, orthographic straight-on
+> view, symmetrical, steel-blue palette with warm lamp light, realistic
+> anime background painting, physically plausible lighting, 16:9, 4k,
+> sharp focus
+
+---
+
+# HERO CARDS — the original request
+
 
 **One painted card per mech**: the fighter in a battle pose, in a realistic-
 anime scene from the world it came from. They are for a **VS SPLASH** — each

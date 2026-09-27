@@ -51,6 +51,12 @@ export class GameAudio {
     this._musicName = null;
     this._seq = null; // active sequencer state
     this._timer = null; // scheduler interval id
+    // AWAY: the page is hidden or the window has lost focus (boot.js owns the
+    // rule). While it is set, resume() is a no-op, so nothing can wake the
+    // context behind the player's back — and every entry point below already
+    // refuses to start a sound on a context that is not `running`, so a fight
+    // left running in an unfocused window queues nothing to burst out later.
+    this.away = false;
   }
 
   // --------------------------------------------------------------------
@@ -134,6 +140,7 @@ export class GameAudio {
 
   /** Call on the first user gesture. Safe to call repeatedly. */
   resume() {
+    if (this.away) return;
     try {
       const ctx = this._init();
       if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});

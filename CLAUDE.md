@@ -15,7 +15,12 @@ fallback bank are all generated. Progress history: `TASKS.md`.
 - Combat crash soak: `node tools/soak.mjs "http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1&diff=ace"`
 - NO-BROWSER CHECKS: `npm run check` (what CI runs before the build in
   `deploy.yml`) = `node tools/params.mjs` + `node tools/rigmirror.mjs` + `npm test`
-  (`node --test test/*.test.mjs`, Node's own runner, no dependency): roster ↔
+  (`node --test test/*.test.mjs`, Node's own runner, no dependency — THE GLOB IS
+  UNQUOTED ON PURPOSE, so the SHELL expands it into five real paths: quoting it
+  asks NODE to glob, which only works from Node 22, and CI runs Node 20, where
+  the quoted form is read as one literal filename. That is what silently broke
+  every deploy between Sept 1 and Sept 20 — `npm run check` passed on a dev box
+  and failed in Actions with "Could not find …/test/*.test.mjs"): roster ↔
   SPECIALS/ULTS ↔ clips ↔ contract cross-references, every gait key in
   `GAIT_SCHEMA`, every roster/theme id and every literal `t('…')` has text,
   tuning's derived rates, the shipped levels through `themeFromLevel`. Pure
@@ -2881,6 +2886,20 @@ procedural.
   never really backgrounded) and `node tools/scratch/tabpause.mjs` holds the
   line the handler exists for: a hidden tab still stops the soundtrack and
   suspends the context, and a PAUSED fight still does not auto-resume.
+  AN UNFOCUSED WINDOW IS SILENT TOO (`applyAway` in boot.js). A window over
+  the game, alt-tab, a click on another monitor: the tab stays VISIBLE, so
+  visibilitychange never fires and the fight kept playing. "Away" is hidden OR
+  unfocused, and it is a GATE rather than a pause: `setAway` on both music
+  players and the bed, plus `audio.away` (which makes `audio.resume()` a
+  no-op), silences every source WITHOUT touching `playing` — so coming back
+  restarts nothing and can start nothing that was not already meant to play,
+  and a bed or song begun while away simply waits. The FIGHT is not paused on
+  blur (only a hidden tab pauses it). Focus is tracked from blur/focus EVENTS,
+  never `document.hasFocus()`, so a headless harness that never blurs plays as
+  before. Nothing queues while away: every WebAudio entry point already refuses
+  a context that is not `running`, and the sustained loops are restated each
+  frame by `Fighter.loopSfx`, so they come back by themselves. `node
+  tools/scratch/focusmute.mjs` asserts all of it.
   MUSIC TURNED OFF MUST COME BACK ON, and `MusicPlayer._applyVolume` is the ONE
   place that decides whether the <audio> element runs — it pauses a player that
   has gone inaudible AND starts one that has become audible, so `setVolume`,

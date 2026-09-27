@@ -1080,6 +1080,35 @@ export async function bootGame() {
   // Coming back does NOT auto-resume the match. The pause screen stays up and
   // the player unpauses when they are actually looking, which is what every
   // other fighting game does and the only fair option in local multiplayer.
+  //
+  // …AND AN UNFOCUSED WINDOW IS SILENT TOO. Another window over the game, a
+  // click on the desktop, alt-tab to a second monitor: the tab is still
+  // VISIBLE, so visibilitychange never fires and the fight kept shouting. So
+  // "away" is hidden OR unfocused, and it is a GATE rather than a pause — it
+  // silences every source (the WebAudio context, the soundtrack, the menu
+  // theme, the arena bed) without touching whether any of them MEANS to play,
+  // so coming back needs no restart logic at all and cannot start something
+  // that was not playing. The fight is NOT paused on blur: only a hidden tab
+  // pauses it, as before — a window left visible beside another is still a
+  // game somebody may be watching.
+  //
+  // The focus state is tracked from blur/focus EVENTS, never read from
+  // document.hasFocus() at load: a page that has not seen a blur is treated as
+  // focused, so a headless harness (which never fires one) plays as it always
+  // did. `node tools/scratch/focusmute.mjs` holds all of it.
+  let winFocused = true;
+  const applyAway = () => {
+    const away = document.hidden || !winFocused;
+    audio.away = away;
+    music.setAway(away);
+    menuMusic.setAway(away);
+    ambience.setAway(away);
+    if (away) audio.suspend();
+    else if (!muted) audio.resume();   // a muted context can stay suspended
+  };
+  window.addEventListener('blur', () => { winFocused = false; applyAway(); });
+  window.addEventListener('focus', () => { winFocused = true; applyAway(); });
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       // mid-load is not a pausable state (the loading flow owns the
@@ -1104,6 +1133,7 @@ export async function bootGame() {
       // if the match was left running (results screen, mid-warm-up)
       if (S.battle && !S.battle.paused) { music.resume(); ambience.resume(); }
     }
+    applyAway();   // the gate: still silent here if the window lacks focus
   });
 
   goTitle();
