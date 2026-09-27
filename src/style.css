@@ -363,6 +363,12 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 .pos-r .sd-tag, .pos-tr .sd-tag, .pos-br .sd-tag { left: auto; right: 3vw; }
 .sel-screen.quad .sd-tag { top: 2.4vh; }
 .sd-tag:empty { display: none; }
+.sd-steer { position: absolute; top: calc(4.5vh + 2.6em); right: 3vw; z-index: 3; display: none;
+  font: 600 clamp(10px, .82vw, 13px) var(--font-label); letter-spacing: .2em; color: #fff;
+  text-shadow: 0 1px 3px #000; animation: pulse 1.8s ease-in-out infinite; }
+.pos-l .sd-steer, .pos-tl .sd-steer, .pos-bl .sd-steer { right: auto; left: 3vw; }
+.sel-screen.quad .sd-steer { top: calc(2.4vh + 2.6em); }
+.sel-side.steer .sd-steer { display: block; }
 .sd-tag .pc-diff { display: inline-block; padding: 0 .5em; cursor: pointer; }
 .sd-tag .pc-diff:hover { color: #fff; }
 .sel-side.picking .sd-tag::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 10px;
