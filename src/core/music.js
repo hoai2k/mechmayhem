@@ -141,6 +141,10 @@ export class MusicPlayer {
     this.next = null;       // the pre-rolled song the NEXT start() will use
     this.playing = false;   // wants to be audible (false while paused/stopped)
     this.muted = false;     // global SOUND: OFF
+    // the window is not focused / the tab is hidden (boot.js). Like `muted`
+    // it silences WITHOUT touching `playing`, so coming back needs nothing to
+    // be restarted — _applyVolume simply finds it audible again.
+    this.away = false;
     this.enabled = true;    // the player's own music toggle
     this.onChange = null;   // UI hook: re-render the "now playing" readout
     this._history = [];     // songs already played, newest last (the BACK button)
@@ -384,6 +388,13 @@ export class MusicPlayer {
   }
 
   /** Global SOUND: OFF from the corner button / settings. Not persisted here. */
+  /** Page hidden or window unfocused: silent until back, intent kept. */
+  setAway(a) {
+    if (this.away === !!a) return;
+    this.away = !!a;
+    this._applyVolume();
+  }
+
   setMuted(m) {
     this.muted = !!m;
     this._applyVolume();   // …which starts the element again when it can hear
@@ -411,7 +422,7 @@ export class MusicPlayer {
     // element's gain stops at 1, so a slider dragged to the very top gives
     // some of it back — the only place in the range where it can.
     const mix = this._preview ? PREVIEW_MIX : 1;
-    const want = this.enabled && !this.muted ? Math.min(1, this.volume * OUTPUT_TRIM * mix) : 0;
+    const want = this.enabled && !this.muted && !this.away ? Math.min(1, this.volume * OUTPUT_TRIM * mix) : 0;
     this.el.volume = want;
     // THIS IS THE ONE PLACE THAT DECIDES WHETHER THE ELEMENT RUNS, and it has
     // to answer both halves of the question or the answers drift apart. Silent
@@ -492,7 +503,7 @@ export class MusicPlayer {
   }
 
   _play() {
-    if (!this.el || !this.track || !this.enabled || this.muted) return;
+    if (!this.el || !this.track || !this.enabled || this.muted || this.away) return;
     const p = this.el.play();
     // autoplay policy can reject before the first gesture — the game is deep
     // past one by battle time, but never let a rejection surface as an error
