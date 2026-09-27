@@ -322,7 +322,7 @@ export class Input {
   // per-player menu navigation (multi-cursor mech select), same repeat feel.
   // lb/rb drive the slot selector (editing empty/CPU slots from your seat).
   menuEventsFor(device) {
-    const ev = { up: false, down: false, left: false, right: false, confirm: false, back: false, alt: false, lb: false, rb: false };
+    const ev = { up: false, down: false, left: false, right: false, confirm: false, back: false, alt: false, lb: false, rb: false, ping: false };
     const k = (c) => this.keys.has(c) || this.keysPressed.has(c);
     if (device === 'kb1') {
       ev.up = this._navRepeat(device, 'up', k('KeyW'));
@@ -357,6 +357,8 @@ export class Input {
       ev.alt = this.padPressed(i, 'X'); // cycle color scheme
       ev.lb = this.padPressed(i, 'LB');
       ev.rb = this.padPressed(i, 'RB');
+      // either TRIGGER: "which one am I?" (the select screen flashes your cursor)
+      ev.ping = this.padPressed(i, 'LT') || this.padPressed(i, 'RT');
     } else if (device === 'touch') {
       const tm = this.touchMenu;
       ev.up = tm.up; ev.down = tm.down; ev.left = tm.left; ev.right = tm.right;

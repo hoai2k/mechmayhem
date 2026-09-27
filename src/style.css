@@ -476,6 +476,20 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
   font: 700 clamp(8px, .6vw, 11px) var(--font-label); letter-spacing: .1em; }
 .cell-tags span.cpu { background: #06070d; color: var(--pc); box-shadow: inset 0 0 0 1px var(--pc); }
 
+/* "which one am I?" — a trigger press rings the player's own cell */
+.sel-ping { position: absolute; pointer-events: none; z-index: 5; }
+.sel-ping i { position: absolute; inset: -3px; border: 4px solid var(--pc);
+  box-shadow: 0 0 22px var(--pc), inset 0 0 18px var(--pc); animation: selPing .85s ease-out both; }
+.sel-ping i + i { animation-delay: .18s; }
+.sel-ping b { position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, -6px); padding: 3px 10px;
+  background: var(--pc); color: #051018; font: 700 clamp(12px, 1vw, 16px) var(--font-label); letter-spacing: .14em;
+  animation: selPingTag .9s ease-out both; }
+@keyframes selPing { from { transform: scale(1); opacity: 1; } to { transform: scale(1.9); opacity: 0; } }
+@keyframes selPingTag { 0% { transform: translate(-50%, 6px); opacity: 0; } 20%, 70% { transform: translate(-50%, -6px); opacity: 1; }
+  100% { opacity: 0; } }
+.sel-cell.pinged { animation: cellPing .9s ease-out; }
+@keyframes cellPing { 0%, 30% { box-shadow: inset 0 0 0 4px var(--ping), inset 0 0 30px var(--ping); filter: brightness(1.5); } }
+
 /* the prompts along the bottom of the band */
 .sel-prompts { position: absolute; left: 50%; bottom: 2.6vh; transform: translateX(-50%); z-index: 3;
   display: flex; gap: clamp(12px, 1.6vw, 26px); white-space: nowrap; pointer-events: none;

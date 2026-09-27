@@ -801,9 +801,16 @@ export class MechSelectScreen {
            <div class="cell-icon">${mechIcon(m, 64)}</div>
            <div class="cell-name">${m.name}</div><div class="cell-tags"></div>`;
       c.addEventListener('mouseenter', () => {
+        if (this.padsIn() && !this.touch) return;   // see the click handler
         if (this.mousePicker && !this.mousePicker.locked) { this.mousePicker.cursor = i; this.refresh(); }
       });
       c.addEventListener('click', () => {
+        // WITH A CONTROLLER IN THE ROOM THE MOUSE IS NOBODY'S CURSOR: hovering
+        // lights nothing (a highlight that follows the pointer reads as one of
+        // the players), but a CLICK still picks. It commits that robot for the
+        // KEYBOARD/MOUSE seat — joining it to the match if it was not in —
+        // and a second click on the same robot takes it back out again.
+        if (this.padsIn() && !this.touch) { this.padClick(i); return; }
         const pk = this.mousePicker;
         if (!pk) return;
         // the grid is the pointer's own business: clicking a robot brings a
@@ -901,6 +908,55 @@ export class MechSelectScreen {
   }
 
   autoCpu() { return this.slots.findIndex((s) => s.kind === 'ai' && s.auto); }
+
+  padsIn() { return this.input.connectedPadCount() > 0; }
+
+  // a click on a robot while controllers are connected (see the grid click)
+  padClick(i) {
+    let pk = this.pickers.find((p) => p.device === 'kb1');
+    if (!pk) {
+      if (!this.joinDevice('kb1')) return;
+      pk = this.pickers.find((p) => p.device === 'kb1');
+      if (!pk) return;
+      pk.mouseJoined = true;
+      pk.justJoined = false;
+      pk.cursor = i;
+      this.lockIn(pk);
+      return;
+    }
+    pk.sel = null;
+    if (pk.locked) {
+      if (pk.cursor === i) {
+        this.unlock(pk);
+        if (pk.mouseJoined) this.removeSlot(pk.slotIdx);
+        return;
+      }
+      const cpu = this.cpuTarget();
+      if (cpu >= 0) this.setCpuPick(cpu, i);
+      return;
+    }
+    pk.cursor = i;
+    this.lockIn(pk);
+  }
+
+  // WHICH ONE AM I? A trigger on a pad flashes that player's colour round
+  // their own place in the grid: two rings spreading off the cell and their
+  // tag over it — with four cursors on one grid, the quickest answer there is.
+  ping(pk) {
+    const cell = this.cells[pk.cursor];
+    if (!cell) return;
+    const b = this.band.getBoundingClientRect(), r = cell.getBoundingClientRect();
+    const d = el('div', 'sel-ping', `<i></i><i></i><b>${t('select.tagP', { n: pk.slotIdx + 1 })}</b>`);
+    d.style.cssText = `--pc:${COLOR_CSS[pk.slotIdx % 4]};left:${r.left - b.left}px;top:${r.top - b.top}px;` +
+      `width:${r.width}px;height:${r.height}px`;
+    this.band.appendChild(d);
+    cell.classList.remove('pinged');
+    void cell.offsetWidth;
+    cell.classList.add('pinged');
+    cell.style.setProperty('--ping', COLOR_CSS[pk.slotIdx % 4]);
+    this.audio?.play('uiMove');
+    setTimeout(() => { d.remove(); cell.classList.remove('pinged'); }, 950);
+  }
 
   // the seat a joining human takes: the stand-in CPU's first, else the first
   // empty one
@@ -1154,8 +1210,10 @@ export class MechSelectScreen {
       }
       this.pickers.push(p);
     });
+    // the mouse drives the touch / keyboard seat; with no such seat it may
+    // borrow the first picker only while no controller is connected
     this.mousePicker = this.pickers.find((p) => p.device === 'touch')
-      || this.pickers.find((p) => p.device === 'kb1') || this.pickers[0];
+      || this.pickers.find((p) => p.device === 'kb1') || (this.padsIn() ? null : this.pickers[0]);
     this.syncAutoCpu();
     this.ensureCpuPicks();
     // line-up changed (join/leave/device cycle): the everyone-locked gate
@@ -1507,6 +1565,7 @@ export class MechSelectScreen {
         }
       }
       this._padCount = padCount;
+      this.syncPickers();   // who the mouse drives depends on it
       this.refresh(); // ordinal labels shift when pads come and go
     }
 
@@ -1529,6 +1588,7 @@ export class MechSelectScreen {
       const back = ev.back || (solo && evAll?.back);
       const alt = ev.alt || (solo && evAll?.alt);
       pk.justJoined = false;
+      if (ev.ping) this.ping(pk);
 
       // ---- slot selector: LB/RB step the focus across editable slots ----
       // (a slot that turned into a CONTROLLER human under our focus — e.g.
