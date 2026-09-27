@@ -36,7 +36,7 @@ import { preloadPropModels } from '../arena/propglb.js';
 import { preloadBuildingModels } from '../arena/buildglb.js';
 import { TouchControls, installTouchZoomGuards } from './touch.js';
 import { isTouchDevice } from '../core/utils.js';
-import { MenuStage } from './menustage.js';
+import { releaseSnapshots } from './snapshot.js';
 import { PadPointers } from './padpointers.js';
 import { LoadScreen } from './loadscreen.js';
 import { createBattle, rebuildArena } from './battle.js';
@@ -544,7 +544,6 @@ export async function bootGame() {
   // ---------------- state machine ----------------
   const S = {
     screen: null,        // active menu screen object (has update/destroy)
-    stage: null,         // MenuStage
     battle: null,        // battle context
     slots: null,
     picks: null,
@@ -576,17 +575,14 @@ export async function bootGame() {
     else S.screen?.update(ev);
   }
 
-  function ensureStage(kind) {
-    if (!S.stage) {
-      resetScene();
-      S.stage = new MenuStage(engine);
-    }
-    if (kind === 'lineup') S.stage.showLineup();
-  }
-
+  // THE MENUS ARE PICTURES. Title, fighter select and arena select are DOM
+  // screens over a canvas that does not draw (engine.covered, set in the main
+  // loop): every robot on them is a poster or a runtime snapshot
+  // (game/snapshot.js), and the 3D stage they used to stand on is gone from
+  // the game — menustage.js survives for the poster camera and the dev tools.
   function goTitle() {
     teardownBattle();
-    ensureStage('lineup');
+    resetScene();
     S.mode = 'title';
     startMenuMusic();
     predictor.start();
@@ -595,46 +591,24 @@ export async function bootGame() {
       audio, hotButtons,
       onPlay: () => goMechSelect(),
       onFullscreen: toggleFullscreen,
+      // Once the title's own film strip has its pictures, the next thing
+      // anyone will look at is the select screen, so pull ITS art down —
+      // every poster and every roster badge, ahead of anything the fight will
+      // need. Held until then so the first screenful of cards is not queued
+      // behind pictures nobody can see yet.
+      onArtReady: () => predictor.warmMenuArt(playableRoster().map((m) => m.id)),
     }));
-    // The title screen's own content is up; the next thing anyone will look
-    // at is the select screen, so pull its art down NOW — every poster and
-    // every roster badge, ahead of anything the fight will need. They are
-    // small, there are a lot of them, and they are all on screen the instant
-    // that screen opens.
-    predictor.warmMenuArt(playableRoster().map((m) => m.id));
-  }
-
-  // The mechs either side of each cursor, in roster order — what the next
-  // press of LEFT or RIGHT will land on.
-  function neighbourIds(entries) {
-    const roster = playableRoster();
-    const out = new Set();
-    for (const e of entries || []) {
-      const i = roster.findIndex((m) => m.id === e.id);
-      if (i < 0) continue;
-      for (const d of [-2, -1, 1, 2]) {
-        const m = roster[(i + d + roster.length * 2) % roster.length];
-        if (m) out.add(m.id);
-      }
-    }
-    return [...out];
   }
 
   function goMechSelect() {
-    ensureStage('lineup');
     S.mode = 'mechselect';
     predictor.start(S.picks || []);
     setScreen(new MechSelectScreen(uiRoot, {
       input, audio, hotButtons, prev: S.slots,
-      onPreview: (entries) => {
-        S.stage?.showPreviews(entries);
-        // ...and warm what a cursor is most likely to land on next. Players
-        // flip, so the neighbours either side of each cursor are the best
-        // guess going, and they queue ahead of the fight's own assets.
-        predictor.warmNeighbours(neighbourIds(entries));
-      },
-      onLockFx: (slotIdx) => S.stage?.lockFx(slotIdx),
-      onYaw: (slotIdx, d) => S.stage?.setYaw(slotIdx, d),
+      // a pick a player has SETTLED on (or locked, or repainted) has its real
+      // body built in the background: the GLB, its fit and its paint are then
+      // warm for the match, which is most of what the loading card waits on
+      onSettle: (id, variant) => predictor.warmPick(id, variant),
       onDone: (picks, variants, slots) => { S.picks = picks; S.variants = variants; S.slots = slots; goArenaSelect(); },
       onBack: () => goTitle(),
     }));
@@ -692,8 +666,9 @@ export async function bootGame() {
       new Promise((r) => setTimeout(r, 8000)),
     ]);
     setScreen(null);
-    S.stage?.destroy();
-    S.stage = null;
+    // the menus' camera is done: its context and the GPU copies it holds go
+    // (the textures themselves stay — the fight is about to draw with them)
+    releaseSnapshots();
     resetScene();
     S.mode = 'battle';
     S.starting = false;
@@ -786,7 +761,7 @@ export async function bootGame() {
             // the results screen hid them; nothing else shows them again
             if (S.battle?.usesTouch) touchControls?.setVisible(true);
           },
-          onChangeMechs: () => { teardownBattle(); ensureStage(); goMechSelect(); },
+          onChangeMechs: () => { teardownBattle(); goMechSelect(); },
           onMenu: () => goTitle(),
         }));
       },
@@ -1003,9 +978,15 @@ export async function bootGame() {
       world_update(B, dt * 0.4);
       screenUpdate(input.menuEvents());
     } else {
-      S.stage?.update(dt);
       screenUpdate(input.menuEvents());
     }
+    // an opaque menu owns the screen: nothing under it is worth drawing. The
+    // LOADING card is opaque too and must not set this — drawing the arena
+    // under it is what warms it (loadscreen.js)
+    const menu = S.mode === 'title' || S.mode === 'mechselect' || S.mode === 'arenaselect';
+    engine.covered = menu && !S.battle;
+    const tag = menu ? S.mode : '';
+    if (uiRoot.dataset.menu !== tag) uiRoot.dataset.menu = tag;
     updateMuteBtn();
     input.endFrame();
   };

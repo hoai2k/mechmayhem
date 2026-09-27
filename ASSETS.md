@@ -40,6 +40,8 @@ the large-structure materials) · `prop` (`prop_*`) · `mech` (`mech_*`) ·
 | `public/thumbs/` | auto-captured mech icons (`tools/thumbs.mjs`) | `<img>` fallback under badges |
 | `public/posters/` | mech-select posters + `posters.json` (`tools/posters.mjs`) | `<img>` / fetch |
 | `public/arenas/` | painted arena-select card art (`<id>.jpg`) | `<img src="arenas/<id>.jpg">` |
+| `public/arenas/full/` | OPTIONAL full-size arena paintings for the big views (none delivered yet), declared in `ARENA_FULL` (`src/ui/arenaart.js`) | backdrop `url()` |
+| `public/cards/` | hero cards, web size, + `index.json` (`tools/cards.mjs`, from the originals in `docs/cards/`) | title film strip, loading-card fallback |
 | `public/sfx/` | the recorded sound effects + arena ambience beds + `manifest.json` (`tools/sfxgen.mjs`) | manifest fetched in the background, each file decoded on first use |
 | `public/sound/` | the menu theme and the neon buzz | `<audio>` by URL |
 

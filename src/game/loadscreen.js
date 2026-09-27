@@ -6,10 +6,11 @@
 // round and again before every round that is fought somewhere new.
 //
 // It is a FULL-SCREEN OPAQUE card, not a chrome over the live cameras (which
-// is what the old warm-up sandbox was): the arena's name and painting with a
-// loading bar under them, every fighter's canonical concept art on an angled
-// panel with a VS between, and the pad diagram, small, so the wait teaches
-// the game. The REAL scene renders behind it the whole time — the renderer
+// is what the old warm-up sandbox was): the arena's painting fills the whole
+// screen behind everything — the match is these robots in THIS place — with
+// its name over it, every fighter standing on it as a cutout in the paint they
+// chose with a VS between, a loading bar, and the pad diagram, small, so the
+// wait teaches the game. The REAL scene renders behind it the whole time — the renderer
 // draws the actual arena through the actual cameras into a frame nobody sees,
 // which is what compiles the shaders and uploads the textures, plus one
 // explicit compile()/initTexture pass before the reveal so nothing is left
@@ -30,9 +31,12 @@
 // THREE.DefaultLoadingManager: tracked via instance handlers installed in the
 // constructor — construct exactly ONE LoadScreen.
 import * as THREE from 'three';
-import { hexCss } from '../core/colors.js';
+import { hexCss, PLAYER_COLORS_CSS } from '../core/colors.js';
 import { t } from '../core/text.js';
 import { compactPadSvg } from '../ui/instructions.js';
+import { arenaArtUrl } from '../ui/arenaart.js';
+import { hasCard, cardUrl } from '../ui/cards.js';
+import { shotUrl } from './snapshot.js';
 
 const MIN_T = 3.0;        // the card is up at least this long
 const SETTLE_T = 0.45;    // loader idle for this long = the pack is in
@@ -82,32 +86,44 @@ export class LoadScreen {
     ov.style.setProperty('--ls-sky-bot', skyBot);
     const sub = round > 1 ? t('load.nextRound') : t('load.nowEntering');
     const roundLine = t('match.round', { n: round });
+    // THE FIGHTERS STAND IN THE ARENA: each one a cutout of the real body in
+    // the paint it chose — the photograph the select screen took of it
+    // (game/snapshot.js), else its stock poster — spread evenly across the
+    // painting with a VS between each pair. A body with no picture at all (a
+    // roster the posters do not depict) falls back to its hero card on an
+    // angled panel.
+    const n = fighters.length;
     const cards = fighters.map((f, i) => {
       const glow = hexCss(f.def.colors.glow);
+      const pc = PLAYER_COLORS_CSS[f.playerIndex % 4];
       const tag = f.isAI ? t('load.tag.cpu') : t('load.tag.p', { n: f.playerIndex + 1 });
-      const vs = i < fighters.length - 1 ? `<div class="ls-vs">${t('load.vs')}</div>` : '';
-      return `<div class="ls-card${f.isAI ? ' cpu' : ''}" style="--glow:${glow}">
-          <div class="ls-card-in"><div class="ls-art" style="background-image:url(art/${f.def.id}.jpg)"></div></div>
-          <div class="ls-tag">${tag}</div>
-          <div class="ls-name">${f.def.name}</div>
+      const id = f.def.id;
+      const cut = shotUrl(id, f.def.variant || 0) || shotUrl(id, 0);
+      const pic = cut
+        ? `<img class="ls-cut" src="${cut}" alt="" draggable="false">`
+        : `<div class="ls-panel"><div class="ls-art" style="background-image:url(${hasCard(id) ? cardUrl(id) : `art/${id}.jpg`})"></div></div>`;
+      const x = ((i + 0.5) / n) * 100;
+      const vs = i < n - 1
+        ? `<div class="ls-vs" style="left:${((i + 1) / n) * 100}%"><span>${t('load.vs')}</span></div>` : '';
+      return `<div class="ls-f${f.isAI ? ' cpu' : ''}${i >= n / 2 ? ' right' : ''}" style="--glow:${glow};--pc:${pc};left:${x}%;--i:${i}">
+          ${pic}
+          <div class="ls-plate"><div class="ls-tag">${tag}</div><div class="ls-name">${f.def.name}</div>
+            <div class="ls-title">${f.def.title || ''}</div></div>
         </div>${vs}`;
     }).join('');
     ov.innerHTML = `
-      <div class="ls-stripes"></div>
+      <div class="ls-bg" style="background-image:url(${arenaArtUrl(theme.id)})"></div>
+      <div class="ls-scrim"></div>
       <div class="ls-top">
-        <div class="ls-arena-frame"><div class="ls-arena-img" style="background-image:url(arenas/${theme.id}.jpg)"></div></div>
-        <div class="ls-arena-text">
-          <div class="ls-sub">${sub} <span class="ls-round">· ${roundLine}</span></div>
-          <div class="ls-arena">${theme.name}</div>
-          <div class="ls-desc">${theme.desc || ''}</div>
-          <div class="ls-bar"><div class="ls-bar-fill"></div></div>
-          <div class="ls-status">${t('load.loading')}…</div>
-        </div>
+        <div class="ls-sub">${sub} <span class="ls-round">· ${roundLine}</span></div>
+        <div class="ls-arena">${theme.name}</div>
+        <div class="ls-desc">${theme.desc || ''}</div>
       </div>
-      <div class="ls-cards">${cards}</div>
+      <div class="ls-cards n${n}">${cards}</div>
       <div class="ls-foot">
         <div class="ls-pad"></div>
         <div class="ls-tips"><div class="ls-tips-title">${t('load.howToPlay')}</div><div class="ls-tip"></div></div>
+        <div class="ls-load"><div class="ls-status">${t('load.loading')}…</div><div class="ls-bar"><div class="ls-bar-fill"></div></div></div>
       </div>`;
     ov.querySelector('.ls-pad').appendChild(compactPadSvg());
     this.uiRoot.appendChild(ov);

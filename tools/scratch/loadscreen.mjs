@@ -39,7 +39,7 @@ const snap = () => p.evaluate(() => {
     fade: L?.fade, pending: B?.fighters.filter((f) => f._modelPending).length, match: B?.match?.state,
     hudHidden: B?.hud?.el?.style?.display === 'none', sandbox: !!B?.world?.sandbox,
     card: !!document.querySelector('.ls'), cardOut: !!document.querySelector('.ls.out'),
-    cards: [...document.querySelectorAll('.ls-card')].map((c) => getComputedStyle(c).opacity).join(',') };
+    cards: [...document.querySelectorAll('.ls-f')].map((c) => getComputedStyle(c).opacity).join(',') };
 });
 let s = await snap();
 console.log('entered battle:', JSON.stringify(s));

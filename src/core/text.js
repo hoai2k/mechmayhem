@@ -34,6 +34,9 @@ export const MESSAGES = {
   // pause and results screens are built from the same MenuList vocabulary and
   // a translator reading this file should see what BATTLE used to say.
   'title.pressStart': 'PRESS START',
+  // the broadcast lower third under the film strip
+  'title.live': 'LIVE',
+  'title.ticker.html': '<b>CHAMPIONSHIP NIGHT</b><span class="sep">◆</span>{fighters} FIGHTERS<span class="sep">◆</span>{arenas} ARENAS<span class="sep">◆</span>UP TO {players} PLAYERS',
   'title.menu.battle': 'BATTLE',
   'title.menu.fullscreen': 'FULLSCREEN',
   'title.hint.html': '<b>↑↓</b> select&nbsp;&nbsp;<b>ENTER / A</b> confirm&nbsp;&nbsp;·&nbsp;&nbsp;<b>LB / RB</b> (Q/E) settings · sound&nbsp;&nbsp;·&nbsp;&nbsp;pad <b>SELECT</b> mouse pointer&nbsp;&nbsp;·&nbsp;&nbsp;P1 <b>WASD</b> + <b>F G H R T Y</b> · <b>SPACE</b> jump · <b>SHIFT</b> dash',
@@ -73,6 +76,17 @@ export const MESSAGES = {
   'select.unknownMove': '???',
 
   // the RANDOM roster cell (a pseudo-mech)
+  // the versus split (ui/menus.js MechSelectScreen)
+  'select.vs': 'VS',
+  'select.brawl': '{n}-PLAYER BRAWL',
+  'select.join': 'PRESS A TO JOIN',
+  'select.joinHint': 'or ENTER on a keyboard · click to add a CPU',
+  'select.joinHintTouch': 'tap to add a CPU',
+  'select.tagP': '{n}P',
+  'select.tagCpu': 'CPU',
+  'select.tagHuman': '{n}P · {device}',
+  'select.lockedStamp': 'LOCKED',
+  'select.prompts.html': '<span><i class="gl a">A</i>LOCK IN</span><span><i class="gl b">B</i>BACK</span><span><i class="gl x">X</i>PAINT</span><span><i class="gl pill">LB</i><i class="gl pill">RB</i>SEATS</span>',
   'select.random.name': 'RANDOM',
   'select.random.title': 'Mystery Unit',
   'select.random.blurb': 'A different robot every round — dealt fresh at each bell. Pick a color scheme; it carries onto whatever shows up.',

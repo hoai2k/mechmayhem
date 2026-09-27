@@ -41,7 +41,7 @@ async function run(label, act, withPad = false) {
   await act(page);
   await page.waitForTimeout(4000);   // ~4s: menus need it under SwiftShader
 
-  const onSelect = await page.$('.roster-grid') !== null;
+  const onSelect = await page.$('.sel-grid') !== null;
   const fs = await page.evaluate(() => window.__fs);
   await page.close();
   return { label, promptText, items, onSelect, fs };
