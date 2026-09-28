@@ -6,7 +6,7 @@ import { isTouchDevice } from '../../core/utils.js';
 import { mechIcon } from '../icons.js';
 import { PLAYER_COLORS_CSS as COLOR_CSS, hexCss, MAX_FIGHTERS, MAX_PADS } from '../../core/colors.js';
 import { t } from '../../core/text.js';
-import { loadPosterIndex, SETTLE_MS } from '../posters.js';
+import { loadPosterIndex, posterMeta, SETTLE_MS } from '../posters.js';
 import { shotUrl, requestShot } from '../../game/snapshot.js';
 import { RANDOM_PICK, pickFrom, el, touchBtn, frameHotButton, preload } from './common.js';
 
@@ -36,6 +36,21 @@ import { RANDOM_PICK, pickFrom, el, touchBtn, frameHotButton, preload } from './
 const SHOT_DEBOUNCE = 260;   // ms a paint must sit before it is photographed
 
 const XFADE_MS = 600;        // the repaint crossfade (matches .sd-pic.xfade in style.css)
+
+// A ROBOT IS DRAWN AT ITS SIZE IN THE GAME. Every poster is rendered through
+// the same camera at the same distance, so its recorded box (posters.json,
+// world units) is the mech's real on-screen height, and pictures scaled by it
+// stand in the proportion they fight in: colossus towers over saurion, and a
+// long low body (tritone) is as tall as his box says rather than shrunk to fit
+// his length. PIC_REF is the box height that fills the side's picture band
+// (--pic-h in style.css); the tallest crops run a little past it, which is
+// allowed — a side clips, and overflow reads as scale.
+const PIC_REF = 12.4;
+const PIC_FALLBACK = 0.9;   // a mech with no poster box (photographed at runtime)
+function picScale(id) {
+  const b = posterMeta(id)?.box;
+  return b ? ((b.v1 - b.v0) / PIC_REF).toFixed(3) : String(PIC_FALLBACK);
+}
 
 const SPRAY_TAIL = 700;      // ms the spray keeps going once the new paint starts fading in
 
@@ -878,8 +893,13 @@ export class MechSelectScreen {
     // THE WASH IS THE MECH'S OWN GLOW, whatever the paint: a backdrop that
     // recolours with the robot makes the whole side one colour (the "too much
     // matching" look). The paint shows on the robot and in the swatch strip.
-    const glow = m.colors.glow;
-    sd.style.setProperty('--g', hexCss(glow));
+    // …and it belongs to the ROBOT ON SCREEN, so it changes when the picture
+    // does (setPic), not when the cursor moves: a poster not yet fetched used
+    // to leave the old robot standing in the new one's colours, glow and all,
+    // until it arrived — a colour flash on every first visit to a robot
+    const glow = hexCss(m.colors.glow);
+    this.sideState[i].glow = glow;
+    if (m === RANDOM_PICK || !this.postersReady) sd.style.setProperty('--g', glow);
     q('.sd-tag').innerHTML = tag;
     q('.sd-tag').dataset.lock = t('select.lockedStamp');
     q('.sd-join').innerHTML = '';
@@ -918,20 +938,29 @@ export class MechSelectScreen {
     clearTimeout(st.timer);
     if (!id) {
       img.removeAttribute('src'); img.classList.remove('in'); st.shownId = null;
+      if (st.glow) sd.style.setProperty('--g', st.glow);
       spray.stop(0);
       return;
     }
+    // nothing on screen yet (the screen just opened): no robot's colours to
+    // keep, so the side takes the new one's at once
+    if (!img.getAttribute('src')) sd.style.setProperty('--g', st.glow);
     const repaint = st.shownId === id;
     if (repaint) spray.start(hexCss(schemeSwatch(this.byId[id] || RANDOM_PICK, v)));
     else spray.stop(0);
     const show = (url) => {
       const fresh = st.shownId !== id;
       st.shownId = id;
-      if (img.getAttribute('src') === url) { img.classList.add('in'); spray.stop(SPRAY_TAIL); return; }
+      if (img.getAttribute('src') === url) {
+        img.classList.add('in'); spray.stop(SPRAY_TAIL); sd.style.setProperty('--g', st.glow);
+        return;
+      }
       preload(url).then((ok) => {
         if (!ok || st.want !== want) return;
         sd.querySelectorAll('.sd-ghost').forEach((g) => g.remove());
         if (fresh) {
+          sd.style.setProperty('--g', st.glow);
+          img.style.setProperty('--k', picScale(id));
           img.classList.remove('in', 'swap');
           img.src = url;
           void img.offsetWidth;
@@ -958,7 +987,7 @@ export class MechSelectScreen {
     if (st.shownId !== id) {
       const stock = shotUrl(id, 0);
       if (stock) show(stock);
-      else { img.classList.remove('in'); st.shownId = null; }
+      else { img.classList.remove('in'); st.shownId = null; sd.style.setProperty('--g', st.glow); }
     }
     st.timer = setTimeout(() => {
       requestShot(id, v, `side${i}`).then((url) => {
