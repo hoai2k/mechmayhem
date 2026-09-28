@@ -1,7 +1,7 @@
 // THE SKIN DEBUG WORKBENCH, HEADLESS — the same audit /workbench/?edit=skindebug
 // runs, printed instead of drawn, so a run can be diffed across a fix.
 //
-//   node tools/skindebug.mjs <mech> [<mech> …] [--alt] [--json out.json]
+//   node tools/skindebug.mjs <mech> [<mech> …] [--json out.json]
 //                            [--stretch 1.35] [--pinch 0.6] [--tear 0.006]
 //
 // Every clip the mech can play plus its rest stance; findings are clustered
@@ -35,7 +35,7 @@ const all = [];
 for (const mech of mechs) {
   // with custom limits, open WITHOUT the automatic scan and start it ourselves
   // once they are set — otherwise the page scans twice
-  const url = `${base}/workbench/?edit=skindebug&mech=${mech}${has('alt') ? '&alt=1' : ''}`
+  const url = `${base}/workbench/?edit=skindebug&mech=${mech}`
     + (custom ? '&scan=0' : '');
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!window.__skinDebug, null, { timeout: 180000 });

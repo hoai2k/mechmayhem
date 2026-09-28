@@ -131,7 +131,7 @@ export const KNOWN_PARAMS = [
   'glbview', 'bake', 'export', 'menupose', 'poster', 'finisherdemo', 'ultfx', 'geyser',
   'fire', 'theme', 'forcesplit', 'humans', 'diff', 'auto', 'arena', 'seed', 'training',
   // subject / model selection
-  'mech', 'id', 'prop', 'variant', 'alt', 'model', 'clip', 'anim', 'key', 't',
+  'mech', 'id', 'prop', 'model', 'clip', 'anim', 'key', 't',
   'at', 'compare', 'left', 'dummy', 'ball', 'spin', 'yaw', 'orbit', 'cam',
   'muzzle', 'mzbone', 'mzj', 'mzo', 'throttle', 'game',
   // skin / skindebug / gait workbenches

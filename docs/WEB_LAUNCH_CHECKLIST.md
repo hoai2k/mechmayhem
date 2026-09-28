@@ -27,8 +27,7 @@ a *distribution* off the tree without modifying a byte of it:
   inputs and compiles out the `?debug=` / `?showcase` / level-editor routes —
   48 JS chunks become 2, and the authoring surface is absent rather than merely
   unlisted
-- drops models the shipped game cannot reach: the `hidden: true` mechs, the
-  workbench-only `alt` sub-entries (none exist today, so that step is moot) and
+- drops models the shipped game cannot reach: the `hidden: true` mechs and
   any top-level GLB the manifest no longer names, rewriting `manifest.json` in
   the output only
 - quantizes (16-bit) and meshopt-compresses every surviving GLB, verifying each

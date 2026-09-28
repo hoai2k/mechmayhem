@@ -97,7 +97,7 @@ function wraithMats(def) {
   return (_wraithMats ??= makeMaterials(def));
 }
 
-// ---- WRAITH helpers (shared by the custom-rig build and its `alt`) --------
+// ---- WRAITH helpers ---------------------------------------------------------
 // Attach the PROCEDURAL cloak (cloak/cloakL/cloakR + blade strips + wing0..5
 // emitters, from designs/wraith.js) to the GLB's virtual torso. Hidden until
 // the wing-laser heavy grows it in (wraithCapeGrow).
@@ -136,16 +136,8 @@ function wraithCapeGrow(anim, dt) {
 const WRAITH_LEVEL = -99.5 * Math.PI / 180;
 const WRAITH_LEAD = 26 * Math.PI / 180;
 
-// VULCAN (retired TRIPO rig, `alt`): the BULLET HURRICANE's arms pose, where
-// the gatlings must ride diagonally UP-and-out. This rig hangs the guns at an
-// angle to the forearm and reads the clip's shoulder angles differently, so the
-// procedural pose retargets to barrels drooping ~25° BELOW the horizon. Found by
-// sweeping the whole shoulder triple in ?debug=models and reading the muzzle
-// anchor's +Z: this one lands each barrel 16° above the horizon, straight out to
-// the side with no fore/aft skew (hand out 4.4, up 4.0 over the shoulder).
-// Applied as a SCALE of how far the clip has flung the arms, so the GLB reaches
-// out on the same beat (and comes back down on it).
-const VULCAN_TRIPO_HURRICANE_ARM = [0.45, 0.45, 1.68];
+// VULCAN: how far the BULLET HURRICANE clip flings the arms (its shoulder roll
+// at full reach), which the post hook normalises by.
 const VULCAN_CLIP_ROLL = 138 * Math.PI / 180;   // the clip's own roll at full reach
 
 // VULCAN (custom rig). His bones ARE the game joints now, so the shared clips
@@ -368,13 +360,11 @@ export const GLB_ANIM = {
     },
   },
 
-  // WRAITH — hand-placed CUSTOM RIG (src/mechs/rigs/wraith.rig.js), so this
-  // profile reads very differently from the old Tripo build kept as `alt`
-  // (wraith_alt below):
+  // WRAITH — hand-placed CUSTOM RIG (baked into his GLB):
   //   • the rifle is in the model's LEFT hand and the rig is named
   //     anatomically, so `mirrorArms` plays the right-arm clip tracks on the
   //     arm that actually holds the gun — no crossed bones, no hand-written
-  //     punch fixup (the alt still needs one; see wraith_alt).
+  //     punch fixup (the old Tripo auto-rig build needed one).
   //   • the gun hangs MUZZLE-DOWN, so a ranged shot levels the barrel first
   //     (levelBarrel) — the muzzle anchor rides the rifle's own tip bone.
   //   • the model's cloak is a real four-column chain now, so it SWAYS.
@@ -401,31 +391,6 @@ export const GLB_ANIM = {
       const act = anim.action;
       const taunting = !!act && !act.fadingOut && act.clip.name === 'taunt';
       swayCloak(anim, dt, ctx, taunting ? 1 : 0);
-      wraithCapeGrow(anim, dt);
-    },
-  },
-  // WRAITH (alt) — the original Tripo auto-rig build, kept for comparison.
-  // Its manifest CROSSES the arms (handR mapped onto the gun arm), so it must
-  // NOT mirror, and its splayed bind needs the punch fixup below.
-  wraith_alt: {
-    build: wraithBuild,
-    clipOverrides: { wraithLasers: GLB_CLIP_VARIANTS.wraithLasersGlb },
-    post(anim, dt, ctx, tgt) {
-      // LEFT (claw / non-gun) arm: this GLB's left-arm bones sit splayed
-      // outward at bind, so the retarget turns the jab's shoulder yaw+roll
-      // into a sideways swipe — the claw reaches OUT instead of punching in.
-      // When the arm is thrown forward (a punch), flatten that yaw/roll so
-      // the bone reads as driving straight ahead. Gated on forward pitch, so
-      // rest/guard poses (and the whole GUN arm) are left exactly as-is.
-      const sp = tgt.shoulderL;
-      if (sp && sp[0] < -0.7) {                 // arm past ~40° forward = punching
-        const k = Math.min(1, (-sp[0] - 0.7) / 0.7); // ramp in across -40°..-80°
-        sp[0] -= 0.2 * k;                       // drive a touch deeper down the line
-        sp[1] = sp[1] * (1 - k) - 0.8 * k;      // kill the outward yaw, then reach IN
-        sp[2] *= 1 - 2.2 * k;                   // cancel + reverse the splaying roll
-        const ep = tgt.elbowL;
-        if (ep) { ep[1] *= 1 - 0.9 * k; ep[2] *= 1 - 0.9 * k; }
-      }
       wraithCapeGrow(anim, dt);
     },
   },
@@ -733,9 +698,7 @@ export const GLB_ANIM = {
 
   // VULCAN — hand-authored custom rig (src/mechs/rigs/vulcan.rig.js): his bones
   // ARE the game joints, placed where the model's own shoulders/elbows/wrists
-  // sit, so the shared clips retarget onto him without reinterpretation. The
-  // stack of corrections the Tripo auto-rig needed lives on as `vulcan_tripo`
-  // below, for the alt build that still runs that skeleton.
+  // sit, so the shared clips retarget onto him without reinterpretation.
   vulcan: {
     clipOverrides: { taunt: GLB_CLIP_VARIANTS.vulcanTaunt },
     post(anim, dt, ctx, tgt) {
@@ -766,50 +729,6 @@ export const GLB_ANIM = {
     },
   },
 
-  // ---- model VARIANTS (manifest entry.profileKey) ----
-  // VULCAN (retired TRIPO auto-rig, manifest `alt` -> profileKey vulcan_tripo).
-  // Every number here was measured against THAT skeleton and means nothing on
-  // the custom rig. Twin gatling pods FUSED along the forearms. The shared
-  // shootLoop raises the virtual shoulder to horizontal (procedural arms
-  // hang straight at bind), but this GLB's bind already carries the arms
-  // forward-raised — the retarget stacks the two and the pods aim SKYWARD
-  // while the bullet stream flies flat from the muzzle line. While firing,
-  // cap the raise so the visible barrels sit ON the fire line (and keep the
-  // brace arm level with it — both pods read as blazing forward).
-  vulcan_tripo: {
-    post(anim, dt, ctx, tgt) {
-      const raw = anim.action?.clip.name || '';
-      const n = anim.action && !anim.action.fadingOut ? raw : '';
-      if (ctx.firing || n === 'gatlingLoop' || n === 'gatlingLoopL'
-        || n === 'shootLoop' || n === 'shoot') {
-        // Per-side, by whichever gatling is leading (he trades hands in bursts).
-        // The pitch is where THAT barrel comes out level: the gun is fused along
-        // the hand's own axis, so the arm chain's raise is what pitches the
-        // muzzle. Lower and he hoses the dirt, higher and he shoots sky. The
-        // right also wants a wrist tuck — this model's right arm hangs OUTBOARD
-        // of the shoulder, so its barrel line ran ~10 deg wide once level; the
-        // left needs none. Both measured off the rounds' own spawn direction.
-        const left = raw.endsWith('L');
-        const S = left ? 'L' : 'R', O = left ? 'R' : 'L';
-        tgt['shoulder' + S][0] = Math.max(tgt['shoulder' + S][0], left ? -1.28 : -1.13);
-        tgt['elbow' + S][0] = Math.max(tgt['elbow' + S][0], -0.15);
-        tgt['hand' + S][1] = left ? 0 : -0.44;
-        tgt['shoulder' + O][0] = Math.max(tgt['shoulder' + O][0], -0.55);
-        tgt['elbow' + O][0] = Math.max(tgt['elbow' + O][0], -0.4);
-      }
-      // Checked on the raw clip name (not `n`) so the correction stays on
-      // through the FADE-OUT: the arms come down from where they actually were
-      // instead of popping up to the uncorrected pose on the way out.
-      if (anim.action?.clip.name === 'hurricaneSpin') {
-        const k = clamp01(tgt.shoulderR[2] / VULCAN_CLIP_ROLL);
-        for (let i = 0; i < 3; i++) {
-          const v = VULCAN_TRIPO_HURRICANE_ARM[i] * k;
-          tgt.shoulderR[i] = v;
-          tgt.shoulderL[i] = i ? -v : v;   // mirrored: pitch kept, yaw/roll flipped
-        }
-      }
-    },
-  },
 };
 
 export function profileFor(id) { return GLB_ANIM[id] || null; }

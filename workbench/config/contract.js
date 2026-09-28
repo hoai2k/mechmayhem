@@ -32,12 +32,12 @@
  *   { subject, subjects, Subject, Subjects }  e.g. mech / mechs / Mech / Mechs
  *
  * @property {Object} catalogue       WHAT can be edited
- *   list()            -> [{ id, name, hidden, hasModel, hasAlt, hasRig }]
+ *   list()            -> [{ id, name, hidden, hasModel, hasRig }]
  *   get(id)           -> one entry (or null)
  *   note(id)          -> short suffix for pickers ("— no custom rig")
  *
  * @property {Object} variants        WHICH BUILD of a subject stands on the stage
- *   list(id)          -> [{ key, label, available }]  ('glb' | 'proc' | 'alt' | …)
+ *   list(id)          -> [{ key, label, available }]  ('glb' | 'proc' | 'anime' | 'mannequin')
  *   build(id, opts)   -> model            (opts: { variant, overrides })
  *   raw(id, opts)     -> { scene, entry } — the untouched asset, for skin/rig
  *                        work. `opts.drops` also takes off the surplus

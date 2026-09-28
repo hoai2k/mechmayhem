@@ -56,11 +56,12 @@ let manifest = null;
 let manifestPromise = null;
 
 // Every key buildGlbMech (or the tool path) actually reads from a manifest
-// entry. `alt` is a complete standalone sub-entry (see buildGlbForTool).
+// entry. (`alt` — a staged second build — and `profileKey` are gone with the
+// last alternates; an entry still carrying one is warned about as unknown.)
 const KNOWN_ENTRY_KEYS = new Set([
   'url', 'bindPose', 'boneOverrides', 'heightScale', 'yawOffset',
   'emissiveBoost', 'stretch', 'bonePos', 'boneCorrections', 'noHeadMatch',
-  'skinOps', 'seamCuts', 'dropBones', 'dropGeo', 'limpChains', 'tailFloor', 'reparent', 'muzzles', 'profileKey', 'alt', 'rig', 'modelScale',
+  'skinOps', 'seamCuts', 'dropBones', 'dropGeo', 'limpChains', 'tailFloor', 'reparent', 'muzzles', 'rig', 'modelScale',
 ]);
 const _entryWarned = new Set(); // "<id>|<msg>" — each complaint fires once per entry
 // Fields of a manifest entry that decide where the bones end up, and
@@ -207,15 +208,10 @@ function loadGLTF(url) {
 // ?debug=3d gate. Used by the ?debug=models and ?debug=pose workbenches.
 // `entryOverride` lets
 // the caller preview edited manifest fields (bindPose/boneCorrections/...)
-// without touching the committed file. Pass {alt:true} in opts to build the
-// mech's ALTERNATE model: manifest[id].alt is a complete standalone entry
-// (own url/boneOverrides/yaw/size intake — deliberately NOT merged with the
-// primary entry, whose tuning belongs to different geometry). The game itself
-// never reads .alt; a promotion = copying it over the primary entry.
-export async function buildGlbForTool(def, entryOverride, opts = {}) {
+// without touching the committed file.
+export async function buildGlbForTool(def, entryOverride) {
   const m = await fetchManifestJson();
-  const baseEntry = opts.alt ? m[def.id]?.alt : m[def.id];
-  const entry = { ...(baseEntry || {}), ...(entryOverride || {}) };
+  const entry = { ...(m[def.id] || {}), ...(entryOverride || {}) };
   if (!entry.url) return { mech: buildMech(def), entry: null };
   const gltf = await loadGLTF(entry.url);
   return { mech: buildGlbMech(def, entry, gltf), entry };
@@ -243,7 +239,7 @@ export function clearGlbCache() {
 // For the ?debug=skin workbench and the skin audit.
 export async function loadRawGlbScene(id, opts = {}) {
   const m = await fetchRawManifest();
-  const entry = opts.alt ? m[id]?.alt : m[id];
+  const entry = m[id];
   if (!entry?.url) return null;
   const gltf = await loadGLTF(entry.url);
   const scene = cloneSkinned(gltf.scene);
@@ -644,9 +640,7 @@ function buildGlbMech(def, entry, gltf) {
   // hand-placed skeleton — authored in ?rigedit — REPLACES it. The mesh is
   // re-skinned to bones that ARE the game joints, so the retarget drives real,
   // correctly-located limbs. Supersedes boneOverrides + skinOps for that entry.
-  // Keyed on the ENTRY's `rig` field (not the mech id) so a model VARIANT (an
-  // `alt`) can carry a custom rig while the primary keeps its stock rig — the
-  // ?debug=models "Compare Alternate GLB" toggle then shows old vs new rig.
+  // Keyed on the ENTRY's `rig` field (not the mech id).
   const customRig = entry.rig ? rigFor(entry.rig) : null;
   let boneMap;
   let rigBones = null;   // custom-rig bones by name (see mech.rigBones below)
@@ -874,16 +868,13 @@ function buildGlbMech(def, entry, gltf) {
   const mech = { group: root, joints, anchors: {}, materials: glbMats, dims: D, def, isGLB: true };
   // Identity of THIS BUILD's skeleton+geometry, for caches keyed on "same
   // bones in the same places" (hurtbox.js measures its capsules once per
-  // model and shares them across clones). The url alone is not enough: a
-  // mech's primary and `alt` entries routinely point at the SAME file and
-  // differ only in how it is rigged — inferno, rhino, titanus and vulcan all
-  // do — so an alt would silently inherit the primary's measurements.
+  // model and shares them across clones). The url alone is not enough: two
+  // entries may point at the SAME file and differ only in how it is rigged
+  // (a re-rig being judged against the build it replaces).
   mech.glbKey = glbBuildKey(entry);
   mech.fistSplit = fistSplit;   // Fighter.launchFist/catchFist + WEAPONS.fist
-  // reinterpret shared anims for this model. entry.profileKey lets a model
-  // VARIANT (e.g. an alt whose weapon sits in the other hand) carry its own
-  // glbanim profile ('aegis_alt') instead of the mech's default one.
-  mech.animProfile = glbProfileFor(entry.profileKey || def.id);
+  // reinterpret shared anims for this model
+  mech.animProfile = glbProfileFor(def.id);
 
   // muzzleR / muzzleL (projectile-spawn anchors) are created below, AFTER the
   // boneMap is resolved — they may pin to a real GLB bone, not just a virtual

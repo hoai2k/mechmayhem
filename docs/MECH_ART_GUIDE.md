@@ -75,24 +75,17 @@ parts a humanoid rig has no route for (a tail, a cloak, a gun):
    register it in `rigs/index.js`, and point the manifest entry at it with
    `"rig": "<id>"` — that supersedes `boneOverrides`/`skinOps`.
 3. Tune live in `?rigedit=<id>` (drag bones, Export pastes back).
-4. Keep the OLD entry verbatim as `alt` (+ `profileKey` if it needs its own
-   glbanim profile) so the two builds can be compared: `?rigedit=<id>&alt=1`,
-   `/workbench/?edit=animation`'s COMPARE TO (`&compare=alt`), `node tools/variantcheck.mjs <id>`.
-   A rig can also be TRIALLED the other way round — the primary keeps its
-   Tripo intake and the NEW rig ships as the `alt` (`{"rig": "<id>"}` on the
-   alt entry), so nothing in the game moves until someone judges the two side
-   by side and promotes it. (No shipped entry carries an `alt` today:
-   inferno's hand rig was promoted to primary and every mech since baked.)
-   The workbenches know about this: `?debug=skin` and `?rigedit` show an
-   **Edit Alternate GLB** checkbox for any mech with an `alt` (off by
-   default), and because a mech staged this way has exactly ONE editable
-   build, `?rigedit=<id>` opens the alt on its own — box ticked and disabled —
-   instead of refusing with "no custom rig to edit". Promotion is then a
-   manifest edit only: move `rig` onto the primary, keep the old entry as
-   `alt` (`workbench/ui/variantpick.js`).
-5. Measure, don't eyeball: `node tools/cliptear.mjs <id> primary 1` vs
-   `... <id> alt 1` runs the real Animator over every clip and reports the
-   worst seam stretch for each build. Colossus: Tripo +0.34 mesh units,
+4. JUDGE THE NEW RIG AGAINST THE OLD ONE BEFORE IT SHIPS. Write the change
+   as a PATCH file (`{"<id>": {"rig": "<id>", "muzzles": …}}` — the shape the
+   workbenches export) and hand it to the tools that take one:
+   `node tools/anchorkeep.mjs <id> --with patch.json` compares every anchor of
+   the shipped build against the patched one. (There used to be a staged
+   `alt` sub-entry for this, with an "Edit Alternate GLB" box in every
+   workbench; nothing used it after every mech was baked, and it is gone — a
+   patch file is the same comparison without living in the shipped manifest.)
+5. Measure, don't eyeball: `node tools/cliptear.mjs <id> 1` before and after
+   the change runs the real Animator over every clip and reports the worst
+   seam stretch. Colossus: Tripo +0.34 mesh units,
    custom rig +0.15. Inferno: Tripo +0.21, custom rig +0.11 — and at the
    default 3-link rule the custom rig has ZERO far-hierarchy seam edges
    against the Tripo rig's 19.
@@ -298,15 +291,15 @@ Also preserve: the function signature `(A, D, J, anchors, def)`, the mech's
 
 A muzzle in `manifest.json` was placed by hand, on the gun, by a human. It is
 authored data, not a derived value — so **a re-rig keeps it**. New bones, moved
-bones, a hand rig replacing an auto-rig, a promoted `alt`: the anchor gets
+bones, a hand rig replacing an auto-rig, a new model file: the anchor gets
 RE-EXPRESSED in whatever frame now holds it, with its rest-pose world position
 and aim axis unchanged. Never drop one, never leave it on stale numbers, and
 never silently re-derive it from the new skeleton. (The only anchors that may
 appear from nothing are the auto-generated fallbacks for a GLB that has no
 authored muzzles at all — a brand-new intake.)
 
-    node tools/anchorkeep.mjs <id>                       # PASS/FAIL: did anything move?
-    node tools/anchorkeep.mjs <id> --remap R=cannonR,L=cannonL
+    node tools/anchorkeep.mjs <id> --with patch.json     # PASS/FAIL: did anything move?
+    node tools/anchorkeep.mjs <id> --with patch.json --remap R=cannonR,L=cannonL
     node tools/anchorkeep.mjs <id> --track               # is the muzzle welded to the gun?
 
 `--remap` prints the manifest `muzzles` block that re-expresses each anchor on
@@ -319,12 +312,9 @@ off the weapon (colossus: constant 0.36 units vs a 0.23-0.77 wander).
 
 Two things decide whether the comparison means anything, and the tool says so:
 both builds must pin the SAME `modelScale`/`heightScale` (otherwise it is
-comparing two differently-sized mechs — rhino's alt had none and every anchor
-read as moved), and the side carrying the `rig` is the one being judged. A rig
-staged on the `alt` must match the shipped primary; once it is PROMOTED the
-alt becomes a retired reference and is allowed to differ, so the tool downgrades
-those to ADVISORY. (Historical: no shipped entry carries an `alt` today — every
-mech is baked — so this matters only when a rig is staged again.)
+comparing two differently-sized mechs — rhino's staged build once had none and
+every anchor read as moved), and a patch that swaps the model FILE has anchors
+authored per model, so a difference there is advisory, not a failure.
 
 ## 6. Pitfalls (each of these cost an iteration once)
 

@@ -14,9 +14,6 @@
 //   /workbench/?edit=props&prop=toriiGate        arena props: original vs optimized
 //   /workbench/?edit=level&arena=neon            the ARENA editor: bake a shipped
 //                                                arena and move what is in it
-//
-// `&variant=alt|proc` picks which build a tool opens; the legacy `&alt=1` is
-// still accepted (see workbench/ui/variantpick.js).
 import '../src/style.css';
 
 const TOOLS = {

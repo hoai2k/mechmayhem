@@ -4,22 +4,29 @@
 // CONTRACT between a model and combat: every projectile, beam, flame and FX
 // origin comes from them, and the muzzle numbers in manifest.json were placed
 // by hand, on the gun, by a human. Re-rigging a GLB — a new custom rig, moved
-// bones, a promoted `alt` — changes the frames those anchors hang off, so the
+// bones, a new model file — changes the frames those anchors hang off, so the
 // SAME manifest numbers can silently point somewhere else. This tool is how
 // you prove they didn't, and how you fix them when the parent frame changes.
 //
-//   node tools/anchorkeep.mjs <mechId>
-//       Compare the mech's PRIMARY build against its ALT: every anchor's world
-//       position + aim axis, at rest AND stepped through real clips. Prints a
-//       PASS/FAIL table. Use it after any rig edit (rebuild the side you
-//       changed and compare against the side you didn't).
+// THE CANDIDATE is the shipped manifest entry with a PATCH laid over it —
+// `--with patch.json`, the same shape the workbenches export
+// (`{"<id>": {"rig": …, "muzzles": …}}` or the bare entry fields). Nothing is
+// written: the patch is an entryOverride on buildGlbForTool, so the re-rig is
+// judged before it goes into manifest.json. (This used to compare against a
+// staged `alt` sub-entry; that mechanism is gone, and a patch file is the
+// same thing without living in the shipped manifest.)
 //
-//   node tools/anchorkeep.mjs <mechId> --remap R=cannonR,L=cannonL
-//       Re-express the alt's muzzles on CUSTOM-RIG BONES while keeping their
-//       rest-pose world transform bit-identical to the primary's. Prints the
-//       manifest `muzzles` block to paste into the alt entry — offsets in
-//       mech-scale bone-local units, `rot` in degrees so the anchor's +Z still
-//       lies on the mech's facing (combat's aim vector).
+//   node tools/anchorkeep.mjs <mechId> --with patch.json
+//       Compare the SHIPPED build against the CANDIDATE: every anchor's world
+//       position + aim axis, at rest AND stepped through real clips. Prints a
+//       PASS/FAIL table.
+//
+//   node tools/anchorkeep.mjs <mechId> --with patch.json --remap R=cannonR,L=cannonL
+//       Re-express the candidate's muzzles on CUSTOM-RIG BONES while keeping
+//       their rest-pose world transform bit-identical to the shipped build's.
+//       Prints the `muzzles` block to add to the patch — offsets in mech-scale
+//       bone-local units, `rot` in degrees so the anchor's +Z still lies on the
+//       mech's facing (combat's aim vector).
 //
 //   node tools/anchorkeep.mjs <mechId> --track
 //       Distance from each muzzle to the barrel-tip GEOMETRY through a set of
@@ -29,6 +36,7 @@
 //
 // Needs `npm run dev` running (default http://localhost:5173).
 import { launch } from './lib/browser.mjs';
+import { readFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
 const id = argv.find((a) => !a.startsWith('--')) || 'colossus';
@@ -38,6 +46,14 @@ const flagVal = (n) => { const f = flag(n); if (!f) return null; const i = argv.
 const base = flagVal('base') || 'http://localhost:5173';
 const remapArg = flag('remap') ? flagVal('remap') : null;
 const track = !!flag('track');
+// the candidate: shipped entry + this patch (none = the entry against itself,
+// which is what --track alone wants)
+const withPath = flag('with') ? flagVal('with') : null;
+let patch = null;
+if (withPath) {
+  const j = JSON.parse(readFileSync(withPath, 'utf8'));
+  patch = j && typeof j === 'object' && j[id] && typeof j[id] === 'object' ? j[id] : j;
+}
 
 const CLIPS = ['walk', 'heavy', 'ranged', 'light1', 'victory', 'groundPound'];
 const POS_TOL = 0.01;   // mech units — anything above this is a moved anchor
@@ -50,7 +66,7 @@ page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
 await page.goto(`${base}/?showcase=${id}&anim=none`, { waitUntil: 'networkidle' });
 await page.waitForFunction('window.__showcaseMechs && window.__showcaseMechs.length', null, { timeout: 90000 });
 
-const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
+const out = await page.evaluate(async ([id, remapArg, track, CLIPS, patch]) => {
   const THREE = await import('/node_modules/three/build/three.module.js');
   const { ROSTER_BY_ID } = await import('/src/mechs/roster.js');
   const { buildGlbForTool, fetchRawManifest, skinnedBox } = await import('/src/mechs/gltf.js');
@@ -58,8 +74,8 @@ const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
   const manifest = await fetchRawManifest();
   const def = ROSTER_BY_ID[id];
 
-  const build = async (alt) => {
-    const { mech, entry } = await buildGlbForTool(def, null, { alt });
+  const build = async (override) => {
+    const { mech, entry } = await buildGlbForTool(def, override);
     if (!entry) return null;
     const scene = new THREE.Scene();
     scene.add(mech.group);
@@ -71,9 +87,9 @@ const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
     mech.group.traverse((o) => { if (o.isSkinnedMesh && !sk) sk = o; });
     return { mech, an, scene, sk };
   };
-  const primary = await build(false);
-  const alt = await build(true);
-  if (!alt) return { error: `${id} has no alt entry to compare against` };
+  const primary = await build(null);
+  const alt = await build(patch);          // the CANDIDATE (named alt below)
+  if (!primary || !alt) return { error: `${id} has no GLB entry` };
 
   const step = (b, clip, t) => {
     b.an.play(clip, { speed: 1 });
@@ -105,23 +121,19 @@ const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
   };
 
   // Is a comparison meaningful at all? Two guards, both learned the hard way:
-  //  • a different GLB (aegis, jerry) has anchors authored per MODEL, so
-  //    "they moved" is not a defect;
-  //  • two builds of the same file at different sizes (an alt that forgot to
-  //    pin `modelScale`) are not the same mech, and every position differs.
+  //  • a different GLB has anchors authored per MODEL, so "they moved" is
+  //    not a defect;
+  //  • two builds of the same file at different sizes (a candidate that forgot
+  //    to pin `modelScale`) are not the same mech, and every position differs.
   const sizeDrift = (() => {
     const bp = skinnedBox(primary.mech.group), ba = skinnedBox(alt.mech.group);
     return +bp.getSize(new THREE.Vector3())
       .distanceTo(ba.getSize(new THREE.Vector3())).toFixed(4);
   })();
   const context = {
-    sameFile: manifest[id].url === manifest[id].alt.url,
+    sameFile: !patch?.url || patch.url === manifest[id].url,
     sizeDrift,
-    // where the custom rig lives decides which side is the AUTHORITY: a rig
-    // staged on the alt must match the shipped primary, while a rig already
-    // promoted to the primary leaves the alt a retired reference that no
-    // longer has to agree
-    rigOn: manifest[id].rig ? 'primary' : (manifest[id].alt.rig ? 'alt' : null),
+    patched: !!patch,
   };
   const res = { context, rest: diff(read(primary), read(alt)), posed: [] };
   for (const clip of CLIPS) {
@@ -137,7 +149,7 @@ const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
   // ---- --remap: bone-local numbers that preserve the primary's world pose ----
   if (remapArg) {
     // rebuild at rest so the transforms are the bind ones
-    const P = await build(false), A = await build(true);
+    const P = await build(null), A = await build(patch);
     res.remap = { units: A.mech.muzzleUnits, sides: {} };
     for (const pair of remapArg.split(',')) {
       const [side, boneName] = pair.split('=').map((x) => x.trim());
@@ -178,7 +190,7 @@ const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
     for (const clip of CLIPS) {
       for (const t of [0.1, 0.35, 0.7]) {
         const row = { clip, t };
-        for (const [tag, b, tips] of [['primary', primary, tp], ['alt', alt, ta]]) {
+        for (const [tag, b, tips] of [['primary', primary, tp], ['alt', alt, ta]]) {   // alt = the candidate
           try {
             step(b, clip, t);
             row[tag] = ['R', 'L'].map((side) => +b.mech.anchors['muzzle' + side]
@@ -190,7 +202,7 @@ const out = await page.evaluate(async ([id, remapArg, track, CLIPS]) => {
     }
   }
   return res;
-}, [id, remapArg, track, CLIPS]);
+}, [id, remapArg, track, CLIPS, patch]);
 
 await browser.close();
 
@@ -198,14 +210,14 @@ if (out.error) { console.error(out.error); process.exit(2); }
 
 // ---- report ----
 let fails = 0;
-console.log(`\n${id}: anchors, PRIMARY vs ALT (tolerance ${POS_TOL} units / ${AIM_TOL}°)\n`);
+console.log(`\n${id}: anchors, SHIPPED vs CANDIDATE${withPath ? ` (${withPath})` : ' (no --with: the entry against itself)'} (tolerance ${POS_TOL} units / ${AIM_TOL}°)\n`);
 console.log('  REST');
 for (const r of out.rest) {
-  if (r.missing) { console.log(`    ${r.anchor.padEnd(10)} MISSING in alt`); fails++; continue; }
+  if (r.missing) { console.log(`    ${r.anchor.padEnd(10)} MISSING in the candidate`); fails++; continue; }
   const bad = r.dPos > POS_TOL || r.dAim > AIM_TOL;
   if (bad) fails++;
   console.log(`    ${r.anchor.padEnd(10)} Δpos ${String(r.dPos).padEnd(8)} Δaim ${String(r.dAim).padEnd(6)}° `
-    + `parent(alt)=${(r.parent || '').padEnd(10)} ${bad ? 'MOVED' : 'ok'}`);
+    + `parent=${(r.parent || '').padEnd(10)} ${bad ? 'MOVED' : 'ok'}`);
 }
 if (out.posed.length) {
   const worst = {};
@@ -222,14 +234,14 @@ if (out.posed.length) {
 }
 if (out.track) {
   console.log('\n  TRACK — distance muzzle → barrel-tip geometry (constant = welded to the gun)');
-  console.log('    clip           t      primary R/L        alt R/L');
+  console.log('    clip           t      shipped R/L        candidate R/L');
   for (const r of out.track) {
     const f = (v) => (v ? `${String(v[0]).padStart(6)}/${String(v[1]).padEnd(6)}` : '   —   ');
     console.log(`    ${r.clip.padEnd(13)} ${String(r.t).padEnd(6)} ${f(r.primary)}   ${f(r.alt)}`);
   }
 }
 if (out.remap) {
-  console.log('\n  REMAP — paste into the alt entry (rest-pose world transform preserved):');
+  console.log('\n  REMAP — add to the patch (rest-pose world transform preserved):');
   console.log('  "muzzles": {');
   const keys = Object.keys(out.remap.sides);
   keys.forEach((side, i) => {
@@ -245,14 +257,10 @@ if (errs.length) console.log('\npage errors:\n' + errs.slice(0, 5).join('\n'));
 const ctx = out.context || {};
 const notes = [];
 if (ctx.sameFile === false) {
-  notes.push('the alt is a DIFFERENT GLB — anchors are authored per model, so a difference here is not a defect');
+  notes.push('the candidate is a DIFFERENT GLB — anchors are authored per model, so a difference here is not a defect');
 } else if (ctx.sizeDrift > 0.05) {
   notes.push(`the two builds render at different sizes (Δ${ctx.sizeDrift}) — pin the same \`modelScale\`/`
     + '`heightScale` on both (gltf.js FROZEN MODEL SCALE) before reading anything below');
-}
-if (ctx.rigOn === 'primary') {
-  notes.push('the custom rig is already the PRIMARY, so the alt is a RETIRED reference — the shipped '
-    + 'primary is the authority and drift is allowed. This check binds a rig staged ON THE ALT.');
 }
 const advisory = notes.length > 0;
 if (advisory) console.log('  NOTE: ' + notes.join('\n  NOTE: '));

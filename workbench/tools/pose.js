@@ -1,9 +1,6 @@
 // ?debug=pose — the POSE workbench. One mech, frozen, posed by hand.
 //
-//   ?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>][&key=<n>|&t=<s>][&alt=1]
-//
-// `alt=1` (the panel's "Edit Alternate GLB" box, same control as ?debug=skin /
-// ?rigedit) poses the manifest's alternate build instead of the primary.
+//   ?debug=pose[&mech=<id>][&model=glb|proc][&clip=<name>][&key=<n>|&t=<s>]
 //
 // Pick a mech, optionally load one of ITS OWN poses as a starting point (the
 // dropdown lists only the clips that mech can actually play — vulcan's ult
@@ -108,7 +105,6 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { setupDevPanel } from '../ui/panel.js';
 import { addGizmo } from '../ui/gizmo.js';
 import { subjectSelect } from '../ui/subjectpick.js';
-import { altChoice, altCheckbox } from '../ui/variantpick.js';
 
 const R2D = 180 / Math.PI;
 // Joints whose clip value is read RELATIVE to the mech's rest stance (the
@@ -160,11 +156,6 @@ export async function runPoseWorkbench(config, params) {
   // wrist has rolled or a foot is pointing when the body hides nothing.
   let build = params.get('model') === 'proc' ? 'proc'
     : params.get('model') === 'mannequin' ? 'mann' : 'glb';
-  // ?alt=1 — pose the manifest's ALTERNATE build (a second model, or the same
-  // model on a staged custom rig). Same control as ?debug=skin / ?rigedit; here
-  // it rebuilds in place instead of reloading, since this tool already swaps
-  // mechs live.
-  let altOn = params.get('alt') === '1';
   let constrain = true;
   let showBones = true;
 
@@ -215,24 +206,21 @@ export async function runPoseWorkbench(config, params) {
   const _wa = new THREE.Vector3(), _wb = new THREE.Vector3();
 
   // ================= build =================
-  // `keepCam`: a BUILD switch (GLB↔procedural, primary↔alt) must not move the
+  // `keepCam`: a BUILD switch (GLB↔procedural↔mannequin) must not move the
   // camera. Those three toggles exist to A/B one mech against itself, and
   // re-framing between them reads as the model changing size — it doesn't: the
   // framing height (measureHeadTop) is measured off whatever geometry the HEAD
   // BONE owns, which is a property of the RIG, not of the model. Colossus'
   // custom rig gives `head` the collar block (top 8.06) where the Tripo rig's
   // head bone owns the upper chest (7.71), so the camera used to jump 4.5%
-  // closer on the alt while the mesh stayed the exact same 9.594 units tall.
+  // closer on one rig than the other while the mesh stayed 9.594 units tall.
   // Framing follows the MECH, so switching mech still re-frames.
   async function load(id, { keepCam = false } = {}) {
     const sameMech = keepCam && id === curId;
     curId = id;
-    const alt = altChoice(manifest, id, altOn);
-    altOn = alt.useAlt;          // a mech with no alternate falls back silently
     const u = new URL(location.href);
     u.searchParams.set('mech', id);
     u.searchParams.set('model', build === 'mann' ? 'mannequin' : build === 'proc' ? 'proc' : 'glb');
-    if (altOn) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
     history.replaceState(null, '', u);
     gizmo.detach(); selJoint = null; hoverJoint = null;
     if (mech) {
@@ -243,9 +231,9 @@ export async function runPoseWorkbench(config, params) {
         for (const m of mats) m?.dispose?.();
       });
     }
-    const hasGlb = !!alt.entry?.url;
+    const hasGlb = !!manifest?.[id]?.url;
     const variant = build === 'mann' ? 'mannequin'
-      : build === 'glb' && hasGlb ? (altOn ? 'alt' : 'glb') : 'proc';
+      : build === 'glb' && hasGlb ? 'glb' : 'proc';
     mech = await config.variants.build(id, { variant });
     mech.group.position.set(0, 0, 0);
     scene.add(mech.group);
@@ -277,8 +265,7 @@ export async function runPoseWorkbench(config, params) {
     modelRow.style.display = 'flex';
     glbNote.textContent = (build === 'glb' && !hasGlb && !mech.isMannequin)
       ? 'no GLB for this mech — procedural shown' : '';
-    refreshAltRow();
-    panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${
+    panelUI.setSubtitle(`${curId} · ${
       mech.isMannequin ? 'MANNEQUIN' : mech.isGLB ? 'GLB' : 'procedural'}`);
     buildJointButtons();
     buildBoneMarks();
@@ -878,7 +865,7 @@ export async function runPoseWorkbench(config, params) {
   // flood it. Loading a different clip IS a step, so dropping the dropdown by
   // accident is undoable rather than silently binning your edits.
   //
-  // Rebuilding the mech (switching mech, GLB↔procedural, primary↔alt) CLEARS the
+  // Rebuilding the mech (switching mech, or GLB↔procedural↔mannequin) CLEARS the
   // stack: the rigs differ, so a joint transform from before the switch means
   // nothing after it.
   const HIST_CAP = 150;
@@ -1397,15 +1384,6 @@ export async function runPoseWorkbench(config, params) {
     onPick: (id) => load(id),
   });
   panel.appendChild(mechSel);
-  // rebuilt per mech — the control only exists for mechs that have an alternate
-  const altSlot = el('div', 'margin-top:6px');
-  panel.appendChild(altSlot);
-  function refreshAltRow() {
-    altSlot.textContent = '';
-    const row = altCheckbox(altChoice(manifest, curId, altOn), (next) => { altOn = next; load(curId, { keepCam: true }); });
-    if (row) altSlot.appendChild(row);
-  }
-
   const modelRow = el('div', 'display:flex;gap:6px;margin-top:6px');
   const pickBuild = (next) => { if (build !== next) { build = next; load(curId, { keepCam: true }); } };
   const bGlb = btn('GLB', () => pickBuild('glb'));

@@ -69,7 +69,7 @@ function gotoWorkbench(tool) {
   const cur = new URLSearchParams(location.search);
   const next = new URLSearchParams();
   next.set('edit', tool);
-  for (const k of ['mech', 'variant', 'alt', 'prop']) if (cur.has(k)) next.set(k, cur.get(k));
+  for (const k of ['mech', 'prop']) if (cur.has(k)) next.set(k, cur.get(k));
   // the tools all live on the workbench page; keep whatever directory that is
   const dir = location.pathname.includes('/workbench/')
     ? location.pathname
