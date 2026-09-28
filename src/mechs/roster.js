@@ -378,6 +378,7 @@ export const ROSTER = [
     id: 'glacier', name: 'GLACIER', title: 'The Cold Shoulder', icon: '❄️', seed: 132,
     blurb: 'Guardian of a polar research station, promoted to war machine by boredom. Devastating in combat, insufferable at parties — every joke is about ice, and he thinks they all land.',
     quotes: { win: '"Ice to beat you. ...I\'m contractually obligated to say that."', intro: '"Chill out. No? Fine — I\'ll handle it."' },
+    soakImmune: true,   // he lives in the stuff: a soaking never slows him (Fighter.applySoak)
     // HIS TAUNT FREEZES HIM SOLID — the model is swapped for a single block of
     // ice his own size, steaming, until the clip ends or he is hit
     // (Fighter.iceTaunt).
@@ -409,6 +410,7 @@ export const ROSTER = [
   },
   {
     id: 'cranky', name: 'CRANKY', title: 'The Abyssal Bulwark', icon: '🦀', seed: 137,
+    soakImmune: true,   // a deep-sea crab: a soaking never slows him (Fighter.applySoak)
     // a crab does not counter-rotate its waist: he keeps turning as one body
     // rather than walking his splayed legs off in another direction (see
     // Animator.legFrame). Jerry and fenrir are excluded by their own gaits.
@@ -597,6 +599,7 @@ export const ROSTER = [
     id: 'frogger', name: 'FROGGER', title: 'The Gunk Gladiator', icon: '🐸', seed: 163,
     blurb: 'Vat-grown smart-slime poured into a bounce-frame with four gunk guns and no indoor voice. Jumps like gravity is a suggestion, lands like a lawsuit.',
     quotes: { win: '"Ribbit means gg. Look it up."', intro: '"Four arms. Zero mercy. MAXIMUM GUNK."' },
+    soakImmune: true,   // vat-grown slime: a soaking never slows him (Fighter.applySoak)
     // canonical image: lime-green plate + translucent dripping slime,
     // black joint frame, glass-dome bug eyes, four slime cannons
     colors: { primary: 0x7cb420, accent: 0x262b20, glow: 0xaef23c, stripes: false },
@@ -746,7 +749,8 @@ export const ROSTER = [
     // canonical image (docs/canonical/mech_null.png): void-black jagged
     // plate with a faint violet sheen, twin red eyes, red null-sigil core,
     // and multicolor data-corruption flickering off shoulders/arms/shins
-    // (the flicker itself is runtime FX — see fighter.updateNullbotAura)
+    // (the flicker itself is runtime FX — `glitchAura`, fighter.updateGlitchAura)
+    glitchAura: true,
     // …and his TAUNT drops the whole body in and out like a lost connection —
     // Fighter.holoTaunt, which is a render effect and not a pose, so it rides
     // on top of the jitter his taunt clip animates.

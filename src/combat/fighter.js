@@ -2461,11 +2461,11 @@ export class Fighter {
     if (this.isAI === false && navigator.getGamepads) this.world.input?.rumble(this.playerIndex, heavy ? 0.7 : 0.35, heavy ? 220 : 120);
   }
 
-  // waterlogged: dripping frame + half speed while it lasts. The water/ice
-  // mechs (FROGGER, GLACIER, CRANKY) live in the stuff — they shrug it off.
+  // waterlogged: dripping frame + half speed while it lasts. A roster def
+  // flagged `soakImmune` (the water/ice mechs) lives in the stuff and shrugs
+  // it off.
   applySoak(t = 2.2) {
-    const id = this.def.id;
-    if (id === 'frogger' || id === 'glacier' || id === 'cranky') return;
+    if (this.def.soakImmune) return;
     this.status.soaked = { t: Math.max(t, this.status.soaked?.t || 0) };
   }
 
@@ -2721,7 +2721,7 @@ export class Fighter {
   // failing to render — wandering 2D static/RGB-noise patches that jump
   // to a new part every couple of seconds, plus stray data-flecks. Local
   // tears only; his shell never flashes as a whole.
-  updateNullbotAura(dt) {
+  updateGlitchAura(dt) {
     const fx = this.world.effects;
     this._nullFxT = (this._nullFxT ?? 0) - dt;
     if (this._nullFxT <= 0) {
@@ -3767,8 +3767,8 @@ export class Fighter {
     if (this.def.bladeTrail) this.updateBladeTrail(dt);
     // NOVA: the staff apex crackles while the halo burns — brighter and
     // bigger the closer the crescents are to apex alignment
-    // NULLBOT: ambient corruption flickering over his own frame
-    if (this.def.id === 'nullbot' && this.alive) this.updateNullbotAura(dt);
+    // NULLBOT (roster `glitchAura`): ambient corruption flickering over his frame
+    if (this.def.glitchAura && this.alive) this.updateGlitchAura(dt);
     // INFERNO: his shoulder chimneys BURN — flickering flames and a smoke
     // trail where the model used to carry two sculpted tongues of fire
     if (this.def.stackFx && this.alive) this.updateStackFlames(dt);

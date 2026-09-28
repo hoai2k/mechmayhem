@@ -284,7 +284,7 @@ visible rather than treated as a violation.
 | saurion | `tail0→tail1→tail2` | — | raptor tail S-wave |
 | frogger | `shoulderL2/R2`, `elbowL2/R2` | — | the second (cannon) arm pair, counter-swung by the animator |
 | jerry | `antL/antR`, `armS0-2L/R`, `legDL/legDR` | — | antenna snaps, claw-arm nest ripple, rear strut-leg creep |
-| nullbot | — (material slot `glow2`) | — | animator strobes the corruption shards; `updateNullbotAura` pops glitch flecks off the joints |
+| nullbot | — (material slot `glow2`) | — | animator strobes the corruption shards; `updateGlitchAura` (roster `glitchAura`) pops glitch flecks off the joints |
 | konga | `jaw`, `browL/R` (the face layer), `podL/podR` | `podL`, `podR`, `fistL`, `fistR` | the pods are what the ranged attack and the ult fire from, and the animator aims them |
 | tritone | `jaw`, `browL/R`, `frill`, `tail0-2`, `cannonL/R` | `hornL`, `hornR`, `hornNose`, `frillPods` | frill flares on the brace, the tail rides the gait's tail layer, the cannons traverse and recoil |
 | inferno | — | manifest `stackL`/`stackR` (chimneys) | dual flamethrowers off the universal muzzles; `stackFx` burns the chimneys and the hand torches |
