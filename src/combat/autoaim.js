@@ -32,6 +32,7 @@
 // And never onto somebody who cannot be seen: a cloaked enemy, or a brawler
 // lying gone between death and respawn.
 import * as THREE from 'three';
+import { isFoe } from './movekit.js';
 
 // A MORTAR SHELL IS IN THE AIR FOR A FIXED TIME, whatever the range (it is
 // solved as an arc to a landing point, world.js WEAPONS.mortar), so its lead
@@ -47,7 +48,7 @@ export const AUTO_AIM = {
 
 /** Is this fighter somebody an auto-aim may pick? */
 function visibleEnemy(f, t) {
-  if (t === f || !t.alive || f.isAllyOf(t)) return false;
+  if (!isFoe(f, t)) return false;
   if (t.status?.cloak) return false;
   if (t.group && !t.group.visible) return false;
   if (t._carry && t._carry.by === f) return false;   // the one in your hands

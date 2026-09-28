@@ -8,7 +8,7 @@ import { ProjectileSystem } from '../combat/projectiles.js';
 import { pickAutoTarget, autoAimPoint, MORTAR_ARC_TIME } from '../combat/autoaim.js';
 import { FleaSystem } from '../combat/fleas.js';
 import { EggSystem, EGG_DMG_MELEE } from '../combat/eggs.js';
-import { overlapsY } from '../combat/movekit.js';
+import { overlapsY, isFoe } from '../combat/movekit.js';
 import { bodyHitSegment } from '../combat/hurtbox.js';
 import { hasCannons } from '../combat/cannonaim.js';
 import { rand, clamp } from '../core/utils.js';
@@ -333,7 +333,7 @@ export class World {
       this.effects.addShake(Math.min(1.2, radius * 0.09));
     }
     for (const f of this.fighters) {
-      if (f === owner || !f.alive) continue;
+      if (!isFoe(owner, f)) continue;
       const c = f.center();
       const dx = this.wrapDelta(c.x - pos.x), dz = this.wrapDelta(c.z - pos.z);
       const d = Math.sqrt(dx * dx + (c.y - pos.y) ** 2 + dz * dz);
@@ -362,7 +362,7 @@ export class World {
     this.effects.explosion(pos, radius * 0.4, { color, smoke: false, ring: false });
     this.arena?.damageSphere(_v.set(pos.x, pos.y + 1, pos.z), radius * 0.7, dmg * 1.6, null, true);
     for (const f of this.fighters) {
-      if (f === owner || !f.alive) continue;
+      if (!isFoe(owner, f)) continue;
       const dxs = this.wrapDelta(f.pos.x - pos.x), dzs = this.wrapDelta(f.pos.z - pos.z);
       const d = Math.hypot(dxs, dzs);
       // height check is RELATIVE so slams landed on a rooftop still connect
@@ -403,7 +403,7 @@ export class World {
       if (tick <= 0) {
         tick = 0.4;
         for (const f of this.fighters) {
-          if (f === owner || !f.alive) continue;
+          if (!isFoe(owner, f)) continue;
           const fdx = this.wrapDelta(f.pos.x - at.x), fdz = this.wrapDelta(f.pos.z - at.z);
           if (f.grounded && Math.hypot(fdx, fdz) < radius + f.radius && Math.abs(f.pos.y - at.y) < 4) {
             f.takeHit(dps, owner, { knock: 1, srcPos: at, status: { burn: 6, burnT: 1.5 }, soft: true });
@@ -428,7 +428,7 @@ export class World {
       if (tick > 0) return true;
       tick = 0.4;
       for (const v of this.fighters) {
-        if (v === scald.owner || !v.alive) continue;
+        if (!isFoe(scald.owner, v)) continue;
         const dx = this.wrapDelta(v.pos.x - fx.pos.x), dz = this.wrapDelta(v.pos.z - fx.pos.z);
         // the column has a TOP: scalding water reaches fx.height and stops,
         // so a bot above the plume is over it, not in it
@@ -742,7 +742,7 @@ function flameLanding(w, f, from, dir, range, out) {
   _fl1.copy(from).addScaledVector(dir, range);
   let best = null;
   for (const t of w.fighters) {
-    if (t === f || !t.alive) continue;
+    if (!isFoe(f, t)) continue;
     const hit = bodyHitSegment(t, from, _fl1, FLAME_CAST_R, 0, w.time);
     if (hit && (!best || hit.t < best.t)) best = { t: hit.t, fighter: t, part: hit.part?.name || null };
   }
@@ -955,7 +955,7 @@ const WEAPONS = {
     w.audio?.play('flame');
     // cone tick damage
     for (const t of w.fighters) {
-      if (t === f || !t.alive) continue;
+      if (!isFoe(f, t)) continue;
       const toT = t.center().sub(from);
       const d = toT.length();
       // 0.72 -> 0.86: ~44 degrees of half-cone down to ~31, so the reach it
@@ -1240,7 +1240,7 @@ const WEAPONS = {
     }
     if (Math.random() < 0.35) w.audio?.play('wave');
     for (const t of w.fighters) {
-      if (t === f || !t.alive) continue;
+      if (!isFoe(f, t)) continue;
       const toT = t.center().sub(hFrom);
       const d = toT.length();
       if (d < mv.range && toT.normalize().dot(dir) > 0.8) {

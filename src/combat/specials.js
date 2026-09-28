@@ -15,7 +15,7 @@ import { Fighter } from './fighter.js';
 import { AIController } from '../game/ai.js';
 import { cloneMech } from '../mechs/factory.js';
 import { warmEggAssets } from './eggs.js';
-import { stillCasting, cast, eachEnemy, volley, timedUpdater, overlapsY } from './movekit.js';
+import { stillCasting, cast, eachEnemy, volley, timedUpdater, overlapsY, isFoe } from './movekit.js';
 // A HIT REACTION HAS TAKEN THE BODY: the states a blow puts a fighter into.
 // A scheduled beat of an airborne move checks this rather than stillCasting,
 // because the move's own cast window can legitimately expire before the body
@@ -252,7 +252,7 @@ export const SPECIALS = {
       }
       f._rushStep = step;
       for (const e of f.world.fighters) {
-        if (e === f || !e.alive) continue;
+        if (!isFoe(f, e)) continue;
         const dx = f.world.wrapDelta(e.pos.x - f.pos.x), dz = f.world.wrapDelta(e.pos.z - f.pos.z);
         // the horn rides at HIS body height and no higher — jump the charge
         // and it passes under you
@@ -417,7 +417,7 @@ export const SPECIALS = {
       // whoever's in the hands: close, in the front cone, near ground level
       let prey = null, best = Infinity;
       for (const v of w.fighters) {
-        if (v === f || !v.alive || v.iframes > 0) continue;
+        if (!isFoe(f, v) || v.iframes > 0) continue;
         const dx = w.wrapDelta(v.pos.x - f.pos.x), dz = w.wrapDelta(v.pos.z - f.pos.z);
         const d = Math.hypot(dx, dz);
         if (d > (sp.range || 4.5) * f.scale + v.hitRadius) continue;
@@ -521,7 +521,7 @@ export const SPECIALS = {
       if (!f.alive || f.state !== 'special') return;
       let prey = null, best = Infinity;
       for (const v of w.fighters) {
-        if (v === f || !v.alive || v.iframes > 0 || f.isAllyOf(v)) continue;
+        if (!isFoe(f, v) || v.iframes > 0) continue;
         const dx = w.wrapDelta(v.pos.x - f.pos.x), dz = w.wrapDelta(v.pos.z - f.pos.z);
         const d = Math.hypot(dx, dz);
         if (d > (sp.range || 4.2) * f.scale + v.hitRadius) continue;
@@ -702,7 +702,7 @@ export const SPECIALS = {
         0, 1.5, 0, { life: 0.35, size: rand(1, 1.8), color: 0xbfe8ff, alpha: 0.55 });
       // the spectre rips through anyone it overlaps
       for (const e2 of w.fighters) {
-        if (e2 === f || !e2.alive || victims.has(e2)) continue;
+        if (!isFoe(f, e2) || victims.has(e2)) continue;
         const dx = w.wrapDelta(e2.pos.x - gx()), dz = w.wrapDelta(e2.pos.z - gz());
         if (Math.hypot(dx, dz) < 3.4 * f.scale && Math.abs(e2.pos.y - f.pos.y) < 4) {
           victims.add(e2);
@@ -898,7 +898,7 @@ export const SPECIALS = {
       if (f.vel.y < 4) {
         let dive = null, diveD = Infinity;
         for (const v of w.fighters) {
-          if (v === f || !v.alive) continue;
+          if (!isFoe(f, v)) continue;
           const dx = w.wrapDelta(v.pos.x - f.pos.x), dz = w.wrapDelta(v.pos.z - f.pos.z);
           const dh = Math.hypot(dx, dz);
           const relY = f.pos.y - v.pos.y;
@@ -1001,7 +1001,7 @@ export const SPECIALS = {
         f.pos.z + rand(-0.6, 0.6), 1.5 * f.scale);
       w.effects.dashTrail(f.pos, 0xff2df2, f.scale * 1.3);
       for (const e of w.fighters) {
-        if (e === f || !e.alive || victims.has(e)) continue;
+        if (!isFoe(f, e) || victims.has(e)) continue;
         if (e.pos.distanceTo(f.pos) < 3.4 * f.scale) {
           victims.add(e);
           e.takeHit(sp.dmg * f.dmgMult(), f, { knock: 10, srcPos: f.pos, status: { glitch: 1 } });
@@ -1029,7 +1029,7 @@ export const SPECIALS = {
       f.world.effects.snowCone(from, dir);
       if (i % 3 === 0) f.sfx('freeze');
       for (const e of f.world.fighters) {
-        if (e === f || !e.alive) continue;
+        if (!isFoe(f, e)) continue;
         const c = e.center();
         const t = c.clone().sub(from).dot(dir);
         if (t > 0 && t < 26) {
@@ -1143,7 +1143,7 @@ export const SPECIALS = {
       }
       f._goreStep = step;
       for (const e of w.fighters) {
-        if (e === f || !e.alive || f.isAllyOf(e)) continue;
+        if (!isFoe(f, e)) continue;
         const dx = w.wrapDelta(e.pos.x - f.pos.x), dz = w.wrapDelta(e.pos.z - f.pos.z);
         // the horns ride at HIS height — jump it and the charge passes under
         if (Math.hypot(dx, dz) < 4.0 * f.scale && overlapsY(e, f.pos.y, f.height)) {
@@ -1370,7 +1370,7 @@ function nearestEnemyTo(f, x, z, maxD = Infinity) {
   const w = f.world;
   let best = null, bestD = maxD * maxD;
   for (const e of w.fighters) {
-    if (e === f || !e.alive || f.isAllyOf(e)) continue;
+    if (!isFoe(f, e)) continue;
     const dx = w.wrapDelta(e.pos.x - x), dz = w.wrapDelta(e.pos.z - z);
     const d = dx * dx + dz * dz;
     if (d < bestD) { best = e; bestD = d; }
@@ -1991,7 +1991,7 @@ export const ULTS = {
     // anyone above the horns (mid-jump, hovering) is overflown, not hit
     const trample = (px, pz, py) => {
       for (const e of w.fighters) {
-        if (e === f || !e.alive || f.isAllyOf(e)) continue;
+        if (!isFoe(f, e)) continue;
         if (t - (hitAt.get(e) ?? -9) < 0.45) continue;
         const dx = w.wrapDelta(e.pos.x - px), dz = w.wrapDelta(e.pos.z - pz);
         if (Math.hypot(dx, dz) < 3.4 * f.scale && overlapsY(e, py, f.height)) {
@@ -2148,7 +2148,7 @@ export const ULTS = {
           if (tick <= 0 && t < DURN) {
             tick = 0.2; // 5 strikes a second on everyone in the gloom
             for (const e of w.fighters) {
-              if (e === f || !e.alive || f.isAllyOf(e)) continue;
+              if (!isFoe(f, e)) continue;
               const dx = w.wrapDelta(e.pos.x - center.x), dz = w.wrapDelta(e.pos.z - center.z);
               if (Math.hypot(dx, dz) > R) continue;
               bolt(e.pos.x + rand(-0.7, 0.7), e.pos.z + rand(-0.7, 0.7), e);
@@ -2304,7 +2304,7 @@ export const ULTS = {
           wl.g.rotation.x = 0.5 + Math.sin(t * 13 + wl.ph) * 0.09;
           // bites and claws on the way through
           for (const e of w.fighters) {
-            if (e === f || !e.alive || f.isAllyOf(e)) continue;
+            if (!isFoe(f, e)) continue;
             if (t - (hitAt.get(e) ?? -9) < 0.25) continue;
             const dx = w.wrapDelta(e.pos.x - wl.g.position.x), dz = w.wrapDelta(e.pos.z - wl.g.position.z);
             // they run on all fours, so their bite tops out well below a
@@ -2368,7 +2368,7 @@ export const ULTS = {
         if (crushT <= 0) {
           crushT = 0.28;
           for (const e of w.fighters) {
-            if (e === f || !e.alive || f.isAllyOf(e)) continue;
+            if (!isFoe(f, e)) continue;
             const d = Math.hypot(w.wrapDelta(e.pos.x - f.pos.x), w.wrapDelta(e.pos.z - f.pos.z));
             if (d < f.radius + e.radius + 1 && e.pos.y < f.height * 0.55) {
               e.takeHit(u.dmg * f.dmgMult(), f, { unblockable: true, knock: 20, launch: 8, srcPos: f.pos, heavy: true });
@@ -2515,7 +2515,7 @@ export const ULTS = {
           if (!swept) {
             // the catch
             for (const e of w.fighters) {
-              if (e === f || !e.alive || f.isAllyOf(e)) continue;
+              if (!isFoe(f, e)) continue;
               const dx = w.wrapDelta(e.pos.x - pos.x), dz = w.wrapDelta(e.pos.z - pos.z);
               if (Math.hypot(dx, dz) < r + e.hitRadius * 0.5 && e.pos.y < H) {
                 swept = e;
@@ -2603,7 +2603,7 @@ export const ULTS = {
           // whites out — then the thaw releases them INTO the slide, still
           // carrying whatever momentum they walked on with (glass underfoot)
           for (const e of w.fighters) {
-            if (e === f || !e.alive || f.isAllyOf(e)) continue;
+            if (!isFoe(f, e)) continue;
             const d = Math.hypot(w.wrapDelta(e.pos.x - center.x), w.wrapDelta(e.pos.z - center.z));
             const onIce = d < u.radius && (e.grounded || e.pos.y < 1.5);
             let st = iced.get(e);
@@ -2642,7 +2642,7 @@ export const ULTS = {
           if (tick <= 0) {
             tick = 0.4;
             for (const e of w.fighters) {
-              if (e === f || !e.alive || f.isAllyOf(e)) continue;
+              if (!isFoe(f, e)) continue;
               if (!e.grounded && e.pos.y > 1.5) continue;
               const d = Math.hypot(w.wrapDelta(e.pos.x - center.x), w.wrapDelta(e.pos.z - center.z));
               if (d < u.radius) {
@@ -2689,7 +2689,7 @@ export const ULTS = {
         travel += SPD * dt;
         if (Math.random() < 0.3) f.sfx('wave', { vol: 0.35 });
         for (const e of w.fighters) {
-          if (e === f || !e.alive || f.isAllyOf(e)) continue;
+          if (!isFoe(f, e)) continue;
           const rx = w.wrapDelta(e.pos.x - ox), rz = w.wrapDelta(e.pos.z - oz);
           const along = rx * dirX + rz * dirZ;
           const lat = rx * perpX + rz * perpZ;
@@ -2785,7 +2785,7 @@ export const ULTS = {
       w.effects.addShake(0.8);
       const caught = [];
       for (const e of w.fighters) {
-        if (e === f || !e.alive || f.isAllyOf(e)) continue;
+        if (!isFoe(f, e)) continue;
         // the croak propagates as a SPHERE, not an infinite column: measured
         // to the victim's mid-body in all three axes, so it still washes over
         // anyone jumping nearby (30 is a wide radius) but doesn't reach a bot
@@ -2916,7 +2916,7 @@ export const ULTS = {
           }
           // a body to bump is a body to bite
           for (const e of w.fighters) {
-            if (e === f || !e.alive || f.isAllyOf(e)) continue;
+            if (!isFoe(f, e)) continue;
             if (t - (hitAt.get(e) ?? -9) < 0.22) continue;
             const dx = w.wrapDelta(e.pos.x - c.g.position.x), dz = w.wrapDelta(e.pos.z - c.g.position.z);
             if (dx * dx + dz * dz < (e.hitRadius + 1.1) ** 2 &&
@@ -3007,7 +3007,7 @@ export const ULTS = {
           if (fallT <= 0 && t < DUR - 2) {
             fallT = rand(1.0, 1.8);
             const pool = w.fighters.filter((e) =>
-              e !== f && e.alive && !f.isAllyOf(e) && e.grounded && !falls.some((fl) => fl.v === e));
+              isFoe(f, e) && e.grounded && !falls.some((fl) => fl.v === e));
             if (pool.length) {
               const v = pool[(Math.random() * pool.length) | 0];
               falls.push({ v, t: 0, phase: 'armed', x0: v.pos.x, z0: v.pos.z });

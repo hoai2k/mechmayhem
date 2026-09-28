@@ -34,14 +34,24 @@ export function cast(f, clip, { state = 'special', stateT, speed, onFire, onEven
   return dur;
 }
 
-/** Wrap-aware AoE sweep: cb(victim, dist, dx, dz) for every OTHER living
- *  fighter within radius (+pad) of center. pad is a number or (v)=>number —
- *  most sweeps pad by some fraction of the victim's hitRadius. The
- *  caster's own minions ARE hit unless the caller filters in cb (that
- *  matches the inline loops this replaces). */
+/** THE one "is this somebody `owner` fights?" test: alive, not the owner,
+ *  and not on the owner's side (owner <-> minion, or two minions of one
+ *  owner — Fighter.isAllyOf). A null owner is the ENVIRONMENT, which fights
+ *  everyone alive. Every loop that picks a target or spends a hit goes
+ *  through this: written out by hand it came in three forms, and the ones
+ *  missing the ally check let a homing round retarget onto the caster's own
+ *  summon and be absorbed by it (takeHit drops ally damage), a grab seize
+ *  your own raptor, and a beam or flame stream stop at a teammate. */
+export function isFoe(owner, v) {
+  return !!v && v.alive && v !== owner && !owner?.isAllyOf?.(v);
+}
+
+/** Wrap-aware AoE sweep: cb(victim, dist, dx, dz) for every FOE of `owner`
+ *  (isFoe) within radius (+pad) of center. pad is a number or (v)=>number —
+ *  most sweeps pad by some fraction of the victim's hitRadius. */
 export function eachEnemy(w, owner, center, radius, cb, pad = 0) {
   for (const v of w.fighters) {
-    if (v === owner || !v.alive) continue;
+    if (!isFoe(owner, v)) continue;
     const dx = w.wrapDelta(v.pos.x - center.x), dz = w.wrapDelta(v.pos.z - center.z);
     const d = Math.hypot(dx, dz);
     if (d < radius + (typeof pad === 'function' ? pad(v) : pad)) cb(v, d, dx, dz);

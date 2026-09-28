@@ -24,6 +24,7 @@ import { EGG_DMG_MELEE } from './eggs.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
+import { isFoe } from './movekit.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -465,6 +466,10 @@ export class Fighter {
       (!!this.allyOf && this.allyOf === o.allyOf));
   }
 
+  // somebody this fighter fights — movekit.isFoe, the one test every target
+  // pick and hit sweep uses
+  isFoe(o) { return isFoe(this, o); }
+
   center(out = _v2) {
     return out.set(this.pos.x, this.pos.y + this.height * 0.55, this.pos.z).clone();
   }
@@ -574,7 +579,7 @@ export class Fighter {
     let best = null, bestD = Infinity;
     const w = this.world;
     for (const f of w.fighters) {
-      if (f === this || !f.alive || this.isAllyOf(f)) continue;
+      if (!this.isFoe(f)) continue;
       // NOT the one in your hands. A carried victim is pinned directly over
       // the carrier, so their horizontal offset is ~0 and every heading
       // derived from it (AI steering, aim snaps) is atan2 of noise. That is
@@ -1609,7 +1614,7 @@ export class Fighter {
       }
     }
     for (const f of this.world.fighters) {
-      if (f === this || !f.alive) continue;
+      if (!this.isFoe(f)) continue;
       // the swept limb, moved into the victim's image across the seam (both
       // ends by the same offset), so the capsule test never has to know
       // about arena wrapping
