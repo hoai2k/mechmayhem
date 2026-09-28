@@ -41,7 +41,7 @@
 // knee axis has nothing to swing along, so there is nothing to correct.
 //
 // Rotation in the rig FILE would not work — see the note in src/mechs/rigs/README-ish header of any rig, or the
-// derivation in CLAUDE.md: applyCustomRig rebinds at rest and RigAdapter
+// derivation in docs/systems/models.md (BONE ROTATION): applyCustomRig rebinds at rest and RigAdapter
 // captures a rest offset per bone, so both halves cancel a bind rotation out.
 //
 // Needs the dev server (npm run dev).
