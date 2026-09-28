@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { rand, clamp, clamp01, angleDiff, TAU } from '../core/utils.js';
 import { t } from '../core/text.js';
+import { TUNING } from '../core/tuning.js';
 import { GeyserFX } from './geyserfx.js';
 import { FireTornadoFX } from './nadofx.js';
 import { fireTint } from './flamefx.js';
@@ -362,33 +363,47 @@ export const SPECIALS = {
 
   // FENRIR: lunar pounce
   pounce(f, sp) {
-    cast(f, 'lunge', { stateT: 0.75 });
+    // a ballistic arc SOLVED for the distance: airtime off the launch speed
+    // and the real gravity, horizontal speed = distance / airtime, and the
+    // fighter holds it (`_ballistic`) so he lands where he was aimed
+    const VY = 12;
+    const T = (2 * VY) / TUNING.physics.gravity;
+    cast(f, 'lunge', { stateT: T + 0.1 });
     f.sfx('howl');
+    const w = f.world;
     const e = f.nearestEnemy();
     if (e && f.isAI) {
-      // AI leads the landing point — the leap is airborne ~0.7s.
+      // AI leads the landing point by the airtime.
       // Humans leap where THEY aim (doSpecial already applied aimYaw).
-      const px = e.pos.x + e.vel.x * 0.5, pz = e.pos.z + e.vel.z * 0.5;
-      f.yaw = f.targetYaw = Math.atan2(px - f.pos.x, pz - f.pos.z);
+      const lead = leadPos(f, e, T);
+      f.yaw = f.targetYaw = Math.atan2(w.wrapDelta(lead.x - f.pos.x), w.wrapDelta(lead.z - f.pos.z));
     }
-    // range-clamp onto a target that's already down the aim line
-    const onLine = e && Math.abs(angleDiff(f.yaw, f.yawTo(e))) < 0.45;
-    const dist = onLine ? Math.min(sp.leap, f.pos.distanceTo(e.pos)) : sp.leap;
-    f.vel.x = Math.sin(f.yaw) * dist * 1.6;
-    f.vel.z = Math.cos(f.yaw) * dist * 1.6;
-    f.vel.y = 12;
+    // range-clamp onto a target that's already down the aim line — and that
+    // target is his PREY for the flight (below)
+    let dist = sp.leap, prey = null;
+    if (e && Math.abs(angleDiff(f.yaw, f.yawTo(e))) < 0.45) {
+      const lead = f.isAI ? leadPos(f, e, T) : e.pos;
+      dist = Math.min(sp.leap, Math.hypot(w.wrapDelta(lead.x - f.pos.x), w.wrapDelta(lead.z - f.pos.z)));
+      if (dist < sp.leap) prey = e;
+    }
+    f.vel.x = Math.sin(f.yaw) * dist / T;
+    f.vel.z = Math.cos(f.yaw) * dist / T;
+    f.vel.y = VY;
+    f._ballistic = { x: f.vel.x, z: f.vel.z };
     f.grounded = false;
     let landed = false;
     const check = () => {
-      if (landed || !f.alive) return;
+      if (landed || !f.alive) { f._ballistic = null; return; }
       // KNOCKED OUT OF THE AIR IS THE END OF IT: a launcher mid-pounce used to
       // put him down and then, the moment he touched the ground, fire the full
       // shockwave off the knockdown and setState('normal') over it — the
       // getup and its iframes erased, the punish turned into a buff. (Not
-      // stillCasting: the 0.75s cast can expire before a 0.7s airtime lands.)
-      if (hitReacting(f)) { landed = true; return; }
+      // stillCasting: the cast is sized to the airtime, but a landing can run
+      // a frame or two past it.)
+      if (hitReacting(f)) { landed = true; f._ballistic = null; return; }
       if (f.grounded) {
         landed = true;
+        f._ballistic = null;
         // the pounce is Saurion's block-breaker: only THIS hit carries his
         // guardBreak chance (normal swings block like anyone else's)
         f.world.groundShockwave(f, f.pos, 5.5 * f.scale, sp.dmg * f.dmgMult(), 16, 0x6cd8ff, false,
@@ -396,10 +411,27 @@ export const SPECIALS = {
         f.sfx('slam');
         f.setState('normal');
       } else {
+        // A WOLF TRACKS WHAT IT JUMPED AT: a leap committed onto prey (in
+        // range, down the aim) bends toward where that prey is NOW, solved
+        // for the time left in the air — so a sidestep is chased rather than
+        // a free dodge. Bounded, like saurion's stoop: a share of the error
+        // per tick and a speed cap, so a dash still escapes it.
+        const arc = f._ballistic;
+        if (arc && prey && isFoe(f, prey)) {
+          const g = TUNING.physics.gravity;
+          const tRem = Math.max(0.1, (f.vel.y + Math.sqrt(Math.max(0, f.vel.y * f.vel.y + 2 * g * f.pos.y))) / g);
+          let wx = w.wrapDelta(prey.pos.x - f.pos.x) / tRem, wz = w.wrapDelta(prey.pos.z - f.pos.z) / tRem;
+          const cap = (sp.leap / T) * 1.25, m = Math.hypot(wx, wz);
+          if (m > cap) { wx *= cap / m; wz *= cap / m; }
+          arc.x += (wx - arc.x) * 0.35;
+          arc.z += (wz - arc.z) * 0.35;
+        }
         f.world.schedule(0.05, check);
       }
     };
-    f.world.schedule(0.25, check);
+    // steering starts on the first tick; `grounded` was cleared at launch, so
+    // an early check cannot read the take-off as a landing
+    f.world.schedule(0.05, check);
   },
 
   // COLOSSUS: seize the nearest bot in front of him, hoist them clean over
