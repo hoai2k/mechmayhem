@@ -2749,7 +2749,24 @@ export class Fighter {
     // out of update long before the animation section — a loop hung off the
     // end of the frame would never start in exactly the states that need one.
     this.loopSfx();
-    const st = this.def.stats;
+    // THE FRAME, IN ORDER. Each phase is its own method below; the order is the
+    // contract (a later phase reads what an earlier one left on `this`), and
+    // the three values that pass between them are passed explicitly. A phase
+    // returning true has ended the frame (the body is dead, frozen, falling
+    // through a void, glitched, hanging, carried) and nothing after it runs.
+    if (this._updateConditions(dt)) return;
+    this._updateStateTimers(dt);
+    if (this._updateHeldStates(dt)) return;
+    const dk = this._updateIntents(dt);
+    const canMove = this._updateMovement(dt);
+    const spd = this._updateAnimation(dt, canMove, dk);
+    this._updatePostPose(dt, spd);
+  }
+
+  // Fighter.update, phase 1: the conditions that own the whole frame — the
+  // first-input drop of a flourish, status ticks, the whiteout, and the
+  // dead / frozen / void-drop / glitched bodies. true = the frame ends here.
+  _updateConditions(dt) {
     const I = this.intent;
     // CONTROL IMPLIES ANIMATION CONTROL. The round-start intro runs 2.3s but
     // controls come back at 1.6s (match.js unlocks at stateT<=0.9), and the
@@ -2856,13 +2873,13 @@ export class Fighter {
       this.animator.update(dt, { speed: 0, grounded: this.grounded, dead: true, state: 'dead' });
       // GLB: rest the collapsed body flat on the ground (see groundClamp)
       this.mech.groundClamp?.(this.grounded);
-      return;
+      return true;
     }
 
     if (this.state === 'frozen') {
       if (this.stateT <= 0) this.setState('normal');
       this.applyPhysics(dt, 0, 0);
-      return; // no animator update: frozen solid
+      return true; // no animator update: frozen solid
     }
 
     // ---- THE DROP: falling through a void patch, nothing else runs ----
@@ -2873,7 +2890,7 @@ export class Fighter {
       this.animator.update(dt, { speed: 0, grounded: false, vy: this.vel.y });
       this.group.rotation.y = this.yaw;
       if (v.t >= VOID_FALL_T || this.pos.y < -VOID_FALL_DEPTH) this.voidRespawn();
-      return;
+      return true;
     }
 
     // ---- TOTAL CORRUPTION: engulfed in glitch, servos locked, spasming.
@@ -2895,10 +2912,16 @@ export class Fighter {
         this.updateGlitch(dt);
         this.animator.update(dt, { speed: 0, grounded: this.grounded });
         this.group.rotation.y = this.yaw;
-        return;
+        return true;
       }
     }
 
+    return false;
+  }
+
+  // phase 2: state timers and transitions
+  _updateStateTimers(dt) {
+    const I = this.intent;
     // ---- state timers / transitions ----
     switch (this.state) {
       case 'attack':
@@ -3023,6 +3046,12 @@ export class Fighter {
         break;
     }
 
+  }
+
+  // phase 3: held states that pin the body — wall hang, carried, aerial
+  // plunge. true = the frame ends here.
+  _updateHeldStates(dt) {
+    const I = this.intent;
     // ---- wall hang: pinned to a building face by a held airborne punch.
     // Release drops, jump springs off the wall (punch-hold again mid-air to
     // grab higher — that's the climb loop), losing the wall knocks you off.
@@ -3045,7 +3074,7 @@ export class Fighter {
         this.vel.set(0, 0, 0);
         this.grounded = false;
         this.animator.update(dt, { speed: 0, grounded: true, vy: 0 });
-        return;
+        return true;
       }
     }
 
@@ -3083,7 +3112,7 @@ export class Fighter {
         const roll = c.roll ?? 1.45;
         this.group.rotation.z += (roll * k - this.group.rotation.z) * Math.min(1, dt * 10);
         this.animator.update(dt, { speed: 0, grounded: false, vy: 0 });
-        return;
+        return true;
       }
     }
 
@@ -3108,6 +3137,14 @@ export class Fighter {
       }
     }
 
+    return false;
+  }
+
+  // phase 4: intents — guard, B button, sprint, duck, jump, attacks, hover,
+  // landing. Returns the crouch depth the animation phase reads.
+  _updateIntents(dt) {
+    const st = this.def.stats;
+    const I = this.intent;
     // ---- intents ----
     const acting = this.canAct();
     // Blocking works airborne/hovering too — and now runs on the STAMINA
@@ -3405,6 +3442,13 @@ export class Fighter {
       this.animator.stop(0.09);
     }
 
+    return dk;
+  }
+
+  // phase 5: movement, target lock, surface walking. Returns whether this
+  // state may move, which the animation phase reads.
+  _updateMovement(dt) {
+    const I = this.intent;
     // ---- movement ----
     let ax = 0, az = 0;
     // basic light/heavy keep locomotion (jab clips are upper-body, and running
@@ -3494,6 +3538,12 @@ export class Fighter {
       }
     }
 
+    return canMove;
+  }
+
+  // phase 6: the animator. Returns ground speed for the post-pose passes.
+  _updateAnimation(dt, canMove, dk) {
+    const I = this.intent;
     // ---- animation ----
     const spd = Math.hypot(this.vel.x, this.vel.z);
     const maxSpd = this.moveSpeed() * (this.sprinting ? MOVE.sprintMult : 1);
@@ -3607,6 +3657,12 @@ export class Fighter {
     // traversing onto its solution (the brace/frill tell reads this).
     if (this.state !== 'channel' && !this._volley) this.firing = false;
 
+    return spd;
+  }
+
+  // phase 7: facing, and every pass that must run AFTER the pose (heavy
+  // mechanics, crosshair, guard bubble, gun aim, climbing limbs, trails, FX).
+  _updatePostPose(dt, spd) {
     // ---- face target yaw: servo-damped, two-tier ----
     // Legs (the whole group) chase the stick with a lag that grows with
     // ground speed — a sprinting mech carves an arc instead of pivoting on
