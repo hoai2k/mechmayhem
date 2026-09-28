@@ -20,6 +20,11 @@
 
 export const TUNING = {
 
+  // ---- PHYSICS -------------------------------------------------------------
+  physics: {
+    gravity: 34,           // downward acceleration on every fighter, units/s²
+  },
+
   // ---- STAMINA -------------------------------------------------------------
   // One bar (the HUD's thin under-bar) pays for sprinting, blocking and
   // dashing. Running out drops you back to a walk and forces the guard down
@@ -319,7 +324,15 @@ export const TUNING = {
   melee: {
     punchHoldCap: 1.8,     // seconds to fully bank a held haymaker
     heavyHoldCap: 2.4,     // seconds to fully bank a held heavy
-    chargeMinWindup: 0.15, // forced chamber time so even a tap telegraphs
+    // Minimum wind-up on a charge attack. Every other melee clip opens with a
+    // chamber/pull-back beat (0.10-0.34s) before its hit frame, but a charge
+    // attack's RELEASE clip starts already cocked — right after a real hold
+    // (the hold clip IS the chamber), yet a bare TAP released it the same
+    // frame it began and the mech snapped from rest into the impact pose.
+    // Holding the chamber this long gives every tap the same telegraph; the
+    // forced time is discounted from the banked charge, so a tap still throws
+    // the weakest version.
+    chargeMinWindup: 0.15,
     hitstunHeavy: 0.42,    // seconds of stun from a heavy hit
     hitstunLight: 0.24,
     softFlinchChance: 0.35, // odds per chip tick of a torso rock
@@ -335,11 +348,11 @@ export const TUNING = {
 // ---------------------------------------------------------------------------
 // TRYING A NUMBER WITHOUT EDITING THIS FILE.
 //
-// Most values above are read ONCE, into a module-level const in fighter.js, the
-// instant it loads. That is deliberate (they are on the hot path) but it means
-// poking TUNING from the console after the fact changes nothing — a knob that
-// silently ignores you, which is worse than no knob. So the override lands
-// HERE, before anything has read a value:
+// Every value above is read LIVE at the point of use (fighter.js holds
+// references to these GROUPS, never copies of their numbers — so never
+// replace a group object, only write into it), which means `rw.set` lands
+// immediately. This is the other way in: an override that lands HERE, before
+// anything has read a value, and survives a reload for the session:
 //
 //   ?tune=melee.hitstunLight:0.4,dash.cooldown:0.2      one session
 //   rw.tune('melee.hitstunLight', 0.4)                  same thing, then reloads
@@ -381,9 +394,10 @@ function applyOverrides() {
 applyOverrides();
 
 // Derived rates — the code wants per-second numbers, the file above states
-// durations. Kept here so the two can never drift apart. Computed AFTER the
-// overrides, so ?tune=stamina.sprintSeconds:4 moves the drain rate with it.
+// durations. Kept here so the two can never drift apart. They are FUNCTIONS,
+// read at the point of use, so a live write to stamina.sprintSeconds (rw.set,
+// or ?tune) moves the drain rate with it.
 export const STAMINA_TANK = 1;
-export const SPRINT_DRAIN = STAMINA_TANK / TUNING.stamina.sprintSeconds;
-export const BLOCK_DRAIN = STAMINA_TANK / TUNING.stamina.blockSeconds;
-export const STAMINA_REGEN = STAMINA_TANK / TUNING.stamina.refillSeconds;
+export const sprintDrain = () => STAMINA_TANK / TUNING.stamina.sprintSeconds;
+export const blockDrain = () => STAMINA_TANK / TUNING.stamina.blockSeconds;
+export const staminaRegen = () => STAMINA_TANK / TUNING.stamina.refillSeconds;

@@ -284,7 +284,7 @@ export const CONFIG = {
   // ROBOT SPEED: a global multiplier on how fast every fighter WALKS, RUNS
   // and FLIES, over the per-mech speeds tuned in the roster. 100% is now the
   // DEFAULT pace and that pace is TWICE what it used to be — the doubling
-  // lives in fighter.js SPEED_BASE, so the slider reads a clean 100% at the
+  // lives in TUNING.movement.speedBase, so the slider reads a clean 100% at the
   // shipped feel and the old pace is 50%. The relative pace of the roster (a
   // nimble tempest against a lumbering colossus) is untouched at any
   // setting. Attacks, dashes and the speeds written into special moves are

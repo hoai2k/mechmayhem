@@ -2,16 +2,16 @@
 // positive number, or a bar drains to NaN and the stamina system goes quiet.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TUNING, STAMINA_TANK, STAMINA_REGEN, SPRINT_DRAIN, BLOCK_DRAIN } from '../src/core/tuning.js';
+import { TUNING, STAMINA_TANK, staminaRegen, sprintDrain, blockDrain } from '../src/core/tuning.js';
 import { CONFIG, ROUND_MIN, ROUND_MAX, ROUND_DEFAULT, OUTPUT_TRIM, MUSIC_VOL_CEIL } from '../src/core/config.js';
 
 const positive = (v, name) => assert.ok(Number.isFinite(v) && v > 0, `${name} = ${v} (want finite > 0)`);
 
 test('derived stamina rates are finite and positive', () => {
   positive(STAMINA_TANK, 'STAMINA_TANK');
-  positive(STAMINA_REGEN, 'STAMINA_REGEN');
-  positive(SPRINT_DRAIN, 'SPRINT_DRAIN');
-  positive(BLOCK_DRAIN, 'BLOCK_DRAIN');
+  positive(staminaRegen(), 'staminaRegen()');
+  positive(sprintDrain(), 'sprintDrain()');
+  positive(blockDrain(), 'blockDrain()');
   positive(TUNING.stamina.sprintSeconds, 'stamina.sprintSeconds');
   positive(TUNING.stamina.blockSeconds, 'stamina.blockSeconds');
   positive(TUNING.stamina.refillSeconds, 'stamina.refillSeconds');
@@ -20,6 +20,14 @@ test('derived stamina rates are finite and positive', () => {
 test('guardRelock is a fraction of the bar, strictly inside (0, 1)', () => {
   const v = TUNING.stamina.guardRelock;
   assert.ok(v > 0 && v < 1, `stamina.guardRelock = ${v}`);
+});
+
+test('derived rates follow a live write (read at the point of use)', () => {
+  const was = TUNING.stamina.sprintSeconds;
+  try {
+    TUNING.stamina.sprintSeconds = was * 2;
+    assert.ok(Math.abs(sprintDrain() - STAMINA_TANK / (was * 2)) < 1e-12);
+  } finally { TUNING.stamina.sprintSeconds = was; }
 });
 
 test('every numeric leaf of TUNING is finite', () => {
