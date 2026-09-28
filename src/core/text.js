@@ -336,7 +336,6 @@ export const MESSAGES = {
   'music.restart': 'restart song',
 
   // --------------------------------------------------------------------- match
-  'battle.loading': 'LOADING {arena}…',
   'match.round': 'ROUND {n}',
   'match.intro': '{mech}: {quote}',
   'match.fight': 'FIGHT!',

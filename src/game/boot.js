@@ -645,13 +645,40 @@ export async function bootGame() {
     // from here every spare cycle belongs to the fight, not to a guess
     predictor.stop();
 
-    // THE MENU STAYS UP WHILE THE ARENA LOADS. The level fetch and the prop
-    // warm-up below can take seconds on a cold cache, and tearing the select
-    // screen and the stage down first left an empty canvas with nothing on
-    // it for the whole wait (and Esc doing nothing). The screen stops
-    // listening (`S.starting`, screenUpdate) and a chip says what is coming.
     const picked = THEMES_BY_ID[S.themeId];
-    toast(t('battle.loading', { arena: picked.name }));
+    const training = !!S.training;   // TRAINING tile: see game/training.js
+    const active = [];
+    S.slots.forEach((s, i) => { if (s.kind !== 'off') active.push({ slot: s, slotIdx: i }); });
+    // WHO IS FIGHTING, settled first — it needs nothing that loads, and the
+    // intro card below is these robots. Each fighter wears its chosen paint
+    // scheme; anyone sharing a mech id with an identical scheme (e.g. random
+    // AI picks) gets auto-bumped.
+    const taken = active.map((a) => S.picks[a.slotIdx]).filter((p) => p && p !== 'random');
+    const defs = active.map((a) => {
+      const roster = playableRoster();
+      const base = ROSTER_BY_ID[S.picks[a.slotIdx]]
+        // RANDOM slot: take the robot the prefetcher pre-rolled (and whose
+        // model it has been downloading since the menus)
+        || ROSTER_BY_ID[predictor.takeMech(new Set(taken))] || roster[(Math.random() * roster.length) | 0];
+      taken.push(base.id);
+      return { base, variant: S.variants?.[a.slotIdx] || 0 };
+    });
+    defs.forEach((d, i) => {
+      const clash = () => defs.some((o, j) =>
+        j < i && o.base.id === d.base.id && o.variant === d.variant);
+      for (let t = 0; clash() && t < SCHEME_COUNT; t++) d.variant = (d.variant + 1) % SCHEME_COUNT;
+    });
+    const finalDefs = defs.map((d) => applyColorScheme(d.base, d.variant));
+
+    // THE INTRO CARD GOES UP NOW, before anything loads or is torn down: the
+    // level fetch and the prop warm-up can take seconds on a cold cache, and
+    // everything from here to the reveal — including building the arena,
+    // which the canvas would otherwise draw half-made, unlit and through the
+    // default camera — happens under it. The menu underneath stops listening
+    // (`S.starting`, screenUpdate). loadScreen.start adopts this card below.
+    loadScreen.show(picked, active.map((a, i) => ({
+      def: finalDefs[i], isAI: a.slot.kind === 'ai', playerIndex: a.slotIdx,
+    })), { round: 1 });
     // An arena with a hand-built level plays it; everything else is generated
     // from its recipe. Resolved BEFORE the prop warm-up below, since it is the
     // authored level that says which props this city actually places.
@@ -679,30 +706,9 @@ export async function bootGame() {
       theme, audio, input, seed: (Math.random() * 9999) | 0,
     });
 
-    const training = !!S.training;   // TRAINING tile: see game/training.js
-    const active = [];
-    S.slots.forEach((s, i) => { if (s.kind !== 'off') active.push({ slot: s, slotIdx: i }); });
     const spawns = arena.spawnPoints(active.length);
     const fighters = [], humans = [], ais = [];
     // build mechs up-front: GLB-backed where the model manifest has one.
-    // Each fighter wears its chosen paint scheme; anyone sharing a mech id
-    // with an identical scheme (e.g. random AI picks) gets auto-bumped.
-    const taken = active.map((a) => S.picks[a.slotIdx]).filter((p) => p && p !== 'random');
-    const defs = active.map((a) => {
-      const roster = playableRoster();
-      const base = ROSTER_BY_ID[S.picks[a.slotIdx]]
-        // RANDOM slot: take the robot the prefetcher pre-rolled (and whose
-        // model it has been downloading since the menus)
-        || ROSTER_BY_ID[predictor.takeMech(new Set(taken))] || roster[(Math.random() * roster.length) | 0];
-      taken.push(base.id);
-      return { base, variant: S.variants?.[a.slotIdx] || 0 };
-    });
-    defs.forEach((d, i) => {
-      const clash = () => defs.some((o, j) =>
-        j < i && o.base.id === d.base.id && o.variant === d.variant);
-      for (let t = 0; clash() && t < SCHEME_COUNT; t++) d.variant = (d.variant + 1) % SCHEME_COUNT;
-    });
-    const finalDefs = defs.map((d) => applyColorScheme(d.base, d.variant));
     // never stall the fighter build on slow model downloads: whoever's
     // model is ready within the grace window (procedural, or a GLB already
     // cached by the arena-select preload) spawns now; the rest spawn as
@@ -898,8 +904,9 @@ export async function bootGame() {
     music.setArena(theme);
     if (music.available) { audio.stopMusic(); music.start(); }
     else audio.music(theme.music);
-    // the loading card: the match is gated behind it while the texture pack
-    // streams in and the stage renders warm underneath
+    // the loading card (already on screen since the choice was made): the
+    // match is gated behind it while the texture pack streams in and the
+    // stage renders warm underneath
     loadScreen.start(S.battle, theme, { round: 1 });
 
     // pad rumble helper reaches humans by playerIndex

@@ -177,6 +177,15 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   stage that was already drawing. The old warm-up (per-fighter cameras over a
   grey sandbox floor the humans could romp on) is gone with it; `world.sandbox`
   survives as the "the arena must not touch anyone under the card" flag.
+  THE CARD GOES UP FIRST (`LoadScreen.show`): the moment the arena is chosen,
+  before the level fetch, the prop warm-up, the arena build or a model
+  download, and `start` adopts it once the battle exists (the time it was
+  already up counts toward the minimum). It used to be raised LAST, after the
+  select screen was torn down and the arena built, so the up-to-400ms wait for
+  a cold fighter model drew the half-built, unlit board through the default
+  camera first. `node tools/scratch/introgap.mjs` counts frames of arena
+  before the card (it forces a cold model with `?prefetch=0`, the only case
+  the gap opens in): 1 before, 0 after.
   A ROUND FOUGHT SOMEWHERE NEW GETS THE SAME CARD: boot's `onRoundStart` swaps
   the arena, sets `match.holdRound` and starts the screen; `Match.startRound`
   resets the bodies onto the new pads and then parks in state `held` — the

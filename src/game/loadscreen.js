@@ -63,9 +63,24 @@ export class LoadScreen {
     };
   }
 
+  // THE CARD GOES UP FIRST. `show` puts it on screen from nothing but who is
+  // fighting where — before the arena exists, before a model is fetched — so
+  // the first thing a player sees after choosing is the intro, and every
+  // wait (level fetch, prop warm-up, model downloads, building the stage)
+  // happens UNDER it. Tearing the menus down and building the arena first
+  // left a frame or more of a half-built, unlit board with the default camera
+  // between the menu and the card.
+  // entries: [{ def, isAI, playerIndex }] — a Fighter has all three.
+  show(theme, entries, { round = 1 } = {}) {
+    this.pending?.ov.remove();
+    this.pending = { ...this._build(theme, entries, round), shownAt: performance.now() };
+  }
+
   // B: the battle context (fighters, humans, hud, match, world, arena).
   // theme: the arena being entered. round: 1 for the first, else the round
   // this screen opens — it changes the header ("NOW ENTERING" vs "NEXT ROUND").
+  // A card already raised by `show` is ADOPTED (and the time it has been up
+  // counts toward MIN_T); otherwise one is built now.
   start(B, theme, { round = 1 } = {}) {
     const { fighters } = B;
     for (const f of fighters) {
@@ -79,6 +94,20 @@ export class LoadScreen {
     // see arena.collideFighter)
     B.world.sandbox = true;
 
+    const card = this.pending || { ...this._build(theme, fighters, round), shownAt: performance.now() };
+    this.pending = null;
+    const { ov, tipEl, tipIdx } = card;
+    B.loading = {
+      t: (performance.now() - card.shownAt) / 1000, settle: 0, progDone: -1, progT: 0, ov, round,
+      barFill: ov.querySelector('.ls-bar-fill'), barK: 0,
+      status: ov.querySelector('.ls-status'),
+      tipEl, tipIdx, tipT: 0,
+      prewarmed: false, fade: undefined,
+    };
+  }
+
+  // the card itself: DOM only, no battle
+  _build(theme, fighters, round) {
     const ov = document.createElement('div');
     ov.className = 'ls';
     const skyTop = hexCss(theme.sky.top), skyBot = hexCss(theme.sky.bottom);
@@ -127,23 +156,19 @@ export class LoadScreen {
     this.uiRoot.appendChild(ov);
 
     const tipEl = ov.querySelector('.ls-tip');
-    const tipStart = (Math.random() * N_TIPS) | 0;
-    tipEl.textContent = t(`load.tip.${tipStart}`);
-
-    B.loading = {
-      t: 0, settle: 0, progDone: -1, progT: 0, ov, round,
-      barFill: ov.querySelector('.ls-bar-fill'), barK: 0,
-      status: ov.querySelector('.ls-status'),
-      tipEl, tipIdx: tipStart, tipT: 0,
-      prewarmed: false, fade: undefined,
-    };
+    const tipIdx = (Math.random() * N_TIPS) | 0;
+    tipEl.textContent = t(`load.tip.${tipIdx}`);
+    return { ov, tipEl, tipIdx };
   }
 
   // Quit mid-load (teardownBattle): drop the card, nothing else to restore —
-  // the battle is going away with it.
+  // the battle is going away with it. A card raised by `show` that no battle
+  // ever adopted goes too.
   cancel(B) {
-    B.loading?.ov.remove();
-    B.loading = null;
+    B?.loading?.ov.remove();
+    if (B) B.loading = null;
+    this.pending?.ov.remove();
+    this.pending = null;
   }
 
   update(B, dt) {

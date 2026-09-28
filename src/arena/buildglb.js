@@ -180,6 +180,10 @@ export function preloadBuildingModels(opts = {}) {
       if (res.ok) man = await res.json();
     } catch { /* no donors — massing generator carries the look */ }
     if (!man) return;
+    // fetched in parallel, REGISTERED IN MANIFEST ORDER: the arena picks donors
+    // by index off its seeded rng, so a map filled in whatever order the
+    // network finished built a different city from the same seed
+    const found = new Map();
     await Promise.all(Object.entries(man).map(async ([name, entry]) => {
       if (!entry || !entry.file) return;
       if (!opts.forceGlb) {
@@ -188,7 +192,7 @@ export function preloadBuildingModels(opts = {}) {
           if (res.ok) {
             const baked = await res.json();
             if (baked?.cells?.length) {
-              donors.set(name, { ...baked, themes: entry.themes || baked.themes || null });
+              found.set(name, { ...baked, themes: entry.themes || baked.themes || null });
               return;
             }
           }
@@ -199,12 +203,13 @@ export function preloadBuildingModels(opts = {}) {
         const gltf = await loader.loadAsync(`models/buildings/${entry.file}`);
         const vox = voxelize(gltf.scene, entry.floors);
         if (vox) {
-          donors.set(name, { ...vox, themes: entry.themes || null });
+          found.set(name, { ...vox, themes: entry.themes || null });
           console.info(`voxelized ${name} live in ${Math.round(performance.now() - t0)}ms — ` +
             'run `node tools/voxbake.mjs` to bake it offline');
         }
       } catch { /* missing/broken donor — skipped */ }
     }));
+    for (const name of Object.keys(man)) if (found.has(name)) donors.set(name, found.get(name));
   })();
   return loadPromise;
 }
