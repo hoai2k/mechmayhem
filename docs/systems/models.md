@@ -95,7 +95,7 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   not — they were two hand-written schedules once, which is two places to edit
   and one of them silently wrong the moment they disagree. Change a number there
   and the pose and the smoke move together; the clip's DURATION falls out of it
-  too (4.89s at the shipped values). A torch is also held DARK while that hand is throwing a jet (`Fighter.darkNozzles`
+  too. A torch is also held DARK while that hand is throwing a jet (`Fighter.darkNozzles`
   off the channel clip's side), because a pilot light sitting inside its own
   flamethrower stream reads as a bug. His LIGHT COMBO finisher also sets you
   alight: roster `light.comboStatus` is applied by the LAST blow of the string
