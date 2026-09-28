@@ -347,7 +347,10 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
   opacity: 0; transition: opacity .35s ease; pointer-events: none; user-select: none; }
 .pos-r .sd-pic, .pos-tr .sd-pic, .pos-br .sd-pic { left: 58%; }
 .sd-pic.in { opacity: 1; }
-.sd-pic.swap { animation: sdIn .32s cubic-bezier(.2,.8,.3,1); }
+.sd-pic.swap { animation: sdIn .32s cubic-bezier(.2,.8,.3,1); transition: none; }
+/* (the slide-in carries its own fade: an opacity TRANSITION started beside it
+   is still unfinished underneath when the animation is removed at its end, and
+   the robot blinked out for a frame on every new pick — setPic in menus/select.js) */
 .pos-r .sd-pic.swap, .pos-tr .sd-pic.swap, .pos-br .sd-pic.swap { animation-name: sdInR; }
 @keyframes sdIn { from { opacity: 0; transform: translateX(calc(-50% - 40px)); } }
 @keyframes sdInR { from { opacity: 0; transform: translateX(calc(-50% + 40px)); } }
