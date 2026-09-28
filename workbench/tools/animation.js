@@ -587,7 +587,7 @@ export async function runAnimationWorkbench(config, params) {
     color:#dfe8f5;background:rgba(16,20,28,0.93);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:270px;max-height:95vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
-  const panelUI = setupDevPanel(panel, { key: 'models', workbench: 'models' });
+  const panelUI = setupDevPanel(panel, { key: 'models', workbench: 'animation' });
 
   const mechLabel = label('Mech');
   panel.appendChild(mechLabel);

@@ -882,7 +882,7 @@ export async function runRigWorkbench(config, params) {
     padding:10px;width:260px;max-height:96vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
   setupDevPanel(panel, {
-    key: 'rigedit', workbench: 'rigedit', subtitle: id,
+    key: 'rigedit', workbench: 'rig', subtitle: id,
   });
   // Mech picker, like every other workbench. This editor builds its whole
   // world (raw GLB, skeleton, re-skin, undo stack) around one id at start-up,
