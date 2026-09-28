@@ -50,7 +50,10 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   old picture kept up until the new one CROSSFADES in — nothing moves; only a
   different ROBOT slides in, and that slide is a one-shot class removed on
   `animationend`, because left on it replayed whenever another animation on
-  the picture ended and made a repaint look like a new arrival). While the
+  the picture ended and made a repaint look like a new arrival — and it runs
+  with the opacity TRANSITION off, since one started beside it was still
+  unfinished underneath when the class came off, and every new pick blinked
+  out for a frame at the end of its slide). While the
   photo is being taken, and on through the fade, the side is SPRAY-PAINTED in
   the new colour (`PaintSpray`: cone bursts of droplets from nozzles round the
   body plus glints on it, one 2D canvas per side). Taken through the
