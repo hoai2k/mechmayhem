@@ -313,7 +313,7 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
     radial-gradient(ellipse at 50% 100%, rgba(56,232,255,.08), transparent 60%); }
 
 .sel-side { position: absolute; overflow: hidden; cursor: pointer; --g: #3a4a5e; --pc: #38e8ff;
-  --pic-h: 92%; --pic-cy: 40%; --pic-top: 2%;
+  --pic-h: 92%; --pic-cy: 50%;
   /* the glow EASES between robots (a registered colour, below) — the wash and
      the robot's own glow are gradients and filters built on it, which cannot
      transition themselves */
@@ -353,12 +353,12 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
    of the side the band does not cut away */
 /* HEIGHT IS THE MECH'S OWN: --k is his poster box over PIC_REF (menus/select.js
    picScale), so the pictures stand in the proportion they fight in. PLACEMENT
-   favours the TOP: the lower part of a side carries the name, stats and moves,
-   so a robot shorter than the band is centred at --pic-cy rather than stood on
-   the bottom edge, and a tall one is held --pic-top below the top and runs its
-   feet under the text. Width is free to overflow; the side clips it. */
+   is the MIDDLE: every robot is centred on --pic-cy, so a small one sits in the
+   open part of the side rather than under the name and stats, a tall one
+   reaches further both ways, and the height difference reads at a glance.
+   Width and height are free to overflow; the side clips. */
 .sd-pic { position: absolute; --k: .9; height: calc(var(--k) * var(--pic-h));
-  top: max(var(--pic-top), calc(var(--pic-cy) - var(--k) * var(--pic-h) / 2));
+  top: calc(var(--pic-cy) - var(--k) * var(--pic-h) / 2);
   max-width: none; object-fit: contain;
   object-position: bottom; left: 44%; transform: translateX(-50%);
   filter: drop-shadow(0 0 34px color-mix(in srgb, var(--g) 55%, transparent));
@@ -377,7 +377,7 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 .sd-pic.xfade { transition: opacity .6s ease; }
 /* the spray-paint canvas over the robot while it is being repainted */
 .sd-spray { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
-.sel-screen.quad .sel-side { --pic-h: 88%; --pic-cy: 42%; }
+.sel-screen.quad .sel-side { --pic-h: 88%; }
 /* RANDOM: no body, a big glowing question mark where it would stand */
 .sd-q { position: absolute; top: 12%; bottom: 22%; left: 0; right: 0; display: none; place-items: center;
   font: 700 min(38vh, 22vw)/1 var(--font-display); color: var(--g); opacity: .5;
@@ -427,7 +427,7 @@ body.touch-mode, body.touch-mode #app, body.touch-mode #game-canvas, body.touch-
 .sel-screen.quad .sd-info { bottom: 2.4vh; }
 /* a strip is a third or a quarter of the screen tall: name, tag and paint
    only — the robot's stats and moves are one step away on the grid */
-.sel-screen.rows .sel-side { --pic-h: 100%; --pic-cy: 46%; --pic-top: 0%; }
+.sel-screen.rows .sel-side { --pic-h: 100%; }
 .sel-screen.rows .sd-tag { top: 1vh; padding: 4px 9px; font-size: clamp(9px, .75vw, 12px); }
 .sel-screen.rows .sel-side.pos-r[data-row="0"] .sd-tag { top: 7.5vh; }
 .sel-screen.rows .sd-title, .sel-screen.rows .sd-stats, .sel-screen.rows .sd-moves { display: none; }

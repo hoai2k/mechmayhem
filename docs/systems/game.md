@@ -57,9 +57,13 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   every poster comes through the same camera at the same distance, so its box
   height (posters.json) sets the picture's height (`picScale`, `--k`) and
   colossus stands over saurion as he does in a fight, tritone as tall as his
-  box rather than shrunk to fit his length; a robot shorter than the band sits
-  toward the TOP (the lower part of the side is text) and a tall one runs its
-  feet under the text — overflow is allowed, the side clips. THE SIDE'S GLOW
+  box rather than shrunk to fit his length; every robot is CENTRED on the
+  middle of its side, so the height difference reads at a glance and a small
+  one sits in the open rather than under the name — overflow is allowed, the
+  side clips. It is the GAME's scale, deliberately: measured in a live fight,
+  colossus stands 7.24 to titanus' 7.50 (head joint 6.76 / 6.96), so they
+  read as the same size here because they ARE — make him bigger in the roster
+  (`body.scale`), never in the menu. THE SIDE'S GLOW
   (`--g`) belongs to the robot ON SCREEN: it changes when the picture does, not
   when the cursor moves (the old robot used to stand in the new one's colours
   until a first-visit poster arrived), and it EASES, being a registered
