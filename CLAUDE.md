@@ -1182,7 +1182,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   top within a step of his feet (`groundSupport`, and a top only counts if the
   space above it is clear, or every chunk of a facade reads as a storey he
   could stand on)? And IS STANDING ON IT GETTING HIM ANYWHERE — measured as
-  how much of the movement he asked for he actually got (`_climbBlocked`).
+  how much of the movement he asked for he actually got (`climbState.blocked`).
   With a floor under him he stays UPRIGHT and simply rises and falls over the
   thing, which is the scramble; he commits to a new plane only when he has
   NOWHERE TO GO BUT UP. That commitment is a LATCH, not a comparison: reading
@@ -1195,7 +1195,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   average. A body held out of geometry touches a wall at a full radius, where
   a distance-weighted average still favours the floor at his feet (measured:
   0.83 up while pressed against a facade — a 34° plane nobody can climb), so
-  the normal comes off the shove that pushed him back (`_climbBlockN`).
+  the normal comes off the shove that pushed him back (`climbState.blockN`).
   POSTURE AND DIRECTION ARE SEPARATE (roster `climb.upright`, 0..1). JERRY (0)
   becomes part of the wall — his up IS the face's normal, so he walks it like
   ground and points head-down coming back. KONGA (0.82) commits DIRECTIONALLY
@@ -1225,7 +1225,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   of everything for `TUNING.climb.holdGrace` simply LETS GO, because falling is
   honest and hovering never is. Hanging off a single grip counts, which is the
   whole point of an ape. THE NUMBER IS MEASURED BOTH WAYS (`bodyClearance`,
-  reported as `f._climbClear`): climbing a facade konga's shell sits 0.005 of
+  reported as `f.climbState.clear`): climbing a facade konga's shell sits 0.005 of
   body height off the face and the two moments that legitimately break contact
   — hauling over a roof lip, and the frame between letting go of one grip and
   taking the next — peak at 0.09 for at most 0.18s; the hover beside a GEAR sat
@@ -1317,7 +1317,7 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   THE WAY OFF IS THE JUMP. A direction held is a real leap that way
   (`leapMult`/`leapRise`, with a `leapOut` floor of outward speed so a stick
   aimed back into the face still clears it); nothing held is a plain LET GO —
-  no push, no arc, straight down like any other mech, with `_climbRelease`
+  no push, no arc, straight down like any other mech, with `climbState.release`
   stopping the face he is sliding past from catching him again (it expires on
   landing or in open air, never on the jump button, which fires in the same
   frame that sets it).

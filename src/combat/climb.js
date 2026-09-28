@@ -451,7 +451,7 @@ function pushBodyOut(f, up) {
   if (_blockN.lengthSq() > 1e-8) {
     _blockN.normalize();
     if (Math.abs(_blockN.y) < 0.7) {
-      const w = f._climbBlockN || (f._climbBlockN = new THREE.Vector3(0, 1, 0));
+      const w = f.climbState.blockN || (f.climbState.blockN = new THREE.Vector3(0, 1, 0));
       w.lerp(_blockN, 0.35).normalize();
     }
   }
@@ -523,14 +523,55 @@ function orthonormalize(up, fwd) {
   fwd.normalize();
 }
 
+// ALL OF THE WALKER'S STATE, in one object on the fighter (`f.climbState`),
+// so there is one place to see it and one call that clears it. It used to be
+// eighteen `_climb*` fields scattered over the Fighter, of which the round
+// reset cleared six — a latch, a blockage or a float timer could ride from
+// one round (or one brawl respawn) into the next. `f.climb` stays outside it:
+// it is the public "surfaced this frame" flag the rest of the game reads.
+export function newClimbState() {
+  return {
+    up: null, fwd: null,   // his own up (the field's damped normal) and his travel along it —
+                           // built on a climber's first step, so a non-climber has none
+    tilt: 0,               // 0 = standing on the flat, 1 = fully on a wall
+    tiltOn: false,         // the body frame is currently tipped off world up
+    cd: 0,                 // short re-grab cooldown after leaving a surface
+    release: false,        // let go on purpose: fall past faces, don't grab
+    commit: false,         // latched onto a new plane (see IS STANDING ON IT GETTING HIM ANYWHERE)
+    blocked: 0,            // damped share of the asked-for movement he did NOT get
+    blockN: null,          // the normal of the thing that stopped him
+    n: null,               // the field normal, pre-filtered
+    speed: 0,              // surfaced travel speed (the animator's gait reads it)
+    idle: undefined,       // damped 0..1 "holding still on this surface" (undefined = snap on first read)
+    float: 0,              // seconds clear of everything (NOTHING TO HOLD IS NOT A PLACE TO BE)
+    support: null, standing: false, grip: false, tipClear: 0, clear: 0,   // probe hooks
+    mv: null,              // scratch: the stick mapped through the surface
+    steps: null,           // the spider stepper's per-limb state
+    stepAct: undefined,    // damped 0..1 "the stepper owns the limbs"
+  };
+}
+
+// A round start (or a brawl respawn): off the wall and a clean slate. The up
+// and travel vectors are REUSED, re-aimed at the new round's facing, so the
+// climb camera's seed matches where he stands.
+export function resetClimb(f, yaw) {
+  const old = f.climbState;
+  f.climb = false;
+  f.climbState = newClimbState();
+  if (old?.up) {
+    f.climbState.up = old.up.set(0, 1, 0);
+    f.climbState.fwd = old.fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+  }
+}
+
 export function climbStep(f, dt, mv) {
   if (!f.def.climb) return false;
-  if (f._climbCd > 0) f._climbCd = Math.max(0, f._climbCd - dt);
-  if (!f.climbUp) {
-    f.climbUp = new THREE.Vector3(0, 1, 0);
-    f.climbFwd = new THREE.Vector3(0, 0, 1);
+  if (f.climbState.cd > 0) f.climbState.cd = Math.max(0, f.climbState.cd - dt);
+  if (!f.climbState.up) {
+    f.climbState.up = new THREE.Vector3(0, 1, 0);
+    f.climbState.fwd = new THREE.Vector3(0, 0, 1);
   }
-  const up = f.climbUp, fwd = f.climbFwd;
+  const up = f.climbState.up, fwd = f.climbState.fwd;
   const D = f.def.climb;
   // THE FIELD MUST REACH PAST HIS OWN SHELL. `reach` is authored as a
   // fraction of body height, and on a broad mech that can be less than the
@@ -565,7 +606,7 @@ export function climbStep(f, dt, mv) {
   // steers at an enemy on the ground, so a CPU that went up would climb
   // whatever it walked into and then sit forty units up pressing forward at a
   // rooftop. (Drop this the day the AI can want height.)
-  const may = !f.isAI && bodyFree(f) && !f._climbRelease && f._climbCd <= 0;
+  const may = !f.isAI && bodyFree(f) && !f.climbState.release && f.climbState.cd <= 0;
   // THE SAMPLE RIDES THE SURFACE, NOT THE POSTURE. It used to be offset along
   // the BODY's up, which was the same thing back when the body always lay down
   // on whatever it was holding. It is not the same thing once a mech is
@@ -576,7 +617,7 @@ export function climbStep(f, dt, mv) {
   // both hands planted, going nowhere. Offsetting along the last known SURFACE
   // normal keeps that feedback exactly as it was for jerry (whose posture and
   // surface agree) and gives it back to anyone who holds themselves upright.
-  const smp = f._climbN || up;
+  const smp = f.climbState.n || up;
   _p.copy(f.pos).addScaledVector(smp, stand);
   const fld = may ? fieldAt(f, _p.x, _p.y, _p.z, range) : null;
 
@@ -601,12 +642,12 @@ export function climbStep(f, dt, mv) {
     // ease the frame back to standing, and keep the heading live underneath so
     // the next surface picks the body up exactly where it already is
     const k = 1 - Math.exp(-C.tiltRate * dt);
-    f._climbN?.lerp(UP, k).normalize();
+    f.climbState.n?.lerp(UP, k).normalize();
     up.lerp(UP, k).normalize();
     _want.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
     fwd.lerp(_want, k);
     orthonormalize(up, fwd);
-    f._climbTilt = clamp01((1 - up.y) / C.tiltFull);
+    f.climbState.tilt = clamp01((1 - up.y) / C.tiltFull);
     return false;
   }
 
@@ -618,9 +659,9 @@ export function climbStep(f, dt, mv) {
   // pre-filter (`normRate`) takes the hop out of the SIGNAL and everything
   // downstream follows the filtered version. Two stages of smoothing is what
   // turns a seam crossing from a flicker into a lean.
-  const nS = f._climbN || (f._climbN = new THREE.Vector3(0, 1, 0));
+  const nS = f.climbState.n || (f.climbState.n = new THREE.Vector3(0, 1, 0));
   // ...and when he is up against something, THAT is the plane, not the
-  // average. `_climbBlockN` is the normal of whatever the body was last
+  // average. `climbState.blockN` is the normal of whatever the body was last
   // pushed out of (pushBodyOut); a body that cannot sink into a wall barely
   // registers it in a distance-weighted average, but it is unmistakable in
   // the shove. Blended in by how blocked he is, so a mech merely brushing
@@ -628,7 +669,7 @@ export function climbStep(f, dt, mv) {
   // the facade.
   // (reads the latch from LAST frame — it is decided below, once the support
   // probe has run, and a frame of lag on a damped normal is invisible)
-  _tgt.copy(f._climbCommit && f._climbBlockN ? f._climbBlockN : fld.n);
+  _tgt.copy(f.climbState.commit && f.climbState.blockN ? f.climbState.blockN : fld.n);
   nS.lerp(_tgt, 1 - Math.exp(-C.normRate * dt)).normalize();
 
   // ---- 1b. WHAT HE STANDS ON vs WHAT HE HANGS OFF, which are not the same
@@ -653,7 +694,7 @@ export function climbStep(f, dt, mv) {
   // eases, which reads as the body flickering between upright and tilted for
   // the whole bottom of the climb (measured: up.y bouncing 0.86/0.63/0.85/0.48
   // over two seconds).
-  const wasStanding = f._climbStanding !== false;
+  const wasStanding = f.climbState.standing !== false;
   const support = groundSupport(f, f.radius * 1.15, stepUp,
     wasStanding ? stepDown : f.height * 0.2, f.radius * 0.6);
   // ...AND WHETHER STANDING ON IT IS STILL GETTING HIM ANYWHERE. Ground under
@@ -663,7 +704,7 @@ export function climbStep(f, dt, mv) {
   // the facade walking on the spot forever. The other half of the rule is the
   // one the design states out loud — he reorients when he has NOWHERE TO GO
   // BUT UP — so it is measured as exactly that: how much of the movement he
-  // asked for he is actually getting (`_climbBlocked`, updated at the end of
+  // asked for he is actually getting (`climbState.blocked`, updated at the end of
   // this function). Walk at a crate and he steps onto it, never blocked, never
   // tilts. Walk at a wall and progress goes to zero, and the wall becomes the
   // thing he is standing on.
@@ -683,13 +724,13 @@ export function climbStep(f, dt, mv) {
   // So he COMMITS when he has nowhere to go but up, and stays committed until
   // there is somewhere to stand again — which is the top of the climb, a
   // terrace, or the ground when he comes back down.
-  const blocked = f._climbBlocked || 0;
-  if (!f._climbCommit && blocked > 0.55) f._climbCommit = true;
-  if (f._climbCommit && support !== null && blocked < 0.3) f._climbCommit = false;
-  const committed = !!f._climbCommit;
+  const blocked = f.climbState.blocked || 0;
+  if (!f.climbState.commit && blocked > 0.55) f.climbState.commit = true;
+  if (f.climbState.commit && support !== null && blocked < 0.3) f.climbState.commit = false;
+  const committed = !!f.climbState.commit;
   const standing = support !== null && !committed;
-  f._climbStanding = standing;
-  f._climbSupport = standing ? support : null;   // probe hook (tools/climbprobe.mjs)
+  f.climbState.standing = standing;
+  f.climbState.support = standing ? support : null;   // probe hook (tools/climbprobe.mjs)
 
   // ...and HOW UPRIGHT HE INSISTS ON BEING even when there is nothing to
   // stand on (roster `climb.upright`, 0..1). This is the difference between
@@ -731,7 +772,7 @@ export function climbStep(f, dt, mv) {
   const speed = f.moveSpeed() * f.speedMult() * D.speed * steady *
     (f.blocking ? TUNING.movement.blockMoveMult : 1);
   if (_dir.lengthSq() > 1e-8) _dir.setLength(drive * speed);
-  f._climbSpeed = drive * speed;
+  f.climbState.speed = drive * speed;
   _pre.copy(f.pos);                 // where he was, for the progress test below
   f.pos.addScaledVector(_dir, dt);
   f.vel.copy(_dir);
@@ -810,25 +851,25 @@ export function climbStep(f, dt, mv) {
   // body is TOUCHING something — its own shell against a surface, or a hand or
   // foot planted on one. Hanging off a single grip counts, which is the whole
   // point of an ape. Clear of everything for `holdGrace`, and he simply lets
-  // go: falling is honest, hovering never is. `_climbRelease` goes with it so
+  // go: falling is honest, hovering never is. `climbState.release` goes with it so
   // the thing he could not hold does not catch him again on the way down.
-  const gripped = !!f._steps?.some((s) => s.has && !s.air && s.sw < 0);
+  const gripped = !!f.climbState.steps?.some((s) => s.has && !s.air && s.sw < 0);
   // reported on the fighter so a probe can read the same numbers the rule does
-  f._climbGrip = gripped;
-  f._climbTipClear = limbClearance(f);
-  f._climbClear = bodyClearance(f, up);
+  f.climbState.grip = gripped;
+  f.climbState.tipClear = limbClearance(f);
+  f.climbState.clear = bodyClearance(f, up);
   const touching = gripped
-    || f._climbTipClear <= C.holdTip * f.height
-    || f._climbClear <= C.holdClear * f.height;
+    || f.climbState.tipClear <= C.holdTip * f.height
+    || f.climbState.clear <= C.holdClear * f.height;
   if (!touching) {
-    f._climbFloat = (f._climbFloat || 0) + dt;
-    if (f._climbFloat > C.holdGrace) {
-      f._climbFloat = 0;
+    f.climbState.float = (f.climbState.float || 0) + dt;
+    if (f.climbState.float > C.holdGrace) {
+      f.climbState.float = 0;
       release(f, false);
-      f._climbRelease = true;
+      f.climbState.release = true;
       return false;
     }
-  } else f._climbFloat = 0;
+  } else f.climbState.float = 0;
 
   // ---- 3c. HOW MUCH OF THAT ACTUALLY HAPPENED. The intended step was
   // `_dir * dt`; what he got is whatever survived the surface pull, the
@@ -838,19 +879,19 @@ export function climbStep(f, dt, mv) {
   // blocked, he is parked.
   if (drive > 0.3) {
     _want.copy(f.pos).sub(_pre);
-    const intended = f._climbSpeed * dt;
+    const intended = f.climbState.speed * dt;
     const got = intended > 1e-6 ? clamp01(_want.dot(_dir) / (intended * (_dir.length() || 1))) : 1;
-    f._climbBlocked = (f._climbBlocked || 0) + ((1 - got) - (f._climbBlocked || 0)) *
+    f.climbState.blocked = (f.climbState.blocked || 0) + ((1 - got) - (f.climbState.blocked || 0)) *
       (1 - Math.exp(-6 * dt));
   }
 
   // facing: the way he is going, damped exactly like a turn on the ground
-  if (f._climbSpeed > 0.4) {
+  if (f.climbState.speed > 0.4) {
     _want.copy(_dir).normalize();
     fwd.lerp(_want, 1 - Math.exp(-C.faceRate * dt));
   }
   orthonormalize(up, fwd);
-  f._climbTilt = tilt;
+  f.climbState.tilt = tilt;
 
   // ---- IDLE: is he holding still on this surface? Poses hang off this, and
   // it is a DAMPED fraction rather than a boolean, because the difference
@@ -858,8 +899,8 @@ export function climbStep(f, dt, mv) {
   // the stick, so easing off the pad is what relaxes him and the first push
   // takes it back — nothing waits on the body actually stopping.
   const idleWant = drive > 0.15 ? 0 : 1;
-  f._climbIdle = f._climbIdle === undefined ? idleWant
-    : f._climbIdle + (idleWant - f._climbIdle) * (1 - Math.exp(-C.idleRate * dt));
+  f.climbState.idle = f.climbState.idle === undefined ? idleWant
+    : f.climbState.idle + (idleWant - f.climbState.idle) * (1 - Math.exp(-C.idleRate * dt));
 
   f.grounded = false;
   f.hovering = false;
@@ -871,10 +912,10 @@ export function climbStep(f, dt, mv) {
 // asks for it.
 function release(f, cooldown) {
   f.climb = false;
-  f._climbCommit = false;
-  f._climbBlocked = 0;
-  f._climbSpeed = 0;
-  if (cooldown) f._climbCd = 0.25;
+  f.climbState.commit = false;
+  f.climbState.blocked = 0;
+  f.climbState.speed = 0;
+  if (cooldown) f.climbState.cd = 0.25;
   f.grounded = false;
 }
 
@@ -882,15 +923,15 @@ function release(f, cooldown) {
 //   DIRECTION HELD — a real leap THAT WAY, with enough of the surface normal
 //     folded in that a stick aimed back into the face still clears it.
 //   NOTHING HELD  — he simply LETS GO: no push, no arc, straight down like any
-//     other mech falling off anything. `_climbRelease` keeps the surface he is
+//     other mech falling off anything. `climbState.release` keeps the surface he is
 //     sliding past from catching him again on the way down.
 function wallJump(f) {
-  const up = f.climbUp;
+  const up = f.climbState.up;
   const mv = f.intent;                        // the RAW stick: a rooted state
   const len = Math.hypot(mv.moveX, mv.moveZ); // zeroes the movement input
   release(f, true);
   if (len < 0.3) {
-    f._climbRelease = true;
+    f.climbState.release = true;
     f.vel.set(0, 0, 0);
     return;
   }
@@ -921,11 +962,11 @@ export function climbPhysics(f) {
 // expires on landing, or the moment he is clear of everything. (Never on the
 // jump button: that fires in the same frame that sets it.)
 export function climbReleaseTick(f) {
-  if (!f._climbRelease) return;
-  if (f.grounded) { f._climbRelease = false; return; }
+  if (!f.climbState.release) return;
+  if (f.grounded) { f.climbState.release = false; return; }
   const range = f.def.climb.reach * f.height;
   if (nearestSurface(f, f.pos.x, f.pos.y + f.height * 0.06, f.pos.z, range) === Infinity) {
-    f._climbRelease = false;
+    f.climbState.release = false;
   }
 }
 
@@ -936,15 +977,15 @@ export function climbReleaseTick(f) {
 // body has actually tilted, and hands it back squared off.
 // ===========================================================================
 export function applyClimbOrientation(f) {
-  const up = f.climbUp;
+  const up = f.climbState.up;
   if (!up) return;
-  if (!(f._climbTilt > 0.004)) {
-    if (f._climbTiltOn) { f._climbTiltOn = false; f.group.rotation.set(0, f.yaw, 0); }
+  if (!(f.climbState.tilt > 0.004)) {
+    if (f.climbState.tiltOn) { f.climbState.tiltOn = false; f.group.rotation.set(0, f.yaw, 0); }
     return;
   }
-  f._climbTiltOn = true;
+  f.climbState.tiltOn = true;
   _by.copy(up);
-  _bz.copy(f.climbFwd);
+  _bz.copy(f.climbState.fwd);
   _bx.crossVectors(_by, _bz).normalize();      // x = right, y = up, z = forward
   _bz.crossVectors(_bx, _by).normalize();
   _mtx.makeBasis(_bx, _by, _bz);
@@ -964,16 +1005,16 @@ export function applyClimbOrientation(f) {
 //   `idlePose` is a second pose faded IN instead, which is how KONGA hangs:
 //     resting is not the absence of climbing for an ape, it is one arm
 //     straight overhead with his weight under it.
-// Both ride `_climbIdle`, so easing off the stick settles him and the first
+// Both ride `climbState.idle`, so easing off the stick settles him and the first
 // push takes it straight back.
 export function applyClimbPose(f) {
   const D = f.def.climb;
   const pose = D?.pose;
-  const tilt = f._climbTilt || 0;
+  const tilt = f.climbState.tilt || 0;
   if (!D || tilt < 0.01) return;
   const J = f.mech.joints;
   const s = f.mech.dims?.scale || 1;
-  const idle = clamp01(f._climbIdle || 0);
+  const idle = clamp01(f.climbState.idle || 0);
   const add = (block, k) => {
     if (!block || k < 0.005) return;
     for (const [name, v] of Object.entries(block)) {
@@ -1143,12 +1184,12 @@ export function conformClimbLimbs(f, dt) {
     !f.isAI && f.lockTarget?.alive && groundSpd > 2 &&
     Math.abs(angleDiff(f.yaw, Math.atan2(f.vel.x, f.vel.z))) > C.scuttleDrift;
   const want = (f.climb || scuttle) ? 1 : 0;
-  f._stepAct = f._stepAct === undefined ? 0
-    : f._stepAct + (want - f._stepAct) * (1 - Math.exp(-S.rate * dt));
-  if (f._stepAct < 0.02) { f._steps = null; return; }
-  const act = f._stepAct;
+  f.climbState.stepAct = f.climbState.stepAct === undefined ? 0
+    : f.climbState.stepAct + (want - f.climbState.stepAct) * (1 - Math.exp(-S.rate * dt));
+  if (f.climbState.stepAct < 0.02) { f.climbState.steps = null; return; }
+  const act = f.climbState.stepAct;
 
-  const st = f._steps || (f._steps = LIMBS.map(() => ({
+  const st = f.climbState.steps || (f.climbState.steps = LIMBS.map(() => ({
     plant: new THREE.Vector3(), has: false, n: new THREE.Vector3(0, 1, 0),
     sw: -1, from: new THREE.Vector3(), to: new THREE.Vector3(), tn: new THREE.Vector3(0, 1, 0),
     air: true,
@@ -1165,10 +1206,10 @@ export function conformClimbLimbs(f, dt) {
   const bones = mech.boneMap || null;
   const node = (n) => (bones && bones[n]) || mech.joints?.[n] || null;
   f.group.updateWorldMatrix(true, true);
-  const up = f.climbUp || UP;
+  const up = f.climbState.up || UP;
   // WHICH WAY HE IS GOING, in the body's own frame — up the face when he is
   // climbing one. The ape's hands are thrown out along it (see APE.ahead).
-  const fwd = f.climbFwd || _fwdFallback.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
+  const fwd = f.climbState.fwd || _fwdFallback.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
   const sole = f.animator?.footDepth || 0.32 * f.scale;
 
   // WHO WAITS FOR WHOM. The spider gates on diagonal PAIRS (a trot); the ape

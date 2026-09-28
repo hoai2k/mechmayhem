@@ -49,8 +49,8 @@ async function shoot(name, cond, waitMs = 90000) {
       const f = window.__fighters[0];
       f.intent.moveZ = 1; f.intent.moveX = 0; f.intent.jump = false;
       return new Function('f', `return (${c});`)(f)
-        ? { hit: true, y: +f.pos.y.toFixed(1), tilt: +(f._climbTilt || 0).toFixed(2) }
-        : { hit: false, y: +f.pos.y.toFixed(1), tilt: +(f._climbTilt || 0).toFixed(2) };
+        ? { hit: true, y: +f.pos.y.toFixed(1), tilt: +(f.climbState.tilt || 0).toFixed(2) }
+        : { hit: false, y: +f.pos.y.toFixed(1), tilt: +(f.climbState.tilt || 0).toFixed(2) };
     }, cond);
     if (state.hit) break;
     await page.waitForTimeout(250);
@@ -64,8 +64,8 @@ async function shoot(name, cond, waitMs = 90000) {
 // climb.upright (konga) climbs a facade standing vertically and hanging off
 // his hands, so a tilt test waits forever on him; height off the deck is what
 // both kinds of climber have in common.
-await shoot('wall', 'f.climb && (f._climbTilt > 0.9 || f.pos.y > 8)');
-await shoot('lip', 'f.climb && f._climbTilt > 0.25 && f._climbTilt < 0.8 && f.pos.y > 8');
+await shoot('wall', 'f.climb && (f.climbState.tilt > 0.9 || f.pos.y > 8)');
+await shoot('lip', 'f.climb && f.climbState.tilt > 0.25 && f.climbState.tilt < 0.8 && f.pos.y > 8');
 
 if (errors.length) console.log('PAGE ERRORS:\n' + errors.join('\n'));
 await browser.close();

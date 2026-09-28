@@ -13,7 +13,7 @@ import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
   climbStep, climbPhysics, climbReleaseTick, applyClimbOrientation, applyClimbPose,
-  conformClimbLimbs,
+  conformClimbLimbs, newClimbState, resetClimb,
 } from './climb.js';
 import { aimCannons, cannonRecoil, hasCannons, ON_TARGET } from './cannonaim.js';
 import { floorGuard, clearFloorGuard } from './floorguard.js';
@@ -320,11 +320,7 @@ export class Fighter {
     // `climb` block. He walks on the world rather than the floor: up facades,
     // over lips, across roofs, over the crates on the way.
     this.climb = false;       // the walker owns movement this frame
-    this.climbUp = null;      // his own up — the field's average normal, damped
-    this.climbFwd = null;     // ...and the direction he is travelling along it
-    this._climbTilt = 0;      // 0 = standing on the flat, 1 = fully on a wall
-    this._climbCd = 0;        // short re-grab cooldown after leaving a surface
-    this._climbRelease = false; // let go on purpose: fall past faces, don't grab
+    this.climbState = newClimbState();   // everything else the walker keeps
 
     // resources
     this.maxHp = def.stats.hp;
@@ -3511,7 +3507,7 @@ export class Fighter {
     // to applyPhysics, so every ordinary behaviour is untouched.
     let climbing = false;
     if (this.def.climb) {
-      const mv = this._climbMv || (this._climbMv = { x: 0, z: 0 });
+      const mv = this.climbState.mv || (this.climbState.mv = { x: 0, z: 0 });
       mv.x = ax; mv.z = az;
       climbing = climbStep(this, dt, mv);
     }
@@ -3555,7 +3551,7 @@ export class Fighter {
       // onto the surface (climb.js), so the ordinary walk cycle running in that
       // frame is the climb. Nothing else in the animator knows a wall from a
       // floor.
-      speed: this.climb ? this._climbSpeed || 0
+      speed: this.climb ? this.climbState.speed || 0
         : canMove || this._charging ? spd : proneScuttle,
       maxSpeed: maxSpd,
       // WHICH WAY HE IS ACTUALLY GOING, as an angle off his facing. In target
@@ -3702,7 +3698,7 @@ export class Fighter {
     // Re-sync once so post-pose joint motion lands on the skin too.
     // ---- the climbing carriage, before that re-sync (it is a POSE, so it goes
     // on the virtual joints and rides the retarget like any other) ----
-    if (this._climbTilt > 0.01) applyClimbPose(this);
+    if (this.climbState.tilt > 0.01) applyClimbPose(this);
     if (this.mech.isGLB) this.mech.postAnimate?.();
     this.footstepSfx(dt);
     // ---- POINT THE GUN AT WHAT HE IS SHOOTING AT (combat/gunaim.js) ----
@@ -5019,19 +5015,9 @@ export class Fighter {
     this._flipT = 0;
     this._rollUp = null;
     this.endAirRoll();     // a round never opens mid-somersault
-    this.climb = false;    // …nor halfway up a building
+    resetClimb(this, yaw); // …nor halfway up a building, or latched onto one
     this._voidFall = null; // …nor falling through the roof
     this._grip = 1; this._gravMul = 1; this._jumpMul = 1;
-    this._climbTilt = 0;
-    this._climbTiltOn = false;
-    this._climbCd = 0;
-    this._climbRelease = false;
-    this._climbSpeed = 0;
-    this.climbUp?.set(0, 1, 0);
-    this.climbFwd?.set(Math.sin(yaw), 0, Math.cos(yaw));
-    this._climbN?.set(0, 1, 0);
-    this._steps = null;    // every limb re-plants where the new round puts him
-    this._stepAct = 0;
     this.hovering = false;
     this.hoverFuel = this.hoverFuelMax;
     this.sprintEnergy = this.sprintEnergyMax;

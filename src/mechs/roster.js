@@ -831,7 +831,7 @@ export const ROSTER = [
       // RESTING IS NOT THE ABSENCE OF CLIMBING for an ape — it is a HANG.
       // The right arm goes straight overhead and the body drops under it,
       // knees folded and loose, which is what a gorilla does on a wall
-      // with nowhere to stand. Faded in by `_climbIdle`, on top of the
+      // with nowhere to stand. Faded in by `climbState.idle`, on top of the
       // climbing carriage rather than instead of it (idleRelax stays 0:
       // he never lets go of the wall to stand on nothing).
       idlePose: {

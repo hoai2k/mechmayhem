@@ -91,7 +91,7 @@ const setup = await page.evaluate(() => {
   // which is the same stack climb.js pushes out.
   window.__bodyDeep = (fighter) => {
     const w2 = window.__world;
-    const up = fighter.climbUp || { x: 0, y: 1, z: 0 };
+    const up = fighter.climbState.up || { x: 0, y: 1, z: 0 };
     const r = fighter.radius * 0.9;
     let worst = 0;
     for (const k of [0.22, 0.48, 0.74, 0.95]) {
@@ -138,7 +138,7 @@ async function run(script, frames, dist) {
         chargeDash: false, duck: false, taunt: false, lockOn: false,
       }, fn(t, f));
       w.update(1 / 60);
-      const up = f.climbUp || new V(0, 1, 0);
+      const up = f.climbState.up || new V(0, 1, 0);
       const dUp = Math.acos(Math.max(-1, Math.min(1, up.dot(prevUp)))) * 180 / Math.PI;
       // the toroidal wrap folds the body across the cell (a ~300-unit
       // coordinate change that is not motion at all) — never a discontinuity
@@ -165,7 +165,7 @@ async function run(script, frames, dist) {
         // stepper's own LIMBS order is ankleL/ankleR/handL/handR too from
         // index 0,1,2,3
         const limb = (j) => {
-          const st = f._steps?.[j];
+          const st = f.climbState.steps?.[j];
           if (!st) return '-';
           return st.air ? 'A' : st.sw >= 0 ? 'S' : 'P';
         };
@@ -174,7 +174,7 @@ async function run(script, frames, dist) {
         // plants read ~2-3; extended spider plants read ~4-6)
         let spr = 0, nspr = 0;
         for (const [ji, jn] of [[0, 'ankleL'], [1, 'ankleR'], [2, 'handL'], [3, 'handR']]) {
-          if (f._steps?.[ji] && !f._steps[ji].air && f._steps[ji].sw < 0 && f._steps[ji].has) {
+          if (f.climbState.steps?.[ji] && !f.climbState.steps[ji].air && f.climbState.steps[ji].sw < 0 && f.climbState.steps[ji].has) {
             const j = (f.mech.boneMap && f.mech.boneMap[jn]) || f.mech.joints[jn];
             if (j) { spr += j.getWorldPosition(new V()).distanceTo(f.pos); nspr++; }
           }
@@ -182,14 +182,14 @@ async function run(script, frames, dist) {
         trace.push({
           t: +t.toFixed(2),
           y: +f.pos.y.toFixed(1), z: +f.pos.z.toFixed(1),
-          upY: +up.y.toFixed(2), tilt: +(f._climbTilt || 0).toFixed(2),
+          upY: +up.y.toFixed(2), tilt: +(f.climbState.tilt || 0).toFixed(2),
           on: f.climb ? 'surf' : (f.grounded ? 'grnd' : 'air '),
           limbs: limb(0) + limb(1) + limb(2) + limb(3),
           spr: nspr ? +(spr / nspr).toFixed(1) : 0,
           body: +window.__bodyDeep(f).toFixed(2),
-          sup: f._climbSupport === null || f._climbSupport === undefined ? '-' : +f._climbSupport.toFixed(1),
-          nY: f._climbN ? +f._climbN.y.toFixed(2) : 1,
-          blk: +(f._climbBlocked || 0).toFixed(2),
+          sup: f.climbState.support === null || f.climbState.support === undefined ? '-' : +f.climbState.support.toFixed(1),
+          nY: f.climbState.n ? +f.climbState.n.y.toFixed(2) : 1,
+          blk: +(f.climbState.blocked || 0).toFixed(2),
           tips: [tip('ankleL'), tip('ankleR'), tip('handL'), tip('handR')],
         });
       }
@@ -264,7 +264,7 @@ const split = await page.evaluate(async () => {
     w.update(1 / 60);
     if (i % 3 === 0) w.engine.step(1 / 60);   // …and DRAW, which is the point
   }
-  return { ok: true, y: +f.pos.y.toFixed(1), tilt: +(f._climbTilt || 0).toFixed(2),
+  return { ok: true, y: +f.pos.y.toFixed(1), tilt: +(f.climbState.tilt || 0).toFixed(2),
     climbing: !!f.climb };
 });
 console.log(`   drew split frames with him at y=${split.y} tilt=${split.tilt} ` +
