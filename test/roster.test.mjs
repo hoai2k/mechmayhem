@@ -27,8 +27,10 @@ const SPECIALS = handlerKeys('SPECIALS');
 const ULTS = handlerKeys('ULTS');
 const ids = ROSTER.map((d) => d.id);
 
-test('roster is 17 unique ids', () => {
-  assert.equal(ids.length, 17);
+// no head-count: adding or retiring a mech is not a test failure, and the
+// cross-references below are what a retirement actually breaks
+test('roster ids are unique', () => {
+  assert.ok(ids.length > 0);
   assert.equal(new Set(ids).size, ids.length);
 });
 

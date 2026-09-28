@@ -55,13 +55,14 @@ if (process.argv.includes('--list')) {
 // them; each is named here with the code that reads it, which is the only
 // honest way to keep the check strict about everything else.
 const INDIRECT = {
-  p1: 'dev/battletest.js  params.get("p" + i)',
-  p2: 'dev/battletest.js  params.get("p" + i)',
-  p3: 'dev/battletest.js  params.get("p" + i)',
-  p4: 'dev/battletest.js  params.get("p" + i)',
   throttle: 'main.js  forwarded to /workbench/ by the redirect loop',
   game: 'main.js  forwarded to /workbench/ by the redirect loop',
 };
+// one fighter slot per seat (core/colors.js MAX_FIGHTERS = 8)
+for (let i = 1; i <= 8; i++) {
+  INDIRECT[`p${i}`] = 'dev/battletest.js  params.get("p" + i)';
+  INDIRECT[`c${i}`] = 'dev/battletest.js  params.get("c" + (i + 1))';
+}
 for (const k of Object.keys(INDIRECT)) found.add(k);
 
 const missing = [...found].filter((k) => !listed.has(k)).sort();

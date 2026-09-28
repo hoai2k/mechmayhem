@@ -37,3 +37,6 @@ const result = await page.evaluate(() => {
 console.log(JSON.stringify(result, null, 1));
 if (errors.length) console.log('PAGE ERRORS:', errors.join('\n'));
 await browser.close();
+// a soak is a CHECK: a crash or an uncaught page error fails it, so it can gate
+// a script or CI rather than needing someone to read the JSON
+if (result.crash || errors.length) process.exit(1);
