@@ -17,6 +17,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { addGizmo } from '../ui/gizmo.js';
+import { createHistory } from '../ui/history.js';
 import { subjectSelect, gotoSubject } from '../ui/subjectpick.js';
 
 const VIEW = 10;                 // display scale for the small raw model
@@ -190,7 +191,6 @@ export async function runRigWorkbench(config, params) {
   let origMat = null, colorMat = null, colorOn = false;
   let swing = 0, swinging = false;
   let soloRoot = null;             // solo a bone's subtree (declutter the rest)
-  let undoStack = [], redoStack = [];
   let dragSnap = null;             // rig snapshot captured at gizmo drag-start
   let soloMove = false;            // move a joint WITHOUT dragging its subtree
   let rotMode = false;             // JOINT OFFSET mode: the gizmo rotates, and the
@@ -201,11 +201,8 @@ export async function runRigWorkbench(config, params) {
 
   // ---- undo/redo (snapshots of rigObj) ----
   const snapshotRig = () => JSON.parse(JSON.stringify(rigObj));
-  function pushUndo() {
-    undoStack.push(snapshotRig());
-    if (undoStack.length > 200) undoStack.shift();
-    redoStack.length = 0;
-  }
+  const hist = createHistory({ snapshot: snapshotRig, restore: (s) => restoreRig(s), cap: 200 });
+  const pushUndo = () => hist.record();
   function restoreRig(snap) {
     rigObj = snap;
     rebuild(true); buildBoneUI();
@@ -215,16 +212,8 @@ export async function runRigWorkbench(config, params) {
     updateSolo();
     saveDraft();
   }
-  function undo() {
-    if (!undoStack.length) return;
-    redoStack.push(snapshotRig());
-    restoreRig(undoStack.pop());
-  }
-  function redo() {
-    if (!redoStack.length) return;
-    undoStack.push(snapshotRig());
-    restoreRig(redoStack.pop());
-  }
+  const undo = () => hist.undo();
+  const redo = () => hist.redo();
 
   // ---- solo a bone's subtree (bone + all descendants) ----
   function subtreeSet(rootName) {
@@ -477,11 +466,7 @@ export async function runRigWorkbench(config, params) {
       syncRigFromBones();
       // record the pre-drag snapshot on the undo stack only if the drag actually
       // moved something
-      if (dragSnap && JSON.stringify(dragSnap) !== JSON.stringify(rigObj)) {
-        undoStack.push(dragSnap);
-        if (undoStack.length > 200) undoStack.shift();
-        redoStack.length = 0;
-      }
+      hist.recordIfChanged(dragSnap);
       dragSnap = null;
       setWeights(mesh, rigObj);   // reassign vertices to the nearest new bone
       rebindRest(mesh, bones);    // at the BIND pose — see above

@@ -105,6 +105,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { setupDevPanel } from '../ui/panel.js';
 import { addGizmo } from '../ui/gizmo.js';
 import { subjectSelect } from '../ui/subjectpick.js';
+import { createHistory } from '../ui/history.js';
 
 const R2D = 180 / Math.PI;
 // Joints whose clip value is read RELATIVE to the mech's rest stance (the
@@ -290,7 +291,7 @@ export async function runPoseWorkbench(config, params) {
       play: startPlay, pause: () => stopPlay(), togglePlay,
       get playing() { return playing; },
       // commit + pushHistory is what a gizmo release does, in that order
-      undo, redo, pushHistory, get history() { return { at: histIdx, len: histStack.length }; },
+      undo, redo, pushHistory, get history() { return { at: hist.index, len: hist.length }; },
       get key() {
         if (!editClip) return null;
         return {
@@ -869,7 +870,7 @@ export async function runPoseWorkbench(config, params) {
   // stack: the rigs differ, so a joint transform from before the switch means
   // nothing after it.
   const HIST_CAP = 150;
-  let histStack = [], histIdx = -1, restoring = false;
+  let restoring = false;
   function rawJoints() {
     const o = {};
     for (const j of JOINT_ORDER) {
@@ -902,18 +903,15 @@ export async function runPoseWorkbench(config, params) {
   // the DATA of a state — deliberately excludes keyIdx/scrubT, which are camera,
   // not content
   function histSig(s) { return JSON.stringify([s.clipName, s.loco, s.keys, s.joints]); }
+  // workbench/ui/history.js in its AFTER-EDIT form: each commit is the state a
+  // change arrived at, and one with the same content (histSig) only updates
+  // where we are parked
+  const hist = createHistory({
+    snapshot: histSnapshot, restore: (s) => restoreHistory(s), cap: HIST_CAP, sig: histSig,
+  });
   function pushHistory() {
     if (restoring || !mech) return;
-    const s = histSnapshot();
-    if (histIdx >= 0 && histSig(histStack[histIdx]) === histSig(s)) {
-      histStack[histIdx] = s;     // same content, just remember where we're parked
-      syncHistUI();
-      return;
-    }
-    histStack.length = histIdx + 1;   // a new change discards any redo tail
-    histStack.push(s);
-    if (histStack.length > HIST_CAP) histStack.shift();
-    histIdx = histStack.length - 1;
+    hist.commit();
     syncHistUI();
   }
   function restoreHistory(s) {
@@ -957,27 +955,23 @@ export async function runPoseWorkbench(config, params) {
     syncHistUI();
   }
   function undo() {
-    if (histIdx <= 0) { note.textContent = 'Nothing to undo'; return; }
-    histIdx--;
-    restoreHistory(histStack[histIdx]);
-    note.textContent = `Undo · step ${histIdx + 1}/${histStack.length}`;
+    if (!hist.undo()) { note.textContent = 'Nothing to undo'; return; }
+    note.textContent = `Undo · step ${hist.index + 1}/${hist.length}`;
   }
   function redo() {
-    if (histIdx >= histStack.length - 1) { note.textContent = 'Nothing to redo'; return; }
-    histIdx++;
-    restoreHistory(histStack[histIdx]);
-    note.textContent = `Redo · step ${histIdx + 1}/${histStack.length}`;
+    if (!hist.redo()) { note.textContent = 'Nothing to redo'; return; }
+    note.textContent = `Redo · step ${hist.index + 1}/${hist.length}`;
   }
-  function resetHistory() { histStack = []; histIdx = -1; }
+  function resetHistory() { hist.clear(); }
   function syncHistUI() {
-    const canU = histIdx > 0, canR = histIdx < histStack.length - 1;
+    const canU = hist.canUndo, canR = hist.canRedo;
     for (const [b, on] of [[undoBtn, canU], [redoBtn, canR]]) {
       b.disabled = !on;
       b.style.opacity = on ? '1' : '0.4';
       b.style.cursor = on ? 'pointer' : 'not-allowed';
     }
-    histNote.textContent = histStack.length > 1
-      ? `step ${histIdx + 1}/${histStack.length} · Ctrl/⌘+Z`
+    histNote.textContent = hist.length > 1
+      ? `step ${hist.index + 1}/${hist.length} · Ctrl/⌘+Z`
       : 'Ctrl/⌘+Z · Shift to redo';
   }
 

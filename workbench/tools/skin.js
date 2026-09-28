@@ -31,6 +31,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
+import { createHistory } from '../ui/history.js';
 import { prepareMesh, poseMatrices, skinVertices, edgeLengths, scoreEdge, DEFAULTS } from './stretchscan.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
@@ -127,7 +128,6 @@ export async function runSkinWorkbench(config, params) {
   // ---- bind-geometry panel: per-bone weights for the selected island ----
   let bindOpen = false;      // is the weight editor showing?
   // undo/redo of the ops list (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y)
-  let undoStack = [], redoStack = [];
   // ---- paint mode: split one island across two bones with a brush ----
   let paintMode = false;
   let paintPhase = 'off';    // off | pickBone | pickRegion | paint
@@ -226,27 +226,23 @@ export async function runSkinWorkbench(config, params) {
 
   // ---- undo/redo (snapshots of the ops list) ----
   const snapshotOps = () => ops.map((o) => JSON.parse(JSON.stringify(o)));
-  function pushUndo() {
-    undoStack.push(snapshotOps());
-    if (undoStack.length > 200) undoStack.shift();
-    redoStack.length = 0;
-  }
+  const hist = createHistory({
+    snapshot: snapshotOps,
+    restore: (snap) => {
+      ops = snap;
+      selComp = null; stopWiggle();
+      paintOp = null; paintSet = null;   // live paint op is now detached from ops
+      afterHistory();
+    },
+    cap: 200,
+  });
+  const pushUndo = () => hist.record();
   function undo() {
-    if (!undoStack.length) { setStatus('Nothing to undo.'); return; }
-    redoStack.push(snapshotOps());
-    ops = undoStack.pop();
-    selComp = null; stopWiggle();
-    paintOp = null; paintSet = null;   // live paint op is now detached from ops
-    afterHistory();
+    if (!hist.undo()) { setStatus('Nothing to undo.'); return; }
     setStatus(`Undo · ${ops.length} op(s).`);
   }
   function redo() {
-    if (!redoStack.length) { setStatus('Nothing to redo.'); return; }
-    undoStack.push(snapshotOps());
-    ops = redoStack.pop();
-    selComp = null; stopWiggle();
-    paintOp = null; paintSet = null;
-    afterHistory();
+    if (!hist.redo()) { setStatus('Nothing to redo.'); return; }
     setStatus(`Redo · ${ops.length} op(s).`);
   }
   // re-apply ops after an undo/redo — in paint mode, keep the paint view
@@ -269,7 +265,7 @@ export async function runSkinWorkbench(config, params) {
     } catch (_) { /* non-browser / opaque origin — URL sync is best-effort */ }
     if (holder) { scene.remove(holder); holder = null; }
     selComp = null; wiggle = null; wigglePaused = false; ops = []; colorAttr = null;
-    undoStack = []; redoStack = [];
+    hist.clear();
     animMech = null; animBones = null; jointOfBone = null;
     stretchPrep = null;
     selBone = null; clipOpts = []; clipRestore = null;   // preferredClip is sticky across mechs

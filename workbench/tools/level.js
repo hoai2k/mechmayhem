@@ -39,6 +39,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { addGizmo } from '../ui/gizmo.js';
+import { createHistory } from '../ui/history.js';
 
 const WRAP = 1.35;                 // arena wrapHalf = bounds * 1.35
 const LS_PREFIX = 'rw_level:';     // saved-slot keys
@@ -96,7 +97,12 @@ export async function runLevelWorkbench(config, params) {
   let selBar, arenaSel, seedRow;
   let inspFields = [];
 
-  const undoStack = [], redoStack = [];
+  // undo/redo: whole-level snapshots, serialized (a string is its own sig)
+  const hist = createHistory({
+    snapshot: () => serialize(),
+    restore: (snap) => loadLevelData(JSON.parse(snap), true),
+    cap: 120, sig: (snap) => snap,
+  });
 
   // effective play radius + wrap cell period (mirrors Arena math)
   const B = () => level.bounds;
@@ -671,7 +677,7 @@ export async function runLevelWorkbench(config, params) {
   // the user did not perform an edit, so there is nothing to undo afterwards.
   function cancelDrag() {
     dragSnapshot = null;
-    if (undoStack.length) loadLevelData(JSON.parse(undoStack.pop()), true);
+    hist.revert();
     setHint('Drag cancelled — the browser took the pointer.');
   }
   function clearMarquee() {
@@ -679,7 +685,7 @@ export async function runLevelWorkbench(config, params) {
   }
 
   function commitDrag() {
-    if (dragSnapshot) { undoStack.push(dragSnapshot); redoStack.length = 0; trimUndo(); dragSnapshot = null; }
+    if (dragSnapshot) { hist.recordIfChanged(dragSnapshot); dragSnapshot = null; }
     // ghosts are cheap clones but not free — resettle them once, at the end of
     // the drag, rather than on every pointermove
     for (const it of sel) if (!GLOBAL_KINDS.has(it.def.k)) rebuildGhosts(it);
@@ -931,14 +937,13 @@ export async function runLevelWorkbench(config, params) {
       spawns: items.filter((i) => i.def.k === 'spawn').map((i) => ({ x: i.def.x, z: i.def.z, yaw: i.def.yaw })),
     });
   }
-  function pushUndo() { undoStack.push(serialize()); trimUndo(); redoStack.length = 0; }
-  function trimUndo() { if (undoStack.length > 120) undoStack.shift(); }
-  function undo() { if (!undoStack.length) return setHint('Nothing to undo.'); redoStack.push(serialize()); loadLevelData(JSON.parse(undoStack.pop()), true); }
-  function redo() { if (!redoStack.length) return setHint('Nothing to redo.'); undoStack.push(serialize()); loadLevelData(JSON.parse(redoStack.pop()), true); }
+  function pushUndo() { hist.record(); }
+  function undo() { if (!hist.undo()) setHint('Nothing to undo.'); }
+  function redo() { if (!hist.redo()) setHint('Nothing to redo.'); }
 
   // full rebuild of the world from a level object
   function loadLevelData(data, keepUndo) {
-    if (!keepUndo) { undoStack.length = 0; redoStack.length = 0; }
+    if (!keepUndo) hist.clear();
     select([]);
     for (const it of [...items]) removeItem(it);
     items = []; spinners.length = 0;
