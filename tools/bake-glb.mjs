@@ -84,6 +84,7 @@ import { launch } from './lib/browser.mjs';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'node:url';
+import { formatManifest } from './manifestfmt.mjs';
 
 const PORT = process.env.PORT || '5175';
 const ROOT = process.cwd();
@@ -198,21 +199,13 @@ function cleanEntry(text, mechId, opts = {}) {
     if (boneName && boneName !== j) residual[j] = boneName;
   }
   if (Object.keys(residual).length) clean.boneOverrides = residual;
-  // locate the entry's line block and splice in the pretty-printed clean entry
-  const lines = text.split('\n');
-  const startIdx = lines.findIndex((l) => l.trimStart().startsWith(`"${mechId}":`));
-  if (startIdx < 0) throw new Error(`could not locate "${mechId}" block`);
-  let depth = 0, endIdx = -1;
-  for (let i = startIdx; i < lines.length; i++) {
-    depth += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
-    if (i > startIdx && depth === 0) { endIdx = i; break; }
-  }
-  const trailingComma = lines[endIdx].trimEnd().endsWith(',');
-  const body = JSON.stringify({ [mechId]: clean }, null, 2)
-    .split('\n').slice(1, -1)          // drop the outer { }
-    .map((l) => '  ' + l).join('\n');  // re-indent to top-level entry depth
-  const replaced = body + (trailingComma ? ',' : '');
-  const out = [...lines.slice(0, startIdx), replaced, ...lines.slice(endIdx + 1)].join('\n');
+  // re-emit the whole manifest in its house style (tools/manifestfmt.mjs) —
+  // an ad-hoc JSON.stringify splice here is what drifted the file off it.
+  // Assigning an existing key keeps the entry where it was.
+  const all = JSON.parse(text);
+  if (!(mechId in all)) throw new Error(`could not locate "${mechId}" block`);
+  all[mechId] = clean;
+  const out = formatManifest(all);
   return { out, removed, clean, moved };
 }
 
@@ -695,18 +688,10 @@ function restoreEntry(text, mechId, fields, boneRenames) {
     Object.assign(merged, rewritten);
     if (moved.length) back.push(`bone names (${moved.length})`);
   }
-  const lines = text.split('\n');
-  const startIdx = lines.findIndex((l) => l.trimStart().startsWith(`"${mechId}":`));
-  if (startIdx < 0) throw new Error(`could not locate "${mechId}" block`);
-  let depth = 0, endIdx = -1;
-  for (let i = startIdx; i < lines.length; i++) {
-    depth += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
-    if (i > startIdx && depth === 0) { endIdx = i; break; }
-  }
-  const trailingComma = lines[endIdx].trimEnd().endsWith(',');
-  const body = JSON.stringify({ [mechId]: merged }, null, 2)
-    .split('\n').slice(1, -1).map((l) => '  ' + l).join('\n');
-  return { out: [...lines.slice(0, startIdx), body + (trailingComma ? ',' : ''), ...lines.slice(endIdx + 1)].join('\n'), back, kept };
+  const all = JSON.parse(text);
+  if (!(mechId in all)) throw new Error(`could not locate "${mechId}" block`);
+  all[mechId] = merged;
+  return { out: formatManifest(all), back, kept };
 }
 
 // Put the rig file back on disk AND in the registry (the bake dropped both).

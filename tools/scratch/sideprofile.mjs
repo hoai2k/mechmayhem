@@ -3,17 +3,14 @@
 //  - procedural/anime: mesh vertices under the leg joints
 // Reports per y-band: z-extent (side profile) and x-extent (front profile),
 // in world units. node sideprofile.mjs <mech> <render: models|anime>
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const { chromium } = require('/home/user/mechmayhem/node_modules/playwright-core');
+import { launch } from '../lib/browser.mjs';
 const [mech = 'titanus', render = 'models'] = process.argv.slice(2);
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 200, height: 150 } });
 page.on('pageerror', (e) => console.error('PAGE', String(e).slice(0, 160)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none&render=${render}`,
   { waitUntil: 'networkidle' });
-await page.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 60000 });
+await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 60000 });
 await page.waitForTimeout(2500);
 const out = await page.evaluate(() => {
   const m = window.__showcaseMechs[0];

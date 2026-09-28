@@ -11,7 +11,7 @@
 // Camera looks +z, so screen-LEFT is +x. A paused engine never calls
 // onRender and only renders every 8th frame, so the pose is set directly and
 // _render() is called by hand. Prop positions: world.arena.propBodies.
-import { launch } from '/home/user/mechmayhem/tools/lib/browser.mjs';
+import { launch } from '../lib/browser.mjs';
 const [arena, out, camS, lookS, fovS, ...mechS] = process.argv.slice(2);
 const cam = camS.split(',').map(Number), look = lookS.split(',').map(Number);
 const mechs = mechS.map((m) => { const [id, rest] = m.split(':'); const [x, z, yaw] = rest.split(',').map(Number); return { id, x, z, yaw }; });

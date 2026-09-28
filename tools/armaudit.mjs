@@ -23,7 +23,7 @@
 // it rakes — so the report also prints how LONG the arm spends behind the
 // shoulder: a couple of frames on the way into a strike is a windup, a third
 // of the clip is a pose.
-import { launch } from './lib/browser.mjs';
+import { launch, seedRandom } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : Number(args[i + 1]); };
@@ -34,10 +34,11 @@ const ALL = args.includes('--all');
 
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
+await seedRandom(page);   // same verdict every run
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
 await page.goto(`http://localhost:5173/?showcase=${MECH}&anim=none`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(9000);
+await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 120000 });   // built, not a guessed sleep
 
 const out = await page.evaluate(async ({ FRAMES, ALL }) => {
   const THREE = await import('/node_modules/three/build/three.module.js');

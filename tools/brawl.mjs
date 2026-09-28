@@ -10,17 +10,17 @@
 //   · a duel is untouched: one KO still ends the round
 //   · ONE person against three CPUs is a gauntlet, not a brawl — no respawns
 //
-// usage: node tools/brawl.mjs [waitMs]
+// usage: node tools/brawl.mjs      (exits 1 if any rule does not hold)
 import { launch } from './lib/browser.mjs';
 
-const [waitMs = '30000'] = process.argv.slice(2);
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 300)));
 page.on('console', (m) => { if (m.type() === 'error') console.error('console:', m.text().slice(0, 200)); });
 await page.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&p3=vulcan&p4=wraith&auto=1',
   { waitUntil: 'networkidle' });
-await page.waitForTimeout(Number(waitMs));
+// wait for the harness to have built all four, not for a guessed number of seconds
+await page.waitForFunction(() => window.__world && window.__fighters?.length >= 4, null, { timeout: 180000 });
 
 const out = await page.evaluate(async () => {
   const w = window.__world, F = window.__fighters;
@@ -75,7 +75,7 @@ const out = await page.evaluate(async () => {
   F[1].hp = F[1].maxHp * 0.9;
   m.timeLeft = 0.001;
   step(3, m);
-  R.timeout = { state: m.state, winner: m.pendingWinner?.def.id || null, expect: 'viper (1 death, 90% hp)' };
+  R.timeout = { state: m.state, winner: m.pendingWinner?.def.id || null };  // viper: 1 death at 90% hp
   m.destroy();
 
   // ---- 3b. ONE PERSON vs THREE CPUs IS A GAUNTLET, NOT A BRAWL ----
@@ -102,3 +102,24 @@ const out = await page.evaluate(async () => {
 });
 console.log(JSON.stringify(out, null, 2));
 await browser.close();
+
+// THE RULES, as assertions — this was a JSON print someone had to read
+const fails = [];
+const want = (ok, what) => { if (!ok) fails.push(what); };
+want(out.brawl === true, 'four humans is a brawl');
+want(out.afterOneKO.state === 'fight' && out.afterOneKO.deaths === 1 && out.afterOneKO.respawning === 1,
+  'a KO in a brawl is a respawn, not the end of the round');
+want(out.midFade.fading === 1, 'the wreck is still fading a second later');
+const r = out.afterRespawn;
+want(r.alive && r.hp && r.visible && r.moved && r.state === 'fight' && r.respawning === 0,
+  'the body comes back whole, visible, somewhere else, round still on');
+want(out.afterTwoDown.state === 'fight', 'two of four with a death: still fighting');
+want(out.afterThreeDown.state === 'roundEnd' && out.afterThreeDown.winner === 'titanus',
+  'the last clean sheet takes the round');
+want(out.timeout.state === 'roundEnd' && out.timeout.winner === 'viper', 'at the bell, fewest deaths wins (not most hp)');
+want(out.soloVsCpus.brawl === false && out.soloVsCpusAfterKO.respawning === 0,
+  'one human vs three CPUs is a gauntlet: no respawns');
+want(out.duelBrawl === false && out.duelAfterKO.ended, 'a duel is untouched: one KO ends it');
+for (const f of fails) console.log('FAIL:', f);
+console.log(fails.length ? `\n${fails.length} rule(s) broken` : '\nall brawl rules hold');
+process.exit(fails.length ? 1 : 0);

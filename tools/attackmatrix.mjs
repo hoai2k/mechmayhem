@@ -1,15 +1,21 @@
 // Attack-connect matrix: for every mech, force ranged / special / ult against
 // a live circling victim and report damage actually dealt. Catches "projectile
 // sails into the sky / lands where the target was" bugs.
-//   node tools/attackmatrix.mjs [baseUrl]        (default http://localhost:5173)
+//   node tools/attackmatrix.mjs [baseUrl] [id …] [--victim=<id>]
+//     (default http://localhost:5173, the whole roster, victim titanus)
 // Non-damaging by design: fenrir ult (buff — damage only lands if the
 // victim is close when the spin triggers).
 import { launch } from './lib/browser.mjs';
+import { ROSTER } from '../src/mechs/roster.js';
 
-const base = process.argv[2] || 'http://localhost:5173';
-const MECHS = ['titanus', 'vulcan', 'viper', 'rhino',
-  'tempest', 'fenrir', 'colossus', 'wraith', 'inferno', 'glacier',
-  'cranky', 'saurion', 'frogger', 'jerry'];
+const argv = process.argv.slice(2);
+const pos = argv.filter((a) => !a.startsWith('--'));
+const base = pos[0] || 'http://localhost:5173';
+// the whole roster, from the roster (a hand-kept list had fallen three behind)
+const MECHS = pos.length > 1 ? pos.slice(1) : ROSTER.map((d) => d.id);
+// a FIXED victim: an unknown id (this used to name the retired 'aegis') makes
+// battletest pick a random, unseeded mech, so no two runs were comparable
+const VICTIM = (argv.find((a) => a.startsWith('--victim=')) || '--victim=titanus').slice(9);
 
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 480, height: 270 } });
@@ -18,8 +24,8 @@ page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
 
 const rows = [];
 for (const id of MECHS) {
-  await page.goto(`${base}/?battle=neon&p1=${id}&p2=aegis&auto=1`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(3500);
+  await page.goto(`${base}/?battle=neon&p1=${id}&p2=${VICTIM}&auto=1`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => window.__world && window.__fighters?.length >= 2, null, { timeout: 120000 });
   const r = await page.evaluate(() => {
     const w = window.__world, [atk, vic] = window.__fighters;
     const DT = 1 / 60;

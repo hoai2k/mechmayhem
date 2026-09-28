@@ -17,7 +17,7 @@ const browser = await launch();
 const page = await browser.newPage({ viewport: { width: T, height: T } });
 page.on('pageerror', (e) => console.error('PAGE', String(e).slice(0, 160)));
 await page.goto(`${base}/?showcase=${mech}&anim=none&render=${render}`, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 60000 });
+await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 60000 });
 
 const tiles = [];
 for (const yaw of [0, 0.8, Math.PI / 2, Math.PI]) {

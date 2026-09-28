@@ -7,7 +7,7 @@ const b = await launch();
 const p = await b.newPage({ viewport: { width: 400, height: 300 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 300)));
 await p.goto(`http://localhost:5173/?battle=neon&p1=saurion&p2=${foe}&auto=0`, { waitUntil: 'networkidle' });
-await p.waitForFunction(() => window.__world?.fighters?.length >= 2, { timeout: 60000 });
+await p.waitForFunction(() => window.__world?.fighters?.length >= 2, null, { timeout: 60000 });
 await p.waitForTimeout(6000);
 
 const res = await p.evaluate(() => {

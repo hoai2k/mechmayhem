@@ -12,7 +12,7 @@ const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 320, height: 240 } });
 page.on('pageerror', (e) => console.error('PAGE', String(e).slice(0, 200)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => window.__showcaseMechs?.[0]?.isGLB, { timeout: 60000 });
+await page.waitForFunction(() => window.__showcaseMechs?.[0]?.isGLB, null, { timeout: 60000 });
 await page.waitForTimeout(3000);
 const out = await page.evaluate(() => {
   const m = window.__showcaseMechs[0];

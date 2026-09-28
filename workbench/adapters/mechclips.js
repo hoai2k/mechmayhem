@@ -13,7 +13,8 @@
 //   • src/game/{match,boot,warmup}.js — intro / victory.
 // Names that aren't real clips (finisher files also play SOUNDS through the
 // same-looking call) drop out because the result is intersected with the
-// clip registry. Keep in sync when a new clip gets played somewhere.
+// clip registry. Keep in sync when a new clip gets played somewhere —
+// test/clips.test.mjs reads the play sites and fails when a row falls behind.
 import { CLIPS } from '../../src/mechs/animations.js';
 
 // Played for every mech regardless of loadout. 'heavy' is here on purpose even
@@ -27,41 +28,39 @@ const UNIVERSAL = ['intro', 'victory', 'taunt', 'block', 'ball', 'hitFlinch',
 const CHANNEL_TYPES = new Set(['gatling', 'flame', 'hose']);
 
 // roster moves.special.id -> clips that special casts
-const SPECIAL_CLIPS = {
-  groundPound: ['groundPound'], missileVolley: ['shoot'],
-  shieldBash: ['shieldWhirlHold', 'aegisShieldSmash'], bladeCyclone: ['viperWhirl'],
-  starfall: ['castRaise'], bullRush: ['chargeLean'], staticField: ['burst'],
-  pounce: ['lunge'], grabThrow: ['grabReach', 'liftHold', 'throwHeave'],
-  barrage: ['brace'], ghostWalk: ['aim'], napalm: ['shoot'], geyser: ['castRaise'],
+export const SPECIAL_CLIPS = {
+  missileVolley: ['shoot'], bladeCyclone: ['viperWhirl'], bullRush: ['chargeLean'],
+  staticField: ['burst'], pounce: ['lunge'], grabThrow: ['grabReach', 'liftHold', 'throwHeave'],
+  ghostWalk: ['aim'], napalm: ['shoot'], geyser: ['castRaise'],
   sickleRush: ['pounceLeap', 'biteLatch'], slimeBarrage: ['spray'],
   fleaSwarm: ['shoot'], segfault: ['lunge'],
-  chestBeat: ['chestBeat'],
   goreCharge: ['chargeLean'],                       // TRITONE's held gore charge
   headSlam: ['grabReach', 'liftHold', 'kongaSlam'], // KONGA's piledriver
   // freezeBeam channels through the mech's OWN hold-and-pour clip, so it is
   // resolved from def.channelClip below rather than named here
   freezeBeam: null,
-  cloak: [],
 };
 // roster moves.ult.id -> clips that ult casts
-const ULT_CLIPS = {
-  meteorBreaker: ['castRaise'], bulletHurricane: ['hurricaneSpin'], judgment: ['castRaise'],
-  supernova: ['burst'], stampede: ['chargeLean'], thunderfall: ['castRaise'],
-  wildHunt: ['castRaise'], colossalForm: ['burst'], deathSwarm: ['burst'],
+export const ULT_CLIPS = {
+  meteorBreaker: ['castRaise'], bulletHurricane: ['hurricaneSpin'],
+  stampede: ['chargeLean'], thunderfall: ['castRaise'],
+  wildHunt: ['castRaise', 'lunge'], colossalForm: ['burst'], deathSwarm: ['taunt'],
   fireTornado: ['burst'], absoluteZero: ['burst'], tsunami: ['castRaise'],
   raptorPack: ['taunt'], sonicCroak: ['burst'], systemCrash: ['burst'],
-  serpentStorm: [], fleaCircus: [],
-  apexBarrage: ['castRaise'], siegeProtocol: ['tritoneBrace'],
+  serpentStorm: ['launched'], fleaCircus: [],
+  apexPound: ['kongaPound', 'kongaPoundL'], siegeProtocol: ['tritoneBrace'],
 };
 // per-mech finisher cinematics (sound names already filtered out)
-const FINISHER_CLIPS = {
-  colossus: ['grabReach', 'liftHold', 'throwHeave'],
+export const FINISHER_CLIPS = {
+  colossus: ['grabReach', 'liftHold', 'throwHeave', 'colossusSlamL', 'colossusSlamR'],
   cranky: ['clawSnap', 'castRaise', 'launched'], fenrir: ['lunge', 'flurry', 'launched'],
   frogger: ['spray', 'pounceLeap'], glacier: ['shootLoopL', 'frozenSurrender', 'daintyTap'],
   inferno: ['shootLoop'], jerry: ['shootLoop'],
+  konga: ['chestBeat', 'bigPunch1', 'bigPunch2', 'kongaSlam'],
   nullbot: ['grabReach', 'light2'], rhino: ['chargeLean', 'launched'],
   saurion: ['pounceLeap', 'biteLatch'], tempest: ['burst'],
-  titanus: ['grabReach', 'liftHold', 'throwHeave', 'pounceLeap'],
+  titanus: ['grabReach', 'liftHold', 'throwHeave', 'pounceLeap', 'stomp', 'stomp2'],
+  tritone: ['chargeLean', 'tritoneToss', 'tritoneBrace', 'launched'],
   viper: ['viperHeavy', 'launched'], vulcan: ['vulcanSpray'],
   wraith: ['castRaise', 'aim'],
 };

@@ -37,7 +37,8 @@ const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));
 await page.goto(url, { waitUntil: 'networkidle' });
-await page.waitForTimeout(6000);
+await page.waitForFunction(() => window.__world && window.__fighters?.length >= 2, null, { timeout: 120000 });
+await page.waitForTimeout(1000);
 
 const setup = await page.evaluate(() => {
   const w = window.__world;
@@ -241,7 +242,8 @@ for (const [label, script, frames, dist] of SCENARIOS) {
 // on a wall, and fails on any page error.
 console.log('\n== rendered split-screen pass (the render path the sim skips)');
 await page.goto(url + '&forcesplit=1', { waitUntil: 'networkidle' });
-await page.waitForTimeout(6000);
+await page.waitForFunction(() => window.__world && window.__fighters?.length >= 2, null, { timeout: 120000 });
+await page.waitForTimeout(1000);
 errors.length = 0;
 const split = await page.evaluate(async () => {
   const w = window.__world;

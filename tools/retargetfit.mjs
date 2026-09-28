@@ -24,7 +24,7 @@ const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 320, height: 240 } });
 page.on('pageerror', e => console.error('PAGE ERROR', String(e).slice(0,300)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 45000 });
+await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 45000 });
 const res = await page.evaluate(async () => {
   const THREE = await import('/node_modules/three/build/three.module.js');
   const m = window.__showcaseMechs[0], a = m.animator;

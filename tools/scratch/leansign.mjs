@@ -10,7 +10,7 @@ const b = await launch();
 const p = await b.newPage({ viewport: { width: 400, height: 300 } });
 p.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await p.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });
-await p.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 45000 });
+await p.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 45000 });
 const rows = await p.evaluate(({ extra }) => {
   const m = window.__showcaseMechs[0], a = m.animator;
   window.__showcaseEngine.onUpdate = () => {};

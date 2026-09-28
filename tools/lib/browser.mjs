@@ -48,3 +48,22 @@ export async function launch(opts = {}) {
 }
 
 export { chromium };
+
+/**
+ * DETERMINISM FOR A MEASUREMENT. The Animator seeds phase/time off
+ * Math.random() on purpose and several signatures twitch off it, so the same
+ * build probed twice disagrees (groundprobe's tritone flipped a clip across
+ * its limit between two identical runs). This replaces Math.random with a
+ * seeded xorshift BEFORE the page boots — seeding inside page.evaluate is too
+ * late, the harness has already built and animated the body by then.
+ *   await seedRandom(page);            // before page.goto
+ */
+export function seedRandom(page, seed = 0x2f6e2b1) {
+  return page.addInitScript((s0) => {
+    let s = s0 | 0;
+    Math.random = () => {
+      s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
+      return ((s >>> 0) % 1e6) / 1e6;
+    };
+  }, seed);
+}

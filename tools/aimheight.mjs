@@ -26,7 +26,8 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));
 const run = async (pitch) => {
   await page.goto(url, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(4000);
+  await page.waitForFunction(() => window.__world && window.__fighters?.length >= 2, null, { timeout: 120000 });
+  await page.waitForTimeout(1000);   // a second of the fight settling in
   return page.evaluate(async ({ steps, pitch }) => {
   const hb = await import('/src/combat/hurtbox.js');
   if (window.__aimPitch0 === undefined) window.__aimPitch0 = hb.MELEE.AIM_PITCH;

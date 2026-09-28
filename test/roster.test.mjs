@@ -2,7 +2,8 @@
 // renamed mech breaks silently. Everything here imports under plain node.
 //
 // specials.js itself does NOT (it pulls fighter.js → effects.js →
-// `import.meta.glob`), so its two handler tables are read out of the SOURCE:
+// `import.meta.glob`), and nor does world.js, so the handler tables are read
+// out of the SOURCE:
 // every top-level `name(f, …) {` / `name:` entry between `export const
 // SPECIALS = {` and the closing `};`. That is the shape the file has always
 // had (dispatch is `SPECIALS[sp.id]`), and a handler written any other way
@@ -15,20 +16,25 @@ import { CLIPS, GLB_CLIP_VARIANTS } from '../src/mechs/animations.js';
 import { CONTRACT } from '../src/mechs/contract.js';
 import { GAITS, gaitIdFor } from '../src/mechs/gaits.js';
 
-const specialsSrc = readFileSync(new URL('../src/combat/specials.js', import.meta.url), 'utf8');
-function handlerKeys(table) {
-  const start = specialsSrc.indexOf(`export const ${table} = {`);
-  assert.ok(start >= 0, `specials.js declares ${table}`);
-  const end = specialsSrc.indexOf('\n};', start);
-  const body = specialsSrc.slice(start, end);
+const src = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
+function handlerKeys(file, table) {
+  const text = src(file);
+  const start = text.search(new RegExp(`^(?:export )?const ${table} = \\{`, 'm'));
+  assert.ok(start >= 0, `${file} declares ${table}`);
+  const end = text.indexOf('\n};', start);
+  const body = text.slice(start, end);
   return [...body.matchAll(/^  ([A-Za-z_$][\w$]*)\s*(?:\(|:)/gm)].map((m) => m[1]);
 }
-const SPECIALS = handlerKeys('SPECIALS');
-const ULTS = handlerKeys('ULTS');
+const SPECIALS = handlerKeys('combat/specials.js', 'SPECIALS');
+const ULTS = handlerKeys('combat/specials.js', 'ULTS');
+// world.js dispatches `WEAPONS[mv.type]?.(…)` — an unknown type is a silent no-op
+const WEAPONS = handlerKeys('game/world.js', 'WEAPONS');
 const ids = ROSTER.map((d) => d.id);
 
-test('roster is 17 unique ids', () => {
-  assert.equal(ids.length, 17);
+// no head-count: adding or retiring a mech is not a test failure, and the
+// cross-references below are what a retirement actually breaks
+test('roster ids are unique', () => {
+  assert.ok(ids.length > 0);
   assert.equal(new Set(ids).size, ids.length);
 });
 
@@ -46,6 +52,13 @@ test('every special / ult handler is used by some mech (no retired-mech leftover
   const usedUlt = new Set(ROSTER.map((d) => d.moves.ult.id));
   assert.deepEqual(SPECIALS.filter((k) => !usedSp.has(k)), [], 'dead SPECIALS handlers');
   assert.deepEqual(ULTS.filter((k) => !usedUlt.has(k)), [], 'dead ULTS handlers');
+});
+
+test('every ranged.type has a WEAPONS handler', () => {
+  for (const d of ROSTER) {
+    const t = d.moves?.ranged?.type;
+    if (t) assert.ok(WEAPONS.includes(t), `${d.id}: ranged type '${t}' has no WEAPONS handler in world.js (it would fire nothing)`);
+  }
 });
 
 test('every clip a roster def names exists in CLIPS or GLB_CLIP_VARIANTS', () => {

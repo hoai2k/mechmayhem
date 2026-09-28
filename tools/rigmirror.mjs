@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // RIGMIRROR — is this GLB's L/R bone mapping MIRRORED?
 //
-//   node tools/rigmirror.mjs [<mechId> …]   (no args = every mapped mech)
+//   node tools/rigmirror.mjs [<mechId> …]   (no args = every manifest mech)
 //   node tools/rigmirror.mjs <mechId> --all  (dump every bone, sorted by z)
 //
 // A manifest `boneOverrides` block names which GLB bone each of the game's 15
@@ -17,8 +17,8 @@
 // comes straight off the glTF node hierarchy; the manifest's `yawOffset` is
 // the container rotation that turns the model into the GAME FRAME (faces +z,
 // LEFT at -x, gltf.js:620). So rotate each mapped bone's bind position by the
-// yaw and read the sign of x. Every `*L` joint must land at -x and every `*R`
-// at +x; anything else is a mapping that says one thing and drives another.
+// yaw and compare x. Every `*L` joint must land at lower x than its `*R` twin
+// (left is -x); anything else is a mapping that says one thing and drives another.
 //
 // Facing is reported too (front-most vs rear-most bone), since a yawOffset a
 // half-turn out would flip every side while looking like this bug.
@@ -35,8 +35,12 @@ const dumpAll = argv.includes('--all');
 const wanted = argv.filter((a) => !a.startsWith('--'));
 
 const man = JSON.parse(fs.readFileSync('public/models/manifest.json', 'utf8'));
+// every model entry: an unbaked one maps joints through `boneOverrides`, a
+// BAKED one (all 17 today) names its bones after the game joints themselves,
+// so the mapping is the identity — which is still worth checking, since the
+// bake WROTE those names from a mapping that could itself have been mirrored.
 const ids = wanted.length ? wanted
-  : Object.keys(man).filter((k) => man[k] && typeof man[k] === 'object' && man[k].boneOverrides);
+  : Object.keys(man).filter((k) => man[k] && typeof man[k] === 'object' && man[k].url);
 
 const SIDED = ['thighL', 'kneeL', 'ankleL', 'thighR', 'kneeR', 'ankleR',
   'shoulderL', 'elbowL', 'handL', 'shoulderR', 'elbowR', 'handR'];
@@ -83,8 +87,9 @@ function boneWorlds(url) {
 let failed = 0;
 for (const id of ids) {
   const entry = man[id];
-  if (!entry?.boneOverrides) { console.log(`${id}: no boneOverrides`); continue; }
+  if (!entry?.url) { console.log(`${id}: no model entry`); continue; }
   const bones = boneWorlds(entry.url);
+  const mapping = entry.boneOverrides || Object.fromEntries(SIDED.map((j) => [j, j]));
   const yaw = (entry.yawOffset || 0) * Math.PI / 180, c = Math.cos(yaw), s = Math.sin(yaw);
   const toGame = (p) => [c * p[0] + s * p[2], p[1], -s * p[0] + c * p[2]];
 
@@ -93,14 +98,27 @@ for (const id of ids) {
   all.sort((a, b) => a.p[2] - b.p[2]);
   const rear = all[0], front = all[all.length - 1];
 
+  // SIDE IS READ AGAINST THE PARTNER JOINT, not against x = 0: a model need
+  // not be centred on its own origin (fenrir's midline sits ~0.07 off it, which
+  // put his right hip at x -0.000), and what a mirror actually IS is every L
+  // joint landing on the far side of its R twin. The x=0 reading still decides
+  // a joint whose twin is unmapped.
+  const at = {};
+  for (const joint of SIDED) {
+    const bone = mapping[joint];
+    const p = bone && bones.get(bone);
+    if (p) at[joint] = toGame(p);
+  }
+  const twin = (j) => j.slice(0, -1) + (j.endsWith('L') ? 'R' : 'L');
   const rows = [], bad = [];
   for (const joint of SIDED) {
-    const bone = entry.boneOverrides[joint];
+    const bone = mapping[joint];
     if (!bone) continue;
-    const p = bones.get(bone);
-    if (!p) { rows.push([joint, bone, null, 'MISSING']); bad.push(joint); continue; }
-    const g = toGame(p);
-    const side = g[0] < 0 ? 'LEFT' : 'RIGHT';
+    const g = at[joint];
+    if (!g) { rows.push([joint, bone, null, 'MISSING']); bad.push(joint); continue; }
+    const o = at[twin(joint)];
+    const mid = o ? (g[0] + o[0]) / 2 : 0;
+    const side = g[0] < mid ? 'LEFT' : 'RIGHT';
     const want = joint.endsWith('L') ? 'LEFT' : 'RIGHT';
     if (side !== want) bad.push(joint);
     rows.push([joint, bone, g, side === want ? '' : `<-- on the ${side}`]);

@@ -15,19 +15,27 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   VIEW the images, don't assume.
 - Combat crash soak: `node tools/soak.mjs "http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1&diff=ace"`
 - NO-BROWSER CHECKS: `npm run check` (what CI runs before the build in
-  `deploy.yml`) = `node tools/params.mjs` + `node tools/rigmirror.mjs` + `npm test`
+  `deploy.yml`) = `node tools/params.mjs` + `node tools/rigmirror.mjs` +
+  `node tools/manifestfmt.mjs --check` (manifest.json is in its house style —
+  write it through `formatManifest`, never an ad-hoc stringify) + `npm test`
   (`node --test test/*.test.mjs`, Node's own runner, no dependency — THE GLOB IS
-  UNQUOTED ON PURPOSE, so the SHELL expands it into five real paths: quoting it
-  asks NODE to glob, which only works from Node 22, and CI runs Node 20, where
-  the quoted form is read as one literal filename. That is what silently broke
-  every deploy between Sept 1 and Sept 20 — `npm run check` passed on a dev box
-  and failed in Actions with "Could not find …/test/*.test.mjs"): roster ↔
-  SPECIALS/ULTS ↔ clips ↔ contract cross-references, every gait key in
+  UNQUOTED ON PURPOSE, so the SHELL expands it into real paths: quoting it asks
+  NODE to glob, which only works from Node 22, and CI ran Node 20 until
+  `deploy.yml` was moved to 22, where the quoted form is read as one literal
+  filename. That is what silently broke every deploy between Sept 1 and Sept 20
+  — keep it unquoted so it works on either): roster ↔
+  SPECIALS/ULTS/WEAPONS ↔ clips ↔ contract cross-references, the per-mech clip
+  table (`workbench/adapters/mechclips.js`) against every clip a handler or
+  finisher actually plays, badges/thumbnails on disk, every gait key in
   `GAIT_SCHEMA`, every roster/theme id and every literal `t('…')` has text,
   tuning's derived rates, the shipped levels through `themeFromLevel`. Pure
   data modules only — specials.js is read as SOURCE there because it imports
   the world. EVERY BROWSER TOOL launches through `tools/lib/browser.mjs`
   (`launch()` — SwiftShader args, `{gl:false}` for tools that never draw,
+  `seedRandom(page)` before `goto` for a probe whose verdict must not vary
+  run to run; wait for READINESS with `waitForFunction(fn, null, {timeout})` —
+  the `null` is the `arg` slot, and `waitForFunction(fn, {timeout})` silently
+  drops the timeout back to 30s —
   extra `args` appended); set `PW_CHROMIUM=<path to a Chromium/Chrome binary>`
   on a machine where it is not at `/opt/pw-browsers/chromium`.
 - Debug URLs: `?showcase` (12-mech lineup) · `?showcase=<id>&anim=<clip|walk|none>`
@@ -920,6 +928,11 @@ fallback bank are all generated. Progress history: `TASKS.md`.
   12) and NOVA (4 of 12) were the last two, and rather than re-rig two hidden
   work-in-progress bodies they were RETIRED — see `archive/mechs/README.md`,
   which keeps their models, manifest entries, designs, finishers and icons.
+  A BAKED MECH IS STILL CHECKED: the bake renames the bones after the joints
+  and drops `boneOverrides`, so the check uses the identity mapping there —
+  it once skipped every entry without overrides, which after the bake meant it
+  checked nothing. Side is read against the TWIN joint's x, not x = 0 (fenrir's
+  midline sits ~0.07 off his origin).
 - BONE ROTATION: a rig file carries POSITIONS ONLY, and adding a rest rotation to
   one would change nothing — `applyCustomRig` rebinds the skin at rest
   (`rebindRest`) and `RigAdapter` captures a rest offset per bone

@@ -214,3 +214,5 @@ if (out.restDrift !== null) {
     + `${out.restDrift < 0.02 ? '(settled)' : 'FAIL: stuck mid-stride'}`);
 }
 if (errs.length) console.log(`\n  page errors: ${errs.join(' | ')}`);
+// the two properties any gait-driven leg must have are ASSERTIONS
+if (out.restDrift !== null && (out.pausedDrift >= 0.002 || out.restDrift >= 0.02)) process.exitCode = 1;
