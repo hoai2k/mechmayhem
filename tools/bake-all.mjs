@@ -62,3 +62,4 @@ const bad = rows.filter((r) => !r.pass);
 console.log(`\n${rows.length - bad.length}/${rows.length} pass.`
   + (bad.length ? `  failed: ${bad.map((r) => r.id).join(', ')}  (logs in /tmp/bake-<id>.log)` : ''));
 if (APPLY) console.log(bad.length ? 'The failures were NOT applied — the tree is as they left it.' : 'All applied.');
+if (bad.length) process.exitCode = 1;

@@ -1,992 +1,230 @@
 {
-    "colossus": {
-      "url": "models/mech_colossus.glb",
-      "modelScale": 9.60373,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "muzzles": {
-        "R": {
-          "bone": "cannonR",
-          "offset": [
-            0.2594,
-            1.1663,
-            -0.3602
-          ],
-          "rot": [
-            0,
-            90,
-            0
-          ]
-        },
-        "L": {
-          "bone": "cannonL",
-          "offset": [
-            0.3333,
-            1.1663,
-            0.2839
-          ],
-          "rot": [
-            0,
-            90,
-            0
-          ]
-        },
-        "boostL": {
-          "bone": "ankleL",
-          "offset": [
-            0.268,
-            -0.2,
-            0.131
-          ]
-        },
-        "boostR": {
-          "bone": "ankleR",
-          "offset": [
-            0.337,
-            -0.232,
-            -0.096
-          ]
-        }
-      }
-    },
-    "titanus": {
-      "muzzles": {
-        "R": {
-          "bone": "handR",
-          "offset": [
-            0.644,
-            -0.399,
-            -0.119
-          ]
-        },
-        "L": {
-          "bone": "handL",
-          "offset": [
-            0.581,
-            -0.416,
-            0.121
-          ]
-        },
-        "boostL": {
-          "bone": "stackL",
-          "offset": [
-            -0.174,
-            -1.041,
-            0.01
-          ]
-        },
-        "boostR": {
-          "bone": "stackR",
-          "offset": [
-            -0.174,
-            -0.944,
-            0.072
-          ]
-        }
-      },
-      "url": "models/mech_titanus.glb",
-      "modelScale": 9.04432,
-      "bindPose": "native",
-      "yawOffset": 270
-    },
-    "tempest": {
-      "muzzles": {
-        "R": {
-          "bone": "tripo0_Right_Limb_6",
-          "offset": [
-            -0.162,
-            -0.116,
-            -0.068
-          ],
-          "rot": [
-            -21.66,
-            -53.52,
-            -99.77
-          ]
-        },
-        "L": {
-          "bone": "elbowL",
-          "offset": [
-            -0.05,
-            1.337,
-            0.009
-          ],
-          "rot": [
-            -93.89,
-            -22.56,
-            -137.64
-          ]
-        },
-        "stackR": {
-          "bone": "bone_24",
-          "offset": [
-            -0.2444,
-            0.8232,
-            -0.4211
-          ]
-        },
-        "stackL": {
-          "bone": "bone_44",
-          "offset": [
-            -0.2025,
-            0.8093,
-            0.3776
-          ]
-        },
-        "boostL": {
-          "bone": "ankleL",
-          "offset": [
-            -0.543,
-            0.078,
-            -0.152
-          ]
-        },
-        "boostR": {
-          "bone": "ankleR",
-          "offset": [
-            -0.394,
-            0.031,
-            -0.387
-          ]
-        }
-      },
-      "url": "models/mech_tempest.glb",
-      "modelScale": 7.18053,
-      "bindPose": "native",
-      "yawOffset": 270
-    },
-    "nullbot": {
-      "muzzles": {
-        "R": {
-          "joint": "handR",
-          "offset": [
-            0,
-            -0.2,
-            0.4
-          ],
-          "rot": [
-            107,
-            0,
-            0
-          ]
-        },
-        "L": {
-          "joint": "handL",
-          "offset": [
-            0,
-            -0.2,
-            0.4
-          ],
-          "rot": [
-            107,
-            0,
-            0
-          ]
-        },
-        "boostL": {
-          "bone": "ankleL",
-          "offset": [
-            0.053,
-            0.682,
-            0.154
-          ]
-        },
-        "boostR": {
-          "bone": "ankleR",
-          "offset": [
-            -0.243,
-            0.629,
-            0.104
-          ]
-        }
-      },
-      "url": "models/mech_nullbot.glb",
-      "modelScale": 8.59022,
-      "bindPose": "native",
-      "yawOffset": 270
-    },
-    "viper": {
-      "muzzles": {
-        "R": {
-          "bone": "elbowR",
-          "offset": [
-            0.242,
-            -0.742,
-            -0.489
-          ],
-          "rot": [
-            101.91,
-            -5.45,
-            6.72
-          ]
-        },
-        "L": {
-          "bone": "handL",
-          "offset": [
-            -0.061,
-            -0.037,
-            0.183
-          ],
-          "rot": [
-            78.08,
-            -5.25,
-            4.26
-          ]
-        },
-        "bladeL": {
-          "bone": "bladeLtip",
-          "offset": [
-            0,
-            0,
-            0
-          ]
-        },
-        "bladeR": {
-          "bone": "bladeRtip",
-          "offset": [
-            0,
-            0,
-            0
-          ]
-        },
-        "boostL": {
-          "bone": "torso",
-          "offset": [
-            -0.482,
-            0.202,
-            0.292
-          ]
-        },
-        "boostR": {
-          "bone": "torso",
-          "offset": [
-            -0.527,
-            0.173,
-            -0.326
-          ]
-        }
-      },
-      "url": "models/mech_viper.glb",
-      "modelScale": 6.2312,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "heightScale": 1.1,
-      "boneCorrections": {
-        "thighL": [
-          10,
-          0,
-          0,
-          45
-        ],
-        "thighR": [
-          -10,
-          0,
-          0,
-          45
-        ]
-      }
-    },
-    "wraith": {
-      "url": "models/mech_wraith.glb",
-      "limpChains": ["cape0"],
-      "modelScale": 6.73427,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "muzzles": {
-        "R": {
-          "bone": "rifleTip",
-          "offset": [
-            0,
-            0,
-            0
-          ],
-          "rot": [
-            90,
-            0,
-            0
-          ]
-        },
-        "L": {
-          "bone": "handR",
-          "offset": [
-            0,
-            0,
-            0
-          ],
-          "rot": [
-            0,
-            90,
-            0
-          ]
-        },
-        "eye": {
-          "bone": "eye",
-          "offset": [
-            0,
-            0,
-            0
-          ],
-          "rot": [
-            0,
-            90,
-            0
-          ]
-        },
-        "scope": {
-          "bone": "scope",
-          "offset": [
-            0,
-            0,
-            0
-          ],
-          "rot": [
-            90,
-            0,
-            0
-          ]
-        },
-        "boostL": {
-          "bone": "ankleL",
-          "offset": [
-            -0.072,
-            -0.137,
-            -0.168
-          ]
-        },
-        "boostR": {
-          "bone": "ankleR",
-          "offset": [
-            -0.04,
-            -0.143,
-            0.088
-          ]
-        }
-      }
-    },
-    "rhino": {
-      "muzzles": {
-        "R": {
-          "bone": "handR",
-          "offset": [
-            0.224,
-            0.102,
-            0.221
-          ],
-          "rot": [
-            -91.5,
-            -27.15,
-            -163.29
-          ]
-        },
-        "L": {
-          "bone": "handL",
-          "offset": [
-            -0.349,
-            0.087,
-            0.042
-          ],
-          "rot": [
-            -104.21,
-            15.35,
-            167.89
-          ]
-        },
-        "boostL": {
-          "bone": "ankleL",
-          "offset": [
-            0.02,
-            0.615,
-            -0.538
-          ]
-        },
-        "boostR": {
-          "bone": "ankleR",
-          "offset": [
-            -0.015,
-            0.587,
-            -0.601
-          ]
-        }
-      },
-      "url": "models/mech_rhino.glb",
-      "modelScale": 8.12531,
-      "bindPose": "native",
-      "yawOffset": 270
-    },
-    "glacier": {
-      "muzzles": {
-        "R": {
-          "bone": "elbowR",
-          "offset": [
-            0.555,
-            -1.161,
-            -0.158
-          ],
-          "rot": [
-            101.33,
-            23.46,
-            -88.65
-          ]
-        },
-        "L": {
-          "bone": "handL",
-          "offset": [
-            0.536,
-            -0.711,
-            0.18
-          ],
-          "rot": [
-            79.43,
-            39.93,
-            -92.21
-          ]
-        },
-        "boostL": {
-          "bone": "ankleL",
-          "offset": [
-            0.037,
-            -0.379,
-            -0.062
-          ]
-        },
-        "boostR": {
-          "bone": "ankleR",
-          "offset": [
-            0.13,
-            -0.308,
-            0.04
-          ]
-        }
-      },
-      "url": "models/mech_glacier.glb",
-      "modelScale": 8.9336,
-      "bindPose": "native",
-      "yawOffset": 270
-    },
-    "jerry": {
-      "muzzles": {
-        "R": {
-          "bone": "strutMidR",
-          "offset": [
-            0.023,
-            0.117,
-            -0.115
-          ],
-          "rot": [
-            168.24,
-            54.24,
-            -150.02
-          ],
-          "aimFlat": true
-        },
-        "L": {
-          "bone": "strutMidL",
-          "offset": [
-            -0.151,
-            0.004,
-            0.117
-          ],
-          "rot": [
-            -0.63,
-            60.66,
-            -26.99
-          ],
-          "aimFlat": true
-        },
-        "boostL": {
-          "bone": "tail",
-          "offset": [
-            -0.603,
-            -2.318,
-            1.175
-          ]
-        },
-        "boostR": {
-          "bone": "tail",
-          "offset": [
-            -0.535,
-            -2.325,
-            -0.758
-          ]
-        }
-      },
-      "url": "models/mech_jerry_alt.glb",
-      "modelScale": 15.0124,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "heightScale": 0.59
-    },
-    "saurion": {
-      "url": "models/mech_saurion.glb",
-      "modelScale": 7.21311,
-      "heightScale": 0.8,
-      "bindPose": "native",
-      "yawOffset": 300,
-      "muzzles": {
-        "R": {
-          "bone": "handR",
-          "offset": [
-            0.06,
-            0.489,
-            0.068
-          ],
-          "rot": [
-            -77.68,
-            15.92,
-            -70.17
-          ]
-        },
-        "L": {
-          "bone": "elbowL",
-          "offset": [
-            0.021,
-            1.374,
-            -0.162
-          ],
-          "rot": [
-            -89.98,
-            0.62,
-            -88.94
-          ]
-        },
-        "boostL": {
-          "bone": "shoulderL",
-          "offset": [
-            0.643,
-            0.458,
-            0.422
-          ]
-        },
-        "boostR": {
-          "bone": "shoulderR",
-          "offset": [
-            -0.656,
-            0.474,
-            -0.272
-          ]
-        }
-      }
-    },
-    "inferno": {
-      "url": "models/mech_inferno.glb",
-      "modelScale": 7.70717,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "heightScale": 1.05,
-      "muzzles": {
-        "R": {
-          "bone": "handR",
-          "offset": [
-            0.494,
-            -0.349,
-            -0.114
-          ],
-          "rot": [
-            101.25,
-            31.89,
-            -86.23
-          ]
-        },
-        "L": {
-          "bone": "nozzleL",
-          "offset": [
-            0.085,
-            0.118,
-            0.039
-          ],
-          "rot": [
-            84.01,
-            33.96,
-            -96.16
-          ]
-        },
-        "stackL": {
-          "bone": "stackL",
-          "offset": [
-            0,
-            0,
-            0
-          ]
-        },
-        "stackR": {
-          "bone": "stackR",
-          "offset": [
-            0,
-            0,
-            0
-          ]
-        },
-        "boostL": {
-          "bone": "torso",
-          "offset": [
-            -0.953,
-            0.319,
-            0.632
-          ]
-        },
-        "boostR": {
-          "bone": "torso",
-          "offset": [
-            -0.984,
-            0.329,
-            -0.689
-          ]
-        }
-      }
-    },
-    "cranky": {
-      "url": "models/mech_cranky.glb",
-      "modelScale": 9.35218,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "muzzles": {
-        "R": {
-          "bone": "head",
-          "offset": [
-            1.177,
-            0.208,
-            -2.86
-          ],
-          "rot": [
-            -180,
-            74.56,
-            -180
-          ],
-          "aimFlat": true
-        },
-        "L": {
-          "bone": "head",
-          "offset": [
-            1.207,
-            0.216,
-            2.846
-          ],
-          "rot": [
-            6.85,
-            67.79,
-            -7.26
-          ],
-          "aimFlat": true
-        },
-        "boostL": {
-          "bone": "head",
-          "offset": [
-            -1.945,
-            -1.561,
-            1.077
-          ]
-        },
-        "boostR": {
-          "bone": "head",
-          "offset": [
-            -2.115,
-            -1.469,
-            -1.214
-          ]
-        }
-      }
-    },
-    "fenrir": {
-      "url": "models/mech_fenrir.glb",
-      "modelScale": 6.99389,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "muzzles": {
-        "R": {
-          "bone": "handR",
-          "offset": [
-            0.052,
-            -0.074,
-            0.004
-          ],
-          "rot": [
-            10,
-            90,
-            0
-          ]
-        },
-        "L": {
-          "bone": "handL",
-          "offset": [
-            -0.007,
-            -0.036,
-            0.081
-          ],
-          "rot": [
-            -10,
-            90,
-            0
-          ]
-        },
-        "boostL": {
-          "bone": "ankleL",
-          "offset": [
-            0.083,
-            0.127,
-            0.01
-          ]
-        },
-        "boostR": {
-          "bone": "ankleR",
-          "offset": [0.083, 0.1271, -0.0093]
-        }
-      }
-    },
-    "frogger": {
-      "url": "models/mech_frogger.glb",
-      "modelScale": 6.42563,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "heightScale": 1.05,
-      "muzzles": {
-        "R": {
-          "bone": "tripoHead_0",
-          "offset": [
-            -1.986,
-            1.043,
-            -1.519
-          ],
-          "rot": [
-            -158.27,
-            0,
-            -170
-          ],
-          "aimFlat": true
-        },
-        "L": {
-          "bone": "bone_37",
-          "offset": [
-            0.029,
-            1.178,
-            0.049
-          ],
-          "rot": [
-            -84.25,
-            -17,
-            175.75
-          ],
-          "aimFlat": true
-        },
-        "boostL": {
-          "bone": "ankleL",
-          "offset": [
-            -0.119,
-            0.484,
-            -0.533
-          ]
-        },
-        "boostR": {
-          "bone": "ankleR",
-          "offset": [
-            0.037,
-            0.405,
-            -0.469
-          ]
-        }
-      }
-    },
-    "vulcan": {
-      "muzzles": {
-        "R": {
-          "bone": "handR",
-          "offset": [
-            0.594,
-            -0.601,
-            -0.252
-          ],
-          "rot": [
-            112.82,
-            33.3,
-            87.8
-          ]
-        },
-        "L": {
-          "bone": "handL",
-          "offset": [
-            0.89,
-            -0.65,
-            0.192
-          ],
-          "rot": [
-            77.76,
-            31.79,
-            68.88
-          ]
-        },
-        "podL": {
-          "joint": "torso",
-          "offset": [
-            -1.35,
-            2.2,
-            -0.2
-          ],
-          "rot": [
-            0,
-            0,
-            0
-          ]
-        },
-        "podR": {
-          "joint": "torso",
-          "offset": [
-            1.35,
-            2.2,
-            -0.2
-          ],
-          "rot": [
-            0,
-            0,
-            0
-          ]
-        },
-        "boostL": {
-          "bone": "torso",
-          "offset": [
-            -1.152,
-            0.169,
-            0.538
-          ]
-        },
-        "boostR": {
-          "bone": "torso",
-          "offset": [
-            -1.118,
-            0.093,
-            -0.501
-          ]
-        }
-      },
-      "url": "models/mech_vulcan.glb",
-      "modelScale": 7.72826,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "heightScale": 1.1
-    },
-  "_readme": "Drop rigged humanoid GLBs (Meshy/Tripo/Mixamo auto-rig, T-pose or A-pose) into public/models/ and add an entry per mech id. Fields: url (required), bindPose ('tpose'|'apose'|'native' or {joint:[x,y,z] degrees}), boneOverrides ({jointName: 'ExactBoneName'}), heightScale, yawOffset (deg), emissiveBoost. Mechs without an entry use the built-in procedural model. See docs/CHARACTER_PIPELINE.md.",
-    "konga": {
-      "url": "models/mech_konga.glb",
-      "modelScale": 7.77566,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "muzzles": {
-        "podL": {
-          "joint": "torso",
-          "offset": [
-            -1.33,
-            2.9,
-            0.3
-          ]
-        },
-        "podR": {
-          "joint": "torso",
-          "offset": [
-            1.57,
-            2.9,
-            0.3
-          ]
-        },
-        "R": {
-          "bone": "podTipR",
-          "offset": [
-            0.14,
-            0.15,
-            -0.017
-          ],
-          "rot": [
-            -94.12,
-            84.55,
-            94.59
-          ]
-        },
-        "L": {
-          "bone": "podL",
-          "offset": [
-            1.551,
-            0.059,
-            0.01
-          ],
-          "rot": [
-            -85.47,
-            84.7,
-            86
-          ]
-        },
-        "boostL": {
-          "bone": "podL",
-          "offset": [
-            -0.306,
-            -0.102,
-            0.109
-          ]
-        },
-        "boostR": {
-          "bone": "podR",
-          "offset": [
-            -0.334,
-            -0.152,
-            -0.011
-          ]
-        }
-      }
-    },
-    "tritone": {
-      "url": "models/mech_tritone.glb",
-      "modelScale": 24.71821,
-      "bindPose": "native",
-      "yawOffset": 270,
-      "heightScale": 0.726,
-      "muzzles": {
-        "R": {
-          "bone": "barrelR",
-          "offset": [
-            0.9,
-            0,
-            0
-          ],
-          "rot": [
-            0,
-            90,
-            0
-          ]
-        },
-        "L": {
-          "bone": "barrelL",
-          "offset": [
-            0.9,
-            0,
-            0
-          ],
-          "rot": [
-            0,
-            90,
-            0
-          ]
-        },
-        "frillPods": {
-          "joint": "torso",
-          "offset": [
-            0,
-            1.3,
-            1.2
-          ]
-        },
-        "boostL": {
-          "bone": "cannonL",
-          "offset": [
-            0.055,
-            -0.324,
-            -0.008
-          ]
-        },
-        "boostR": {
-          "bone": "cannonR",
-          "offset": [
-            -0.036,
-            -0.38,
-            0.01
-          ]
-        }
-      },
-      "tailFloor": true
+  "colossus": {
+    "url": "models/mech_colossus.glb",
+    "modelScale": 9.60373,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "muzzles": {
+      "R": {"bone":"cannonR","offset":[0.2594,1.1663,-0.3602],"rot":[0,90,0]},
+      "L": {"bone":"cannonL","offset":[0.3333,1.1663,0.2839],"rot":[0,90,0]},
+      "boostL": {"bone":"ankleL","offset":[0.268,-0.2,0.131]},
+      "boostR": {"bone":"ankleR","offset":[0.337,-0.232,-0.096]}
     }
+  },
+  "titanus": {
+    "muzzles": {
+      "R": {"bone":"handR","offset":[0.644,-0.399,-0.119]},
+      "L": {"bone":"handL","offset":[0.581,-0.416,0.121]},
+      "boostL": {"bone":"stackL","offset":[-0.174,-1.041,0.01]},
+      "boostR": {"bone":"stackR","offset":[-0.174,-0.944,0.072]}
+    },
+    "url": "models/mech_titanus.glb",
+    "modelScale": 9.04432,
+    "bindPose": "native",
+    "yawOffset": 270
+  },
+  "tempest": {
+    "muzzles": {
+      "R": {"bone":"tripo0_Right_Limb_6","offset":[-0.162,-0.116,-0.068],"rot":[-21.66,-53.52,-99.77]},
+      "L": {"bone":"elbowL","offset":[-0.05,1.337,0.009],"rot":[-93.89,-22.56,-137.64]},
+      "stackR": {"bone":"bone_24","offset":[-0.2444,0.8232,-0.4211]},
+      "stackL": {"bone":"bone_44","offset":[-0.2025,0.8093,0.3776]},
+      "boostL": {"bone":"ankleL","offset":[-0.543,0.078,-0.152]},
+      "boostR": {"bone":"ankleR","offset":[-0.394,0.031,-0.387]}
+    },
+    "url": "models/mech_tempest.glb",
+    "modelScale": 7.18053,
+    "bindPose": "native",
+    "yawOffset": 270
+  },
+  "nullbot": {
+    "muzzles": {
+      "R": {"joint":"handR","offset":[0,-0.2,0.4],"rot":[107,0,0]},
+      "L": {"joint":"handL","offset":[0,-0.2,0.4],"rot":[107,0,0]},
+      "boostL": {"bone":"ankleL","offset":[0.053,0.682,0.154]},
+      "boostR": {"bone":"ankleR","offset":[-0.243,0.629,0.104]}
+    },
+    "url": "models/mech_nullbot.glb",
+    "modelScale": 8.59022,
+    "bindPose": "native",
+    "yawOffset": 270
+  },
+  "viper": {
+    "muzzles": {
+      "R": {"bone":"elbowR","offset":[0.242,-0.742,-0.489],"rot":[101.91,-5.45,6.72]},
+      "L": {"bone":"handL","offset":[-0.061,-0.037,0.183],"rot":[78.08,-5.25,4.26]},
+      "bladeL": {"bone":"bladeLtip","offset":[0,0,0]},
+      "bladeR": {"bone":"bladeRtip","offset":[0,0,0]},
+      "boostL": {"bone":"torso","offset":[-0.482,0.202,0.292]},
+      "boostR": {"bone":"torso","offset":[-0.527,0.173,-0.326]}
+    },
+    "url": "models/mech_viper.glb",
+    "modelScale": 6.2312,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "heightScale": 1.1,
+    "boneCorrections": {"thighL":[10,0,0,45],"thighR":[-10,0,0,45]}
+  },
+  "wraith": {
+    "url": "models/mech_wraith.glb",
+    "limpChains": ["cape0"],
+    "modelScale": 6.73427,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "muzzles": {
+      "R": {"bone":"rifleTip","offset":[0,0,0],"rot":[90,0,0]},
+      "L": {"bone":"handR","offset":[0,0,0],"rot":[0,90,0]},
+      "eye": {"bone":"eye","offset":[0,0,0],"rot":[0,90,0]},
+      "scope": {"bone":"scope","offset":[0,0,0],"rot":[90,0,0]},
+      "boostL": {"bone":"ankleL","offset":[-0.072,-0.137,-0.168]},
+      "boostR": {"bone":"ankleR","offset":[-0.04,-0.143,0.088]}
+    }
+  },
+  "rhino": {
+    "muzzles": {
+      "R": {"bone":"handR","offset":[0.224,0.102,0.221],"rot":[-91.5,-27.15,-163.29]},
+      "L": {"bone":"handL","offset":[-0.349,0.087,0.042],"rot":[-104.21,15.35,167.89]},
+      "boostL": {"bone":"ankleL","offset":[0.02,0.615,-0.538]},
+      "boostR": {"bone":"ankleR","offset":[-0.015,0.587,-0.601]}
+    },
+    "url": "models/mech_rhino.glb",
+    "modelScale": 8.12531,
+    "bindPose": "native",
+    "yawOffset": 270
+  },
+  "glacier": {
+    "muzzles": {
+      "R": {"bone":"elbowR","offset":[0.555,-1.161,-0.158],"rot":[101.33,23.46,-88.65]},
+      "L": {"bone":"handL","offset":[0.536,-0.711,0.18],"rot":[79.43,39.93,-92.21]},
+      "boostL": {"bone":"ankleL","offset":[0.037,-0.379,-0.062]},
+      "boostR": {"bone":"ankleR","offset":[0.13,-0.308,0.04]}
+    },
+    "url": "models/mech_glacier.glb",
+    "modelScale": 8.9336,
+    "bindPose": "native",
+    "yawOffset": 270
+  },
+  "jerry": {
+    "muzzles": {
+      "R": {"bone":"strutMidR","offset":[0.023,0.117,-0.115],"rot":[168.24,54.24,-150.02],"aimFlat":true},
+      "L": {"bone":"strutMidL","offset":[-0.151,0.004,0.117],"rot":[-0.63,60.66,-26.99],"aimFlat":true},
+      "boostL": {"bone":"tail","offset":[-0.603,-2.318,1.175]},
+      "boostR": {"bone":"tail","offset":[-0.535,-2.325,-0.758]}
+    },
+    "url": "models/mech_jerry_alt.glb",
+    "modelScale": 15.0124,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "heightScale": 0.59
+  },
+  "saurion": {
+    "url": "models/mech_saurion.glb",
+    "modelScale": 7.21311,
+    "heightScale": 0.8,
+    "bindPose": "native",
+    "yawOffset": 300,
+    "muzzles": {
+      "R": {"bone":"handR","offset":[0.06,0.489,0.068],"rot":[-77.68,15.92,-70.17]},
+      "L": {"bone":"elbowL","offset":[0.021,1.374,-0.162],"rot":[-89.98,0.62,-88.94]},
+      "boostL": {"bone":"shoulderL","offset":[0.643,0.458,0.422]},
+      "boostR": {"bone":"shoulderR","offset":[-0.656,0.474,-0.272]}
+    }
+  },
+  "inferno": {
+    "url": "models/mech_inferno.glb",
+    "modelScale": 7.70717,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "heightScale": 1.05,
+    "muzzles": {
+      "R": {"bone":"handR","offset":[0.494,-0.349,-0.114],"rot":[101.25,31.89,-86.23]},
+      "L": {"bone":"nozzleL","offset":[0.085,0.118,0.039],"rot":[84.01,33.96,-96.16]},
+      "stackL": {"bone":"stackL","offset":[0,0,0]},
+      "stackR": {"bone":"stackR","offset":[0,0,0]},
+      "boostL": {"bone":"torso","offset":[-0.953,0.319,0.632]},
+      "boostR": {"bone":"torso","offset":[-0.984,0.329,-0.689]}
+    }
+  },
+  "cranky": {
+    "url": "models/mech_cranky.glb",
+    "modelScale": 9.35218,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "muzzles": {
+      "R": {"bone":"head","offset":[1.177,0.208,-2.86],"rot":[-180,74.56,-180],"aimFlat":true},
+      "L": {"bone":"head","offset":[1.207,0.216,2.846],"rot":[6.85,67.79,-7.26],"aimFlat":true},
+      "boostL": {"bone":"head","offset":[-1.945,-1.561,1.077]},
+      "boostR": {"bone":"head","offset":[-2.115,-1.469,-1.214]}
+    }
+  },
+  "fenrir": {
+    "url": "models/mech_fenrir.glb",
+    "modelScale": 6.99389,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "muzzles": {
+      "R": {"bone":"handR","offset":[0.052,-0.074,0.004],"rot":[10,90,0]},
+      "L": {"bone":"handL","offset":[-0.007,-0.036,0.081],"rot":[-10,90,0]},
+      "boostL": {"bone":"ankleL","offset":[0.083,0.127,0.01]},
+      "boostR": {"bone":"ankleR","offset":[0.083,0.1271,-0.0093]}
+    }
+  },
+  "frogger": {
+    "url": "models/mech_frogger.glb",
+    "modelScale": 6.42563,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "heightScale": 1.05,
+    "muzzles": {
+      "R": {"bone":"tripoHead_0","offset":[-1.986,1.043,-1.519],"rot":[-158.27,0,-170],"aimFlat":true},
+      "L": {"bone":"bone_37","offset":[0.029,1.178,0.049],"rot":[-84.25,-17,175.75],"aimFlat":true},
+      "boostL": {"bone":"ankleL","offset":[-0.119,0.484,-0.533]},
+      "boostR": {"bone":"ankleR","offset":[0.037,0.405,-0.469]}
+    }
+  },
+  "vulcan": {
+    "muzzles": {
+      "R": {"bone":"handR","offset":[0.594,-0.601,-0.252],"rot":[112.82,33.3,87.8]},
+      "L": {"bone":"handL","offset":[0.89,-0.65,0.192],"rot":[77.76,31.79,68.88]},
+      "podL": {"joint":"torso","offset":[-1.35,2.2,-0.2],"rot":[0,0,0]},
+      "podR": {"joint":"torso","offset":[1.35,2.2,-0.2],"rot":[0,0,0]},
+      "boostL": {"bone":"torso","offset":[-1.152,0.169,0.538]},
+      "boostR": {"bone":"torso","offset":[-1.118,0.093,-0.501]}
+    },
+    "url": "models/mech_vulcan.glb",
+    "modelScale": 7.72826,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "heightScale": 1.1
+  },
+  "_readme": "Drop rigged humanoid GLBs (Meshy/Tripo/Mixamo auto-rig, T-pose or A-pose) into public/models/ and add an entry per mech id. Fields: url (required), bindPose ('tpose'|'apose'|'native' or {joint:[x,y,z] degrees}), boneOverrides ({jointName: 'ExactBoneName'}), heightScale, yawOffset (deg), emissiveBoost. Mechs without an entry use the built-in procedural model. See docs/CHARACTER_PIPELINE.md.",
+  "konga": {
+    "url": "models/mech_konga.glb",
+    "modelScale": 7.77566,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "muzzles": {
+      "podL": {"joint":"torso","offset":[-1.33,2.9,0.3]},
+      "podR": {"joint":"torso","offset":[1.57,2.9,0.3]},
+      "R": {"bone":"podTipR","offset":[0.14,0.15,-0.017],"rot":[-94.12,84.55,94.59]},
+      "L": {"bone":"podL","offset":[1.551,0.059,0.01],"rot":[-85.47,84.7,86]},
+      "boostL": {"bone":"podL","offset":[-0.306,-0.102,0.109]},
+      "boostR": {"bone":"podR","offset":[-0.334,-0.152,-0.011]}
+    }
+  },
+  "tritone": {
+    "url": "models/mech_tritone.glb",
+    "modelScale": 24.71821,
+    "bindPose": "native",
+    "yawOffset": 270,
+    "heightScale": 0.726,
+    "muzzles": {
+      "R": {"bone":"barrelR","offset":[0.9,0,0],"rot":[0,90,0]},
+      "L": {"bone":"barrelL","offset":[0.9,0,0],"rot":[0,90,0]},
+      "frillPods": {"joint":"torso","offset":[0,1.3,1.2]},
+      "boostL": {"bone":"cannonL","offset":[0.055,-0.324,-0.008]},
+      "boostR": {"bone":"cannonR","offset":[-0.036,-0.38,0.01]}
+    },
+    "tailFloor": true
+  }
 }

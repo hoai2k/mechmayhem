@@ -26,7 +26,7 @@
 // height), which is about the thickness of a mech's back plate.
 //
 // Needs `npm run dev`.
-import { launch } from './lib/browser.mjs';
+import { launch, seedRandom } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : Number(args[i + 1]); };
@@ -37,12 +37,13 @@ const ids = args.filter((a) => !a.startsWith('--') && !/^[\d.]+$/.test(a));
 
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
+await seedRandom(page);   // same verdict every run
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
 
 const roster = ids.length ? ids : await (async () => {
   await page.goto('http://localhost:5173/?showcase=titanus&anim=none', { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 120000 });
+  await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 120000 });
   return page.evaluate(async () => (await import('/src/mechs/roster.js')).ROSTER.map((d) => d.id));
 })();
 
@@ -52,7 +53,7 @@ console.log('mech        clip          rest-on              body float   verdict
 let bad = 0;
 for (const mech of roster) {
   await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 120000 });
+  await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 120000 });
   await page.waitForTimeout(1500);
   const out = await page.evaluate(async ({ FRAMES, STRIDE }) => {
     const THREE = await import('/node_modules/three/build/three.module.js');

@@ -28,7 +28,7 @@ const page = await browser.newPage({ viewport: { width: 900, height: 640 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
 await page.goto(`${base}/workbench/?edit=pose&mech=titanus`, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => !!window.__poseWork, { timeout: 60000 });
+await page.waitForFunction(() => !!window.__poseWork, null, { timeout: 60000 });
 await page.waitForTimeout(3000);
 
 const steps = await page.evaluate(() => {

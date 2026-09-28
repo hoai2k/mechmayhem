@@ -51,7 +51,7 @@ const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 480 } });
 page.on('pageerror', (e) => console.error('PAGE ERROR:', String(e).slice(0, 400)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none&debug=3d`, { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 120000 });
+await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 120000 });
 
 const report = await page.evaluate(async ({ mech, prefix, band, step, root }) => {
   const THREE = await import('/node_modules/three/build/three.module.js');

@@ -35,7 +35,7 @@
 // through the buffer) — the lowest point of a mech is a horn tip or a hoof,
 // features hundreds of vertices wide, so a stride finds them while a full
 // scan of every clip would take minutes per mech.
-import { launch } from './lib/browser.mjs';
+import { launch, seedRandom } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : Number(args[i + 1]); };
@@ -47,10 +47,11 @@ const ALL = args.includes('all') || args.includes('--all');
 
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
+await seedRandom(page);   // the verdict must not depend on the run (a clip on the limit flipped)
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
 await page.goto(`http://localhost:5173/?showcase=${MECH}&anim=none`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(9000);
+await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 120000 });   // built, not a guessed sleep
 
 const out = await page.evaluate(async ({ FRAMES, STRIDE, ALL }) => {
   const THREE = await import('/node_modules/three/build/three.module.js');

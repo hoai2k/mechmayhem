@@ -12,7 +12,10 @@
 //   · number lists (verts, offsets) inline, however long
 //
 // Verified by round-trip: formatManifest(JSON.parse(file)) === file for the
-// committed manifest (tools/manifestfmt.mjs --check).
+// committed manifest (tools/manifestfmt.mjs --check), which `npm run check`
+// runs — so a tool that writes the manifest any other way (bake-glb once
+// spliced JSON.stringify output in and drifted all 17 entries off the style)
+// fails CI instead of quietly reformatting the file.
 import fs from 'node:fs';
 
 const INLINE_MAX = 120;   // a leaf object longer than this gets broken out

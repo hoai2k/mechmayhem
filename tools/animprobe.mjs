@@ -18,7 +18,7 @@ page.on('pageerror', (e) => errors.push(String(e)));
 await page.goto(`http://localhost:5173/?showcase=${mechId}&anim=none&debug=3d`,
   { waitUntil: 'networkidle' }).catch((e) => errors.push(String(e)));
 // wait for the mech to build
-await page.waitForFunction(() => window.__showcaseMechs && window.__showcaseMechs[0], { timeout: 30000 });
+await page.waitForFunction(() => window.__showcaseMechs && window.__showcaseMechs[0], null, { timeout: 30000 });
 
 // tracked virtual joints (what the animator drives) — the bone map resolves
 // each to the GLB bone the retarget actually moves.

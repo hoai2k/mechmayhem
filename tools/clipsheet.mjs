@@ -42,7 +42,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice
 // cel-shaded roster (the showcase builds through createMech, which honours it)
 const extra = process.env.RW_QUERY ? `&${process.env.RW_QUERY}` : '';
 await page.goto(`${base}/?showcase=${mech}&anim=none${extra}`, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 45000 });
+await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 45000 });
 
 // Frame the mech on its own measured height, from `yaw` around it, and take
 // the clip's duration off the resolved clip — which is the per-mech override

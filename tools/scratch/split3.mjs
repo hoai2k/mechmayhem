@@ -6,14 +6,14 @@
 // builds the game's own Hud over the harness' fighters, which is the same class
 // the match uses with the same plates.
 //
-// usage: node tools/scratch/split3.mjs [out.png] [waitMs]
+// usage: node tools/scratch/split3.mjs [out.png]   (exits 1 if the panel fails)
 import { launch } from '../lib/browser.mjs';
-const [out = 'split3.png', waitMs = '30000'] = process.argv.slice(2);
+const [out = 'split3.png'] = process.argv.slice(2);
 const b = await launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 300)));
 await p.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&p3=vulcan&p4=konga&p5=rhino&p6=tempest&p7=frogger&p8=jerry&forcesplit=1&humans=3&postfx=off&diff=ace', { waitUntil: 'networkidle' });
-await p.waitForTimeout(Number(waitMs));
+await p.waitForFunction(() => window.__world && window.__fighters?.length >= 8, null, { timeout: 180000 });
 
 const report = await p.evaluate(async () => {
   const { Hud } = await import('/src/ui/hud.js');
@@ -72,3 +72,14 @@ console.log(JSON.stringify(report, null, 2));
 await p.screenshot({ path: out, timeout: 120000 });
 console.log('shot ->', out);
 await b.close();
+
+const fails = [];
+if (!report.panelIsTheSpareQuadrant) fails.push('the panel is not exactly camera.js STATS_PANEL_RECT');
+if (report.platesOutsideThePanel.length) fails.push(`plates outside the panel: ${report.platesOutsideThePanel.join(', ')}`);
+if (report.platesInPanel !== report.plateCount) fails.push(`${report.platesInPanel}/${report.plateCount} plates in the panel`);
+if (report.panelOverflowPx > 0) fails.push(`the stack outgrows the panel by ${report.panelOverflowPx}px`);
+if (!report.timerInPanel) fails.push('the round clock is not in the panel');
+const R = report.restored;
+if (!(R.panelHidden && R.platesBackInHud && R.timerBackInHud)) fails.push('switching to 4 did not put plates/clock back');
+for (const f of fails) console.log('FAIL:', f);
+process.exit(fails.length ? 1 : 0);

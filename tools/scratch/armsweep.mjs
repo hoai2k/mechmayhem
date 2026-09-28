@@ -9,7 +9,7 @@ const b = await launch();
 const page = await b.newPage({ viewport: { width: 400, height: 300 } });
 page.on('pageerror', (e) => console.error('ERR', String(e).slice(0, 200)));
 await page.goto(`http://localhost:5173/?showcase=${mech}&anim=none`, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => window.__showcaseMechs?.[0], { timeout: 45000 });
+await page.waitForFunction(() => window.__showcaseMechs?.[0], null, { timeout: 45000 });
 
 const G = grid || { P: [0, 20, 40, 60, 80, 100], Y: [-80, -60, -40, -20, 0, 20, 40],
   R: [-60, -40, -20, 0, 20, 40, 60], E: [-20, -50, -80, -110, -140] };
