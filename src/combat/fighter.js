@@ -4859,7 +4859,15 @@ export class Fighter {
       (this.blocking ? MOVE.blockMoveMult : 1) *
       (this.state === 'channel' ? 0.45 : 1) * (1 - 0.55 * this.duckT);
 
-    if (this.state !== 'dash') {
+    // A LEAP THAT IS AIMED HOLDS ITS ARC: a special that launches him at a
+    // spot (`_ballistic`, its horizontal velocity) keeps that velocity until
+    // it lands, since air control would lerp it toward a stick nobody is
+    // holding and dump him ~half way (fenrir's pounce landed at 45-55%)
+    const arc = this._ballistic && this.state === 'special' && !this.grounded ? this._ballistic : null;
+    if (arc) {
+      this.vel.x = arc.x;
+      this.vel.z = arc.z;
+    } else if (this.state !== 'dash') {
       // hover jets give strong air control; plain jumps keep loose drift.
       // GLACIER's ice field (status.slip) turns the ground to glass: barely
       // any traction, so momentum carries and steering barely bites
