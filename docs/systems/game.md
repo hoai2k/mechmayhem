@@ -53,7 +53,18 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   the picture ended and made a repaint look like a new arrival — and it runs
   with the opacity TRANSITION off, since one started beside it was still
   unfinished underneath when the class came off, and every new pick blinked
-  out for a frame at the end of its slide). While the
+  out for a frame at the end of its slide). A ROBOT IS DRAWN AT ITS GAME SIZE:
+  every poster comes through the same camera at the same distance, so its box
+  height (posters.json) sets the picture's height (`picScale`, `--k`) and
+  colossus stands over saurion as he does in a fight, tritone as tall as his
+  box rather than shrunk to fit his length; a robot shorter than the band sits
+  toward the TOP (the lower part of the side is text) and a tall one runs its
+  feet under the text — overflow is allowed, the side clips. THE SIDE'S GLOW
+  (`--g`) belongs to the robot ON SCREEN: it changes when the picture does, not
+  when the cursor moves (the old robot used to stand in the new one's colours
+  until a first-visit poster arrived), and it EASES, being a registered
+  `@property` colour — a gradient built on a plain custom property snaps.
+  `node tools/scratch/selsize.mjs` sheets the sizes. While the
   photo is being taken, and on through the fade, the side is SPRAY-PAINTED in
   the new colour (`PaintSpray`: cone bursts of droplets from nozzles round the
   body plus glints on it, one 2D canvas per side). Taken through the
