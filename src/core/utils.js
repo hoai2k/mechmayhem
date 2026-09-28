@@ -1,5 +1,4 @@
 // Math helpers, easing, seeded RNG, small object pools.
-import * as THREE from 'three';
 
 export const TAU = Math.PI * 2;
 export const DEG = Math.PI / 180;
@@ -86,12 +85,6 @@ export function isTouchDevice() {
   return _touchOverride;
 }
 
-// ---- scratch vectors (avoid per-frame allocation) ----
-export const _v1 = new THREE.Vector3();
-export const _v2 = new THREE.Vector3();
-export const _v3 = new THREE.Vector3();
-export const _q1 = new THREE.Quaternion();
-
 // Flat-ground distance between two Vector3s.
 export function yawTo(from, to) {
   return Math.atan2(to.x - from.x, to.z - from.z);
@@ -99,7 +92,3 @@ export function yawTo(from, to) {
 
 // ---- simple pool ----
 
-export function removeFromArray(arr, item) {
-  const i = arr.indexOf(item);
-  if (i !== -1) { arr[i] = arr[arr.length - 1]; arr.pop(); }
-}

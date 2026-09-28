@@ -259,7 +259,6 @@ const CHARGE_GLOW_SETS = {
   lance: ['lance'],
 };
 
-export { PLAYER_COLORS } from '../core/colors.js'; // compat re-export, remove after finisher.js migrates
 
 // Ground surfaces with a footstep layer of their own (public/sfx/step_*.mp3).
 // A patch kind not in here — road, stripe, pave — is just pavement, which is

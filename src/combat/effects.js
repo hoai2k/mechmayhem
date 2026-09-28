@@ -16,10 +16,6 @@ export const GLITCH_COLORS = [
   0xff2038, 0x27f6ff, 0xff2df2, 0x3cff6e, 0x3350ff, 0xffe23c, 0xffffff,
 ];
 export const glitchColor = () => GLITCH_COLORS[(Math.random() * GLITCH_COLORS.length) | 0];
-// whole-shell material tints stick to the harsh digital channels — warm
-// hues at high weight read as gold paint, not corruption
-export const GLITCH_TINTS = [0xff2038, 0x27f6ff, 0xff2df2, 0x3350ff];
-export const glitchTint = () => GLITCH_TINTS[(Math.random() * GLITCH_TINTS.length) | 0];
 import { rand, clamp01 } from '../core/utils.js';
 
 const _emitCol = new THREE.Color();

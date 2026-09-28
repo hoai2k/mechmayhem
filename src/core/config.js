@@ -426,12 +426,6 @@ export function sfxGain(category) {
   return sfxVolume() * (c == null ? 1 : c);
 }
 
-/** The menu theme's share of the music bus, 0..1. Persisted. */
-export function setMenuMusicMix(v) {
-  CONFIG.menuMusicMix = Math.min(1, Math.max(0, +v || 0));
-  try { localStorage.setItem('rw.menuMusicMix', String(CONFIG.menuMusicMix)); } catch (e) { /* ok */ }
-}
-
 /** What the MENU theme actually plays at: the bus, quieted by the mix. */
 export function menuMusicVolume() { return CONFIG.musicVolume * CONFIG.menuMusicMix; }
 
