@@ -62,9 +62,6 @@ const VISUALS = {
     },
     tumble: true, trail: 'glow', doubleSide: true,
   },
-  spear: { // AEGIS: the hurled lance — a long javelin flying point-first
-    geo: () => new THREE.ConeGeometry(0.15, 3.6, 6), rot: true, trail: 'glow',
-  },
   fist: { // TITANUS: the detached rocket fist — a chunky knuckle block
     // punching through the air nose-first, jet exhaust off the wrist
     geo: () => {

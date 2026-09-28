@@ -354,7 +354,7 @@ export async function runAnimationWorkbench(config, params) {
   // ================= ANCHOR EDITOR =================
   // Anchors are the mech's named spawn points — muzzleR/muzzleL (every ranged
   // shot, cannon and most special origins), plus per-mech extras combat reads
-  // by name (vulcan's podL/podR, aegis' shield, wraith's eye/scope). Each is an
+  // by name (vulcan's podL/podR, wraith's eye/scope). Each is an
   // Object3D parented to a rig joint or a real GLB bone, so it rides the
   // animation. Dragging one here moves the LIVE anchor: fire in ACTION mode and
   // the projectiles come out of the new spot.

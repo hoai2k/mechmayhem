@@ -238,12 +238,6 @@ function blocking(anim, ctx) {
 // the shared engine gets wrong for it. Empty {} = the retargeted procedural
 // motion already reads correctly (verified) — a home for future tweaks.
 export const GLB_ANIM = {
-  // AEGIS — tower shield on the LEFT forearm, energy lance in the RIGHT hand:
-  // same handedness as procedural, so clips map straight across (no mirror).
-  // The procedural mech keeps the shield squared to the front via a J.shield
-  // joint the GLB lacks, so reproduce that intent here: while guarding, raise
-  // and square the left forearm so the shield faces the enemy.
-
   // VIPER — twin energy blades are FUSED to the forearms as rigid extensions
   // of the arm (not held in the hands), so the blade axis IS the forearm axis:
   // any twist of the forearm/wrist rolls the flat blade off that axis and it
@@ -773,12 +767,6 @@ export const GLB_ANIM = {
   },
 
   // ---- model VARIANTS (manifest entry.profileKey) ----
-  // AEGIS ALT (P1) — carries a great SPEAR in the right hand and banner
-  // panels instead of a forearm shield, so it must NOT inherit base aegis's
-  // shield-forward guard hook (raising that arm would hoist a banner).
-  // Identity for now; a javelin-style ranged reinterpretation belongs here
-  // if this model is promoted.
-
   // VULCAN (retired TRIPO auto-rig, manifest `alt` -> profileKey vulcan_tripo).
   // Every number here was measured against THAT skeleton and means nothing on
   // the custom rig. Twin gatling pods FUSED along the forearms. The shared

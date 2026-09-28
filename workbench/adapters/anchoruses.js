@@ -9,8 +9,7 @@
 //     its weapon in the other hand; mortar/hose alternate to muzzleL.
 //   • src/combat/specials.js SPECIALS/ULTS  — muzzle(f) is muzzleR;
 //     muzzle(f,'x') falls back to muzzleR when x is missing.
-//   • src/combat/fighter.js                 — def.heavyFx signature FX, and
-//     the AEGIS passive-shield hit test (a gameplay read, not an FX origin).
+//   • src/combat/fighter.js                 — def.heavyFx signature FX.
 // Keep in sync when a weapon/special starts reading a new anchor.
 
 // Each entry: anchors the action reads, and what happens when one is absent.
@@ -20,7 +19,7 @@ const RANGED = {
   // stream leaves whichever gun the animation has punched forward
   gatling: { alt: 'muzzleL' },
   flame: {}, rocket: {}, fist: {}, plasma: {}, dart: {}, blade: {},
-  spear: {}, wave: {}, shell: {}, lightning: {}, railgun: {}, shard: {},
+  wave: {}, shell: {}, lightning: {}, railgun: {}, shard: {},
   glitch: {}, bats: {}, groundpound: {}, spikes: {}, flea: {},
   // alternate sides shot to shot; muzzleL absent -> both barrels use muzzleR
   mortar: { alt: 'muzzleL' }, hose: { alt: 'muzzleL' }, slime: { alt: 'muzzleL' },
@@ -52,7 +51,6 @@ const ROLE = {
   scope: 'Procedural-route anchor (wraith contract). No runtime consumer found.',
   podL: 'Vulcan\'s left shoulder missile pod — missileVolley ripple-fires it on the even missiles of the salvo.',
   podR: 'Vulcan\'s right shoulder missile pod — missileVolley\'s odd missiles launch from here.',
-  shield: 'AEGIS passive cover: the live geometric test for attacks arriving THROUGH the tower shield. Gameplay, not FX — moving it changes what gets blocked.',
   eye: 'Wraith\'s eye — DEATH SWARM flare origin.',
 };
 const BOOST_ROLE = 'Booster nozzle — the hover jets\' white/yellow thrust flame burns from here whenever this mech is FLYING. With no authored rotation the thrust runs straight down the BODY (right for a foot jet, whatever the ankle is doing); give it a rot and the exhaust follows the anchor\'s own +Z instead, like a barrel. Every build gets boostL/boostR under the soles; any extra anchor whose name starts with "boost" is another nozzle.';
@@ -103,14 +101,9 @@ export function anchorUses(def, name, available) {
   // signature heavy FX lives at the DEF level (roster `heavyFx`), read by
   // fighter.heavyChargeFx as def.heavyFx — not under moves.
   if (def?.heavyFx) consider('heavy', `Heavy — ${def.heavyFx}`, HEAVY[def.heavyFx]);
-  // AEGIS passive shield cover is a def flag, not a move
-  if (name === 'shield' && def?.passiveShield) add('defense', 'Passive shield cover', 'blocks attacks arriving through it');
 
   // notes about anchors this build is MISSING that would otherwise be used
   const notes = [];
-  if (name === 'shield' && def?.passiveShield && !has('shield')) {
-    notes.push('This build has no shield anchor, so passive cover is inactive on it.');
-  }
   if (name === 'eye' && def?.moves?.ult?.id === 'deathSwarm' && !has('eye')) {
     notes.push('This build has no eye anchor, so the flare comes off the mech centre.');
   }

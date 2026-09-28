@@ -213,33 +213,6 @@ const CLIPS_RAW = {
     events: [{ t: 0.38, type: 'sfx', arg: 'whooshBig' }, { t: 0.42, type: 'hit', arg: 0 }, { t: 0.44, type: 'shake', arg: 0.4 }],
   },
 
-  shieldWhirlHold: { // AEGIS Bulwark Bash wind-up: the tower shield is
-    // hoisted straight overhead FACE-UP and whirled like a rotor (the
-    // special spins elbowL post-pose) while the LANCE LEVELS at the enemy —
-    // a menacing come-on instead of a dangling arm.
-    // Deliberately NOT 'aegis'-prefixed: the signature's square-to-front
-    // shield brace must not fight the face-up carry.
-    dur: 0.6, loop: true,
-    keys: [
-      { t: 0, pose: { torso: [-6, 0, -3], hipsRot: [-3, 0, 0], hipsPos: [0, -0.22, 0], head: [-16, 0, 0], shoulderL: [-176, 0, -10], elbowL: [-5, 0, 0], shoulderR: [-60, 0, 10], elbowR: [-20, 0, 0], handR: [80, 0, 0], kneeL: [28, 0, 0], kneeR: [28, 0, 0], thighL: [-15, 0, 0], thighR: [-15, 0, 0] } },
-      { t: 0.3, ease: 'inOutQuad', pose: { hipsPos: [0, -0.26, 0], torso: [-8, 0, -3], shoulderL: [-174, 0, -8], shoulderR: [-62, 0, 10] } },
-      { t: 0.6, ease: 'inOutQuad', pose: { hipsPos: [0, -0.22, 0], torso: [-6, 0, -3], shoulderL: [-176, 0, -10], shoulderR: [-60, 0, 10] } },
-    ],
-    events: [{ t: 0.08, type: 'sfx', arg: 'whoosh' }, { t: 0.38, type: 'sfx', arg: 'whoosh' }],
-  },
-  aegisShieldSmash: { // Bulwark Bash release: the whirling shield comes
-    // DOWN off the crown and RAMS forward face-first — the special grows
-    // it to a bot-tall wall through the strike ('aegis' prefix so the
-    // signature squares the face to the front for the impact)
-    dur: 0.62,
-    keys: [
-      { t: 0, pose: { torso: [-6, 0, -3], hipsRot: [-3, 0, 0], hipsPos: [0, -0.22, 0], head: [-16, 0, 0], shoulderL: [-176, 0, -10], elbowL: [-5, 0, 0], shoulderR: [-60, 0, 10], elbowR: [-20, 0, 0], handR: [80, 0, 0], kneeL: [28, 0, 0], kneeR: [28, 0, 0], thighL: [-15, 0, 0], thighR: [-15, 0, 0] } },
-      { t: 0.16, ease: 'outBack', pose: { torso: [16, 12, -3], hipsRot: [4, 6, 0], hipsPos: [0, -0.22, 0.26], head: [0, -6, 0], shoulderL: [-88, 14, -6], elbowL: [-18, 0, 0], shoulderR: [22, 0, 18], elbowR: [-30, 0, 0], handR: [10, 0, 0], thighL: [-40, 0, 0], kneeL: [50, 0, 0], thighR: [20, 0, 0], kneeR: [46, 0, 0], ankleR: [18, 0, 0] } },
-      { t: 0.36, ease: 'inOutQuad', pose: { torso: [13, 10, -2], hipsPos: [0, -0.2, 0.2] } },
-      { t: 0.62, ease: 'inOutQuad', pose: REST_ARMSTANCE },
-    ],
-    events: [{ t: 0.06, type: 'sfx', arg: 'whooshBig' }, { t: 0.18, type: 'hit', arg: 0 }, { t: 0.2, type: 'shake', arg: 0.5 }],
-  },
   frozenSurrender: { // GLACIER's finisher victim: iced over mid-surrender —
     // both hands thrown in the air, slight cower, held solid
     dur: 0.55, hold: true,
@@ -965,7 +938,7 @@ const CLIPS_RAW = {
       { t: 0.5, ease: 'inOutQuad', pose: { torso: [50, 4, -4], hipsPos: [0, -0.42, 0], head: [-26, 0, 0] } },
     ],
   },
-  burst: { // nova / static field / backdraft / absolute zero — coil tight, detonate open
+  burst: { // static field / backdraft / absolute zero — coil tight, detonate open
     dur: 0.78,
     keys: [
       { t: 0, pose: {} },

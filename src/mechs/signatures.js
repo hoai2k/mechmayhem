@@ -1,6 +1,6 @@
 // Per-mech SIGNATURE motion — the personality layer the animator runs
-// every frame on top of clips/locomotion: vulcan's gatling spin, nova's
-// halo, fenrir/saurion tails, jerry's nervous twitches, nullbot's failing
+// every frame on top of clips/locomotion: vulcan's gatling spin,
+// fenrir/saurion tails, jerry's nervous twitches, nullbot's failing
 // display... One entry per mech id, dispatched by Animator.signature()
 // (same registry idiom as SPECIALS/ULTS in combat/specials.js). Entries
 // are (anim, dt, ctx, tgt): anim is the Animator (per-instance scratch
@@ -18,9 +18,6 @@ import { driveFace, FACE_PRESETS } from './face.js';
 
 const _qa = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
-// AEGIS shield carriage targets (see the aegis entry)
-const SHIELD_REST = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.1, 0));
-const SHIELD_BRACE = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.1, 0, 0));
 
 // A STABILIZED MOUNT: turn `mount` so that the muzzle ANCHOR hanging off it
 // points along `yaw`, level, in the WORLD — whatever the body carrying it is

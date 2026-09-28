@@ -7,8 +7,8 @@
 // WHAT A GAIT IS. Locomotion is not a clip — it is a set of numbers (stride
 // amplitude, knee lift, arm swing, body lean…) that the animator turns into a
 // cycle every frame. Those numbers live in src/mechs/gaits.js as NAMED GAITS,
-// and a gait is SHARED: `sprint` is viper AND tempest AND wraith AND nova, so
-// tuning it here moves all four. The panel says which gait the chosen mech
+// and a gait is SHARED: `sprint` is viper AND tempest AND wraith, so
+// tuning it here moves all three. The panel says which gait the chosen mech
 // runs, who else runs it, and the mech dropdown carries the gait name beside
 // every entry — you always know what you are about to edit before you edit it.
 //

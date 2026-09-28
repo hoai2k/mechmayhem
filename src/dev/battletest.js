@@ -167,7 +167,7 @@ export async function runBattleTest() {
       return sel;
     };
     const s1 = mkSel('WIN:', ROSTER, ids[0]);
-    const s2 = mkSel('VIC:', ROSTER, ids[1] || 'aegis');
+    const s2 = mkSel('VIC:', ROSTER, ids[1] || 'viper');
     const sa = mkSel('MAP:', THEMES, themeId);
     const go = () => {
       const q = new URLSearchParams(location.search);

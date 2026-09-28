@@ -108,12 +108,11 @@ const VOID_FALL_T = 0.6, VOID_FALL_DEPTH = 20, VOID_FALL_COST = 0.15, VOID_FALL_
 const MOVE = TUNING.movement, DASH = TUNING.dash, STAM = TUNING.stamina;
 const HOVER = TUNING.hover, GUARD = TUNING.guard, MELEE_T = TUNING.melee;
 const PHYS = TUNING.physics;
-// A thrown weapon (viper's daggers, aegis' lance) re-forges on its empty mount:
+// A thrown weapon (viper's daggers) re-forges on its empty mount:
 // the mount stays EMPTY for a delay, then grows back over REGROW_TIME. The
 // delay is PER THROW (regrowWeapon's second argument) because how long a gap
 // reads well depends on the weapon — viper's daggers want a long, obvious one
-// so you can see which forearm is bare, while aegis' lance is back before his
-// next javelin. Shared by the regrow animation and by `weaponReady`, which
+// so you can see which forearm is bare. Shared by the regrow animation and by `weaponReady`, which
 // picks whichever dagger viper still has.
 const REGROW_DELAY = 0.18;
 const REGROW_TIME = 0.5;
@@ -584,8 +583,6 @@ export class Fighter {
   dmgMult() {
     let m = 1;
     if (this.status.buff) m *= this.status.buff.dmg;
-    // NOVA: every attack surges while her halo burns at apex alignment —
-    // a full-apex strike hits TWICE as hard as a dark-halo one
     return m;
   }
 
@@ -781,7 +778,7 @@ export class Fighter {
       return;
     }
     this.faceNearestEnemyIfClose(14);
-    // hold-to-charge heavy (AEGIS whirl, TITANUS/COLOSSUS raised pound):
+    // hold-to-charge heavy (TITANUS/COLOSSUS raised pound):
     // the hold clip LOOPS while Y stays down, banking power; the strike and
     // the hit come on release (updateHeavyHold)
     if (this.def.heavyHold) {
@@ -2206,9 +2203,7 @@ export class Fighter {
   // shared tail of every "the guard/shield ate it" path in takeHit: chip
   // damage that is never lethal (floor 1 hp), a reduced push instead of
   // real knockback and the block spark + clank. Callers pick chip/push —
-  // (ultFrom is vestigial: the blocked-hit ult drip died with the meter) —
-  // the raised guard and AEGIS's passive cover are deliberately not
-  // identical (see the call sites).
+  // (ultFrom is vestigial: the blocked-hit ult drip died with the meter).
   _blockAbsorb(chip, ultFrom, dirX, dirZ, dLen, push, sparkPos, sparkColor) {
     this.hp = Math.max(1, this.hp - chip);
     this.vel.x += (dirX / dLen) * push;
@@ -2305,34 +2300,6 @@ export class Fighter {
         this.burstGuardShield();
         this.sfx(shattered ? 'hitHeavy' : 'hit');
         if (shattered) { knock *= 1.15; heavy = true; }
-      }
-    }
-
-    // AEGIS passive cover: an attack that arrives THROUGH the tower shield
-    // is taken ON the shield — same numbers as a raised guard — even with
-    // no block input. Geometric against the shield's LIVE position, so a
-    // shield whirled overhead (bulwark bash) stops covering the front, and
-    // an attack from the open flank still lands clean.
-    if (!unblockable && !this.blocking && this.def.passiveShield &&
-        this.state !== 'hitstun' && this.state !== 'launched' &&
-        this.state !== 'knockdown' && this.state !== 'frozen' &&
-        this.mech.anchors.shield) {
-      const S = this.mech.anchors.shield.getWorldPosition(_palmTmp);
-      const sx = S.x - this.pos.x, sz = S.z - this.pos.z;
-      const sl = Math.hypot(sx, sz);
-      // shield held out at body height (not swung skyward), threat within
-      // ~60° of the direction the shield is offset toward
-      if (sl > 0.35 && S.y > this.pos.y + 0.5 && S.y < this.pos.y + this.height) {
-        const dot = (sx / sl) * (-dirX / dLen) + (sz / sl) * (-dirZ / dLen);
-        if (dot > 0.5) {
-          const pass = this.def.stats.blockMult ?? GUARD.leakDefault;
-          // asymmetries vs a raised guard, kept as tuned: chip is rounded
-          // (floor 1), the ult drip counts the FULL incoming dmg, and the
-          // push is gentler (no input was spent holding block)
-          this._blockAbsorb(Math.max(1, Math.round(dmg * pass)), dmg,
-            dirX, dirZ, dLen, knock * 0.3, S, 0x9fd8ff);
-          return;
-        }
       }
     }
 
@@ -3716,8 +3683,6 @@ export class Fighter {
     // ---- weapon trails: glowing streaks ride the blade/spear tips while a
     // one-shot attack clip swings, so cuts and thrusts read as EDGES ----
     if (this.def.bladeTrail) this.updateBladeTrail(dt);
-    // NOVA: the staff apex crackles while the halo burns — brighter and
-    // bigger the closer the crescents are to apex alignment
     // NULLBOT (roster `glitchAura`): ambient corruption flickering over his frame
     if (this.def.glitchAura && this.alive) this.updateGlitchAura(dt);
     // INFERNO: his shoulder chimneys BURN — flickering flames and a smoke
