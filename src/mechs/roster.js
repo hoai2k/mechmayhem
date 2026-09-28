@@ -642,7 +642,7 @@ export const ROSTER = [
       primary: { base: 0xb9816b, base2: 0xa5583c, metal: 0x6e6258, wear: 0.66, grime: 0.58, panelDepth: 4, roughPaint: 0.58, metalPaint: 0.24, normalStrength: 1.3 },
       accent: { base: 0x35291f, base2: 0x271e17, metal: 0x6e6258, wear: 0.55, grime: 0.55, panelDepth: 3, roughPaint: 0.55, metalPaint: 0.4, normalStrength: 1.2 },
     },
-    body: { scale: 1.22, torsoW: 1.15, torsoH: 1.15, headSize: 0.75, armLen: 0.95, legLen: 1.28, hipW: 1.18, bulk: 0.95 },
+    body: { scale: 1.098, torsoW: 1.15, torsoH: 1.15, headSize: 0.75, armLen: 0.95, legLen: 1.28, hipW: 1.18, bulk: 0.95 },
     // grasshopper crouch: legs splayed wide, deeply folded, ready to spring
     restPose: { torso: [14, 0, 0], head: [-8, 0, 0], shoulderL: [-30, 0, -14], shoulderR: [-30, 0, 14], elbowL: [22, 0, 0], elbowR: [22, 0, 0], thighL: [-26, 0, -24], thighR: [-26, 0, 24], kneeL: [58, 0, 4], kneeR: [58, 0, -4], ankleL: [-30, 0, 20], ankleR: [-30, 0, -20] },
     // jumpWindup: he CROUCHES first, then launches — highest jump in the game

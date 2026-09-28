@@ -115,7 +115,7 @@
     "modelScale": 15.0124,
     "bindPose": "native",
     "yawOffset": 270,
-    "heightScale": 0.59
+    "heightScale": 0.531
   },
   "saurion": {
     "url": "models/mech_saurion.glb",
