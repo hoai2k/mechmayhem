@@ -25,7 +25,6 @@ tool with a live screenshot (landing.js; re-shoot: node tools/wbthumbs.mjs,
 optionally naming just the tools to re-shoot).
 ```
 
-`&variant=alt` (or the legacy `&alt=1`) opens a mech's alternate build;
 `&model=proc` opens the procedural body where a tool offers one, and
 `&model=mannequin` (gait, pose) or `&ref=mannequin` (skin) opens the REFERENCE
 HUMANOID instead — same 15 joints, one colour per bone, a foot you can read.

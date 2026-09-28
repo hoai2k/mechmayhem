@@ -3,8 +3,7 @@
 // sails into the sky / lands where the target was" bugs.
 //   node tools/attackmatrix.mjs [baseUrl] [id …] [--victim=<id>]
 //     (default http://localhost:5173, the whole roster, victim titanus)
-// Non-damaging by design: fenrir ult (buff — damage only lands if the
-// victim is close when the spin triggers).
+// Ults that are not direct attacks are exempt (expectZero, with the reason).
 import { launch } from './lib/browser.mjs';
 import { ROSTER } from '../src/mechs/roster.js';
 
@@ -100,11 +99,20 @@ for (const id of MECHS) {
   console.log(`${id.padEnd(9)} ranged:${String(r.ranged).padStart(4)}  special:${String(r.special).padStart(4)}  ult:${String(r.ult).padStart(4)}`);
 }
 
-const expectZero = new Set(); // every kit deals damage now (wraith ghost-walk included)
+// ULTS THAT ARE NOT DIRECT ATTACKS, each with the reason it cannot connect in
+// this harness (7s, world stepped without the AI list, victim circling):
+const expectZero = new Map([
+  ['colossus:ult', 'COLOSSAL FORM is a size buff — the damage is whatever he does while giant'],
+  ['saurion:ult', 'RAPTOR PACK summons raptors, and minions only fight when their AI runs'],
+  ['inferno:ult', 'FIRE TORNADO is a hazard that hunts at 6.5 u/s — a circling mech outruns it'],
+]);
 let fails = 0;
 for (const r of rows) {
   for (const cat of ['ranged', 'special', 'ult']) {
-    if (expectZero.has(`${r.id}:${cat}`)) continue;
+    if (expectZero.has(`${r.id}:${cat}`)) {
+      if (r[cat] <= 0) console.log(`exempt: ${r.id} ${cat} — ${expectZero.get(`${r.id}:${cat}`)}`);
+      continue;
+    }
     if (r[cat] <= 0) { console.log(`FAIL: ${r.id} ${cat} dealt no damage`); fails++; }
   }
 }

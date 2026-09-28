@@ -37,7 +37,7 @@ export function inkMaterial(width, color = INK) {
       '#include <begin_vertex>\n\ttransformed += normalize(normal) * uInk;');
   };
   // the program is the same whatever the width (it is a uniform), so one
-  // cache key for every mech — see the structureMaterial note in CLAUDE.md
+  // cache key for every mech — see the structureMaterial note in docs/systems/arenas.md
   m.customProgramCacheKey = () => 'rw-ink';
   return m;
 }

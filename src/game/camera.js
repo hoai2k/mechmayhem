@@ -103,7 +103,7 @@ function climbCam(st, f, dt, dist, seedPos, yawIn = 0, pitchIn = 0) {
     _ccAxis.copy(seedPos).sub(fp);
     if (_ccAxis.lengthSq() > 1) st.dir.copy(_ccAxis.normalize());
   }
-  st.up.lerp(f.climbUp || _ccUp, 1 - Math.exp(-CLIMB_CAM.upRate * dt)).normalize();
+  st.up.lerp(f.climbState.up || _ccUp, 1 - Math.exp(-CLIMB_CAM.upRate * dt)).normalize();
   const spd = f.vel.length();
   if (spd > 3) {
     _ccGoal.copy(f.vel).multiplyScalar(-1 / spd);

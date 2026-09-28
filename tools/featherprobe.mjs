@@ -1,7 +1,7 @@
 // featherprobe: HOW SOFT IS THIS BIND? — the measurement behind the FEATHER
 // SEAMS panel (src/mechs/feather.js).
 //
-//   node tools/featherprobe.mjs <mech> [--alt] [--off]
+//   node tools/featherprobe.mjs <mech> [--off]
 //                               [--radius 0.05] [--rigid pod*,jaw] [--maxLinks 2]
 //
 // Loads the mech exactly as the skin workbench does (raw GLB + custom rig +
@@ -41,11 +41,11 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 300)));
 await page.goto('http://localhost:5173/?rigtest', { waitUntil: 'domcontentloaded' });
 
-const out = await page.evaluate(async ({ mech, alt, opts }) => {
+const out = await page.evaluate(async ({ mech, opts }) => {
   const { loadRawGlbScene } = await import('/src/mechs/gltf.js');
   const { applySkinOps } = await import('/src/mechs/skinops.js');
   const { featherSkin } = await import('/src/mechs/feather.js');
-  const raw = await loadRawGlbScene(mech, { alt });
+  const raw = await loadRawGlbScene(mech);
   if (!raw) return { error: 'no GLB for ' + mech };
   let mesh = null;
   raw.scene.traverse((o) => { if (o.isSkinnedMesh && !mesh) mesh = o; });
@@ -109,7 +109,7 @@ const out = await page.evaluate(async ({ mech, alt, opts }) => {
     hardPairs: [...hardPairs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10),
     pairs: [...pairs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16),
   };
-}, { mech, alt: has('alt'), opts });
+}, { mech, opts });
 
 if (out.error) { console.error(out.error); await browser.close(); process.exit(1); }
 const pct = (v) => (100 * v / out.n).toFixed(1).padStart(5) + '%';

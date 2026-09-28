@@ -138,7 +138,7 @@ const out = await page.evaluate(async ({ want, frames, all, only, isolate }) => 
     f.resetForRound(f.pos.clone().set(q.p.x + dist, 0, q.p.z), 0);
     f.pos.set(q.p.x + dist, 0, q.p.z);
     f.vel.set(0, 0, 0);
-    f._climbRelease = false;
+    f.climbState.release = false;
     if (other) other.pos.set(q.p.x + dist + 40, 0, q.p.z + 40);
     const trace = [];
     for (let i = 0; i < frames; i++) {
@@ -160,7 +160,7 @@ const out = await page.evaluate(async ({ want, frames, all, only, isolate }) => 
         // WHAT IS HOLDING HIM: the body's own shell against visible geometry
         // (the same sphere stack climb.js pushes out), and each limb's state
         const shell = [0.22, 0.48, 0.74, 0.95].map((k) => {
-          const u = f.climbUp || { x: 0, y: 1, z: 0 };
+          const u = f.climbState.up || { x: 0, y: 1, z: 0 };
           return Math.min(
             boxDist(world, f.pos.x + u.x * f.height * k, f.pos.y + u.y * f.height * k, f.pos.z + u.z * f.height * k),
             groundGap(f.pos.x + u.x * f.height * k, f.pos.y + u.y * f.height * k, f.pos.z + u.z * f.height * k));
@@ -169,8 +169,8 @@ const out = await page.evaluate(async ({ want, frames, all, only, isolate }) => 
           shell: +Math.min(...shell).toFixed(2),
           i, y: +f.pos.y.toFixed(2), grounded: !!f.grounded, surfaced: !!f.climb,
           vel: +Math.hypot(f.vel.x, f.vel.y, f.vel.z).toFixed(2),
-          upY: f.climbUp ? +f.climbUp.y.toFixed(2) : 1,
-          limbs: [0, 1, 2, 3].map((k) => { const st = f._steps?.[k]; return !st ? '-' : st.air ? 'A' : st.sw >= 0 ? 'S' : 'P'; }).join(''),
+          upY: f.climbState.up ? +f.climbState.up.y.toFixed(2) : 1,
+          limbs: [0, 1, 2, 3].map((k) => { const st = f.climbState.steps?.[k]; return !st ? '-' : st.air ? 'A' : st.sw >= 0 ? 'S' : 'P'; }).join(''),
           body, per,
         });
       }

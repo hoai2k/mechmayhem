@@ -1,6 +1,6 @@
 // Find geometry that STRETCHES when a mech animates: skin diagnostics.
 //
-//   node tools/skinstretch.mjs <mechId> [clip] [--alt]
+//   node tools/skinstretch.mjs <mechId> [clip]
 //
 // Rigid custom-rig skinning binds every vertex to ONE bone, so a triangle
 // whose corners sit on two bones is torn apart by exactly the distance those
@@ -17,12 +17,11 @@
 import { launch } from './lib/browser.mjs';
 
 const [id = 'jerry', clip = 'walk', ...rest] = process.argv.slice(2);
-const alt = rest.includes('--alt');
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
-const url = `http://localhost:5173/workbench/?edit=animation&mech=${id}&mode=action${alt ? '&variant=alt' : ''}`;
+const url = `http://localhost:5173/workbench/?edit=animation&mech=${id}&mode=action`;
 await page.goto(url, { waitUntil: 'networkidle' });
 await page.waitForTimeout(20000);
 

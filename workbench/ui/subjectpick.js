@@ -79,12 +79,10 @@ export function subjectSelect({ config, entries: given, ids, value, label, note,
 }
 
 /**
- * Navigate a load-time-only workbench to another mech: set `param` to `id`,
- * drop the params that were about the OLD mech (`alt` is per-mech staging —
- * carrying it over would silently open a different build than the one asked
- * for), and reload.
+ * Navigate a load-time-only workbench to another mech: set `mech` to `id`,
+ * drop any params (`drop`) that were about the OLD mech, and reload.
  */
-export function gotoSubject(id, drop = ['alt', 'variant']) {
+export function gotoSubject(id, drop = []) {
   const u = new URL(location.href);
   u.searchParams.set('mech', id);
   for (const d of drop) u.searchParams.delete(d);

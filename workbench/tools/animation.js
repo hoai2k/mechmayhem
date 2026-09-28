@@ -20,7 +20,7 @@
 // joint gizmo, bone display, limb-length constraints, and both the clip-pose
 // and manifest bind-patch (boneCorrections / bonePos) exports.
 //
-//   /workbench/?edit=animation&mech=<id>[&compare=proc|alt|solo]
+//   /workbench/?edit=animation&mech=<id>[&compare=proc|anime|solo]
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -92,7 +92,7 @@ export async function runAnimationWorkbench(config, params) {
   let procF = null, glbF = null;
   // LEFT-SLOT mode: what stands next to the mech under study.
   //   'proc' — the procedural body (the default comparison)
-  //   'alt'  — the mech's alternate GLB (only offered when it has one)
+  //   'anime' — the mech's dedicated cel-route sculpt (only offered when it has one)
   //   'solo' — nothing: the main GLB alone, centred on the stage
   let soloMode = false;
   // where each fighter's home spot is. Solo re-centres the survivor so a lone
@@ -254,19 +254,16 @@ export async function runAnimationWorkbench(config, params) {
     world.fighters.length = 0;
     if (Array.isArray(world.projectiles)) world.projectiles.length = 0;
 
-    const hasAlt = !!manifest[id]?.alt?.url;
     const hasAnime = !!config.variants.list(id).find((v) => v.key === 'anime' && v.available);
     // COMPARE TO: fallback-procedural by default; 'anime' stands the dedicated
-    // cel-route sculpt there (mechs that have one); 'alt' the mech's alternate
-    // model (own intake — a full independent fighter); 'solo' leaves the slot
+    // cel-route sculpt there (mechs that have one); 'solo' leaves the slot
     // EMPTY so the mech under study stands alone, with nothing else to read past.
     let slot = compareTo;
-    if (slot === 'alt' && !hasAlt) slot = 'proc';
     if (slot === 'anime' && !hasAnime) slot = 'proc';
     soloMode = slot === 'solo';
     procF = null;
     if (!soloMode) {
-      if (slot === 'alt' || slot === 'anime') {
+      if (slot === 'anime') {
         const sideModel = await config.variants.build(id, { variant: slot });
         procF = makeFighter(id, -PAIR_X, { pi: 0, mech: sideModel });
       } else {
@@ -277,8 +274,8 @@ export async function runAnimationWorkbench(config, params) {
     }
     const model = await config.variants.build(id, { variant: 'glb' });
     glbF = makeFighter(id, soloMode ? 0 : PAIR_X, { pi: 1, mech: model });
-    syncSlotUI(hasAlt, hasAnime, slot);
-    panelUI.setSubtitle(`${id} · GLB vs ${slot === 'alt' ? 'ALT' : slot === 'anime' ? 'ANIME' : slot === 'solo' ? '(solo)' : 'fallback'}`);
+    syncSlotUI(hasAnime, slot);
+    panelUI.setSubtitle(`${id} · GLB vs ${slot === 'anime' ? 'ANIME' : slot === 'solo' ? '(solo)' : 'fallback'}`);
     // NO stand-in enemies on the stage. Attacks aim at the combat code's own
     // no-target phantom (Fighter.aimPhantom): an imagined opponent dead ahead
     // at the move's ideal distance — close for melee, out at working range for
@@ -354,7 +351,7 @@ export async function runAnimationWorkbench(config, params) {
   // ================= ANCHOR EDITOR =================
   // Anchors are the mech's named spawn points — muzzleR/muzzleL (every ranged
   // shot, cannon and most special origins), plus per-mech extras combat reads
-  // by name (vulcan's podL/podR, aegis' shield, wraith's eye/scope). Each is an
+  // by name (vulcan's podL/podR, wraith's eye/scope). Each is an
   // Object3D parented to a rig joint or a real GLB bone, so it rides the
   // animation. Dragging one here moves the LIVE anchor: fire in ACTION mode and
   // the projectiles come out of the new spot.
@@ -590,7 +587,7 @@ export async function runAnimationWorkbench(config, params) {
     color:#dfe8f5;background:rgba(16,20,28,0.93);border:1px solid #2c3648;border-radius:8px;
     padding:10px;width:270px;max-height:95vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
-  const panelUI = setupDevPanel(panel, { key: 'models', workbench: 'models' });
+  const panelUI = setupDevPanel(panel, { key: 'models', workbench: 'animation' });
 
   const mechLabel = label('Mech');
   panel.appendChild(mechLabel);
@@ -610,27 +607,25 @@ export async function runAnimationWorkbench(config, params) {
   panel.appendChild(mechSel);
 
   // COMPARE TO — what stands beside the mech under study.
-  // A mech WITH an alternate GLB gets the full three-way dropdown; one without
+  // A mech WITH an anime sculpt gets the full three-way dropdown; one without
   // has nothing to compare against but procedural, so it gets a plain checkbox
   // instead of a two-item select.
   // `left=` is this param's old name; still read so old links keep working,
   // never written back.
-  let compareTo = params.get('compare') || params.get('left')
-    || (params.get('alt') === '1' ? 'alt' : 'solo');
-  if (!['proc', 'anime', 'alt', 'solo'].includes(compareTo)) compareTo = 'solo';
+  let compareTo = params.get('compare') || params.get('left') || 'solo';
+  if (!['proc', 'anime', 'solo'].includes(compareTo)) compareTo = 'solo';
   const setCompareTo = (v) => {
     compareTo = v;
     const u = new URL(location.href);
-    u.searchParams.delete('alt');                 // legacy flag, superseded
-    u.searchParams.delete('left');                // ditto — 'compare' is the name now
+    u.searchParams.delete('left');                // 'compare' is the name now
     if (v === 'solo') u.searchParams.delete('compare'); else u.searchParams.set('compare', v);
     history.replaceState(null, '', u);
     load(curId);
   };
   panel.appendChild(label('Compare to'));
   const slotSel = el('select', 'width:100%;margin-bottom:8px;background:#0e131b;color:#dfe8f5;border:1px solid #2c3648;padding:4px;display:none');
-  // options are (re)built per mech in syncSlotUI — anime/alt rows only exist
-  // for a mech that has those builds
+  // options are (re)built per mech in syncSlotUI — the anime row only exists
+  // for a mech that has that build
   slotSel.onchange = () => setCompareTo(slotSel.value);
   panel.appendChild(slotSel);
   const soloRow = el('label', 'display:none;gap:6px;align-items:center;cursor:pointer;margin-bottom:8px;font-size:11px;color:#cfe0f5');
@@ -640,19 +635,18 @@ export async function runAnimationWorkbench(config, params) {
   soloRow.appendChild(document.createTextNode(' None (view solo)'));
   soloCheck.onchange = () => setCompareTo(soloCheck.checked ? 'solo' : 'proc');
   panel.appendChild(soloRow);
-  // called from load() once the mech's alt/anime availability is known. A mech
-  // with EITHER extra build gets the dropdown; one with neither has nothing to
+  // called from load() once the mech's anime availability is known. A mech
+  // with that extra build gets the dropdown; one without has nothing to
   // compare against but the fallback body, so it keeps the plain checkbox.
-  function syncSlotUI(hasAlt, hasAnime, slot) {
+  function syncSlotUI(hasAnime, slot) {
     const rows = [['proc', 'Fallback Robot']];
     if (hasAnime) rows.push(['anime', 'Anime Robot']);
-    if (hasAlt) rows.push(['alt', 'Alternate GLB']);
     rows.push(['solo', 'None (view solo)']);
     slotSel.textContent = '';
     for (const [v, t] of rows) {
       const o = document.createElement('option'); o.value = v; o.textContent = t; slotSel.appendChild(o);
     }
-    const dropdown = hasAlt || hasAnime;
+    const dropdown = hasAnime;
     slotSel.style.display = dropdown ? 'block' : 'none';
     soloRow.style.display = dropdown ? 'none' : 'flex';
     slotSel.value = slot;

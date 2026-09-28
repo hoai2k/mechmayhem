@@ -16,10 +16,6 @@ export const GLITCH_COLORS = [
   0xff2038, 0x27f6ff, 0xff2df2, 0x3cff6e, 0x3350ff, 0xffe23c, 0xffffff,
 ];
 export const glitchColor = () => GLITCH_COLORS[(Math.random() * GLITCH_COLORS.length) | 0];
-// whole-shell material tints stick to the harsh digital channels — warm
-// hues at high weight read as gold paint, not corruption
-export const GLITCH_TINTS = [0xff2038, 0x27f6ff, 0xff2df2, 0x3350ff];
-export const glitchTint = () => GLITCH_TINTS[(Math.random() * GLITCH_TINTS.length) | 0];
 import { rand, clamp01 } from '../core/utils.js';
 
 const _emitCol = new THREE.Color();
@@ -729,7 +725,7 @@ export class Effects {
   // tongue blown straight down the exhaust `dir`, and a spit of sparks. The
   // flipbook cells carry the flicker; the hue rotation walks the atlas's
   // baked orange ramp up into yellow (a flat tint over it would just mud, see
-  // the sprite-fire note in CLAUDE.md).
+  // the sprite-fire note in docs/systems/models.md).
   // NOTE ON SIZE: `size` here is not world units. The vertex shader draws a
   // point at `size * 240 / distance` pixels while the 46-degree camera puts
   // ~506 px on a world unit at that distance, so a sprite covers roughly

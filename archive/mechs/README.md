@@ -2,8 +2,9 @@
 
 Mechs that are no longer part of the game. Everything needed to understand or
 revive one is here; nothing in `src/` or `public/` loads them — what is left
-there is inert (comments in gaits/signatures/hurtbox/animations, leftover
-`mech.nova.*` strings in `src/core/text.js`, the `aegis*` clips below) — and the
+there is inert (a few historical comments) — the strings, clips and the
+passive-shield hit test that were left in shared files are in each mech's
+`leftovers.js` — and the
 roster does not contain them, so they cannot be picked, rolled by RANDOM,
 chosen by a CPU, or shown in the title line-up — including with
 SETTINGS → SHOW ALL ROBOTS on, which is what used to reveal them.
@@ -28,6 +29,7 @@ neither was close enough to shipping to be worth one. With them gone
 | `<id>.design.js` | its `src/mechs/designs/<id>.js` procedural sculpt |
 | `<id>.finisher.js` | its `src/game/finisher/<id>.js` cinematic |
 | `badge-<id>.png` · `thumb-<id>.png` · `poster-<id>.png` | its icons and mech-select poster |
+| `leftovers.js` | its strings, clips and code from shared files, with where each went |
 
 The **roster def** (stats, palette, skin, moves) is not duplicated here — it is
 in the removal commit, which is the one place it can be recovered from

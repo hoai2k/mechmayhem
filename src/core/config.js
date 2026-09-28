@@ -284,7 +284,7 @@ export const CONFIG = {
   // ROBOT SPEED: a global multiplier on how fast every fighter WALKS, RUNS
   // and FLIES, over the per-mech speeds tuned in the roster. 100% is now the
   // DEFAULT pace and that pace is TWICE what it used to be — the doubling
-  // lives in fighter.js SPEED_BASE, so the slider reads a clean 100% at the
+  // lives in TUNING.movement.speedBase, so the slider reads a clean 100% at the
   // shipped feel and the old pace is 50%. The relative pace of the roster (a
   // nimble tempest against a lumbering colossus) is untouched at any
   // setting. Attacks, dashes and the speeds written into special moves are
@@ -424,12 +424,6 @@ export function sfxVolume() {
 export function sfxGain(category) {
   const c = CONFIG.sfxMix[category];
   return sfxVolume() * (c == null ? 1 : c);
-}
-
-/** The menu theme's share of the music bus, 0..1. Persisted. */
-export function setMenuMusicMix(v) {
-  CONFIG.menuMusicMix = Math.min(1, Math.max(0, +v || 0));
-  try { localStorage.setItem('rw.menuMusicMix', String(CONFIG.menuMusicMix)); } catch (e) { /* ok */ }
 }
 
 /** What the MENU theme actually plays at: the bus, quieted by the mix. */

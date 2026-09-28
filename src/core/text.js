@@ -373,16 +373,6 @@ export const MESSAGES = {
   'touch.taunt.hint': 'Taunt',
   'touch.pause.hint': 'Pause',
 
-  // ------------------------------------------------- in-combat banner callouts
-  // AEGIS's JUDGEMENT ultimate holds court mid-arena
-  'combat.judgement.0': 'JUDGEMENT',
-  'combat.judgement.1': 'JUDGEMENT .',
-  'combat.judgement.2': 'JUDGEMENT . .',
-  'combat.judgement.3': 'JUDGEMENT . . .',
-  'combat.judgement.dismissed': 'CASE DISMISSED',
-  'combat.judgement.innocent': "INNOCENT: YOU'RE FREE TO GO",
-  'combat.judgement.guilty': 'GUILTY: DEATH PENALTY',
-
   // =========================================================================
   // MECHS — name / title / bio / round quotes / move names.
   // Applied onto ROSTER at import time (src/mechs/roster.js), which keeps the
@@ -406,15 +396,6 @@ export const MESSAGES = {
   'mech.vulcan.move.special': 'Micro-Missile Volley',
   'mech.vulcan.move.ult': 'BULLET HURRICANE',
 
-  'mech.aegis.name': 'AEGIS',
-  'mech.aegis.title': 'The Bastion of Dawn',
-  'mech.aegis.blurb': 'A knight-errant forged from cathedral steel. Sworn to protect the innocent, the outnumbered, and anyone standing behind that enormous shield.',
-  'mech.aegis.quote.intro': '"By dawn\'s light — I shall not falter!"',
-  'mech.aegis.quote.win': '"Honor is the finest armor. Yield with grace, friend."',
-  'mech.aegis.move.ranged': 'Dawn Javelin',
-  'mech.aegis.move.special': 'Bulwark Bash',
-  'mech.aegis.move.ult': 'JUDGEMENT',
-
   'mech.viper.name': 'VIPER',
   'mech.viper.title': 'The Whispering Fang',
   'mech.viper.blurb': 'A prototype infiltration unit that developed a taste for theatrics. Strikes from angles geometry teachers refuse to acknowledge.',
@@ -423,15 +404,6 @@ export const MESSAGES = {
   'mech.viper.move.ranged': 'Fang Throw',
   'mech.viper.move.special': 'Blade Cyclone',
   'mech.viper.move.ult': 'SERPENT STORM',
-
-  'mech.nova.name': 'NOVA',
-  'mech.nova.title': 'The Starborn Oracle',
-  'mech.nova.blurb': 'Built around a fragment of a collapsed star. Speaks in riddles, fights in constellations. Gravity is more of a suggestion to her.',
-  'mech.nova.quote.intro': '"Come — witness the light between worlds."',
-  'mech.nova.quote.win': '"The stars foretold this. They usually do."',
-  'mech.nova.move.ranged': 'Plasma Lance',
-  'mech.nova.move.special': 'Starfall Trio',
-  'mech.nova.move.ult': 'SUPERNOVA',
 
   'mech.rhino.name': 'RHINO',
   'mech.rhino.title': 'The Unstoppable Object',

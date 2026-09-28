@@ -39,7 +39,7 @@ function workbenchRedirect(params) {
     || (rig && rig !== '1' && rig !== 'true' ? rig : null);
   if (mech) next.set('mech', mech);
   // per-tool params that still mean the same thing on the other side
-  for (const k of ['alt', 'variant', 'model', 'clip', 'left', 'at', 'dummy', 'ball',
+  for (const k of ['model', 'clip', 'left', 'at', 'dummy', 'ball',
     'prop', 'throttle', 'game', 'anim', 'compare',
     'arena', 'seed', 'load', 'theme']) {   // the arena editor's own subject params
     if (params.has(k)) next.set(k, params.get(k));

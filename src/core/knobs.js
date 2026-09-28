@@ -13,16 +13,17 @@
 //   rw.config                   the live CONFIG object (core/config.js)
 //   rw.tuning                   the live TUNING object (core/tuning.js)
 //   rw.get('neonBuzzVolume')    read one, by dotted path
-//   rw.set('neonBuzzVolume', 0.02)          write a CONFIG knob, live
-//   rw.tune('melee.hitstunLight', 0.4)      override a TUNING value + reload
+//   rw.set('neonBuzzVolume', 0.02)          write any knob, live
+//   rw.tune('melee.hitstunLight', 0.4)      override a TUNING value for the
+//                                           whole session (survives reloads)
 //   rw.tunes() / rw.untune()    list / drop this session's overrides
 //   rw.buzz()                   fire the title sign's flicker on demand, x3
 //
-// TWO WRITERS BECAUSE THERE ARE TWO KINDS OF KNOB. CONFIG is read live at the
-// point of use, so set() lands immediately. TUNING is read ONCE into module
-// consts (fighter.js snapshots nearly all of it at load, on purpose — hot
-// path), so writing it live would silently do nothing; tune() stores the value
-// and reloads so it is in place before anything reads it.
+// BOTH CONFIG AND TUNING ARE READ LIVE at the point of use (fighter.js holds
+// references to TUNING's groups, not copies of their numbers), so set() lands
+// on the next frame for either. tune() is for a TUNING value you want to keep
+// for the session: it stores the override and reloads, so it is in place
+// before anything reads it and survives further reloads.
 //
 // Neither survives the tab — this is for FINDING a number, and config.js /
 // tuning.js are for KEEPING it.
@@ -30,10 +31,6 @@
 import { CONFIG } from './config.js';
 import { TUNING, TUNE_OVERRIDES } from './tuning.js';
 
-// TUNING values are snapshotted into module consts by fighter.js at load, so
-// writing one live is usually a no-op — those go through rw.tune(), which
-// stores the override and reloads so it lands before anything reads it.
-// CONFIG, by contrast, is read live everywhere, so rw.set() is enough for it.
 function inTuning(path) {
   const parts = String(path).split('.');
   let o = TUNING;
@@ -75,11 +72,6 @@ export function installKnobs(hooks = {}) {
       const was = r.obj[r.key];
       r.obj[r.key] = value;
       console.log(`[rw] ${path}: ${JSON.stringify(was)} -> ${JSON.stringify(value)}`);
-      if (inTuning(path) && !(path in CONFIG)) {
-        console.warn(`[rw] NOTE: ${path} is a TUNING value, and fighter.js read it into a`
-          + ` const when it loaded — this write probably changes nothing now.`
-          + ` Use rw.tune('${path}', ${JSON.stringify(value)}) instead (stores it and reloads).`);
-      }
       return value;
     },
     /** Override a TUNING value for this session and reload so it takes hold. */
@@ -103,8 +95,8 @@ export function installKnobs(hooks = {}) {
       console.log([
         'rw.config / rw.tuning          the live objects',
         "rw.get('neonBuzzVolume')       read a knob (dotted paths work)",
-        "rw.set('neonBuzzVolume', 0.02) write a CONFIG knob, live",
-        "rw.tune('dash.cooldown', 0.2)  override a TUNING value + reload",
+        "rw.set('dash.cooldown', 0.2)   write any knob (CONFIG or TUNING), live",
+        "rw.tune('dash.cooldown', 0.2)  keep a TUNING override for the session (reloads)",
         'rw.tunes() / rw.untune()       list / drop session overrides',
         ...Object.keys(hooks).map((k) => `rw.${k}()`),
       ].join('\n'));
@@ -139,7 +131,7 @@ export const KNOWN_PARAMS = [
   'glbview', 'bake', 'export', 'menupose', 'poster', 'finisherdemo', 'ultfx', 'geyser',
   'fire', 'theme', 'forcesplit', 'humans', 'diff', 'auto', 'arena', 'seed', 'training',
   // subject / model selection
-  'mech', 'id', 'prop', 'variant', 'alt', 'model', 'clip', 'anim', 'key', 't',
+  'mech', 'id', 'prop', 'model', 'clip', 'anim', 'key', 't',
   'at', 'compare', 'left', 'dummy', 'ball', 'spin', 'yaw', 'orbit', 'cam',
   'muzzle', 'mzbone', 'mzj', 'mzo', 'throttle', 'game',
   // skin / skindebug / gait workbenches

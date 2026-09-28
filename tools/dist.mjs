@@ -18,7 +18,7 @@
 //   1. builds with RW_DIST=1, which drops the /workbench/ page from the build
 //      inputs and compiles out the ?debug / ?showcase / level-editor routes
 //   2. removes the models of mechs the shipped game cannot reach (roster
-//      `hidden: true`) and the workbench-only `alt` sub-entries, rewriting
+//      `hidden: true`), rewriting
 //      public/models/manifest.json in the OUTPUT only
 //   3. quantizes (16-bit) + meshopt-compresses every surviving GLB. Safe
 //      because src/mechs/dequantize.js folds quantization back into the
@@ -86,16 +86,6 @@ if (!KEEP_HIDDEN) {
     if (!playable.has(id)) { dropped.push(`${id} (not in the playable roster)`); delete manifest[id]; }
   }
 }
-// `alt` sub-entries are a workbench affordance (a second model, or the same
-// model on a staged rig). The game never loads them.
-let altCount = 0;
-for (const [id, entry] of Object.entries(manifest)) {
-  if (entry && typeof entry === 'object' && entry.alt) {
-    if (entry.alt.url) dropped.push(`${id}.alt`);
-    delete entry.alt;
-    altCount++;
-  }
-}
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
 // delete every GLB the rewritten manifest no longer references
@@ -110,7 +100,7 @@ for (const f of fs.readdirSync(modelsDir)) {
   removedFiles++;
 }
 console.log(`  hidden mechs: ${hidden.join(', ') || '(none)'}`);
-console.log(`  dropped entries: ${dropped.join(', ') || '(none)'} · alt entries stripped: ${altCount}`);
+console.log(`  dropped entries: ${dropped.join(', ') || '(none)'}`);
 console.log(`  removed ${removedFiles} GLB files, ${MB(removedBytes)}`);
 
 // the arena props' pre-optimization originals (tools/propopt.mjs) are an

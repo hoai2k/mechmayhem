@@ -50,8 +50,6 @@ const out = await page.evaluate(async () => {
   check('custom rigs', rigIds(), realCat.filter((c) => cfg.rig.custom.get(c.id)).map((c) => c.id));
   check('models', Object.keys(manifest).filter((k) => manifest[k]?.url),
     realCat.filter((c) => c.hasModel).map((c) => c.id));
-  check('alternates', Object.keys(manifest).filter((k) => manifest[k]?.alt?.url),
-    realCat.filter((c) => c.hasAlt).map((c) => c.id));
 
   // the props workbench's catalogue is the game's prop table, and its "has an
   // imported model" flag is the prop manifest — neither hand-listed

@@ -8,8 +8,8 @@
 //
 // Read this file as the answer to "what does this game mean by …":
 //   subject   = a MECH (roster entry + optional GLB + optional custom rig)
-//   variants  = the GLB build, the hand-sculpted PROCEDURAL body, the staged
-//               ALTERNATE GLB — a mechmayhem-specific set, hence config data
+//   variants  = the GLB build, the hand-sculpted PROCEDURAL body, the anime
+//               sculpt, the mannequin — a mechmayhem-specific set, hence config data
 //   joints    = the 15 canonical rig joints the animation system drives
 //   clips     = animations.js, filtered per mech by the real play sites
 //   anchors   = muzzles/core/overhead, the origins combat fires from
@@ -82,7 +82,7 @@ export async function loadMechMayhemConfig() {
   return CONFIG;
 }
 
-const entryOf = (id, alt) => (alt ? manifest?.[id]?.alt : manifest?.[id]) || null;
+const entryOf = (id) => manifest?.[id] || null;
 
 // A theme is shared config and an Arena is handed one to keep — the editor
 // builds arenas over and over, so every build gets its own copy.
@@ -186,7 +186,7 @@ const CONFIG = defineWorkbenchConfig({
   },
 
   // the raw asset manifest, for the few tools that reason about entries
-  // directly (which builds exist, is the rig on the primary or the alt)
+  // directly (which builds exist, does the entry carry a rig)
   manifest: () => manifest,
 
   // RE-READ THE AUTHORING SOURCES without a page reload — the "load from
@@ -213,15 +213,14 @@ const CONFIG = defineWorkbenchConfig({
         name: m.name,
         hidden: !!m.hidden,
         hasModel: !!manifest?.[m.id]?.url,
-        hasAlt: !!manifest?.[m.id]?.alt?.url,
-        hasRig: !!(manifest?.[m.id]?.rig || manifest?.[m.id]?.alt?.rig || rigFor(m.id)),
+        hasRig: !!(manifest?.[m.id]?.rig || rigFor(m.id)),
       })),
       // the reference body, pickable like a mech: `hidden` puts it under the
       // rule at the end of every picker, `reference` tells the tools that need
       // a real fighter (the action workbench) to leave it out
       ...Object.values(REFERENCE_DEFS).map((d) => ({
         id: d.id, name: d.name, hidden: true, reference: true,
-        hasModel: false, hasAlt: false, hasRig: true,
+        hasModel: false, hasRig: true,
       })),
     ],
     get: (id) => defOf(id),
@@ -234,9 +233,7 @@ const CONFIG = defineWorkbenchConfig({
   variants: {
     // 'glb'  the shipped model · 'proc' the hand-sculpted FALLBACK body ·
     // 'anime' the dedicated cel-route sculpt where one exists
-    // (src/mechs/animedesigns/) · 'alt' a
-    // staged second build (a different GLB, or the same one on a new rig) ·
-    // 'mannequin' the REFERENCE humanoid (mechs/mannequin.js) — not a build of
+    // (src/mechs/animedesigns/) · 'mannequin' the REFERENCE humanoid (mechs/mannequin.js) — not a build of
     // this mech at all, but the same 15 joints at this mech's measurements, so
     // a tool can show what the rig is being ASKED to do on a body you can read
     list: (id) => (isReference(id)
@@ -246,7 +243,6 @@ const CONFIG = defineWorkbenchConfig({
         { key: 'glb', label: 'GLB', available: !!manifest?.[id]?.url },
         { key: 'proc', label: 'Fallback Robot', available: true },
         { key: 'anime', label: 'Anime Robot', available: !!ANIME[id]?.design },
-        { key: 'alt', label: 'Alternate GLB', available: !!manifest?.[id]?.alt?.url },
         { key: 'mannequin', label: 'Mannequin', available: true },
       ]),
     async build(id, { variant = 'glb', overrides = null } = {}) {
@@ -257,7 +253,7 @@ const CONFIG = defineWorkbenchConfig({
       if (variant === 'mannequin') return buildMannequin({ dims: computeDims(def), def });
       if (variant === 'proc') return buildMech(def);
       if (variant === 'anime') return buildAnimeMech(def);
-      const built = await buildGlbForTool(def, overrides, { alt: variant === 'alt' });
+      const built = await buildGlbForTool(def, overrides);
       return built?.mech || null;
     },
     // the untouched asset — skin + rig work happens on private geometry, not
@@ -276,9 +272,9 @@ const CONFIG = defineWorkbenchConfig({
         const m = referenceBody(1);      // raw-asset scale; the tools re-fit it
         return { scene: m.group, entry: null, mannequin: m };
       }
-      return loadRawGlbScene(id, { alt: variant === 'alt', drops });
+      return loadRawGlbScene(id, { drops });
     },
-    entry: (id, { variant = 'glb' } = {}) => entryOf(id, variant === 'alt'),
+    entry: (id) => entryOf(id),
     height: (model) => {
       const box = skinnedBox(model.group);
       return box.max.y - box.min.y;
@@ -309,7 +305,7 @@ const CONFIG = defineWorkbenchConfig({
     // skin at rest and RigAdapter captures a rest offset per bone, so the same
     // R lands on both sides. This is the pair a tool needs to author them.
     corrections: {
-      get: (id, { variant = 'glb' } = {}) => ({ ...(entryOf(id, variant === 'alt')?.boneCorrections || {}) }),
+      get: (id) => ({ ...(entryOf(id)?.boneCorrections || {}) }),
     },
   },
 
@@ -504,18 +500,18 @@ const CONFIG = defineWorkbenchConfig({
     blendPatch,
     weldedAdjacency,
     enclaveScan,
-    ops: (id, { variant = 'glb' } = {}) => (entryOf(id, variant === 'alt')?.skinOps || []).map((o) => ({ ...o })),
+    ops: (id) => (entryOf(id)?.skinOps || []).map((o) => ({ ...o })),
     // SEAM CUTS — geometry the mesher wrongly welded and seamcut.js separates.
     // Handed over so a tool can SAY SO: the skin workbench edits the raw file,
     // where the cut has not happened yet, so a mech that has cuts needs a
     // warning that what it is showing is not what the game builds. There is no
     // preview of the cut here any more — judging one needs the deforming model
     // over every clip, which is Skin Debug's job.
-    seamCuts: (id, { variant = 'glb' } = {}) => (entryOf(id, variant === 'alt')?.seamCuts || []),
+    seamCuts: (id) => (entryOf(id)?.seamCuts || []),
     // GEOMETRY DROPS — the surplus lumps a manifest entry deletes (dropGeo /
     // dropBones). A tool applies them to its own mesh once its ops have been
     // applied and its island partition taken, which is the game's own order.
-    applyDrops: (mesh, id, { variant = 'glb' } = {}) => applyEntryDrops(mesh, entryOf(id, variant === 'alt') || {}),
+    applyDrops: (mesh, id) => applyEntryDrops(mesh, entryOf(id) || {}),
   },
 
   hurtbox: { build: buildHurtbox, pickStrikeLimb, MELEE, PART_TABLE },
@@ -744,7 +740,7 @@ const CONFIG = defineWorkbenchConfig({
   // cannot see is a write you cannot trust.
   persist: {
     // what the manifest calls this mech — tools show it in their subtitle
-    describe: (id, variant) => `${id}${variant === 'alt' ? ' · ALT' : ''}`,
+    describe: (id) => id,
   },
 
   // small shared math the tools use for scrubbing/blending

@@ -27,6 +27,7 @@ import { clamp, damp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { TUNING } from '../core/tuning.js';
 import { bodyHitSegment } from './hurtbox.js';
+import { isFoe } from './movekit.js';
 
 const _o = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -77,7 +78,7 @@ const isLive = (f, T) => !!T && (T.prop ? T.prop.alive : (T.alive && !f.isAllyOf
 function nearestRobot(f) {
   let best = null, bestD = Infinity;
   for (const e of f.world.fighters) {
-    if (e === f || !e.alive || f.isAllyOf(e)) continue;
+    if (!isFoe(f, e)) continue;
     const dx = f.world.wrapDelta(e.pos.x - f.pos.x), dz = f.world.wrapDelta(e.pos.z - f.pos.z);
     const d = dx * dx + dz * dz;
     if (d < bestD) { bestD = d; best = e; }
@@ -145,7 +146,7 @@ function traceAim(f, origin, dir, reach, out) {
   _p1.copy(dir).multiplyScalar(reach).add(origin);
   let best = reach;
   for (const e of w.fighters) {
-    if (e === f || !e.alive || f.isAllyOf(e)) continue;
+    if (!isFoe(f, e)) continue;
     // Test the enemy's NEAREST wrapped image, the way every other query reaches
     // through the arena seam — by sliding the RAY into his frame rather than
     // him into ours, since his hurtbox capsules are built where he stands.

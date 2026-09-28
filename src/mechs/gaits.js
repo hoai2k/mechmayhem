@@ -8,7 +8,7 @@
 //
 // A GAIT is a named bundle of those numbers. A roster def names one
 // (`gait: 'sprint'`), several mechs SHARE one (that is the point: tune
-// 'sprint' once and viper, tempest, wraith and nova all move), and a mech that
+// 'sprint' once and viper, tempest and wraith all move), and a mech that
 // names none gets `standard`. `applyGait()` below is the whole cycle, and it is
 // what the animator runs — the gait workbench (`/workbench/?edit=gait`) drives
 // this exact function, so what you tune there is what ships.
@@ -500,7 +500,7 @@ export const GAITS = {
     body: { bob: 0.19, pitch: 0.10, yaw: 0.09, roll: 0.05, lean: 0.30, twist: 0.11, head: -0.22 },
   },
 
-  // THE FAST TIER — viper, tempest, wraith, nova. A light mech at full throttle
+  // THE FAST TIER — viper, tempest, wraith. A light mech at full throttle
   // is SPRINTING, and a sprint is not a walk played faster:
   //   · the lead leg reaches out ahead of the body and the trailing leg finishes
   //     its push behind it (reach + extend), instead of a symmetric pendulum;

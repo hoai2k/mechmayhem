@@ -114,74 +114,6 @@ export function platingTextures(baseHex, seed = 1, opts = {}) {
   return out;
 }
 
-// ============ BUILDING FACADE ============
-// Windows grid; emissive map has lit windows for night arenas.
-export function buildingFacade(style = 0, seed = 3) {
-  const key = `bldg_${style}_${seed}`;
-  if (cache.has(key)) return cache.get(key);
-  const rng = makeRng(seed * 883 + style * 97);
-  const S = 256;
-  const palettes = [
-    { wall: '#3d4654', win: '#101820', lit: '#ffd98a' },   // steel office
-    { wall: '#5a5148', win: '#141a20', lit: '#ffe9b0' },   // brown brick office
-    { wall: '#2c3a48', win: '#0e1620', lit: '#9adfff' },   // glass tower
-    { wall: '#4c4c55', win: '#12161c', lit: '#ffc37a' },   // concrete block
-  ];
-  const p = palettes[style % palettes.length];
-  const cols = 6, rows = 8, m = 8;
-  const cw = (S - m * 2) / cols, ch = (S - m * 2) / rows;
-
-  const lit = [];
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) lit.push(rng.chance(0.38));
-
-  const map = makeCanvasTexture(null, S, S, (ctx) => {
-    ctx.fillStyle = p.wall;
-    ctx.fillRect(0, 0, S, S);
-    // wall weathering
-    for (let i = 0; i < 120; i++) {
-      ctx.fillStyle = `rgba(0,0,0,${rng.range(0.02, 0.08)})`;
-      ctx.fillRect(rng() * S, rng() * S, rng.range(4, 20), rng.range(4, 20));
-    }
-    let i = 0;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++, i++) {
-        const x = m + c * cw + 3, y = m + r * ch + 3, w = cw - 6, h = ch - 6;
-        ctx.fillStyle = lit[i] ? p.lit : p.win;
-        ctx.fillRect(x, y, w, h);
-        // window frame + reflection slash
-        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(x, y, w, h);
-        ctx.fillStyle = 'rgba(255,255,255,0.10)';
-        ctx.beginPath();
-        ctx.moveTo(x, y + h);
-        ctx.lineTo(x + w * 0.45, y);
-        ctx.lineTo(x + w * 0.7, y);
-        ctx.lineTo(x + w * 0.25, y + h);
-        ctx.fill();
-      }
-    }
-  });
-
-  const emissiveMap = makeCanvasTexture(null, S, S, (ctx) => {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, S, S);
-    let i = 0;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++, i++) {
-        if (!lit[i]) continue;
-        const x = m + c * cw + 3, y = m + r * ch + 3, w = cw - 6, h = ch - 6;
-        ctx.fillStyle = p.lit;
-        ctx.fillRect(x, y, w, h);
-      }
-    }
-  });
-
-  const out = { map, emissiveMap };
-  cache.set(key, out);
-  return out;
-}
-
 // Chunk-scale facade: a couple of windows per destructible chunk face.
 export function chunkFacade(style = 0, seed = 3) {
   const key = `chunkf_${style}_${seed}`;
@@ -274,25 +206,6 @@ export function roadTexture() {
   });
 }
 
-export function sidewalkTexture() {
-  return makeCanvasTexture('sidewalk', 256, 256, (ctx, S) => {
-    const rng = makeRng(77);
-    ctx.fillStyle = '#63666c';
-    ctx.fillRect(0, 0, S, S);
-    for (let i = 0; i < 900; i++) {
-      ctx.fillStyle = `rgba(${rng.int(70, 130)},${rng.int(70, 130)},${rng.int(75, 135)},0.4)`;
-      ctx.fillRect(rng() * S, rng() * S, 2, 2);
-    }
-    ctx.strokeStyle = 'rgba(20,22,26,0.7)';
-    ctx.lineWidth = 3;
-    for (let i = 0; i <= 2; i++) {
-      const p = (i / 2) * S;
-      ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
-    }
-  });
-}
-
 // ============ FX SPRITES ============
 export function softCircleTexture() {
   return makeCanvasTexture('softcircle', 128, 128, (ctx, S) => {
@@ -314,21 +227,6 @@ export function sparkTexture() {
     g.addColorStop(1, 'rgba(255,120,20,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, S, S);
-  });
-}
-
-export function smokeTexture() {
-  return makeCanvasTexture('smoke', 128, 128, (ctx, S) => {
-    const rng = makeRng(1234);
-    for (let i = 0; i < 26; i++) {
-      const x = S / 2 + rng.range(-26, 26), y = S / 2 + rng.range(-26, 26);
-      const r = rng.range(14, 34);
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, 'rgba(255,255,255,0.10)');
-      g.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-    }
   });
 }
 

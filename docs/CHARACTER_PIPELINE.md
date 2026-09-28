@@ -94,9 +94,8 @@ is almost always the wrong tool: the pinned number is the size of record, so
 re-deriving it after a rig change *is* the silent resize this mechanism exists to
 prevent. Change size deliberately by editing `modelScale` (or `heightScale`).
 
-`/workbench/?edit=animation` and `tools/pin-modelscale.mjs` both cover `alt`
-sub-entries, so a model variant carries its own pin (no shipped entry carries an
-`alt` today).
+`tools/pin-modelscale.mjs` writes the pin through `formatManifest`, the
+manifest's own formatter (`npm run check` holds the file to it).
 
 ## Verifying a model
 

@@ -6,6 +6,7 @@ import { rand, clamp } from '../core/utils.js';
 import { glitchColor, GOO_TINTS } from './effects.js';
 import { bodyHitSegment, SHOT_PAD } from './hurtbox.js';
 import { EGG_DMG_SHOT } from './eggs.js';
+import { isFoe } from './movekit.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -60,9 +61,6 @@ const VISUALS = {
       return g;
     },
     tumble: true, trail: 'glow', doubleSide: true,
-  },
-  spear: { // AEGIS: the hurled lance — a long javelin flying point-first
-    geo: () => new THREE.ConeGeometry(0.15, 3.6, 6), rot: true, trail: 'glow',
   },
   fist: { // TITANUS: the detached rocket fist — a chunky knuckle block
     // punching through the air nose-first, jet exhaust off the wrist
@@ -290,7 +288,7 @@ export class ProjectileSystem {
       if (p.retarget && !p.committed && (!p.homing || !p.homing.alive)) {
         let best = null, bestD = Infinity;
         for (const f of world.fighters) {
-          if (f === p.owner || !f.alive) continue;
+          if (!isFoe(p.owner, f)) continue;
           const d = f.center().distanceToSquared(p.mesh.position);
           if (d < bestD) { best = f; bestD = d; }
         }
@@ -455,7 +453,7 @@ export class ProjectileSystem {
       }
       // fighters (nearest-image distance across the seam)
       for (const f of world.fighters) {
-        if (f === p.owner || !f.alive || p.hitSet.has(f)) continue;
+        if (!isFoe(p.owner, f) || p.hitSet.has(f)) continue;
         if (f.iframes > 0) continue;
         // BODY SHAPE, not a ball: a bolt now has to actually reach an arm,
         // a leg or the chest (hurtbox.js). Tested as the SWEPT step, not the
@@ -595,7 +593,7 @@ export class ProjectileSystem {
     const rayLen = end.distanceTo(origin);
     const hits = [];
     for (const f of world.fighters) {
-      if (f === owner || !f.alive || f.iframes > 0) continue;
+      if (!isFoe(owner, f) || f.iframes > 0) continue;
       // beam vs BODY SHAPE (hurtbox.js) — a rail slug that passes between
       // the legs of a lanky mech is a miss, and `t` orders the victims
       // along the beam exactly as the old point-line distance did
@@ -619,7 +617,7 @@ export class ProjectileSystem {
     const world = this.world;
     let best = null, bestD = Infinity;
     for (const f of world.fighters) {
-      if (f === owner || !f.alive) continue;
+      if (!isFoe(owner, f)) continue;
       const c = f.center();
       _dir.copy(c).sub(origin);
       const d = _dir.length();
@@ -635,7 +633,7 @@ export class ProjectileSystem {
       // chain to one nearby enemy
       let chain = null, chainD = Infinity;
       for (const f of world.fighters) {
-        if (f === owner || f === best || !f.alive) continue;
+        if (!isFoe(owner, f) || f === best) continue;
         const d = f.center().distanceTo(best.center());
         if (d < chainRange && d < chainD) { chain = f; chainD = d; }
       }

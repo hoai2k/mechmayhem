@@ -29,9 +29,9 @@
 //   click patch = select island · T = textures on/off · W = wiggle bone
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { setupDevPanel } from '../ui/panel.js';
+import { createHistory } from '../ui/history.js';
 import { prepareMesh, poseMatrices, skinVertices, edgeLengths, scoreEdge, DEFAULTS } from './stretchscan.js';
 
 const CLIP_SPEED = 0.1;   // real game clips run at 10% so deformation is readable
@@ -69,14 +69,6 @@ export async function runSkinWorkbench(config, params) {
   const manifest = config.manifest();
   const glbIds = config.catalogue.list().filter((c) => c.hasModel).map((c) => c.id);
   let curId = (startId && manifest[startId]?.url) ? startId : (glbIds[0] || config.catalogue.list()[0].id);
-  // ?alt=1 edits the manifest's `alt` entry — a second model (aegis, jerry) or
-  // the same model on a staged custom rig (rhino, inferno). The panel's "Edit
-  // Alternate GLB" box drives it; skinOps belong to whichever entry is loaded,
-  // which is why the export below writes into `alt` when one is.
-  const wantAlt = new URLSearchParams(location.search).get('alt') === '1';
-  // per-mech, because the dropdown switches mechs without a reload and most
-  // mechs have no alternate at all
-  let altOn = wantAlt && !!manifest[curId]?.alt?.url;
   // MANNEQUIN REFERENCE: not a mech at all — the reference humanoid
   // (src/mechs/mannequin.js) loaded through the same path, so this tool paints
   // it with the same bone colours it paints a mech with. That is the point: it
@@ -136,7 +128,6 @@ export async function runSkinWorkbench(config, params) {
   // ---- bind-geometry panel: per-bone weights for the selected island ----
   let bindOpen = false;      // is the weight editor showing?
   // undo/redo of the ops list (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y)
-  let undoStack = [], redoStack = [];
   // ---- paint mode: split one island across two bones with a brush ----
   let paintMode = false;
   let paintPhase = 'off';    // off | pickBone | pickRegion | paint
@@ -235,27 +226,23 @@ export async function runSkinWorkbench(config, params) {
 
   // ---- undo/redo (snapshots of the ops list) ----
   const snapshotOps = () => ops.map((o) => JSON.parse(JSON.stringify(o)));
-  function pushUndo() {
-    undoStack.push(snapshotOps());
-    if (undoStack.length > 200) undoStack.shift();
-    redoStack.length = 0;
-  }
+  const hist = createHistory({
+    snapshot: snapshotOps,
+    restore: (snap) => {
+      ops = snap;
+      selComp = null; stopWiggle();
+      paintOp = null; paintSet = null;   // live paint op is now detached from ops
+      afterHistory();
+    },
+    cap: 200,
+  });
+  const pushUndo = () => hist.record();
   function undo() {
-    if (!undoStack.length) { setStatus('Nothing to undo.'); return; }
-    redoStack.push(snapshotOps());
-    ops = undoStack.pop();
-    selComp = null; stopWiggle();
-    paintOp = null; paintSet = null;   // live paint op is now detached from ops
-    afterHistory();
+    if (!hist.undo()) { setStatus('Nothing to undo.'); return; }
     setStatus(`Undo · ${ops.length} op(s).`);
   }
   function redo() {
-    if (!redoStack.length) { setStatus('Nothing to redo.'); return; }
-    undoStack.push(snapshotOps());
-    ops = redoStack.pop();
-    selComp = null; stopWiggle();
-    paintOp = null; paintSet = null;
-    afterHistory();
+    if (!hist.redo()) { setStatus('Nothing to redo.'); return; }
     setStatus(`Redo · ${ops.length} op(s).`);
   }
   // re-apply ops after an undo/redo — in paint mode, keep the paint view
@@ -267,9 +254,7 @@ export async function runSkinWorkbench(config, params) {
 
   async function load(id) {
     curId = id;
-    altOn = wantAlt && !!manifest[id]?.alt?.url;
-    refreshAltRow();
-    panelUI.setSubtitle(onReference() ? 'MANNEQUIN reference (read-only)' : `${id}${altOn ? ' · ALT' : ''}`);
+    panelUI.setSubtitle(onReference() ? 'MANNEQUIN reference (read-only)' : id);
     // keep the URL's ?mech= in sync so a reload / shared link reopens this mech.
     // replaceState (not pushState) avoids cluttering back-button history.
     try {
@@ -280,7 +265,7 @@ export async function runSkinWorkbench(config, params) {
     } catch (_) { /* non-browser / opaque origin — URL sync is best-effort */ }
     if (holder) { scene.remove(holder); holder = null; }
     selComp = null; wiggle = null; wigglePaused = false; ops = []; colorAttr = null;
-    undoStack = []; redoStack = [];
+    hist.clear();
     animMech = null; animBones = null; jointOfBone = null;
     stretchPrep = null;
     selBone = null; clipOpts = []; clipRestore = null;   // preferredClip is sticky across mechs
@@ -290,7 +275,7 @@ export async function runSkinWorkbench(config, params) {
     paintOp = null; paintSet = null; paintColorAttr = null;
     bindOpen = false; bindComp = null; bindRows = [];
     setOrbitPaintMode(false); updatePaintUI();
-    const raw = await config.variants.raw(id, { variant: (mannOn || refSubject()) ? 'mannequin' : altOn ? 'alt' : 'glb' });
+    const raw = await config.variants.raw(id, { variant: (mannOn || refSubject()) ? 'mannequin' : 'glb' });
     if (!raw) { setStatus('no GLB for ' + id); return; }
     mesh = null;
     raw.scene.traverse((o) => {
@@ -311,7 +296,7 @@ export async function runSkinWorkbench(config, params) {
     // costs nothing (a dropped lump is its own island, so no ordinal moves)
     // and stops the stray blob the game deletes from floating in this view,
     // where it reads as something wrong with the model.
-    const dropped = config.skin.applyDrops?.(mesh, id, { variant: altOn ? 'alt' : 'glb' });
+    const dropped = config.skin.applyDrops?.(mesh, id);
     const droppedTris = (dropped?.geo?.tris || 0) + (dropped?.bones?.tris || 0);
     // normalize display size: ~7 units tall, grounded, facing camera.
     // Measure the RENDERED skin (skinnedBox), not the geometry box — Tripo
@@ -338,7 +323,7 @@ export async function runSkinWorkbench(config, params) {
     // geometry the raw scene was cloned from (it only ever supplies poses).
     try {
       if (onReference()) throw new Error('mannequin reference: static');
-      const built = await config.variants.build(id, { variant: altOn ? 'alt' : 'glb', overrides: { skinOps: [] } });
+      const built = await config.variants.build(id, { variant: 'glb', overrides: { skinOps: [] } });
       if (built?.isGLB && built.boneMap && built.premadeAnimator) {
         animMech = built;
         animBones = new Map();
@@ -1079,10 +1064,6 @@ export async function runSkinWorkbench(config, params) {
   });
   panel.appendChild(label('Mech'));
   panel.appendChild(mechSel);
-  // rebuilt on every mech switch — the control only exists for mechs that
-  // actually have an alternate
-  const altSlot = document.createElement('div');
-  panel.appendChild(altSlot);
   // WHAT THIS VIEW IS NOT. The workbench renders the RAW file with skinOps and
   // nothing else, because that is what it edits — a vertex id here is the
   // file's own numbering, which is what an op selector means. A SEAM CUT
@@ -1125,12 +1106,6 @@ export async function runSkinWorkbench(config, params) {
       b.title = ro ? 'The mannequin is a reference — there is no manifest entry to save to.' : '';
     }
   }
-  function refreshAltRow() {
-    altSlot.textContent = '';
-    const row = altCheckbox(altChoice(manifest, curId, altOn), reloadWithVariant);
-    if (row) altSlot.appendChild(row);
-  }
-  refreshAltRow();
 
   const btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:6px;margin:4px 0';
@@ -1720,8 +1695,7 @@ export async function runSkinWorkbench(config, params) {
   }
 
   function debugState() {
-    const entry = manifest?.[curId] || null;
-    const live = altOn ? entry?.alt : entry;
+    const live = manifest?.[curId] || null;
     const boneAngles = {};
     for (const b of bones) {
       const e = b.rotation;
@@ -1731,7 +1705,7 @@ export async function runSkinWorkbench(config, params) {
     }
     return {
       tool: 'skin workbench', url: location.href, when: new Date().toISOString(),
-      mech: curId, build: altOn ? 'alt' : 'primary',
+      mech: curId, build: 'primary',
       // THE THING THAT CATCHES PEOPLE OUT: this workbench renders the RAW file
       // with skinOps applied and NOTHING else. A seam cut is applied when the
       // GAME builds the mech (seamcut.js, after skinOps), so geometry that the
@@ -1797,7 +1771,7 @@ export async function runSkinWorkbench(config, params) {
       `<tr><td>${esc(p.pair)}</td><td class="n">${p.edges}</td><td class="n">${p.worst}</td></tr>`).join('');
 
     const html = `<!doctype html><meta charset="utf-8">
-<title>skin debug — ${esc(curId)}${altOn ? ' (alt)' : ''}</title>
+<title>skin debug — ${esc(curId)}</title>
 <style>
  body{background:#0d1219;color:#dfe8f5;font:13px/1.5 system-ui,sans-serif;margin:0;padding:24px}
  h1{font-size:18px;margin:0 0 4px} h2{font-size:14px;margin:26px 0 8px;color:#f5a33c}
@@ -1813,7 +1787,7 @@ export async function runSkinWorkbench(config, params) {
  .warn{background:#241d10;border:1px solid #5a4a2a;color:#ffcc66;padding:10px 14px;border-radius:6px;margin:14px 0}
  pre{background:#0b0f16;border:1px solid #222c3a;border-radius:6px;padding:12px;overflow:auto;font-size:11px;max-height:420px}
 </style>
-<h1>skin workbench debug — ${esc(curId)}${altOn ? ' · ALT' : ''}</h1>
+<h1>skin workbench debug — ${esc(curId)}</h1>
 <div class="sub">${esc(state.when)} · ${esc(state.url)}</div>
 ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in this view.</b><br>${esc(state.seamCuts.note)}</div>` : ''}
 <div class="shots">
@@ -1836,7 +1810,7 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
     const blob = new Blob([html], { type: 'text/html' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `skin-debug-${curId}${altOn ? '-alt' : ''}-${new Date().toISOString().slice(11, 19).replace(/:/g, '')}.html`;
+    a.download = `skin-debug-${curId}-${new Date().toISOString().slice(11, 19).replace(/:/g, '')}.html`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 8000);
     setStatus(`Debug output downloaded — ${st.flagged || 0} edge(s) over the limits right now`
@@ -1857,13 +1831,8 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
   const exportOpsBtn = actionBtn('Export ops ▶', () => {
     // export compacted (superseded ops dropped) + one-op-per-line so pasting
     // into manifest.json doesn't re-grow the file the compactor just shrank
-    // the ops belong to the entry they were painted on: nest them under
-    // "alt" when the alternate build is loaded, or the patch would be pasted
-    // onto the wrong model
     const list = outgoingOps();
-    const json = altOn
-      ? `{\n  "${curId}": {\n    "alt": {\n      "skinOps": ${skinOpsToJson(list, '      ')}\n    }\n  }\n}`
-      : `{\n  "${curId}": {\n    "skinOps": ${skinOpsToJson(list, '    ')}\n  }\n}`;
+    const json = `{\n  "${curId}": {\n    "skinOps": ${skinOpsToJson(list, '    ')}\n  }\n}`;
     out.style.display = 'block';
     out.value = json;
     out.select();
@@ -1871,10 +1840,9 @@ ${state.seamCuts.inManifest ? `<div class="warn"><b>Seam cuts are NOT applied in
     const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `skin-${curId}${altOn ? '-alt' : ''}.json`;
+    a.download = `skin-${curId}.json`;
     a.click();
-    setStatus('Ops copied + downloaded. Merge into manifest.json under "'
-      + curId + (altOn ? '.alt' : '') + '".');
+    setStatus('Ops copied + downloaded. Merge into manifest.json under "' + curId + '".');
   }, true);
   panel.appendChild(exportOpsBtn);
   // an ops patch is keyed by the MECH id, so it means nothing off the reference

@@ -1,14 +1,14 @@
 // ?edit=gait — the GAIT WORKBENCH. One mech, running on the spot, with every
 // dial of its walk/run cycle under your hands.
 //
-//   /workbench/?edit=gait[&mech=<id>][&model=glb|proc][&alt=1]
+//   /workbench/?edit=gait[&mech=<id>][&model=glb|proc]
 //                        [&throttle=<0..1>][&game=<0.5..2>][&anim=<0.05..2>]
 //
 // WHAT A GAIT IS. Locomotion is not a clip — it is a set of numbers (stride
 // amplitude, knee lift, arm swing, body lean…) that the animator turns into a
 // cycle every frame. Those numbers live in src/mechs/gaits.js as NAMED GAITS,
-// and a gait is SHARED: `sprint` is viper AND tempest AND wraith AND nova, so
-// tuning it here moves all four. The panel says which gait the chosen mech
+// and a gait is SHARED: `sprint` is viper AND tempest AND wraith, so
+// tuning it here moves all three. The panel says which gait the chosen mech
 // runs, who else runs it, and the mech dropdown carries the gait name beside
 // every entry — you always know what you are about to edit before you edit it.
 //
@@ -67,7 +67,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { subjectSelect } from '../ui/subjectpick.js';
 import { setupMobileChrome, barField, isMobileLayout } from '../ui/mobile.js';
-import { altChoice, altCheckbox } from '../ui/variantpick.js';
 
 const STORE_KEY = 'rw.gaitEdits';
 const TAU = Math.PI * 2;
@@ -120,7 +119,6 @@ export async function runGaitWorkbench(config, params) {
   // is the animator actually putting this foot".
   let build = params.get('model') === 'proc' ? 'proc'
     : params.get('model') === 'mannequin' ? 'mann' : 'glb';
-  let altOn = params.get('alt') === '1';
   // `|| 1` would be wrong here and was: `Number('0') || 1` is 1, so
   // &throttle=0 — a standstill, the one speed where every `*Run` dial is dead —
   // silently opened at full speed instead, and tools/gaitdials.mjs reported the
@@ -199,9 +197,9 @@ export async function runGaitWorkbench(config, params) {
   }
 
   async function buildOne(id, x) {
-    const hasGlb = !!altChoice(manifest, id, altOn).entry?.url;
+    const hasGlb = !!manifest?.[id]?.url;
     const variant = build === 'mann' ? 'mannequin'
-      : build === 'glb' && hasGlb ? (altOn ? 'alt' : 'glb') : 'proc';
+      : build === 'glb' && hasGlb ? 'glb' : 'proc';
     const m = await config.variants.build(id, { variant });
     m.group.position.set(x, 0, 0);
     scene.add(m.group);
@@ -213,11 +211,9 @@ export async function runGaitWorkbench(config, params) {
   async function load(id, { keepCam = false } = {}) {
     const same = keepCam && id === curId;
     curId = id;
-    altOn = altChoice(manifest, id, altOn).useAlt;
     const u = new URL(location.href);
     u.searchParams.set('mech', id);
     u.searchParams.set('model', build === 'mann' ? 'mannequin' : build === 'proc' ? 'proc' : 'glb');
-    if (altOn) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
     history.replaceState(null, '', u);
 
     disposeModel(mech); disposeModel(ghost);
@@ -245,8 +241,7 @@ export async function runGaitWorkbench(config, params) {
     }
     glbNote.textContent = (build === 'glb' && !built.hasGlb && !mech.isMannequin)
       ? 'no GLB for this mech — procedural shown' : '';
-    refreshAltRow();
-    panelUI.setSubtitle(`${curId}${altOn ? ' · ALT' : ''} · ${
+    panelUI.setSubtitle(`${curId} · ${
       mech.isMannequin ? 'MANNEQUIN' : mech.isGLB ? 'GLB' : 'procedural'} · gait: ${gaitId}`);
     buildPrints();
     buildGaitHeader();
@@ -995,14 +990,6 @@ export async function runGaitWorkbench(config, params) {
   modelRow.append(bGlb, bProc, bMann);
   const glbNote = el('span', 'color:#e0a13c;font-size:11px');
   modelRow.appendChild(glbNote);
-  const altRow = el('div', '');
-  panel.appendChild(altRow);
-  function refreshAltRow() {
-    altRow.innerHTML = '';
-    const box = altCheckbox(altChoice(manifest, curId, altOn), (next) => { altOn = next; load(curId, { keepCam: true }); });
-    if (box) altRow.appendChild(box);
-  }
-
   // ---- the gait itself ----
   const gaitBox = el('div', `margin:8px 0;padding:8px;border:1px solid #2f3c4e;border-radius:6px;
     background:#101720`);
@@ -1449,7 +1436,7 @@ export async function runGaitWorkbench(config, params) {
     const ids = editedIds();
     const head = [
       '// GAIT OUTPUT — /workbench/?edit=gait',
-      `// tuned on ${curId} (${mech?.isGLB ? 'GLB' : 'procedural'}${altOn ? ' · alt' : ''})`
+      `// tuned on ${curId} (${mech?.isGLB ? 'GLB' : 'procedural'})`
         + ` at throttle ${Math.round(throttle * 100)}%, game speed ${Math.round(gameSpeed * 100)}%`,
       '//',
     ];

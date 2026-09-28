@@ -13,7 +13,7 @@ import { SPECIALS, ULTS } from './specials.js';
 import { buildHurtbox, pickStrikeLimb, bodyHitSegment, MELEE } from './hurtbox.js';
 import {
   climbStep, climbPhysics, climbReleaseTick, applyClimbOrientation, applyClimbPose,
-  conformClimbLimbs,
+  conformClimbLimbs, newClimbState, resetClimb,
 } from './climb.js';
 import { aimCannons, cannonRecoil, hasCannons, ON_TARGET } from './cannonaim.js';
 import { floorGuard, clearFloorGuard } from './floorguard.js';
@@ -22,8 +22,9 @@ import { aimGun } from './gunaim.js';
 import { bakePoseShell } from './poseshell.js';
 import { EGG_DMG_MELEE } from './eggs.js';
 import { CONFIG } from '../core/config.js';
-import { TUNING, STAMINA_TANK, SPRINT_DRAIN, BLOCK_DRAIN, STAMINA_REGEN } from '../core/tuning.js';
+import { TUNING, STAMINA_TANK, sprintDrain, blockDrain, staminaRegen } from '../core/tuning.js';
 import { PLAYER_COLORS } from '../core/colors.js';
+import { isFoe } from './movekit.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -94,7 +95,6 @@ const AIM_DRIVER = {
   ankleL: 'thighL', ankleR: 'thighR',
   head: 'torso',
 };
-const GRAVITY = 34;
 // THE DROP (sky terrace's `void` patches, terrain.updateHazards -> voidFall):
 // how long he falls before he is put back, how far down ends it early, what
 // it costs and how long he is untouchable on the pad
@@ -102,16 +102,17 @@ const VOID_FALL_T = 0.6, VOID_FALL_DEPTH = 20, VOID_FALL_COST = 0.15, VOID_FALL_
 // (ultimates are fountain-fed now — see combat/fountains.js. The old
 // damage-drip meter constants ULT_RATE / BLOCK_ULT_DIV are gone with it.)
 // ---- GAMEPLAY DIALS: all of these live in core/tuning.js, which is the file
-// to edit. They are aliased here so the rest of this module reads unchanged.
-const WALK_MULT = TUNING.movement.walkMult;
-const JUMP_MULT = TUNING.movement.jumpMult;
-const CHARGE_DASH_MAX = TUNING.dash.chargeMax;
-// A thrown weapon (viper's daggers, aegis' lance) re-forges on its empty mount:
+// to edit. These are references to its GROUPS, not copies of its numbers, so
+// every read below is live: `rw.set('dash.cooldown', 0.2)` lands on the next
+// frame (tuning.js must only ever write INTO a group, never replace one).
+const MOVE = TUNING.movement, DASH = TUNING.dash, STAM = TUNING.stamina;
+const HOVER = TUNING.hover, GUARD = TUNING.guard, MELEE_T = TUNING.melee;
+const PHYS = TUNING.physics;
+// A thrown weapon (viper's daggers) re-forges on its empty mount:
 // the mount stays EMPTY for a delay, then grows back over REGROW_TIME. The
 // delay is PER THROW (regrowWeapon's second argument) because how long a gap
 // reads well depends on the weapon — viper's daggers want a long, obvious one
-// so you can see which forearm is bare, while aegis' lance is back before his
-// next javelin. Shared by the regrow animation and by `weaponReady`, which
+// so you can see which forearm is bare. Shared by the regrow animation and by `weaponReady`, which
 // picks whichever dagger viper still has.
 const REGROW_DELAY = 0.18;
 const REGROW_TIME = 0.5;
@@ -119,57 +120,13 @@ const REGROW_TIME = 0.5;
 // is the gap a duel actually settles at — matches the artillery lob's own
 // default so a blind mortar shell still lands where it always did.
 const DEFAULT_ENGAGE_DIST = 25;
-const SPRINT_MULT = TUNING.movement.sprintMult;
-// ---- THE STAMINA BAR. One normalised tank (1.0 = full) pays for sprinting,
-// blocking and dashing; tuning.js states each cost as a DURATION and derives
-// these per-second rates, so "12 seconds of sprint" is the thing you edit.
-const SPRINT_MAX = STAMINA_TANK;
-const SPRINT_REGEN = STAMINA_REGEN;
-const BLOCK_DASH_MULT = TUNING.stamina.dashCostBlockMult;
-const DASH_COST = TUNING.stamina.dashCost;
-const BLOCK_MOVE_MULT = TUNING.movement.blockMoveMult;
-const GUARD_RELOCK = TUNING.stamina.guardRelock;
-const HOVER_REFILL = TUNING.hover.refillSeconds;
-const HOVER_RELIGHT = TUNING.hover.relight;
-const HOVER_AIR_REFILL = TUNING.hover.airRefill;
-const BACK_MOVE_MULT = TUNING.movement.backMult;
-// The half-arc a raised guard covers, as a COSINE. takeHit tests the same
-// arc in radians; the bubble shader fades out past it, so what you see
-// covered is exactly what is covered.
-const BLOCK_ARC_COS = Math.cos(TUNING.guard.arc);
-const GUARD_ARC = TUNING.guard.arc;
-// What ROBOT SPEED's 100% means, over WALK_MULT and the roster's own speeds.
-const SPEED_BASE = TUNING.movement.speedBase;
-// The same number off a roster def alone, with no fighter to ask. The pose
+// A mech's top walking speed off a roster def alone, with no fighter to ask. The pose
 // workbench drives the gait at a mech's real top speed, and the animator's run
 // blend is normalised by it — deriving it there instead of importing this would
 // be a second copy free to drift.
 export function moveSpeedFor(def) {
-  return def.stats.speed * WALK_MULT * SPEED_BASE * CONFIG.robotSpeed;
+  return def.stats.speed * MOVE.walkMult * MOVE.speedBase * CONFIG.robotSpeed;
 }
-const PUNCH_HOLD_CAP = TUNING.melee.punchHoldCap;
-const HEAVY_HOLD_CAP = TUNING.melee.heavyHoldCap;
-// Minimum wind-up on a charge attack. Every other melee clip in the game opens
-// with a chamber/pull-back beat (0.10-0.34s) before its hit frame, but a
-// charge attack's RELEASE clip starts already cocked — correct after a real
-// hold (the hold clip IS the chamber), yet a bare TAP released it the same
-// frame it began, so the mech snapped from rest straight into the impact pose
-// with no punch visible. Holding the chamber on screen for this long first
-// gives every tap the same telegraph the hand-authored clips have. The forced
-// time is discounted from the banked charge, so a tap still throws the
-// weakest version and the charge curve above it is unchanged.
-const CHARGE_MIN_WINDUP = TUNING.melee.chargeMinWindup;
-
-// ---- hit-reaction tuning (see takeHit) ----
-const BLOCK_LEAK_DEFAULT = TUNING.guard.leakDefault;
-const WEIGHT_KNOCK_RESIST = TUNING.melee.weightKnockResist;
-const HITSTUN_HEAVY = TUNING.melee.hitstunHeavy;
-const HITSTUN_LIGHT = TUNING.melee.hitstunLight;
-const SOFT_FLINCH_CHANCE = TUNING.melee.softFlinchChance;
-const DASH_SPEED_MULT = TUNING.dash.speedMult;
-const DASH_IFRAMES = TUNING.dash.iframes;
-const DASH_IFRAMES_CHARGED = TUNING.dash.iframesCharged;
-const INPUT_BUFFER = TUNING.melee.inputBuffer;
 // WHICH PRESSES ARE REMEMBERED when they arrive too early (see bufferInput).
 // Not `light`: the combo chain catches that one its own way (queuedLight).
 // Not `dash`, which needs no help — the B-button path runs during an attack
@@ -184,8 +141,6 @@ const BUFFERED_ACTIONS = ['heavy', 'special', 'jump'];
 // the getup that nobody asked for. (The escape spring already reads a mashed
 // jump where it means something: in the knockdown itself.)
 const BUFFER_STATES = new Set(['attack', 'special', 'ult', 'channel', 'dash']);
-const DASH_CHARGE_BOOST = TUNING.dash.chargeBoost;
-const DASH_COOLDOWN = TUNING.dash.cooldown;
 const KNOCKDOWN_IFRAMES = 0.3;   // no re-launch off the floor for this long
 const ESCAPE_JUMP_MULT = 2.6;    // knockdown escape spring: ground speed x this
 const ESCAPE_JUMP_VY = 13;
@@ -304,7 +259,6 @@ const CHARGE_GLOW_SETS = {
   lance: ['lance'],
 };
 
-export { PLAYER_COLORS } from '../core/colors.js'; // compat re-export, remove after finisher.js migrates
 
 // Ground surfaces with a footstep layer of their own (public/sfx/step_*.mp3).
 // A patch kind not in here — road, stripe, pave — is just pavement, which is
@@ -364,11 +318,7 @@ export class Fighter {
     // `climb` block. He walks on the world rather than the floor: up facades,
     // over lips, across roofs, over the crates on the way.
     this.climb = false;       // the walker owns movement this frame
-    this.climbUp = null;      // his own up — the field's average normal, damped
-    this.climbFwd = null;     // ...and the direction he is travelling along it
-    this._climbTilt = 0;      // 0 = standing on the flat, 1 = fully on a wall
-    this._climbCd = 0;        // short re-grab cooldown after leaving a surface
-    this._climbRelease = false; // let go on purpose: fall past faces, don't grab
+    this.climbState = newClimbState();   // everything else the walker keeps
 
     // resources
     this.maxHp = def.stats.hp;
@@ -387,7 +337,7 @@ export class Fighter {
 
     // sprint tank (hold B on the move): drains while sprinting, refills
     // the moment the sprint hold ends
-    this.sprintEnergyMax = SPRINT_MAX;
+    this.sprintEnergyMax = STAMINA_TANK;
     this.sprintEnergy = this.sprintEnergyMax;
     this.sprinting = false;
     this._sprintHold = false; // the current B hold is a sprint (not a coil wind-up)
@@ -464,6 +414,10 @@ export class Fighter {
     return !!o && (o.allyOf === this || this.allyOf === o ||
       (!!this.allyOf && this.allyOf === o.allyOf));
   }
+
+  // somebody this fighter fights — movekit.isFoe, the one test every target
+  // pick and hit sweep uses
+  isFoe(o) { return isFoe(this, o); }
 
   center(out = _v2) {
     return out.set(this.pos.x, this.pos.y + this.height * 0.55, this.pos.z).clone();
@@ -574,7 +528,7 @@ export class Fighter {
     let best = null, bestD = Infinity;
     const w = this.world;
     for (const f of w.fighters) {
-      if (f === this || !f.alive || this.isAllyOf(f)) continue;
+      if (!this.isFoe(f)) continue;
       // NOT the one in your hands. A carried victim is pinned directly over
       // the carrier, so their horizontal offset is ~0 and every heading
       // derived from it (AI steering, aim snaps) is atan2 of noise. That is
@@ -628,8 +582,6 @@ export class Fighter {
   dmgMult() {
     let m = 1;
     if (this.status.buff) m *= this.status.buff.dmg;
-    // NOVA: every attack surges while her halo burns at apex alignment —
-    // a full-apex strike hits TWICE as hard as a dark-halo one
     return m;
   }
 
@@ -655,7 +607,7 @@ export class Fighter {
   // launch speed of a jump: the mech's own, the buff, and the GROUND's say —
   // ORBITAL's grav pads (terrain.updateHazards sets _jumpMul, 1 everywhere else)
   jumpSpeed() {
-    return this.def.stats.jump * JUMP_MULT * (this.status.buff ? 1.1 : 1) * (this._jumpMul ?? 1);
+    return this.def.stats.jump * MOVE.jumpMult * (this.status.buff ? 1.1 : 1) * (this._jumpMul ?? 1);
   }
 
   // THE DROP. A grounded body over a `void` patch (terrain.updateHazards) lets
@@ -825,7 +777,7 @@ export class Fighter {
       return;
     }
     this.faceNearestEnemyIfClose(14);
-    // hold-to-charge heavy (AEGIS whirl, TITANUS/COLOSSUS raised pound):
+    // hold-to-charge heavy (TITANUS/COLOSSUS raised pound):
     // the hold clip LOOPS while Y stays down, banking power; the strike and
     // the hit come on release (updateHeavyHold)
     if (this.def.heavyHold) {
@@ -833,7 +785,7 @@ export class Fighter {
       this._whirlHold = 0.0001;
       this._whirlFull = false;
       // Snap ONTO the hold clip (short fade) rather than easing in over the
-      // default 0.07s. A tap only holds for CHARGE_MIN_WINDUP (0.15s), and
+      // default 0.07s. A tap only holds for MELEE_T.chargeMinWindup (0.15s), and
       // between that fade and the animator's own pose smoothing the raise was
       // still ~15% short when the release fired — so the release clip, whose
       // t=0 IS the fully-raised pose, finished lifting the arms before slamming
@@ -1414,7 +1366,7 @@ export class Fighter {
     if (canAct) {
       const b = this._buffered;
       this._buffered = null;
-      return b && this.world.time - b.t <= INPUT_BUFFER ? b.act : '';
+      return b && this.world.time - b.t <= MELEE_T.inputBuffer ? b.act : '';
     }
     if (!BUFFER_STATES.has(this.state)) return '';
     for (const act of BUFFERED_ACTIONS) {
@@ -1433,15 +1385,15 @@ export class Fighter {
     // two ways at once is meant to be expensive. AN EMPTY TANK REFUSES now:
     // the cost used to sit under what regrew between two dashes, so the
     // dodge worked on an empty bar forever and mashing B was free.
-    const cost = DASH_COST * (this.blocking ? BLOCK_DASH_MULT : 1);
+    const cost = STAM.dashCost * (this.blocking ? STAM.dashCostBlockMult : 1);
     if (!coil && this.sprintEnergy < cost) { this.sfx('servo'); return; }
     this.sprintEnergy = Math.max(0, this.sprintEnergy - cost);
-    const k = clamp(charge / CHARGE_DASH_MAX, 0, 1);
+    const k = clamp(charge / DASH.chargeMax, 0, 1);
     const ix = this.intent.moveX, iz = this.intent.moveZ;
     let dir;
     if (Math.abs(ix) + Math.abs(iz) > 0.2) dir = _v.set(ix, 0, iz).normalize();
     else dir = _v.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
-    const sp = this.def.stats.speed * DASH_SPEED_MULT * (1 + DASH_CHARGE_BOOST * k) * this.speedMult();
+    const sp = this.def.stats.speed * DASH.speedMult * (1 + DASH.chargeBoost * k) * this.speedMult();
     this.vel.x = dir.x * sp;
     this.vel.z = dir.z * sp;
     // strafe dash (AI only — players own their facing): keep facing a
@@ -1452,10 +1404,10 @@ export class Fighter {
         this.targetYaw = Math.atan2(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
       }
     }
-    this.dashCd = DASH_COOLDOWN;
+    this.dashCd = DASH.cooldown;
     this.dashT = 0.3 + 0.32 * k;
     this._dashDur = this.dashT;   // animator reads progress = 1 - dashT/dur
-    this.iframes = Math.max(this.iframes, DASH_IFRAMES + DASH_IFRAMES_CHARGED * k);
+    this.iframes = Math.max(this.iframes, DASH.iframes + DASH.iframesCharged * k);
     this.setState('dash', this.dashT);
     this.sfx('dash');
     this.world.effects.rings.spawn(this.pos, {
@@ -1609,7 +1561,7 @@ export class Fighter {
       }
     }
     for (const f of this.world.fighters) {
-      if (f === this || !f.alive) continue;
+      if (!this.isFoe(f)) continue;
       // the swept limb, moved into the victim's image across the seam (both
       // ends by the same offset), so the capsule test never has to know
       // about arena wrapping
@@ -1688,12 +1640,12 @@ export class Fighter {
       return null;
     }
     // the wind-up beat runs even after the button is let go (see
-    // CHARGE_MIN_WINDUP), so the timer advances whether or not we're held
-    const t = (this[o.slot] = Math.min(o.cap + CHARGE_MIN_WINDUP, this[o.slot] + dt));
+    // MELEE_T.chargeMinWindup), so the timer advances whether or not we're held
+    const t = (this[o.slot] = Math.min(o.cap + MELEE_T.chargeMinWindup, this[o.slot] + dt));
     // charge banked so far, with the forced wind-up discounted: a tap lands on
     // exactly k=0 (the weakest strike) and a full hold still reaches k=1
-    const k = clamp01((t - CHARGE_MIN_WINDUP) / o.cap);
-    if (o.held || t < CHARGE_MIN_WINDUP) {
+    const k = clamp01((t - MELEE_T.chargeMinWindup) / o.cap);
+    if (o.held || t < MELEE_T.chargeMinWindup) {
       this.stateT = Math.max(this.stateT, 0.3); // stay in the hold
       this[o.fxSlot] = (this[o.fxSlot] ?? 0) - dt;
       if (this[o.fxSlot] <= 0) {
@@ -1716,7 +1668,7 @@ export class Fighter {
   updateHeavyHold(dt) {
     const k = this._chargeHoldPhase(dt, {
       slot: '_whirlHold', fullSlot: '_whirlFull', fxSlot: '_whirlFxT',
-      cap: HEAVY_HOLD_CAP, holdClip: this.def.heavyClip, held: this.intent.heavyHeld,
+      cap: MELEE_T.heavyHoldCap, holdClip: this.def.heavyClip, held: this.intent.heavyHeld,
       // charge tell: rings tighten and quicken as the whirl banks power
       fxInterval: (k) => 0.42 - 0.24 * k,
       tell: () => this.world.effects.rings.spawn(this.pos, {
@@ -1836,7 +1788,7 @@ export class Fighter {
     const idx = this._punchIdx || 0;
     const k = this._chargeHoldPhase(dt, {
       slot: '_punchHold', fullSlot: '_punchFull', fxSlot: '_punchFxT',
-      cap: PUNCH_HOLD_CAP, holdClip: idx ? 'punchHold2' : 'punchHold1',
+      cap: MELEE_T.punchHoldCap, holdClip: idx ? 'punchHold2' : 'punchHold1',
       held: this.intent.lightHeld,
       // charge tell: energy crackles off the cocked fist as power banks
       fxInterval: (k) => 0.3 - 0.18 * k,
@@ -1895,13 +1847,13 @@ export class Fighter {
     let key = null, k = 0, dash = false;
     if (this.alive) {
       if (this._punchHold != null && this.intent.lightHeld) {
-        k = this._punchHold / PUNCH_HOLD_CAP;
+        k = this._punchHold / MELEE_T.punchHoldCap;
         key = this._punchIdx ? 'armR' : 'armL';
       } else if (this._whirlHold != null && this.intent.heavyHeld) {
-        k = this._whirlHold / HEAVY_HOLD_CAP;
+        k = this._whirlHold / MELEE_T.heavyHoldCap;
         key = this.def.chargeGlow || 'armR';
       } else if (this._dashCharging && this._dashCharge > 0.15) {
-        k = this._dashCharge / CHARGE_DASH_MAX;
+        k = this._dashCharge / DASH.chargeMax;
         key = 'legs';
         dash = true;
       }
@@ -2250,9 +2202,7 @@ export class Fighter {
   // shared tail of every "the guard/shield ate it" path in takeHit: chip
   // damage that is never lethal (floor 1 hp), a reduced push instead of
   // real knockback and the block spark + clank. Callers pick chip/push —
-  // (ultFrom is vestigial: the blocked-hit ult drip died with the meter) —
-  // the raised guard and AEGIS's passive cover are deliberately not
-  // identical (see the call sites).
+  // (ultFrom is vestigial: the blocked-hit ult drip died with the meter).
   _blockAbsorb(chip, ultFrom, dirX, dirZ, dLen, push, sparkPos, sparkColor) {
     this.hp = Math.max(1, this.hp - chip);
     this.vel.x += (dirX / dLen) * push;
@@ -2318,7 +2268,7 @@ export class Fighter {
     // neither applies; unblockable hits still pass, and the shield drops
     // the instant A is released (the roll's wind-down is unprotected).
     if (this._airRoll && !this._airRoll.ending && !unblockable && this.state !== 'hitstun') {
-      const pass = this.def.stats.blockMult ?? BLOCK_LEAK_DEFAULT;
+      const pass = this.def.stats.blockMult ?? GUARD.leakDefault;
       this._blockAbsorb(dmg * pass, dmg * pass,
         dirX, dirZ, dLen, knock * (0.25 + pass) * 0.5, this.center(), 0x7fd8ff);
       return;
@@ -2326,7 +2276,7 @@ export class Fighter {
 
     if (this.blocking && !unblockable && this.state !== 'hitstun') {
       const toSrc = Math.atan2(-dirX, -dirZ);
-      if (Math.abs(angleDiff(this.yaw, toSrc)) < GUARD_ARC) {
+      if (Math.abs(angleDiff(this.yaw, toSrc)) < GUARD.arc) {
         // A CROUCHED STRIKE is a blow thrown from the attacker's own body —
         // srcPos is his position (or absent). A projectile, a beam, a flame
         // arrives from where it was fired and a gunner ducking behind his
@@ -2337,7 +2287,7 @@ export class Fighter {
         const underGuard = low && !this.ducking;            // high block vs low hit
         const shattered = gb > 0 && Math.random() < gb;
         if (!underGuard && !shattered) {
-          const pass = this.def.stats.blockMult ?? BLOCK_LEAK_DEFAULT; // fraction that leaks through
+          const pass = this.def.stats.blockMult ?? GUARD.leakDefault; // fraction that leaks through
           this._blockAbsorb(dmg * pass, dmg * pass,
             dirX, dirZ, dLen, knock * (0.25 + pass) * 0.5, this.center(), 0x7fd8ff);
           return;
@@ -2349,34 +2299,6 @@ export class Fighter {
         this.burstGuardShield();
         this.sfx(shattered ? 'hitHeavy' : 'hit');
         if (shattered) { knock *= 1.15; heavy = true; }
-      }
-    }
-
-    // AEGIS passive cover: an attack that arrives THROUGH the tower shield
-    // is taken ON the shield — same numbers as a raised guard — even with
-    // no block input. Geometric against the shield's LIVE position, so a
-    // shield whirled overhead (bulwark bash) stops covering the front, and
-    // an attack from the open flank still lands clean.
-    if (!unblockable && !this.blocking && this.def.passiveShield &&
-        this.state !== 'hitstun' && this.state !== 'launched' &&
-        this.state !== 'knockdown' && this.state !== 'frozen' &&
-        this.mech.anchors.shield) {
-      const S = this.mech.anchors.shield.getWorldPosition(_palmTmp);
-      const sx = S.x - this.pos.x, sz = S.z - this.pos.z;
-      const sl = Math.hypot(sx, sz);
-      // shield held out at body height (not swung skyward), threat within
-      // ~60° of the direction the shield is offset toward
-      if (sl > 0.35 && S.y > this.pos.y + 0.5 && S.y < this.pos.y + this.height) {
-        const dot = (sx / sl) * (-dirX / dLen) + (sz / sl) * (-dirZ / dLen);
-        if (dot > 0.5) {
-          const pass = this.def.stats.blockMult ?? BLOCK_LEAK_DEFAULT;
-          // asymmetries vs a raised guard, kept as tuned: chip is rounded
-          // (floor 1), the ult drip counts the FULL incoming dmg, and the
-          // push is gentler (no input was spent holding block)
-          this._blockAbsorb(Math.max(1, Math.round(dmg * pass)), dmg,
-            dirX, dirZ, dLen, knock * 0.3, S, 0x9fd8ff);
-          return;
-        }
       }
     }
 
@@ -2415,7 +2337,7 @@ export class Fighter {
     }
 
     // knockback & reactions (weight resists)
-    const resist = 1 - this.def.stats.weight * WEIGHT_KNOCK_RESIST;
+    const resist = 1 - this.def.stats.weight * MELEE_T.weightKnockResist;
     const kb = knock * resist;
     this.vel.x += (dirX / dLen) * kb;
     this.vel.z += (dirZ / dLen) * kb;
@@ -2435,9 +2357,9 @@ export class Fighter {
       // the body rocks under the stream but NEVER stun-locks — the target
       // keeps full control so they can break away instead of standing
       // there eating the whole magazine
-      if (Math.random() < SOFT_FLINCH_CHANCE) this.animator.addImpulse('torso', [-0.22, 0, 0], 30, 11);
+      if (Math.random() < MELEE_T.softFlinchChance) this.animator.addImpulse('torso', [-0.22, 0, 0], 30, 11);
     } else if (this.state !== 'launched' && this.state !== 'knockdown') {
-      const stun = heavy ? HITSTUN_HEAVY : HITSTUN_LIGHT;
+      const stun = heavy ? MELEE_T.hitstunHeavy : MELEE_T.hitstunLight;
       this.setState('hitstun', stun);
       // WHICH WAY THE BLOW CAME FROM picks the flinch: to the face, from the
       // left or right (shoved sideways, near arm flung), or from behind (folded
@@ -2456,11 +2378,11 @@ export class Fighter {
     if (this.isAI === false && navigator.getGamepads) this.world.input?.rumble(this.playerIndex, heavy ? 0.7 : 0.35, heavy ? 220 : 120);
   }
 
-  // waterlogged: dripping frame + half speed while it lasts. The water/ice
-  // mechs (FROGGER, GLACIER, CRANKY) live in the stuff — they shrug it off.
+  // waterlogged: dripping frame + half speed while it lasts. A roster def
+  // flagged `soakImmune` (the water/ice mechs) lives in the stuff and shrugs
+  // it off.
   applySoak(t = 2.2) {
-    const id = this.def.id;
-    if (id === 'frogger' || id === 'glacier' || id === 'cranky') return;
+    if (this.def.soakImmune) return;
     this.status.soaked = { t: Math.max(t, this.status.soaked?.t || 0) };
   }
 
@@ -2716,7 +2638,7 @@ export class Fighter {
   // failing to render — wandering 2D static/RGB-noise patches that jump
   // to a new part every couple of seconds, plus stray data-flecks. Local
   // tears only; his shell never flashes as a whole.
-  updateNullbotAura(dt) {
+  updateGlitchAura(dt) {
     const fx = this.world.effects;
     this._nullFxT = (this._nullFxT ?? 0) - dt;
     if (this._nullFxT <= 0) {
@@ -2827,7 +2749,24 @@ export class Fighter {
     // out of update long before the animation section — a loop hung off the
     // end of the frame would never start in exactly the states that need one.
     this.loopSfx();
-    const st = this.def.stats;
+    // THE FRAME, IN ORDER. Each phase is its own method below; the order is the
+    // contract (a later phase reads what an earlier one left on `this`), and
+    // the three values that pass between them are passed explicitly. A phase
+    // returning true has ended the frame (the body is dead, frozen, falling
+    // through a void, glitched, hanging, carried) and nothing after it runs.
+    if (this._updateConditions(dt)) return;
+    this._updateStateTimers(dt);
+    if (this._updateHeldStates(dt)) return;
+    const dk = this._updateIntents(dt);
+    const canMove = this._updateMovement(dt);
+    const spd = this._updateAnimation(dt, canMove, dk);
+    this._updatePostPose(dt, spd);
+  }
+
+  // Fighter.update, phase 1: the conditions that own the whole frame — the
+  // first-input drop of a flourish, status ticks, the whiteout, and the
+  // dead / frozen / void-drop / glitched bodies. true = the frame ends here.
+  _updateConditions(dt) {
     const I = this.intent;
     // CONTROL IMPLIES ANIMATION CONTROL. The round-start intro runs 2.3s but
     // controls come back at 1.6s (match.js unlocks at stateT<=0.9), and the
@@ -2934,13 +2873,13 @@ export class Fighter {
       this.animator.update(dt, { speed: 0, grounded: this.grounded, dead: true, state: 'dead' });
       // GLB: rest the collapsed body flat on the ground (see groundClamp)
       this.mech.groundClamp?.(this.grounded);
-      return;
+      return true;
     }
 
     if (this.state === 'frozen') {
       if (this.stateT <= 0) this.setState('normal');
       this.applyPhysics(dt, 0, 0);
-      return; // no animator update: frozen solid
+      return true; // no animator update: frozen solid
     }
 
     // ---- THE DROP: falling through a void patch, nothing else runs ----
@@ -2951,7 +2890,7 @@ export class Fighter {
       this.animator.update(dt, { speed: 0, grounded: false, vy: this.vel.y });
       this.group.rotation.y = this.yaw;
       if (v.t >= VOID_FALL_T || this.pos.y < -VOID_FALL_DEPTH) this.voidRespawn();
-      return;
+      return true;
     }
 
     // ---- TOTAL CORRUPTION: engulfed in glitch, servos locked, spasming.
@@ -2973,10 +2912,16 @@ export class Fighter {
         this.updateGlitch(dt);
         this.animator.update(dt, { speed: 0, grounded: this.grounded });
         this.group.rotation.y = this.yaw;
-        return;
+        return true;
       }
     }
 
+    return false;
+  }
+
+  // phase 2: state timers and transitions
+  _updateStateTimers(dt) {
+    const I = this.intent;
     // ---- state timers / transitions ----
     switch (this.state) {
       case 'attack':
@@ -3101,6 +3046,12 @@ export class Fighter {
         break;
     }
 
+  }
+
+  // phase 3: held states that pin the body — wall hang, carried, aerial
+  // plunge. true = the frame ends here.
+  _updateHeldStates(dt) {
+    const I = this.intent;
     // ---- wall hang: pinned to a building face by a held airborne punch.
     // Release drops, jump springs off the wall (punch-hold again mid-air to
     // grab higher — that's the climb loop), losing the wall knocks you off.
@@ -3123,7 +3074,7 @@ export class Fighter {
         this.vel.set(0, 0, 0);
         this.grounded = false;
         this.animator.update(dt, { speed: 0, grounded: true, vy: 0 });
-        return;
+        return true;
       }
     }
 
@@ -3161,7 +3112,7 @@ export class Fighter {
         const roll = c.roll ?? 1.45;
         this.group.rotation.z += (roll * k - this.group.rotation.z) * Math.min(1, dt * 10);
         this.animator.update(dt, { speed: 0, grounded: false, vy: 0 });
-        return;
+        return true;
       }
     }
 
@@ -3186,6 +3137,14 @@ export class Fighter {
       }
     }
 
+    return false;
+  }
+
+  // phase 4: intents — guard, B button, sprint, duck, jump, attacks, hover,
+  // landing. Returns the crouch depth the animation phase reads.
+  _updateIntents(dt) {
+    const st = this.def.stats;
+    const I = this.intent;
     // ---- intents ----
     const acting = this.canAct();
     // Blocking works airborne/hovering too — and now runs on the STAMINA
@@ -3198,10 +3157,10 @@ export class Fighter {
     // block clip starting and stopping every few frames, and two thirds of
     // the hits still absorbed as chip. So a guard that runs dry stays down
     // until the tank has refilled to `guardRelock`.
-    if (this._guardLock && this.sprintEnergy >= GUARD_RELOCK) this._guardLock = false;
+    if (this._guardLock && this.sprintEnergy >= STAM.guardRelock) this._guardLock = false;
     this.blocking = acting && I.block && !this._guardLock && this.sprintEnergy > 0;
     if (this.blocking) {
-      this.sprintEnergy = Math.max(0, this.sprintEnergy - BLOCK_DRAIN * dt);
+      this.sprintEnergy = Math.max(0, this.sprintEnergy - blockDrain() * dt);
       if (this.sprintEnergy <= 0) { this.blocking = false; this._guardLock = true; }
     }
     // AN AIR GUARD IS A TUCK: press LT while AIRBORNE and the mech curls into
@@ -3233,7 +3192,7 @@ export class Fighter {
     //       breath the lockout wanted, so it clears the lock.
     const wantTuck = acting && I.block && !this._blockPrev && !this.grounded &&
       !this._airRoll && !this.climb && this.state === 'normal';
-    if (wantTuck && this.sprintEnergy >= GUARD_RELOCK) {
+    if (wantTuck && this.sprintEnergy >= STAM.guardRelock) {
       this._guardLock = false;
       this.blocking = true;
       this.hovering = false;
@@ -3243,7 +3202,7 @@ export class Fighter {
 
     // ---- B button, two personalities by whether you're moving ----
     // STANDING STILL + hold: crouch and wind up a dash coil (up to
-    // CHARGE_DASH_MAX seconds' worth); the INSTANT a direction comes in the
+    // DASH.chargeMax seconds' worth); the INSTANT a direction comes in the
     // coil fires a charged dash that way, and if B stays down the hold
     // flows straight into a sprint.
     // ALREADY MOVING + press: a short dash, then holding B is SPRINT —
@@ -3257,11 +3216,11 @@ export class Fighter {
     this._chargeStill = this._dashCharging;
     if (this._dashCharging) {
       const was = this._dashCharge || 0;
-      this._dashCharge = Math.min(CHARGE_DASH_MAX, was + dt);
+      this._dashCharge = Math.min(DASH.chargeMax, was + dt);
       // wind-up tells: rings pulse quicker and wider as the coil tightens,
       // and a flash marks the moment the charge tops out
       this._chargeFxT = (this._chargeFxT ?? 0) - dt;
-      const k = this._dashCharge / CHARGE_DASH_MAX;
+      const k = this._dashCharge / DASH.chargeMax;
       if (this._chargeFxT <= 0) {
         this._chargeFxT = 0.5 - 0.3 * k;
         this.world.effects.rings.spawn(this.pos, {
@@ -3269,7 +3228,7 @@ export class Fighter {
           color: PLAYER_COLORS[this.playerIndex % PLAYER_COLORS.length], y: 0.3,
         });
       }
-      if (was < CHARGE_DASH_MAX && this._dashCharge >= CHARGE_DASH_MAX) {
+      if (was < DASH.chargeMax && this._dashCharge >= DASH.chargeMax) {
         this.sfx('powerup');
         this.world.effects.rings.spawn(this.pos, { from: 0.5, to: 4.5, dur: 0.35, color: 0xffffff, y: 0.4 });
       }
@@ -3302,11 +3261,11 @@ export class Fighter {
     this.sprinting = this._sprintHold && bHeld && stickHeld && this.sprintEnergy > 0 &&
       (this.state === 'normal' || this.state === 'dash');
     if (this.sprinting) {
-      this.sprintEnergy = Math.max(0, this.sprintEnergy - dt * SPRINT_DRAIN);
+      this.sprintEnergy = Math.max(0, this.sprintEnergy - dt * sprintDrain());
       if (this.sprintEnergy <= 0) this._sprintHold = false; // winded — re-press once it refills
     } else if (!this._sprintHold && !this.blocking) {
       // the tank only refills with the guard DOWN and the sprint released
-      this.sprintEnergy = Math.min(this.sprintEnergyMax, this.sprintEnergy + dt * SPRINT_REGEN);
+      this.sprintEnergy = Math.min(this.sprintEnergyMax, this.sprintEnergy + dt * staminaRegen());
     }
 
     // ---- duck: hold to crouch. Ducking PERSISTS through an attack (so a
@@ -3394,7 +3353,7 @@ export class Fighter {
         this.vel.y = this.jumpSpeed();
         this.sfx('jump');
       } else if (wantJump && !this.grounded && !this.hovering && !this._airRoll &&
-                 this.hoverFuel > HOVER_RELIGHT) {
+                 this.hoverFuel > HOVER.relight) {
         // second jump press in the air ignites the hover jets (never out of
         // the tuck — release the ball first, then the jets answer)
         this.hovering = true;
@@ -3434,7 +3393,7 @@ export class Fighter {
       if (wantHover) {
         this.hoverFuel = Math.max(0, this.hoverFuel - dt);
         // thrust counters gravity and climbs toward the mech's rise cap
-        this.vel.y = Math.min(this.vel.y + (GRAVITY + 26) * dt, this.hoverRise);
+        this.vel.y = Math.min(this.vel.y + (PHYS.gravity + 26) * dt, this.hoverRise);
         this.jetT -= dt;
         if (this.jetT <= 0) {
           this.jetT = 0.04;
@@ -3452,10 +3411,10 @@ export class Fighter {
     if (this.grounded) {
       this.hovering = false;
       this.hoverFuel = Math.min(this.hoverFuelMax,
-        this.hoverFuel + (this.hoverFuelMax / HOVER_REFILL) * dt);
-    } else if (HOVER_AIR_REFILL > 0 && !this.hovering) {
+        this.hoverFuel + (this.hoverFuelMax / HOVER.refillSeconds) * dt);
+    } else if (HOVER.airRefill > 0 && !this.hovering) {
       this.hoverFuel = Math.min(this.hoverFuelMax,
-        this.hoverFuel + (this.hoverFuelMax / HOVER_REFILL) * HOVER_AIR_REFILL * dt);
+        this.hoverFuel + (this.hoverFuelMax / HOVER.refillSeconds) * HOVER.airRefill * dt);
     }
 
     // block anim — but never over the air roll's ball tuck: an LT-held
@@ -3483,13 +3442,20 @@ export class Fighter {
       this.animator.stop(0.09);
     }
 
+    return dk;
+  }
+
+  // phase 5: movement, target lock, surface walking. Returns whether this
+  // state may move, which the animation phase reads.
+  _updateMovement(dt) {
+    const I = this.intent;
     // ---- movement ----
     let ax = 0, az = 0;
     // basic light/heavy keep locomotion (jab clips are upper-body, and running
     // momentum feeds the kinetic-impact model); holds, specials, ults, ranged
     // and blocking still root you, and charging a dash just winds slower
     // A raised guard no longer ROOTS you: you may walk while blocking, at
-    // half pace (applyPhysics' BLOCK_MOVE_MULT), so a guard is a fighting
+    // half pace (applyPhysics' MOVE.blockMoveMult), so a guard is a fighting
     // stance you can carry rather than a decision to stand still.
     const canMove = this.state === 'normal' || this.state === 'channel' ||
       (this.state === 'attack' && this._moveAttack) ||
@@ -3551,7 +3517,7 @@ export class Fighter {
     // to applyPhysics, so every ordinary behaviour is untouched.
     let climbing = false;
     if (this.def.climb) {
-      const mv = this._climbMv || (this._climbMv = { x: 0, z: 0 });
+      const mv = this.climbState.mv || (this.climbState.mv = { x: 0, z: 0 });
       mv.x = ax; mv.z = az;
       climbing = climbStep(this, dt, mv);
     }
@@ -3572,9 +3538,15 @@ export class Fighter {
       }
     }
 
+    return canMove;
+  }
+
+  // phase 6: the animator. Returns ground speed for the post-pose passes.
+  _updateAnimation(dt, canMove, dk) {
+    const I = this.intent;
     // ---- animation ----
     const spd = Math.hypot(this.vel.x, this.vel.z);
-    const maxSpd = this.moveSpeed() * (this.sprinting ? SPRINT_MULT : 1);
+    const maxSpd = this.moveSpeed() * (this.sprinting ? MOVE.sprintMult : 1);
     // STRANDED ON HIS BACK (see ROLLOVER): the body is going nowhere, but the
     // LEGS still answer the stick — feed the input itself in as speed and the
     // locomotion layer runs its stride, so he scuttles uselessly at the sky.
@@ -3595,7 +3567,7 @@ export class Fighter {
       // onto the surface (climb.js), so the ordinary walk cycle running in that
       // frame is the climb. Nothing else in the animator knows a wall from a
       // floor.
-      speed: this.climb ? this._climbSpeed || 0
+      speed: this.climb ? this.climbState.speed || 0
         : canMove || this._charging ? spd : proneScuttle,
       maxSpeed: maxSpd,
       // WHICH WAY HE IS ACTUALLY GOING, as an angle off his facing. In target
@@ -3629,7 +3601,7 @@ export class Fighter {
       //   dashP    — progress THROUGH a dash burst, 0 at launch → 1 at rest
       // dashT alone can't shape a gather-then-extend pose: it only counts
       // down, so the animator can't tell the launch from the recovery.
-      dashCoil: this._dashCharging ? Math.max(0.14, (this._dashCharge || 0) / CHARGE_DASH_MAX) : 0,
+      dashCoil: this._dashCharging ? Math.max(0.14, (this._dashCharge || 0) / DASH.chargeMax) : 0,
       dashP: this.dashT > 0 && this._dashDur ? 1 - this.dashT / this._dashDur : 1,
     });
     // GLB: while downed/rising, floor-clamp the prone body so it neither
@@ -3685,6 +3657,12 @@ export class Fighter {
     // traversing onto its solution (the brace/frill tell reads this).
     if (this.state !== 'channel' && !this._volley) this.firing = false;
 
+    return spd;
+  }
+
+  // phase 7: facing, and every pass that must run AFTER the pose (heavy
+  // mechanics, crosshair, guard bubble, gun aim, climbing limbs, trails, FX).
+  _updatePostPose(dt, spd) {
     // ---- face target yaw: servo-damped, two-tier ----
     // Legs (the whole group) chase the stick with a lag that grows with
     // ground speed — a sprinting mech carves an arc instead of pivoting on
@@ -3742,7 +3720,7 @@ export class Fighter {
     // Re-sync once so post-pose joint motion lands on the skin too.
     // ---- the climbing carriage, before that re-sync (it is a POSE, so it goes
     // on the virtual joints and rides the retarget like any other) ----
-    if (this._climbTilt > 0.01) applyClimbPose(this);
+    if (this.climbState.tilt > 0.01) applyClimbPose(this);
     if (this.mech.isGLB) this.mech.postAnimate?.();
     this.footstepSfx(dt);
     // ---- POINT THE GUN AT WHAT HE IS SHOOTING AT (combat/gunaim.js) ----
@@ -3760,10 +3738,8 @@ export class Fighter {
     // ---- weapon trails: glowing streaks ride the blade/spear tips while a
     // one-shot attack clip swings, so cuts and thrusts read as EDGES ----
     if (this.def.bladeTrail) this.updateBladeTrail(dt);
-    // NOVA: the staff apex crackles while the halo burns — brighter and
-    // bigger the closer the crescents are to apex alignment
-    // NULLBOT: ambient corruption flickering over his own frame
-    if (this.def.id === 'nullbot' && this.alive) this.updateNullbotAura(dt);
+    // NULLBOT (roster `glitchAura`): ambient corruption flickering over his frame
+    if (this.def.glitchAura && this.alive) this.updateGlitchAura(dt);
     // INFERNO: his shoulder chimneys BURN — flickering flames and a smoke
     // trail where the model used to carry two sculpted tongues of fire
     if (this.def.stackFx && this.alive) this.updateStackFlames(dt);
@@ -4529,7 +4505,7 @@ export class Fighter {
   updateGuardShield(dt) {
     this._guardT = (this._guardT || 0) + dt;
     if (this._airRoll && !this._airRoll.ending) this.showGuardShield(-1.05, this._guardT);
-    else if (this.blocking && this.alive) this.showGuardShield(BLOCK_ARC_COS, this._guardT);
+    else if (this.blocking && this.alive) this.showGuardShield(Math.cos(GUARD.arc), this._guardT);
     else this.hideGuardShield();
   }
 
@@ -4879,8 +4855,8 @@ export class Fighter {
     // a retreat is not a run: the cap falls off and the sprint bonus with it
     const bk = this.backpedalT(dt, ax, az);
     const speedCap = this.moveSpeed() * this.speedMult() *
-      (this.sprinting ? lerp(SPRINT_MULT, 1, bk) : 1) * lerp(1, BACK_MOVE_MULT, bk) *
-      (this.blocking ? BLOCK_MOVE_MULT : 1) *
+      (this.sprinting ? lerp(MOVE.sprintMult, 1, bk) : 1) * lerp(1, MOVE.backMult, bk) *
+      (this.blocking ? MOVE.blockMoveMult : 1) *
       (this.state === 'channel' ? 0.45 : 1) * (1 - 0.55 * this.duckT);
 
     if (this.state !== 'dash') {
@@ -4902,7 +4878,7 @@ export class Fighter {
     }
 
     // ORBITAL's grav pads: gravity x _gravMul on and over the pad (terrain)
-    this.vel.y -= GRAVITY * (this._gravMul ?? 1) * dt;
+    this.vel.y -= PHYS.gravity * (this._gravMul ?? 1) * dt;
     this.pos.x += this.vel.x * dt;
     this.pos.y += this.vel.y * dt;
     this.pos.z += this.vel.z * dt;
@@ -5059,19 +5035,9 @@ export class Fighter {
     this._flipT = 0;
     this._rollUp = null;
     this.endAirRoll();     // a round never opens mid-somersault
-    this.climb = false;    // …nor halfway up a building
+    resetClimb(this, yaw); // …nor halfway up a building, or latched onto one
     this._voidFall = null; // …nor falling through the roof
     this._grip = 1; this._gravMul = 1; this._jumpMul = 1;
-    this._climbTilt = 0;
-    this._climbTiltOn = false;
-    this._climbCd = 0;
-    this._climbRelease = false;
-    this._climbSpeed = 0;
-    this.climbUp?.set(0, 1, 0);
-    this.climbFwd?.set(Math.sin(yaw), 0, Math.cos(yaw));
-    this._climbN?.set(0, 1, 0);
-    this._steps = null;    // every limb re-plants where the new round puts him
-    this._stepAct = 0;
     this.hovering = false;
     this.hoverFuel = this.hoverFuelMax;
     this.sprintEnergy = this.sprintEnergyMax;

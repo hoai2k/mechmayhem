@@ -6,6 +6,7 @@
 // in-place twitch between jumps.
 import * as THREE from 'three';
 import { rand, clamp01 } from '../core/utils.js';
+import { isFoe } from './movekit.js';
 
 const GRAV = 40;
 const _v = new THREE.Vector3();
@@ -110,7 +111,7 @@ export class FleaSystem {
     for (const e of w.fighters) {
       // cinePuppet corpses (finisher victims) still count as prey — the
       // swarm scene IS them piling onto the fallen mech
-      if (e === f.owner || (!e.alive && !e.cinePuppet)) continue;
+      if (e.alive ? !isFoe(f.owner, e) : (!e.cinePuppet || e === f.owner)) continue;
       const dx = w.wrapDelta(e.pos.x - f.mesh.position.x);
       const dz = w.wrapDelta(e.pos.z - f.mesh.position.z);
       const d = dx * dx + dz * dz;
@@ -153,7 +154,7 @@ export class FleaSystem {
         f.mesh.rotation.x = -clamp01(f.vel.y / 18) * 0.5;
         // latch onto any victim it touches (finisher corpses included)
         for (const e of w.fighters) {
-          if (e === f.owner || (!e.alive && !e.cinePuppet)) continue;
+          if (e.alive ? !isFoe(f.owner, e) : (!e.cinePuppet || e === f.owner)) continue;
           const c = e.center();
           const dx = w.wrapDelta(c.x - f.mesh.position.x);
           const dy = c.y - f.mesh.position.y;

@@ -8,7 +8,7 @@
 //    identical. Each now names itself at the top in a colour that is its
 //    own: pose green, skin orange, skin-debug pink, animation purple, rig
 //    blue, collider cyan, gait amber. The subtitle line carries the live
-//    "what am I looking at" (mech id · ALT), so the header answers both
+//    "what am I looking at" (mech id · build), so the header answers both
 //    questions at once.
 //
 //  · SCROLLBARS THAT BELONG — the browser default is a bright system bar
@@ -26,39 +26,18 @@
 //    double-click on the handle snaps back to the tool's default.
 //
 // Usage (once, right after the panel is built + appended):
-//    import { setupDevPanel } from './panelui.js';
+//    import { setupDevPanel } from '../ui/panel.js';
 //    const ui = setupDevPanel(panel, { key: 'skin', workbench: 'skin' });
-//    ui.setSubtitle(`${id} · ALT`);
+//    ui.setSubtitle(`${id} · GLB`);
+import { WORKBENCHES, WORKBENCH_BY_ID } from '../registry.js';
+
 const STYLE_ID = 'rw-dev-panel-style';
 const MIN_W = 200;
 const MAX_W = 900;   // also clamped to the viewport at drag time
 
-// Who's who. One entry per workbench; `key` in setupDevPanel is the width
-// store, `workbench` here is the identity. Colours are deliberately far apart
-// in hue so peripheral vision alone tells you which tool has focus.
-//
-// `tool` is the ?edit= id, which is NOT always the identity key — these keys
-// predate the workbench page and two of them still carry their old names
-// (models = animation, rigedit = rig). Keeping the url id here rather than in
-// a second table is what lets the title-bar switcher below navigate without
-// anyone having to remember which name a tool answers to.
-export const WORKBENCHES = {
-  pose: { tool: 'pose', title: 'Pose Workbench', color: '#4fdc8b' },
-  skin: { tool: 'skin', title: 'Skin Workbench', color: '#f5a33c' },
-  skindebug: { tool: 'skindebug', title: 'Skin Debug', color: '#ff6b8a' },
-  models: { tool: 'animation', title: 'Animation Workbench', color: '#b98cff' },
-  rigedit: { tool: 'rig', title: 'Rig Editor', color: '#4aa8ff' },
-  collider: { tool: 'collider', title: 'Hurtbox Workbench', color: '#7fd8ff' },
-  props: { tool: 'props', title: 'Props Workbench', color: '#ffd23c' },
-  gait: { tool: 'gait', title: 'Gait Workbench', color: '#ff9f43' },
-  level: { tool: 'level', title: 'Arena Editor', color: '#62ff9a' },
-};
-
-// Order the switcher offers them in: the order you actually move through a
-// model — shape it, rig it, weight it, pose it, then check what it hits.
-const SWITCH_ORDER = ['models', 'rig', 'skin', 'skindebug', 'pose', 'gait', 'collider', 'props', 'level']
-  .map((k) => (WORKBENCHES[k] ? k : 'rigedit'));
-
+// Who's who: workbench/registry.js, the one list of tools. `workbench` in
+// setupDevPanel is the tool's id there (its ?edit= id); `key` is the width
+// store, which is separate so a remembered width survives a rename.
 /**
  * Open another workbench on the SAME subject. Only the params that describe
  * the subject travel: the mech and which of its builds is staged. Everything
@@ -69,7 +48,7 @@ function gotoWorkbench(tool) {
   const cur = new URLSearchParams(location.search);
   const next = new URLSearchParams();
   next.set('edit', tool);
-  for (const k of ['mech', 'variant', 'alt', 'prop']) if (cur.has(k)) next.set(k, cur.get(k));
+  for (const k of ['mech', 'prop']) if (cur.has(k)) next.set(k, cur.get(k));
   // the tools all live on the workbench page; keep whatever directory that is
   const dir = location.pathname.includes('/workbench/')
     ? location.pathname
@@ -169,7 +148,7 @@ export function setupDevPanel(panel, {
   // Inserted FIRST, so a tool can call setupDevPanel before or after it fills
   // the panel and the header still lands at the top.
   let subEl = null;
-  const wb = workbench && WORKBENCHES[workbench];
+  const wb = workbench && WORKBENCH_BY_ID[workbench];
   if (wb) {
     const head = document.createElement('div');
     head.className = 'dev-panel-head';
@@ -178,7 +157,7 @@ export function setupDevPanel(panel, {
     name.textContent = wb.title;
 
     // ---- workbench switcher ----
-    // The five tools are one page with one subject on it, and moving between
+    // The tools are one page with one subject on it, and moving between
     // them used to mean hand-editing ?edit= in the url. The title already says
     // which tool this is, so the chevron hangs off the title: same place you
     // look to answer "where am I", now also "take me somewhere else", carrying
@@ -195,9 +174,8 @@ export function setupDevPanel(panel, {
 
     const menu = document.createElement('div');
     menu.className = 'dev-panel-menu';
-    for (const k of SWITCH_ORDER) {
-      const w = WORKBENCHES[k];
-      if (!w) continue;
+    for (const w of WORKBENCHES) {
+      const k = w.id;
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'dev-panel-menu-item' + (k === workbench ? ' is-current' : '');
@@ -208,7 +186,7 @@ export function setupDevPanel(panel, {
       item.append(dot, txt);
       // the current tool stays listed (so the menu reads as a map of where you
       // are, not just where you aren't) but does nothing
-      if (k !== workbench) item.onclick = () => gotoWorkbench(w.tool);
+      if (k !== workbench) item.onclick = () => gotoWorkbench(w.id);
       menu.appendChild(item);
     }
 

@@ -10,7 +10,6 @@
 // hand-placed skeleton actually lands inside the shells it should drive.
 //
 //   node tools/rigscout.mjs <mechId> [outPrefix] [flags]
-// flags: --alt              inspect the manifest `alt` entry instead
 //        --rig              overlay the registered custom rig's bones
 //        --skin             color by OWNING RIG BONE instead of by island —
 //                           the headless twin of ?rigedit's color view, and
@@ -26,7 +25,6 @@ const argv = process.argv.slice(2);
 const flags = argv.filter((a) => a.startsWith('--'));
 const [id, prefix = `/tmp/rigscout_${argv[0]}`] = argv.filter((a) => !a.startsWith('--'));
 const flag = (name) => flags.find((f) => f === `--${name}` || f.startsWith(`--${name}=`));
-const alt = !!flag('alt');
 const skinMode = !!flag('skin');
 const withRig = !!flag('rig') || skinMode;
 const only = flag('only') ? flag('only').split('=')[1].split(',').map(Number) : null;
@@ -40,14 +38,14 @@ const page = await browser.newPage({ viewport: { width: 900, height: 900 } });
 page.on('pageerror', (e) => console.error('PAGE ERROR', String(e).slice(0, 300)));
 await page.goto('http://localhost:5173/?rigtest', { waitUntil: 'networkidle' });
 
-const info = await page.evaluate(async ({ id, alt, withRig, skinMode, only, focus }) => {
+const info = await page.evaluate(async ({ id, withRig, skinMode, only, focus }) => {
   const THREE = await import('/node_modules/three/build/three.module.js');
   const { loadRawGlbScene } = await import('/src/mechs/gltf.js');
   const { analyzeSkin } = await import('/src/mechs/skinops.js');
   const { rigFor } = await import('/src/mechs/rigs/index.js');
 
-  const raw = await loadRawGlbScene(id, { alt });
-  if (!raw) return { error: `no GLB for ${id}${alt ? ' (alt)' : ''}` };
+  const raw = await loadRawGlbScene(id);
+  if (!raw) return { error: `no GLB for ${id}` };
   let src = null;
   raw.scene.traverse((o) => { if (o.isSkinnedMesh && !src) src = o; });
   if (!src) return { error: 'no skinned mesh' };
@@ -209,7 +207,7 @@ const info = await page.evaluate(async ({ id, alt, withRig, skinMode, only, focu
     })),
     bbox: { min: bb.min.toArray().map((v) => +v.toFixed(3)), max: bb.max.toArray().map((v) => +v.toFixed(3)) },
   };
-}, { id, alt, withRig, skinMode, only, focus });
+}, { id, withRig, skinMode, only, focus });
 
 if (info.error) { console.error(info.error); await browser.close(); process.exit(1); }
 

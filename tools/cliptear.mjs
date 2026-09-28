@@ -4,37 +4,26 @@
 // mech's rig and measures how far the far-hierarchy seam edges (endpoints on
 // bones 3+ links apart) elongate vs their bind length.
 //
-//   node tools/cliptear.mjs <mechId> [primary|alt] [minHierDist] [baseUrl]
+//   node tools/cliptear.mjs <mechId> [minHierDist] [baseUrl]
 //
 // minHierDist defaults to 3 (only seams between bones 3+ links apart, the ones
 // that can never be a legitimate joint). Pass 1 to include EVERY cross-bone
 // edge — a welded shell tears at ordinary joints too (a shoulder/torso armpit
 // seam is hierarchy distance 1 and still shreds if the weights are rigid).
 //
-// `alt` audits the manifest's alternate entry for the same mech (for rhino:
-// the old Tripo rig + skinOps) so a custom rig can be compared against what
-// it replaced under identical motion. Output: worst clips, worst bone pairs.
+// Output: worst clips, worst bone pairs.
 import { launch } from './lib/browser.mjs';
-const [id, which = 'primary', minDistArg = '3', base = 'http://localhost:5173'] = process.argv.slice(2);
+const [id, minDistArg = '3', base = 'http://localhost:5173'] = process.argv.slice(2);
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
 const errs = []; page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
 await page.goto(`${base}/?showcase=${id}&anim=none`, { waitUntil: 'networkidle' });
 await page.waitForFunction('window.__showcaseMechs && window.__showcaseMechs.length', null, { timeout: 60000 });
-const rep = await page.evaluate(async ([id, which, minDist]) => {
+const rep = await page.evaluate(async ([id, minDist]) => {
   const THREE = await import('/node_modules/three/build/three.module.js');
-  const { ROSTER_BY_ID } = await import('/src/mechs/roster.js');
-  const { buildGlbForTool } = await import('/src/mechs/gltf.js');
   const { Animator } = await import('/src/mechs/animator.js');
   const { CLIPS } = await import('/src/mechs/animations.js');
-  let mech;
-  if (which === 'alt') {
-    const built = await buildGlbForTool(ROSTER_BY_ID[id], null, { alt: true });
-    mech = built.mech;
-    window.__showcaseEngine.scene.add(mech.group);
-  } else {
-    mech = window.__showcaseMechs[0];
-  }
+  const mech = window.__showcaseMechs[0];
   mech.animator = mech.animator || mech.premadeAnimator || new Animator(mech);
   let mesh = null; mech.group.traverse((o) => { if (o.isSkinnedMesh && !mesh) mesh = o; });
   const bones = mesh.skeleton.bones, nB = bones.length;
@@ -101,7 +90,7 @@ const rep = await page.evaluate(async ([id, which, minDist]) => {
     for (let i = 0; i < 40; i++) mech.animator.update(1/60, ctx);
   }
   perClip.sort((a, b) => b.maxAbs - a.maxAbs);
-  return { which, bones: nB, seamEdges: nE,
+  return { bones: nB, seamEdges: nE,
     worstClips: perClip.slice(0, 10),
     cleanClips: perClip.filter((c) => c.maxAbs < 0.02).length,
     gashes: perClip.reduce((a, c) => a + c.over3, 0),
@@ -110,8 +99,8 @@ const rep = await page.evaluate(async ([id, which, minDist]) => {
       .map(([k, v]) => `${k}: ${v.r.toFixed(1)}x at ${JSON.stringify(v.at)}`),
     absPairs: [...absPair.entries()].sort((a, b) => b[1].a - a[1].a).slice(0, 8)
       .map(([k, v]) => `${k}: +${v.a.toFixed(3)} at ${JSON.stringify(v.at)}`) };
-}, [id, which, +minDistArg]);
-console.log(`${id} (${rep.which}): ${rep.bones} bones, ${rep.seamEdges} far-seam edges, ` +
+}, [id, +minDistArg]);
+console.log(`${id}: ${rep.bones} bones, ${rep.seamEdges} far-seam edges, ` +
   `${rep.cleanClips}/${rep.totalClips} clips clean (<0.02 stretch)`);
 console.log('worst clips:', rep.worstClips.map((c) => `${c.clip} +${c.maxAbs} (${c.maxR}x, ${c.over3} gashes)`).join(', '));
 console.log('worst pairs by ratio:', rep.pairs.join(' | '));

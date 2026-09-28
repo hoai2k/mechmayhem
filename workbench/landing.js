@@ -9,77 +9,16 @@
 //
 // Deliberately free of the adapter: the game config takes a moment to load
 // and needs a WebGL context, and a menu needs neither. Everything here is
-// static — the card colours mirror workbench/ui/panel.js (WORKBENCHES), the
+// static — the cards come off workbench/registry.js (pure data), the
 // screenshots live in workbench/thumbs/ (re-shot by tools/wbthumbs.mjs when
 // a tool's look changes).
 
 // bundled by Vite; a missing file fails the build rather than a 404 at runtime
+import { WORKBENCHES } from './registry.js';
+
 const thumb = (name) => new URL(`./thumbs/${name}.jpg`, import.meta.url).href;
 
-const TOOLS = [
-  {
-    id: 'animation', title: 'Animation Workbench', color: '#b98cff',
-    tag: 'actions · anchors',
-    desc: 'The GLB build and the procedural body side by side. Trigger any move '
-      + 'on both at once, slow it down, and drag the muzzle/anchor points '
-      + 'combat fires from.',
-  },
-  {
-    id: 'rig', title: 'Rig Editor', color: '#4aa8ff',
-    tag: 'skeletons',
-    desc: 'Hand-place a skeleton inside a raw GLB: drag bones, re-skin, test a '
-      + 'swing, and save the rig file the game loads.',
-  },
-  {
-    id: 'skin', title: 'Skin Workbench', color: '#f5a33c',
-    tag: 'weights · islands',
-    desc: 'Bone-island skin repair. Click the geometry that deforms wrongly, '
-      + 'hand it to the right bone, paint with brushes and lassos, save to the '
-      + 'manifest.',
-  },
-  {
-    id: 'skindebug', title: 'Skin Debug', color: '#ff6b8a',
-    tag: 'audit · stretched skin',
-    desc: 'Plays every clip a mech has and lists the places the skin tears, '
-      + 'stretches or collapses — walk the findings, watch each one deform, '
-      + 'and jump to the tool that fixes it.',
-  },
-  {
-    id: 'pose', title: 'Pose Workbench', color: '#4fdc8b',
-    tag: 'clips · keyframes',
-    desc: 'Pose a mech joint by joint and edit the clip itself: scrub keys, '
-      + 'move them in time, add and delete them, and export the key list for '
-      + 'animations.js.',
-  },
-  {
-    id: 'gait', title: 'Gait Workbench', color: '#ff9f43',
-    tag: 'walk · run cycles',
-    desc: 'Locomotion as numbers. Run a mech on the spot at any throttle, game '
-      + 'speed or slow-motion, drag a limb to tune the dial behind it, and see '
-      + 'the same shared gait on every mech that runs it.',
-  },
-  {
-    id: 'collider', title: 'Hurtbox Workbench', color: '#7fd8ff',
-    tag: 'combat volumes',
-    desc: 'What combat actually hits: the measured hurtbox capsules, the legacy '
-      + 'hit ball, and the swept strike at a clip’s impact frame, against a '
-      + 'dummy at range.',
-  },
-  {
-    id: 'props', title: 'Props Workbench', color: '#ffd23c',
-    tag: 'arena models',
-    desc: 'The imported arena props, original beside optimized in twin '
-      + 'viewports with one shared camera — judge the model diet, catch any '
-      + 'size drift.',
-  },
-  {
-    id: 'level', title: 'Arena Editor', color: '#62ff9a',
-    tag: 'arenas · levels',
-    desc: 'Open one of the 12 shipped arenas and change it. Every tower, prop, '
-      + 'lane and hill it generated becomes something you can drag, turn, copy '
-      + 'or delete — then play it, or export it as a level.',
-  },
-];
+const TOOLS = WORKBENCHES;
 
 export function runLanding(unknownTool = null) {
   document.getElementById('boot-splash')?.remove();

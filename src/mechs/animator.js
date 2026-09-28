@@ -61,8 +61,6 @@ const _qa = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
 const _up = new THREE.Vector3();
 const _qup = new THREE.Quaternion();
-// Aegis tower shield: local rest carry, and the brace tilt applied when the
-// shield is squared to the front during a block
 
 const D2R = Math.PI / 180;
 const ALL_JOINTS = [

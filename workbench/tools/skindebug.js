@@ -1,6 +1,6 @@
 // /workbench/?edit=skindebug&mech=<id> — the SKIN DEBUG workbench.
 //
-//   ?edit=skindebug[&mech=<id>][&alt=1][&clip=<name>][&i=<instance>][&scan=0]
+//   ?edit=skindebug[&mech=<id>][&clip=<name>][&i=<instance>][&scan=0]
 //
 // An AUDIT, not an editor. It plays every animation a mech can play, watches
 // the skin deform, and hands back a ranked list of the places where the
@@ -55,7 +55,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { subjectSelect } from '../ui/subjectpick.js';
-import { altChoice, altCheckbox } from '../ui/variantpick.js';
 import {
   prepareMesh, poseMatrices, skinVertices, edgeLengths,
   newPeaks, accumulate, clusterSpots, DEFAULTS,
@@ -91,7 +90,6 @@ export async function runSkinDebugWorkbench(config, params) {
   const catalogue = config.catalogue.list();
   const glbIds = catalogue.filter((c) => c.hasModel).map((c) => c.id);
   let curId = (startId && catalogue.some((c) => c.id === startId)) ? startId : (glbIds[0] || catalogue[0].id);
-  let altOn = params.get('alt') === '1' || params.get('variant') === 'alt';
 
   // ---- live state ----
   let mech = null, animator = null;
@@ -180,17 +178,9 @@ export async function runSkinDebugWorkbench(config, params) {
   // ---- subject ----
   const mechSel = subjectSelect({
     config, value: curId, label: (id) => id,
-    onPick: (id) => { curId = id; altOn = false; load(id); },
+    onPick: (id) => { curId = id; load(id); },
   });
   panel.appendChild(mechSel);
-  const altRow = document.createElement('div');
-  panel.appendChild(altRow);
-  function refreshAltRow() {
-    altRow.innerHTML = '';
-    const box = altCheckbox(altChoice(manifest, curId, altOn), (next) => { altOn = next; load(curId); });
-    if (box) altRow.appendChild(box);
-  }
-
   const status = document.createElement('div');
   status.style.cssText = `white-space:pre-wrap;font:11px/1.45 ui-monospace,monospace;color:#9fb2c8;
     margin:5px 0;padding:5px;background:#0d1219;border:1px solid #222c3a;border-radius:5px`;
@@ -334,11 +324,8 @@ export async function runSkinDebugWorkbench(config, params) {
     stopPlay();
     cancelScan = true;
     curId = id;
-    const alt = altChoice(manifest, id, altOn);
-    altOn = alt.useAlt;
     const u = new URL(location.href);
     u.searchParams.set('mech', id);
-    if (altOn) u.searchParams.set('alt', '1'); else u.searchParams.delete('alt');
     history.replaceState(null, '', u);
     if (mech) {
       scene.remove(mech.group);
@@ -352,16 +339,15 @@ export async function runSkinDebugWorkbench(config, params) {
     instances = []; curIdx = -1; previewClip = null;
     renderList(); renderDetail(); refreshOverlay();
     mechSel.value = id;
-    refreshAltRow();
     setStatus('building…');
-    mech = await config.variants.build(id, { variant: altOn ? 'alt' : 'glb' });
+    mech = await config.variants.build(id, { variant: 'glb' });
     if (!mech) { setStatus(`no model for ${id}`); return; }
     mech.group.position.set(0, 0, 0);
     scene.add(mech.group);
     animator = config.anim.animator(mech, id);
     animator.poseStatic();
     mech.group.updateWorldMatrix(true, true);
-    panelUI.setSubtitle(`${id}${altOn ? ' · ALT' : ''} · ${mech.isGLB ? 'GLB' : 'procedural'}`);
+    panelUI.setSubtitle(`${id} · ${mech.isGLB ? 'GLB' : 'procedural'}`);
     frameCamera();
     // gather the skinned meshes — the only geometry that CAN deform
     const meshes = [];
@@ -490,7 +476,7 @@ export async function runSkinDebugWorkbench(config, params) {
     instances = mergeSpots();
     scanning = false;
     const ms = Math.round(performance.now() - t0);
-    setStatus(`${curId}${altOn ? ' · ALT' : ''} — ${instances.length} finding(s) `
+    setStatus(`${curId} — ${instances.length} finding(s) `
       + `from ${rawSpots.length} spot·clip hit(s) over ${clips.length + 1} clip(s), ${(ms / 1000).toFixed(1)}s\n`
       + `${preps.reduce((a, p) => a + p.E, 0)} deformable edges of ${preps.reduce((a, p) => a + p.n, 0)} verts`
       + (splitPairs ? `\n${splitPairs} seam-cut pair(s) skipped — split on purpose, see manifest seamCuts` : ''));
@@ -568,8 +554,9 @@ export async function runSkinDebugWorkbench(config, params) {
       const boneNames = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
         .map(([n, c]) => `${n}${jointOfBone.has(n) ? `(${jointOfBone.get(n)})` : ''}×${c}`);
       out.push({
-        key: `${curId}|${altOn ? 'alt' : 'glb'}|${worst.type}|${Math.min(...verts)}`,
-        mech: curId, variant: altOn ? 'alt' : 'glb',
+        // ('glb' stays in the key: marks saved in localStorage are keyed on it)
+        key: `${curId}|glb|${worst.type}|${Math.min(...verts)}`,
+        mech: curId, variant: 'glb',
         meshIdx: worst.meshIdx,
         type: worst.type, sev: worst.sev, ratio: worst.ratio, len: worst.len, rest: worst.rest,
         clip: worst.clip, role: worst.role, dur: worst.dur, t: worst.t, hits: worst.hits,
@@ -955,7 +942,6 @@ export async function runSkinDebugWorkbench(config, params) {
     const p = new URLSearchParams();
     p.set('edit', tool);
     p.set('mech', curId);
-    if (altOn) p.set('alt', '1');
     const occ = curOccurrence();
     if (inst) {
       // Whatever is ON SCREEN travels, not the finding's worst clip: if you
@@ -1007,7 +993,7 @@ export async function runSkinDebugWorkbench(config, params) {
   // ================= report =================
   function report() {
     return {
-      mech: curId, variant: altOn ? 'alt' : 'glb', limits,
+      mech: curId, variant: 'glb', limits,
       generated: new Date().toISOString(),
       findings: instances.map((x) => ({
         n: x.n, type: x.type, where: x.where,
@@ -1030,7 +1016,7 @@ export async function runSkinDebugWorkbench(config, params) {
     const blob = new Blob([JSON.stringify(report(), null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `skindebug-${curId}${altOn ? '-alt' : ''}.json`;
+    a.download = `skindebug-${curId}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }

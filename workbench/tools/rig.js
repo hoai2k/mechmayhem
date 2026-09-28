@@ -17,7 +17,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { setupDevPanel } from '../ui/panel.js';
 import { addGizmo } from '../ui/gizmo.js';
-import { altChoice, altCheckbox, reloadWithVariant } from '../ui/variantpick.js';
+import { createHistory } from '../ui/history.js';
 import { subjectSelect, gotoSubject } from '../ui/subjectpick.js';
 
 const VIEW = 10;                 // display scale for the small raw model
@@ -84,15 +84,6 @@ export async function runRigWorkbench(config, params) {
   const id = startId && startId !== 'true' && startId !== '1'
     ? startId
     : (catalogue.find((c) => c.hasRig)?.id || catalogue[0]?.id);
-  // WHICH BUILD. A mech's custom rig may live on the manifest's `alt` entry
-  // rather than the primary (rhino, inferno — a re-rig staged for judging
-  // before promotion). That build is then the ONLY one with a rig to edit, so
-  // open it instead of bailing out; altpick.altChoice decides, and the panel's
-  // "Edit Alternate GLB" box shows the state (ticked + disabled when forced).
-  const manifest = config.manifest();
-  const wantAlt = params.get('alt') === '1' || params.get('variant') === 'alt';
-  const alt = altChoice(manifest, id, wantAlt, 'rig');
-  const useAlt = alt.useAlt;
   const LS_KEY = () => `rigedit:${id}`;
   function loadRig() {
     const saved = localStorage.getItem(LS_KEY());
@@ -110,7 +101,7 @@ export async function runRigWorkbench(config, params) {
   // `drops: true` — this tool never touches skin ops, so it can have the
   // manifest's surplus geometry taken off up front and show the body the game
   // builds rather than the raw file's stray lumps.
-  try { raw = await config.variants.raw(id, { variant: useAlt ? 'alt' : 'glb', drops: true }); } catch (e) { loadErr = e; }
+  try { raw = await config.variants.raw(id, { variant: 'glb', drops: true }); } catch (e) { loadErr = e; }
   let probeMesh = null;
   raw?.scene.traverse((o) => { if (o.isSkinnedMesh && !probeMesh) probeMesh = o; });
   const startRig = loadRig();
@@ -118,15 +109,15 @@ export async function runRigWorkbench(config, params) {
   const problem = loadErr
     ? { title: `${id}'s GLB failed to load`,
       detail: 'The model file is listed in the manifest but could not be parsed, so there is nothing to rig.',
-      hint: `?edit=rig&mech=${id}${useAlt ? ' (alt)' : ''}\n${loadErr.message || loadErr}` }
+      hint: `?edit=rig&mech=${id}\n${loadErr.message || loadErr}` }
     : !raw
       ? { title: `No GLB for "${id}"`,
-        detail: `The rig editor edits a GLB mech. public/models/manifest.json has no ${useAlt ? '"alt" ' : ''}entry with a url for this mech${useAlt ? '' : ', so it runs on the procedural model and has no rig to edit'}.`,
+        detail: `The rig editor edits a GLB mech. public/models/manifest.json has no entry with a url for this mech, so it runs on the procedural model and has no rig to edit.`,
         hint: `Editable now: ${editable}\nAdd a GLB + manifest entry for "${id}" first.` }
       : !probeMesh
         ? { title: `${id}'s GLB has no skinned mesh`,
           detail: 'The file loaded but contains no SkinnedMesh, so there is no skin to re-bind to a rig.',
-          hint: `?edit=rig&mech=${id}${useAlt ? '&alt=1' : ''}` }
+          hint: `?edit=rig&mech=${id}` }
         : !startRig.bones?.length
           ? { title: `${id} has no custom rig to edit`,
             detail: 'This mech runs on its GLB\'s own auto-rig (manifest boneOverrides + skinOps). '
@@ -200,7 +191,6 @@ export async function runRigWorkbench(config, params) {
   let origMat = null, colorMat = null, colorOn = false;
   let swing = 0, swinging = false;
   let soloRoot = null;             // solo a bone's subtree (declutter the rest)
-  let undoStack = [], redoStack = [];
   let dragSnap = null;             // rig snapshot captured at gizmo drag-start
   let soloMove = false;            // move a joint WITHOUT dragging its subtree
   let rotMode = false;             // JOINT OFFSET mode: the gizmo rotates, and the
@@ -211,11 +201,8 @@ export async function runRigWorkbench(config, params) {
 
   // ---- undo/redo (snapshots of rigObj) ----
   const snapshotRig = () => JSON.parse(JSON.stringify(rigObj));
-  function pushUndo() {
-    undoStack.push(snapshotRig());
-    if (undoStack.length > 200) undoStack.shift();
-    redoStack.length = 0;
-  }
+  const hist = createHistory({ snapshot: snapshotRig, restore: (s) => restoreRig(s), cap: 200 });
+  const pushUndo = () => hist.record();
   function restoreRig(snap) {
     rigObj = snap;
     rebuild(true); buildBoneUI();
@@ -225,16 +212,8 @@ export async function runRigWorkbench(config, params) {
     updateSolo();
     saveDraft();
   }
-  function undo() {
-    if (!undoStack.length) return;
-    redoStack.push(snapshotRig());
-    restoreRig(undoStack.pop());
-  }
-  function redo() {
-    if (!redoStack.length) return;
-    undoStack.push(snapshotRig());
-    restoreRig(redoStack.pop());
-  }
+  const undo = () => hist.undo();
+  const redo = () => hist.redo();
 
   // ---- solo a bone's subtree (bone + all descendants) ----
   function subtreeSet(rootName) {
@@ -487,11 +466,7 @@ export async function runRigWorkbench(config, params) {
       syncRigFromBones();
       // record the pre-drag snapshot on the undo stack only if the drag actually
       // moved something
-      if (dragSnap && JSON.stringify(dragSnap) !== JSON.stringify(rigObj)) {
-        undoStack.push(dragSnap);
-        if (undoStack.length > 200) undoStack.shift();
-        redoStack.length = 0;
-      }
+      hist.recordIfChanged(dragSnap);
       dragSnap = null;
       setWeights(mesh, rigObj);   // reassign vertices to the nearest new bone
       rebindRest(mesh, bones);    // at the BIND pose — see above
@@ -592,13 +567,13 @@ export async function runRigWorkbench(config, params) {
   // editor is showing — bind or T — exactly as they ride on top of the retarget
   // in game, so `base` below is the pose's own rotation and the correction is
   // the delta from it.
-  const CORR_KEY = () => `rigcorr:${id}${useAlt ? ':alt' : ''}`;
+  const CORR_KEY = () => `rigcorr:${id}`;
   const _cq = new THREE.Quaternion(), _ce = new THREE.Euler();
   const R2D = 180 / Math.PI;
   function loadCorrections() {
     const draft = localStorage.getItem(CORR_KEY());
     if (draft) { try { return JSON.parse(draft); } catch { /* ignore */ } }
-    return config.rig.corrections?.get(id, { variant: useAlt ? 'alt' : 'glb' }) || {};
+    return config.rig.corrections?.get(id) || {};
   }
   const saveCorrDraft = () => localStorage.setItem(CORR_KEY(), JSON.stringify(corrections));
   const corrQuat = (deg, out) => out.setFromEuler(_ce.set(deg[0] / R2D, deg[1] / R2D, deg[2] / R2D));
@@ -892,12 +867,11 @@ export async function runRigWorkbench(config, params) {
     padding:10px;width:260px;max-height:96vh;overflow:auto;user-select:none`);
   document.body.appendChild(panel);
   setupDevPanel(panel, {
-    key: 'rigedit', workbench: 'rigedit', subtitle: `${id}${useAlt ? ' · ALT' : ''}`,
+    key: 'rigedit', workbench: 'rig', subtitle: id,
   });
   // Mech picker, like every other workbench. This editor builds its whole
   // world (raw GLB, skeleton, re-skin, undo stack) around one id at start-up,
-  // so a switch is a navigation, not a rebuild — gotoSubject rewrites ?mech=
-  // and drops the old mech's &alt.
+  // so a switch is a navigation, not a rebuild — gotoSubject rewrites ?mech=.
   panel.appendChild(lbl('Mech'));
   panel.appendChild(subjectSelect({
     config,
@@ -905,8 +879,6 @@ export async function runRigWorkbench(config, params) {
     note: (nid) => config.catalogue.note(nid),
     onPick: (next) => { if (next !== id) gotoSubject(next); },
   }));
-  const altRow = altCheckbox(alt, reloadWithVariant);
-  if (altRow) { altRow.style.marginTop = '6px'; panel.appendChild(altRow); }
 
   const modeRow = el('div', 'display:flex;gap:6px;margin:6px 0');
   const bMove = tog('Move', () => setRotMode(false));
@@ -1183,7 +1155,7 @@ export async function runRigWorkbench(config, params) {
       corrBox.appendChild(row);
     }
     const copyC = btn('Copy offsets ▶', () => {
-      const json = `{\n  "${id}": ${useAlt ? `{\n    "alt": { "boneCorrections": ${JSON.stringify(corrections)} }\n  }` : `{ "boneCorrections": ${JSON.stringify(corrections)} }`}\n}`;
+      const json = `{\n  "${id}": { "boneCorrections": ${JSON.stringify(corrections)} }\n}`;
       out.value = json; out.style.display = 'block'; out.select();
       navigator.clipboard?.writeText(json).catch(() => {});
       setNote('Offsets copied + shown below — paste into public/models/manifest.json.');

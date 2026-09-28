@@ -160,7 +160,7 @@ const MAT_FAMILIES = {
   }),
   // ICE, cut: the SEMI-TRANSPARENT one. Deliberately NOT
   // MeshPhysicalMaterial.transmission — that renders through a pass this
-  // scene never runs (see the glacier taunt note in CLAUDE.md), so it would
+  // scene never runs (see the glacier taunt note in docs/systems/animation.md), so it would
   // be perfectly correct and completely invisible. Plain alpha blending with
   // depthWrite ON: chunks read as solid glass blocks and still sort sanely
   // against each other, which matters when a wall is 40 chunks deep.

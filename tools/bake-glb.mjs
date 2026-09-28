@@ -133,7 +133,7 @@ if (!id) { console.error('usage: node tools/bake-glb.mjs <mechId> [--apply] [--r
 // (boneOverrides).
 //
 // WHAT SURVIVES is what describes the GAME's use of it: `muzzles` (hand-placed
-// anchors combat spawns from), `profileKey`, `bindPose`, `limpChains`,
+// anchors combat spawns from), `bindPose`, `limpChains`,
 // `tailFloor`, `boneCorrections` — which no bake can absorb, since a bind-pose
 // rotation is cancelled exactly by rebindRest + the adapter's rest offset, and
 // viper's is a function of how far the joint has swung anyway — and the
