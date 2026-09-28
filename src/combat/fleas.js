@@ -104,9 +104,19 @@ export class FleaSystem {
     return f;
   }
 
-  // erratic flea hop toward (roughly) the nearest enemy of the owner
+  // erratic flea hop toward (roughly) where the nearest enemy of the owner
+  // WILL BE when it comes down
   hop(f) {
     const w = this.world;
+    const vy = rand(14, 23); // 2x hop height — springy leaps that clear mech torsos
+    // A FLEA LEADS ITS PREY. It latches mid-air, coming down past the body, so
+    // it aims where the target will be at that moment — most of a hop's
+    // ground-to-ground flight, which is 2*vy/GRAV (0.7-1.15s). Aimed where
+    // the target WAS, a swarm never touched anything that kept moving: a mech
+    // circling at 80% speed dodged every hop of every flea, every time
+    // (tools/attackmatrix.mjs, 0 damage). The scatter below is unchanged, so
+    // it is still a creepy spray and not a volley of homing darts.
+    const lead = (2 * vy / GRAV) * 0.85;
     let best = null, bestD = Infinity;
     for (const e of w.fighters) {
       // cinePuppet corpses (finisher victims) still count as prey — the
@@ -114,8 +124,14 @@ export class FleaSystem {
       if (e.alive ? !isFoe(f.owner, e) : (!e.cinePuppet || e === f.owner)) continue;
       const dx = w.wrapDelta(e.pos.x - f.mesh.position.x);
       const dz = w.wrapDelta(e.pos.z - f.mesh.position.z);
-      const d = dx * dx + dz * dz;
+      const d = dx * dx + dz * dz;   // nearest by where they ARE…
       if (d < bestD) { bestD = d; best = { e, dx, dz }; }
+    }
+    if (best) {
+      // …aimed at where they will be
+      best.dx += (best.e.vel?.x || 0) * lead;
+      best.dz += (best.e.vel?.z || 0) * lead;
+      bestD = best.dx * best.dx + best.dz * best.dz;
     }
     let heading = rand(Math.PI * 2);
     let power = rand(0.5, 1);
@@ -125,7 +141,6 @@ export class FleaSystem {
       heading = Math.atan2(best.dx, best.dz) + rand(-1, 1) * (d > 14 ? 0.85 : 0.35);
       power = clamp01(d / 22) * rand(0.75, 1.1);
     }
-    const vy = rand(14, 23); // 2x hop height — springy leaps that clear mech torsos
     const sp = 6 + 15 * power;
     f.vel.set(Math.sin(heading) * sp, vy, Math.cos(heading) * sp);
     f.state = 'air';
