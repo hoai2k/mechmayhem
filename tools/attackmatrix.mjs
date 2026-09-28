@@ -4,7 +4,11 @@
 //   node tools/attackmatrix.mjs [baseUrl] [id …] [--victim=<id>]
 //     (default http://localhost:5173, the whole roster, victim titanus)
 // Ults that are not direct attacks are exempt (expectZero, with the reason).
-import { launch } from './lib/browser.mjs';
+// DETERMINISTIC: Math.random is seeded at load AND reseeded at the start of
+// every scenario (the battle runs in real time before the harness takes over,
+// so how much of the sequence it has used varies run to run) — the same code
+// gives the same numbers, and a FAIL is a real miss, not a bad roll.
+import { launch, seedRandom } from './lib/browser.mjs';
 import { ROSTER } from '../src/mechs/roster.js';
 
 const argv = process.argv.slice(2);
@@ -22,6 +26,21 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
 
 const rows = [];
+await seedRandom(page);
+// …and nothing runs in REAL TIME: the engine's frame loop is STOPPED the
+// instant battletest publishes it, so the arena is untouched and the fighters
+// unmoved when the harness starts stepping. Not merely paused — a paused
+// engine still draws every eighth frame, and a draw refreshes the skinned
+// bone matrices the hurtboxes are measured from, so how many draws happened
+// before the harness began still moved the totals by ~1%.
+await page.addInitScript(() => {
+  let eng = null;
+  Object.defineProperty(window, '__engine', {
+    configurable: true,
+    get: () => eng,
+    set: (e) => { eng = e; if (e) e._running = false; },
+  });
+});
 for (const id of MECHS) {
   await page.goto(`${base}/?battle=neon&p1=${id}&p2=${VICTIM}&auto=1`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__world && window.__fighters?.length >= 2, null, { timeout: 120000 });
@@ -34,12 +53,22 @@ for (const id of MECHS) {
       I.moveX = I.moveZ = 0;
       I.jump = I.light = I.heavy = I.ranged = I.special = I.ult = I.block = I.dash = I.taunt = false;
     }
+    // every scenario starts from the same point in the same random sequence
+    function reseed() {
+      let s = 0x2f6e2b1;
+      Math.random = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 1e6) / 1e6; };
+    }
     function reset(dist) {
+      reseed();
       atk.resetForRound(new (atk.pos.constructor)(0, 0, 0), 0);
       vic.resetForRound(new (vic.pos.constructor)(0, 0, dist), Math.PI);
       atk.yaw = atk.targetYaw = Math.atan2(vic.pos.x - atk.pos.x, vic.pos.z - atk.pos.z);
       clearIntents(atk);   // stale AI intents from the pre-eval battle
       clearIntents(vic);
+      // the animators seed their gait phase and clock from Math.random when
+      // they are built, after async loading has used an unknowable share of
+      // the sequence — pin them, or the same swing lands on a different frame
+      for (const f of [atk, vic]) { f.animator.phase = 0; f.animator.t = 0; }
       w.clearTransient();
     }
     function step(secs, drive, motion = 'strafe') {
