@@ -17,7 +17,7 @@ import { checkDeclaredAssetsOnce } from '../core/assetcheck.js';
 import { startAnalytics, countPlay } from '../core/analytics.js';
 import { InstructionsScreen } from '../ui/instructions.js';
 import {
-  CONFIG, setShowAllRobots, setReverseCameraY, setSfxSamples, setSfxVolume, sfxVolume,
+  CONFIG, setShowAllRobots, setReverseCameraY, setWeather, setSfxSamples, setSfxVolume, sfxVolume,
   setArenaDesign, ARENA_DESIGN_MODES,
   setRoundTime, ROUND_MIN, ROUND_MAX, ROUND_STEP,
   setSplitPostFx, SPLIT_POST_MODES,
@@ -278,6 +278,13 @@ export async function bootGame() {
       // synthesized version either way, so this is not an all-or-nothing swap.
       label: () => t(CONFIG.sfxSamples ? 'settings.sfx.on' : 'settings.sfx.off'),
       fn: () => { setSfxSamples(!CONFIG.sfxSamples); ambience.refresh(); },
+    },
+    {
+      // WEATHER on the arenas that have a climate (arena/climate.js) — rain,
+      // snow, ash, sandstorms. Live: switching it off mid-fight clears the sky
+      // on the next frame and gives the arena its own fog and light back.
+      label: () => t(CONFIG.weather ? 'settings.weather.on' : 'settings.weather.off'),
+      fn: () => setWeather(!CONFIG.weather),
     },
     {
       // which way the right stick pitches the battle camera (camera.js)

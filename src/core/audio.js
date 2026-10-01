@@ -93,6 +93,12 @@ export class GameAudio {
       const musBus = ctx.createGain();
       musBus.gain.value = this._musicVol;
       musBus.connect(comp);
+      // the AMBIENT bus: weather (weatherSound). POST-compressor like the
+      // arena bed's media element — a bed must not duck under every punch —
+      // and following the SFX master so 🔊 off silences it
+      const ambBus = ctx.createGain();
+      ambBus.gain.value = this._sfxVol;
+      ambBus.connect(master);
 
       // Distortion bus — heavy impacts route here for grit.
       const shaper = ctx.createWaveShaper();
@@ -123,6 +129,7 @@ export class GameAudio {
 
       this.ctx = ctx;
       this._sfxBus = sfxBus;
+      this._ambBus = ambBus;
       this._musBus = musBus;
       this._dist = shaper;
       this._echoIn = echoIn;
@@ -452,6 +459,69 @@ export class GameAudio {
     for (const key of Object.keys(this._loops)) this.stopLoop(key, fade);
   }
 
+  /**
+   * WEATHER (arena/weather.js): rain, wind and blowing sand as filtered noise
+   * that follows the weather's own numbers — {rain, sand, wind, gust}, each
+   * 0..1 — over the arena's recorded bed. Call it every frame; it is a DEAD
+   * MAN'S SWITCH: every call schedules the levels and a fade to silence a
+   * moment later, so the instant nothing refreshes it (the fight paused, torn
+   * down, the arena swapped) the weather goes quiet on its own, with no stop
+   * call to forget.
+   */
+  weatherSound({ rain = 0, sand = 0, wind = 0, gust = 0 } = {}) {
+    try {
+      const ctx = this.ctx;
+      if (!ctx || ctx.state !== 'running' || !this._ambBus) return;
+      if (!this._wx) {
+        const src = (rate) => {
+          const n = ctx.createBufferSource();
+          n.buffer = this._noiseBuf;
+          n.loop = true;
+          n.playbackRate.value = rate;
+          n.start(ctx.currentTime, Math.random() * 1.4);
+          return n;
+        };
+        const filt = (type, f, q = 0.7) => {
+          const b = ctx.createBiquadFilter();
+          b.type = type; b.frequency.value = f; b.Q.value = q;
+          return b;
+        };
+        const chain = (...nodes) => { for (let i = 1; i < nodes.length; i++) nodes[i - 1].connect(nodes[i]); return nodes[nodes.length - 1]; };
+        const gain = () => { const g = ctx.createGain(); g.gain.value = 0; g.connect(this._ambBus); return g; };
+        // rain: a broad hiss, and under a downpour the low roar of water
+        // hitting everything at once
+        const rainG = gain(), roarG = gain();
+        chain(src(1), filt('highpass', 500), filt('lowpass', 7500), rainG);
+        chain(src(0.83), filt('lowpass', 420), roarG);
+        // wind: a band of noise whose pitch rises with the gust, plus a
+        // thin whistle that only shows up when it really blows
+        const windF = filt('bandpass', 320, 0.9), whistleF = filt('bandpass', 900, 7);
+        const windG = gain(), whistleG = gain();
+        chain(src(0.71), windF, windG);
+        chain(src(0.93), whistleF, whistleG);
+        // sand: a dry, high, sizzling hiss
+        const sandG = gain();
+        chain(src(1.17), filt('highpass', 2600), filt('peaking', 5200, 1.2), sandG);
+        this._wx = { rainG, roarG, windG, whistleG, sandG, windF, whistleF };
+      }
+      const w = this._wx;
+      const lvl = 0.3 * sfxGain('ambience');     // the bed's own level, give or take
+      const t = ctx.currentTime;
+      const set = (param, v) => {
+        param.cancelScheduledValues(t);
+        param.setTargetAtTime(v, t, 0.12);
+        param.setTargetAtTime(0, t + 0.4, 0.25);    // the dead man's switch
+      };
+      set(w.rainG.gain, lvl * (0.25 + 0.75 * rain) * (rain > 0.01 ? 1 : 0) * Math.sqrt(rain));
+      set(w.roarG.gain, lvl * 1.6 * rain * rain);
+      set(w.windG.gain, lvl * 1.4 * wind * (0.6 + 0.6 * gust));
+      set(w.whistleG.gain, lvl * 0.35 * Math.max(0, gust - 0.35) * wind);
+      set(w.sandG.gain, lvl * 0.9 * sand * (0.5 + 0.7 * gust));
+      w.windF.frequency.setTargetAtTime(220 + 520 * gust * wind, t, 0.3);
+      w.whistleF.frequency.setTargetAtTime(700 + 900 * gust, t, 0.4);
+    } catch (e) { /* audio must never break the game */ }
+  }
+
   /** Fire-and-forget SFX. Unknown names silently no-op. opts: {vol, pitch}. */
   play(name, opts = {}) {
     try {
@@ -529,6 +599,7 @@ export class GameAudio {
     try {
       if (this._sfxBus) {
         this._sfxBus.gain.setTargetAtTime(this._sfxVol, this.ctx.currentTime, 0.03);
+        this._ambBus?.gain.setTargetAtTime(this._sfxVol, this.ctx.currentTime, 0.03);
       }
     } catch (e) {
       /* ignore */

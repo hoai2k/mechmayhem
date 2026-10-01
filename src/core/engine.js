@@ -105,6 +105,7 @@ export class Engine {
     this.onAfterView = null;   // () => {} post-render per view
     this.timeScale = 1;
     this.hazeStrength = 1;     // distance-haze blur multiplier (0 = off)
+    this.weatherVolume = null; // arena/weather.js: the moving rain/dust/snow volume in the haze pass
     // ---- split-screen post FX watchdog (CONFIG.splitPostFx === 'auto') ----
     // Run the chains, watch the REAL frame time, and drop them for the
     // session if the machine can't hold a playable rate with them on. The
@@ -208,6 +209,26 @@ export class Engine {
     const px = chain.h ? chain.h * this.renderer.getPixelRatio()
       : this.renderer.getDrawingBufferSize(_bufSize).y;
     u.uRadius.value = fog ? clamp(px * 0.009, 2.5, 12) * this.hazeStrength : 0;
+    // the weather volume (arena/weather.js publishes it; null = no weather)
+    const wv = this.weatherVolume;
+    if (wv && wv.on && u.uVolOn) {
+      camera.updateMatrixWorld();
+      u.uVolOn.value = 1;
+      u.uProjInv.value.copy(camera.projectionMatrixInverse);
+      u.uCamWorld.value.copy(camera.matrixWorld);
+      u.uVolColor.value.copy(wv.color);
+      u.uVolDens.value = wv.density;
+      u.uVolScale.value = wv.scale;
+      u.uVolHeight.value = wv.height;
+      u.uVolDetail.value = wv.detail;
+      u.uVolOff.value.copy(wv.off);
+      u.uVolMax.value = wv.max;
+      u.uVolGround.value = wv.ground;
+      if (wv.sun) u.uVolSun.value.copy(wv.sun);
+      u.uVolSunAmt.value = wv.sun ? wv.sunAmt : 0;
+    } else if (u.uVolOn) {
+      u.uVolOn.value = 0;
+    }
   }
 
   resize() {

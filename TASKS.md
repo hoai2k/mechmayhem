@@ -18,8 +18,8 @@ Browser-based 3D mech arena fighter in the spirit of **Override: Mech City Brawl
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE NEW GROUND ART, VERIFIED AND REPAIRED (see the entry at
-  the end). Previous: THE GROUND IS NOT A TABLE TOP. Before that: EIGHT FIGHTERS, AND THE DOCS CAUGHT UP. Before that: THE MECH DIET — every model baked, half the triangles, a
+- **Latest:** WEATHER (see the entry at the end). Previous: THE NEW GROUND
+  ART, VERIFIED AND REPAIRED. Before that: THE GROUND IS NOT A TABLE TOP. Before that: EIGHT FIGHTERS, AND THE DOCS CAUGHT UP. Before that: THE MECH DIET — every model baked, half the triangles, a
   quarter of the texture memory. Before that: THE STEPPER STOPS FLICKERING: LONGER STRIDES, FRONT LIMBS
   ANTICIPATE, TWO LIMBS STAY DOWN. Owner: "Jerry's legs are moving a bit too
   fast (looks like flickering) when climbing... reach them a bit further and
@@ -7248,4 +7248,36 @@ Left for the owner: neon reads lighter than before (same albedo; the old metal
 map was ~85% metallic, the new one the requested ~12%), and the pack is 553 MB
 — the Pages build ships ~53 MB of ground maps per arena (was ~11); WebP would
 be ~10 MB, ~5 MB at the native 1254². `docs/GROUND_RELIEF.md` §6.
+
+## WEATHER (2026-10-01)
+
+Owner: "Can you add weather to some of the boards? Like rain, or drifting ash,
+or occasional sand storms? The amount can vary between a light drizzle and a
+rain storm. Ensure that it looks realistic not like simplified particles, and
+has some gusts / variability. Most of all ensure it fits with the given board,
+and only add it if it makes sense."
+
+Seven boards: neon rain (with lightning), jungle tropical rain, frozen snow,
+volcano ash + embers, foundry soot, and occasional sandstorms on ruins and
+scrapyard. None on uptown, skyterrace, harbor, quarry or orbital, whose
+skies cannot carry it.
+
+- CLIMATE (`src/arena/climate.js`): intensity in wander / bursty / events
+  regimes, overlapping gust events, a chance per round; Node-tested over
+  ten-minute matches (`test/weather.test.mjs`).
+- LOOK (`src/arena/weather.js`): GPU-instanced motion-blurred rain streaks,
+  fluttering and tumbling flakes, drift sheets of sand and snow streaming
+  along the ground, splashes and puddle rain-rings on the relief, wet glossy
+  ground, a raymarched weather VOLUME in the haze pass, fog/veil/sun driven by
+  the storm, lightning with distance-delayed thunder.
+- SOUND: synthesized rain / wind / sand on a post-compressor bus behind a
+  dead man's switch.
+- SETTINGS -> WEATHER: ON/OFF (live), `?weather=` / `?weatherk=`.
+
+Measured: every board shot at pinned intensities through the real chase
+camera (`tools/weathershot.mjs`); split screen and the live toggle
+(`tools/scratch/weathersplit.mjs`), the audio levels and dead man's switch
+(`tools/scratch/weatheraudio.mjs`) and the round swap
+(`tools/scratch/arenaswap.mjs`) all pass; soaks on neon (rain 0.9) and ruins
+clean; `npm run check` and the build green. Write-up: `docs/WEATHER.md`.
 

@@ -273,6 +273,45 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   tools/groundfix.mjs [--check]` measures all three and repairs them in
   place — closing only the EXCESS of a seam step, since closing it fully
   leaves a line too smooth to match its neighbours.
+- WEATHER ONLY WHERE THE SKY CAN CARRY IT (`src/arena/climate.js`,
+  `src/arena/weather.js`, the write-up in `docs/WEATHER.md`, SETTINGS ->
+  WEATHER, `?weather=0|on|force|rain|snow|ash|dust`, `?weatherk=` pins k).
+  Seven boards: rain on neon (lightning when heavy) and jungle (bursty,
+  tropical), snow on frozen, ash on volcano and a light soot on foundry, and
+  OCCASIONAL sandstorms on ruins and scrapyard. The other five have none,
+  deliberately: a painted backdrop is a fixed picture, and rain out of
+  uptown's blue sky reads as a bug. CLIMATE is pure arithmetic (Node-testable,
+  `test/weather.test.mjs` runs ten-minute matches): an intensity k in three
+  regimes (wander / bursty / events), discrete overlapping GUSTS that push the
+  wind, veer it and thicken what falls, and a chance per round.
+  PRECIPITATION IS GEOMETRY, NEVER POINT SPRITES: instanced quads positioned
+  on the GPU from a seed plus ONE integrated offset (so a gust never makes a
+  drop jump), wrapped through boxes that follow whichever camera draws (split
+  views, finisher cams, the loading card all for free) — rain as
+  motion-blurred teardrop streaks never thinner than a pixel (fainter
+  instead), flakes that flutter and tumble, intensity as the NUMBER of live
+  instances, wind-advected sheets for uneven density. Because it is geometry
+  it renders under SwiftShader, so `node tools/weathershot.mjs <theme> <out>
+  [--k ..] [--strike]` pictures are evidence. THE WEATHER VOLUME is a short
+  raymarch in the haze pass (core/hazeblur.js already had the depth), so rain
+  sheets and dust clouds roll through the arena occluded by what is in front.
+  THE WORLD REACTS: wet ground (darker, glossier, FLATTER — the flattening is
+  also what stops a glossy floor glittering), puddles in the relief's low
+  ground with rain rings, splashes landed on the relief via a texture of the
+  physics grid, sand and blizzard snow streaming along the ground as stacked
+  wispy sheets (`driftTone` per climate: paler than sand to be seen on sand, a
+  field of white lines if applied to dark dirt), fog pulled in and tinted, a
+  sky veil, the sun dimmed, lightning with distance-delayed thunder, and
+  synthesized rain/wind/sand on a post-compressor bus behind a DEAD MAN'S
+  SWITCH (every frame re-arms a fade to silence). KEPT PLAYABLE: a full
+  sandstorm still shows the opponent at ~40 units, and nothing that decides
+  a fight reads any of it. THE TRAP: a falling streak runs tail -> head DOWN
+  the screen, which flips the quad's winding — single-sided, every drop was
+  culled as a back face while the draw call ran. Every weather quad is
+  double-sided. Checks: `tools/scratch/weathersplit.mjs` (split views + the
+  live toggle restoring fog, light, dry ground), `tools/scratch/weatheraudio.mjs`
+  (levels and the switch), `tools/scratch/arenaswap.mjs` (weather leaves with
+  its arena on a round swap).
 - NOT EVERY LARGE STRUCTURE IS A BUILDING (`src/arena/structures.js`, asset
   prompts in `docs/ASSET_REQUESTS_STRUCTURES.md`). A big destructible mass has
   a gameplay job — block sight, give cover, be climbed, come down — and every

@@ -165,6 +165,7 @@ uniform vec3 uNtHigh; uniform float uNtHighAmt;
 uniform vec3 uNtSlope; uniform float uNtSlopeAmt;
 uniform float uNtRange;
 uniform float uNtAntiTile;
+uniform float uNtWet, uNtRain, uNtTime;
 #ifdef NT_B
 uniform sampler2D uNtMapB;
 uniform sampler2D uNtNormalB;
@@ -190,6 +191,10 @@ export function patchGroundMaterial(mat, { P, profile = {}, b = null, folds = nu
     uNtSlope: { value: col(tint.slope, 0x000000) }, uNtSlopeAmt: { value: tint.slopeAmt ?? 0 },
     uNtRange: { value: tint.range ?? 0.4 },
     uNtAntiTile: { value: 1 },
+    // WETNESS (arena/weather.js drives these while it rains): 0 = dry
+    uNtWet: { value: 0 },
+    uNtRain: { value: 0 },
+    uNtTime: { value: 0 },
   };
   if (b) {
     U.uNtMapB = { value: b.map };
@@ -274,6 +279,37 @@ ${NT_UNIFORMS}`);
     diffuseColor.rgb = mix(diffuseColor.rgb, uNtHigh, highW);
     diffuseColor.rgb = mix(diffuseColor.rgb, uNtSlope, steep);
   }
+  // WET: water fills the pores (darker), the surface goes glossy, and once it
+  // has rained a while PUDDLES stand in the low ground — mirror-smooth, flat,
+  // with rain rings spreading in them while it is still coming down
+  float ntPud = 0.0;
+  vec2 ntRip = vec2(0.0);
+  if (uNtWet > 0.001) {
+    vec2 wxz = vNtW * uNtP;
+    float pn = ntNoise(vNtW * 23.0 + 4.0, 23.0) * 0.6 + ntNoise(vNtW * 61.0, 61.0) * 0.4;
+    float low = smoothstep(-0.02, -0.18, vNtRel);
+    float lvl = 0.22 + 0.2 * uNtWet;
+    ntPud = (1.0 - smoothstep(lvl - 0.05, lvl + 0.05, pn - low * 0.5)) * smoothstep(0.35, 0.85, uNtWet);
+    diffuseColor.rgb *= mix(1.0, 0.64, uNtWet) * mix(1.0, 0.72, ntPud);
+    if (ntPud > 0.01 && uNtRain > 0.02) {
+      vec2 base = floor(wxz / 0.7);
+      for (int i = 0; i < 9; i++) {
+        vec2 c = base + vec2(float(i - (i / 3) * 3) - 1.0, float(i / 3) - 1.0);
+        float h = ntHash(c * 1.13 + 0.7);
+        float rate = 0.9 + h * 0.8;
+        float cyc = uNtTime * rate + h * 7.0;
+        if (ntHash(c * 2.7 + floor(cyc)) > uNtRain) continue;   // fewer drops in a drizzle
+        float ph = fract(cyc);
+        vec2 ctr = (c + 0.2 + 0.6 * vec2(h, ntHash(c + 5.3))) * 0.7;
+        vec2 dv = wxz - ctr;
+        float d = length(dv);
+        float x = (d - ph * 0.45) * 28.0;
+        float w = sin(x * 3.14159) * exp(-x * x * 0.5) * (1.0 - ph);
+        ntRip += (d > 1e-4 ? dv / d : vec2(0.0)) * w;
+      }
+      ntRip *= ntPud * 0.5;
+    }
+  }
 `);
     // the other maps are read inside CHUNKS, which onBeforeCompile sees still
     // as #include lines (three expands them afterwards) — so expand the four
@@ -283,6 +319,15 @@ ${NT_UNIFORMS}`);
     for (const c of ['normal_fragment_maps', 'roughnessmap_fragment', 'metalnessmap_fragment', 'emissivemap_fragment']) {
       fs = fs.replace(`#include <${c}>`, THREE.ShaderChunk[c]);
     }
+    // wet: glossier everywhere, a puddle nearly a mirror and flat (the water
+    // hides the texture's relief), rain rings riding on it
+    fs = fs.replace('roughnessFactor *= texelRoughness.g;', `roughnessFactor *= texelRoughness.g;
+	roughnessFactor = mix(roughnessFactor, roughnessFactor * 0.62, uNtWet);
+	roughnessFactor = mix(roughnessFactor, 0.1, ntPud);`);
+    // water fills the pores: the relief flattens as it wets, which is also
+    // what keeps a glossy surface from glittering (specular aliasing)
+    fs = fs.replace('mapN.xy *= normalScale;', `mapN.xy *= normalScale * (1.0 - 0.92 * ntPud) * (1.0 - 0.5 * uNtWet);
+	mapN.xy += ntRip * vec2(1.0, -1.0);`);
     fs = fs.replace('texture2D( normalMap, vNormalMapUv )', `
 #ifdef NT_B
       mix(ntTexF(normalMap, vNormalMapUv, 1), ntTex(uNtNormalB, vNormalMapUv), ntMaskB)
