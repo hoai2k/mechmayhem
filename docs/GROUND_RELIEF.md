@@ -3,7 +3,13 @@
 Every arena stood on one perfectly flat plane at y = 0 with one 2048² texture
 repeated across it every ~15 units. This document is the audit of that floor,
 the research behind the fix, the per-arena plan, what shipped, how it was
-measured, and the art that is still wanted.
+measured, and the replacement art delivered on 2026-10-01.
+
+**Art delivery:** all twelve mirrored grounds have been replaced and all
+twelve `_b` companions added (77 maps). The strict audit passes all 24
+materials; `groundfolds.json` now has no correction profiles. The audit
+below describes the original pack. Generation prompts and the native-to-2048
+export are recorded in `docs/ground-material-generation.json`.
 
 Code: `src/arena/relief.js` (the shape), `src/arena/groundshader.js` (the
 surface), `src/arena/terrain.js` `buildGroundTiles` (the mesh), and the
@@ -164,7 +170,7 @@ noise periodic in the cell:
    fade to tune. Only the AVERAGE across a fold is removed — the texture's
    own detail crossing it survives.
 5. **A second material** (`<ground>_b`) splatted in through a world-space mask
-   — wired and waiting for the art requested below; no file, no cost.
+   — all twelve companions were delivered on 2026-10-01.
 
 Two traps found on the way, worth knowing for any `onBeforeCompile` patch:
 the maps other than colour are sampled INSIDE chunks that `onBeforeCompile`
@@ -232,13 +238,15 @@ Judging tools:
   and gets no correction; `npm test` fails until you do).
 - `?relief=0` on any battle URL for the before picture.
 
-## 6 · Art requested
+## 6 · Art delivered
 
-`docs/image-requests.md` → **GROUND MATERIALS**: twelve replacement ground
+`docs/image-requests.md` → **GROUND MATERIALS** (closed): twelve replacement ground
 textures that are seamless WITHOUT mirroring (the real fix; the shader's
 fold cancellation is a stopgap), and twelve `_b` companion materials for the
 splat — patched asphalt in the asphalt, scree in the rock, wind-glazed ice in
-the snow. Every one is a drop-in: same folder, same names, no code edit.
+the snow. Delivered on 2026-10-01. Every one is a drop-in: same folder,
+same names, no code edit. Native generated outputs were 1254², exported at
+2048²; see `docs/ground-material-generation.json` for the prompt set.
 
 ## 7 · Follow-ups (not done)
 

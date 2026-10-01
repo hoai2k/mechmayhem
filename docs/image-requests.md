@@ -1,9 +1,16 @@
-# IMAGE REQUESTS — ground materials (24 materials, OPEN) · menu hangar (2 images, closed) · hero cards (17 images, closed)
+# IMAGE REQUESTS — ground materials (24 materials, closed) · menu hangar (2 images, closed) · hero cards (17 images, closed)
 
-> **OPEN: GROUND MATERIALS** — the first section below. Twelve replacement
-> arena floors that are seamless without mirroring, and twelve `_b`
-> companions the ground shader splats over them. Everything after it is
-> closed and kept for reference.
+> **GROUND MATERIALS DELIVERED — 2026-10-01.** Twelve replacement arena
+> floors and twelve `_b` companions, 77 PNG maps in `src/textures/ground/`.
+> Generated with the built-in image tool without quarter-flip mirroring.
+> Native 1254×1254 outputs were upscaled to 2048×2048; roughness and metalness
+> are RGB grayscale, and normals were requested in OpenGL +Y convention.
+> The prompt set and export details are in `docs/ground-material-generation.json`.
+> Validation: all 24 materials `OK` in the strict audit, 77 RGB PNGs checked
+> at 2048², all 12 arena previews reviewed without browser page errors,
+> Node 22 `npm run check` (50 tests) and `npm run build` passed.
+> The 2×2 tiled review sheet is `docs/ground-materials-contact-sheet.jpg`.
+> All requests below are closed; the original briefs remain for reference.
 
 > **Delivered:** both hangar backplates and all 17 active mech hero cards.
 > The cards' ORIGINALS live in `docs/cards/`; the game ships the web-size
@@ -23,9 +30,9 @@
 
 ---
 
-# GROUND MATERIALS — OPEN (12 replacements + 12 companions)
+# GROUND MATERIALS — CLOSED (12 replacements + 12 companions)
 
-**Why:** every arena floor is one of twelve 2048² materials in
+**Original request rationale (before replacement):** every arena floor is one of twelve 2048² materials in
 `src/textures/ground/`, and **all twelve are four-way mirrors** — one quarter
 of the image flipped into the other three. Repeated ~10 times across an arena
 that is a kaleidoscope medallion the eye finds every 15 units, plus a dark
