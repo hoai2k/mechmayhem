@@ -21,6 +21,7 @@ import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
 import { reliefProfile } from './relief.js';
 import { patchGroundMaterial } from './groundshader.js';
+import { createWeather } from './weather.js';
 import GROUND_FOLDS from './groundfolds.json';
 import { measureHorizonColor, horizonGradientColor } from './horizon.js';
 
@@ -211,6 +212,9 @@ export class Arena {
       const near = P * (n0 + (n1 - n0) * k);
       const far = P * (0.92 + (FOG_FAR - 0.92) * k);
       this.scene.fog = new THREE.Fog(theme.fog.color, near, far);
+      // the fog as the arena means it — the weather (weather.js) pulls the
+      // band in and tints it toward the storm FROM this, every frame
+      this.fogBase = { near, far, color: new THREE.Color(theme.fog.color) };
     }
     this.scene.background = null;
 
@@ -225,6 +229,7 @@ export class Arena {
     rim.intensity = theme.rim.intensity;
     if (theme.rim.pos) rim.position.set(...theme.rim.pos);
     engine.renderer.toneMappingExposure = theme.exposure ?? 1.0;
+    this.lightBase = { sun: theme.sun.intensity, hemi: theme.hemi.intensity };
 
     // ---- ground ----
     // texture repeats are per-700-units of plane, so widening the ground for
@@ -355,6 +360,7 @@ export class Arena {
       const fog = this.scene.fog;
       const apply = (c) => {
         fog.color.copy(c);
+        this.fogBase.color.copy(c);
         // the fallback skyline boxes are darker silhouettes of the same haze
         if (skyMatDark) skyMatDark.color.copy(c).multiplyScalar(0.55);
       };
@@ -766,6 +772,9 @@ export class Arena {
       const sx = Math.cos(a) * r, sz = Math.sin(a) * r;
       this.steamSpots.push(new THREE.Vector3(sx, 0.3 + this.terrain.reliefAt(sx, sz), sz));
     }
+    // WEATHER (weather.js / climate.js): rain, snow, ash or blowing dust on
+    // the arenas whose sky can carry it — and only on some rounds there
+    this.weather = CONFIG.weather === false ? null : createWeather(this, seed);
   }
 
   bind(world) {
@@ -1426,6 +1435,8 @@ export class Arena {
       if (b.rock) b.g.rotation.x = Math.sin(this.t * b.speed * 0.8 + b.ph * 1.7) * b.rock;
     }
 
+    this.weather?.update(dt);
+
     // ambient particles
     const fx = this.world?.effects;
     if (!fx) return;
@@ -1433,7 +1444,10 @@ export class Arena {
     if (this.ambientT <= 0) {
       this.ambientT = 0.06;
       const B = this.bounds;
-      switch (this.theme.ambient) {
+      // the old sparse snow / sand puffs are what the weather does properly
+      const amb = this.weather?.active && ((this.theme.ambient === 'snow' && this.weather.kind === 'snow')
+        || (this.theme.ambient === 'sand' && this.weather.kind === 'dust')) ? null : this.theme.ambient;
+      switch (amb) {
         case 'embers':
           fx.glows.emit(rand(-B, B), rand(0.5, 3), rand(-B, B), rand(-1, 1), rand(2, 5), rand(-1, 1),
             { life: rand(1.5, 3), size: rand(0.3, 0.7), color: 0xff7a30, alpha: 0.8, drag: 0.4 });
@@ -1473,6 +1487,8 @@ export class Arena {
 
   dispose() {
     this._horizonCancel?.();
+    this.weather?.dispose();
+    this.weather = null;
     for (const o of this.objects) {
       this.scene.remove(o);
       o.traverse?.((c) => {

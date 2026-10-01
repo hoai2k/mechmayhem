@@ -197,6 +197,8 @@ export const MESSAGES = {
   'settings.splitFx.autoOff': 'SPLIT-SCREEN FX: DEFAULT (OFF — SLOW)',
   'settings.splitFx.on': 'SPLIT-SCREEN FX: ALWAYS ON',
   'settings.splitFx.off': 'SPLIT-SCREEN FX: OFF',
+  'settings.weather.on': 'WEATHER: ON',
+  'settings.weather.off': 'WEATHER: OFF',
   'settings.reverseCamY.on': 'REVERSE CAMERA Y: ON',
   'settings.reverseCamY.off': 'REVERSE CAMERA Y: OFF',
   'settings.showAllRobots.on': 'SHOW ALL ROBOTS: ON',

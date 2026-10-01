@@ -12,7 +12,8 @@ const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (e) => console.error('page error:', String(e).slice(0, 300)));
 page.on('console', (m) => { if (m.type() === 'error') console.error('console:', m.text().slice(0, 200)); });
-await page.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1', { waitUntil: 'networkidle' });
+// weather=force so every swap carries weather out with it (arena/weather.js)
+await page.goto('http://localhost:5173/?battle=neon&p1=titanus&p2=viper&auto=1&weather=force', { waitUntil: 'networkidle' });
 await page.waitForTimeout(Number(waitMs));
 
 const out = await page.evaluate(async () => {
@@ -50,6 +51,10 @@ const out = await page.evaluate(async () => {
       grounded: F[0].grounded,
       onTerrain: +(F[0].pos.y - (w.arena.terrainHeightAt?.(F[0].pos.x, F[0].pos.z) || 0)).toFixed(2),
       chunksAlive: w.arena.destructo.buildings.length,
+      // the old arena's weather must leave with it: every weather node in the
+      // scene belongs to the arena now standing
+      weatherNodes: eng.scene.children.filter((o) => o.name?.startsWith('weather-')).length,
+      weatherOwn: w.arena.weather?.objects.length ?? 0,
     });
   }
   return rows;
@@ -58,6 +63,6 @@ for (const r of out) {
   console.log(`-> ${r.to}: scene ${r.before.scene} -> ${r.after.scene} · crates ${r.before.pickups} -> `
     + `${r.after.pickups} · fountains ${r.before.fountains} -> ${r.after.fountains} · `
     + `wrapHalf ${r.before.wrapHalf} -> ${r.after.wrapHalf} · buildings ${r.chunksAlive}`);
-  console.log(`   walked ${r.walked} · grounded ${r.grounded} · height over terrain ${r.onTerrain}`);
+  console.log(`   walked ${r.walked} · grounded ${r.grounded} · height over terrain ${r.onTerrain} · weather nodes ${r.weatherNodes} (own ${r.weatherOwn})`);
 }
 await browser.close();

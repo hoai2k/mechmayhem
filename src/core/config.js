@@ -153,6 +153,14 @@ export const CONFIG = {
   // channels and drifts. ?relief=0 stands every arena back on the old flat
   // plane — for a side-by-side, and for any measurement that must not move.
   relief: params.get('relief') !== '0',
+  // WEATHER (arena/weather.js, arena/climate.js): rain, snow, ash and blowing
+  // dust on the arenas that suit it. A settings toggle, persisted; ?weather=
+  // overrides for a session — 0/off · on · force (every round of an arena that
+  // has a climate gets weather) · rain|snow|ash|dust (that kind on ANY arena,
+  // a dev switch). ?weatherk=0..1 pins the intensity, for pictures and probes.
+  weather: readWeather(),
+  weatherForce: readWeatherForce(),
+  weatherPin: params.get('weatherk') !== null ? parseFloat(params.get('weatherk')) : null,
   // ~7s cinematic KO finisher when a round is won by a kill (never on a
   // timeout). ?finishers=0 disables at load time.
   enable_finishers: params.get('finishers') !== '0',
@@ -364,6 +372,23 @@ export function setSplitPostFx(mode) {
   CONFIG.splitPostFx = SPLIT_POST_MODES.includes(mode) ? mode : 'auto';
   try { localStorage.setItem('rw.splitPostFx', CONFIG.splitPostFx); } catch (e) { /* ok */ }
   return CONFIG.splitPostFx;
+}
+
+function readWeather() {
+  const p = params.get('weather');
+  if (p === '0' || p === 'off') return false;
+  if (p !== null) return true;
+  return readPref('rw.weather', true);
+}
+function readWeatherForce() {
+  const p = params.get('weather');
+  if (p === '0' || p === 'off') return 'off';
+  return p && p !== '1' && p !== 'on' ? p : undefined;
+}
+
+export function setWeather(on) {
+  CONFIG.weather = on;
+  try { localStorage.setItem('rw.weather', on ? '1' : '0'); } catch (e) { /* ok */ }
 }
 
 function readPref(key, dflt = false) {
