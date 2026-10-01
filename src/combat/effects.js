@@ -569,6 +569,7 @@ class LightningPool {
 export class Effects {
   constructor(scene) {
     this.scene = scene;
+    this.groundY = null;   // (x,z) -> floor height, set by the World (relief.js)
     this.sparks = new ParticlePool(scene, sparkTexture(), { cap: 900 });
     this.glows = new ParticlePool(scene, softCircleTexture(), { cap: 500 });
     this.smoke = new ParticlePool(scene, smokeCellsTexture(), {
@@ -1055,7 +1056,7 @@ export class Effects {
     const s = size || (slime ? rand(2.2, 3.6) : rand(2.6, 3.6));
     m.scale.set(s, s * rand(0.75, 1), 1);
     m.rotation.z = rand(Math.PI * 2);
-    m.position.set(pos.x, 0.05 + rand(0, 0.02), pos.z);
+    m.position.set(pos.x, (this.groundY?.(pos.x, pos.z) ?? 0) + 0.05 + rand(0, 0.02), pos.z);
     m.visible = true;
     this.puddles.push({ mesh: m, t: 0, life: life || (slime ? 9 : 3.5), o0: m.material.opacity });
     return m;

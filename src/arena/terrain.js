@@ -26,6 +26,8 @@
 // the overlay tiles for free because its texture repeats at the cell period.
 import * as THREE from 'three';
 import { TAU, clamp, rand, damp } from '../core/utils.js';
+import { CONFIG } from '../core/config.js';
+import { Relief, reliefProfile, reliefCellGeometry } from './relief.js';
 
 const _v = new THREE.Vector3();
 const _c = new THREE.Color();
@@ -96,6 +98,10 @@ export class Terrain {
     this.buildViaduct(rng);
     this.buildHills(rng);
     this.buildBridges(rng);
+    // THE GROUND'S OWN SHAPE (relief.js): built once the layout is known, so
+    // roads can sit below their kerbs and streams in their channels; the
+    // arena adds building footprints and prop pads to it as they land
+    this.relief = new Relief(this, CONFIG.relief === false ? null : reliefProfile(theme));
     this.buildOverlay();
     this.buildMeshes();
   }
@@ -479,7 +485,19 @@ export class Terrain {
   }
 
   // ---- queries used by arena / combat ----
+  // the ground's own relief under (x,z) — what a fighter's feet rest on
+  // wherever there is no hill or deck
+  reliefAt(x, z) { return this.relief ? this.relief.at(x, z) : 0; }
+
+  // THE SURFACE: relief, or a hill / live bridge deck where one stands
   heightAt(x, z) {
+    return Math.max(this.reliefAt(x, z), this.featureHeightAt(x, z));
+  }
+
+  // only the BUILT features (hills, bridge decks), 0 elsewhere — the
+  // question site pickers ask ("is there a mound or a causeway here?"),
+  // which the gentle relief must not answer for them
+  featureHeightAt(x, z) {
     let h = 0;
     for (const hl of this.hills) {
       const d = Math.hypot(this.wrapD(x - hl.x), this.wrapD(z - hl.z));
@@ -729,7 +747,7 @@ export class Terrain {
       f._jumpMul = low ? LOWGRAV_JUMP : 1;
       const grip = hazard === 'ice' && f.grounded ? ICE_GRIP : 1;
       f._grip = grip < (f._grip ?? 1) ? grip : damp(f._grip ?? 1, grip, 6, dt);
-      if (!f.grounded || f.pos.y > 0.5 || !hazard || hazard === 'ice' || low) continue;
+      if (!f.grounded || f.pos.y - this.reliefAt(f.pos.x, f.pos.z) > 0.5 || !hazard || hazard === 'ice' || low) continue;
       if (hazard === 'void') { f.voidFall?.(); continue; }
       if (hazard === 'lava' || hazard === 'acid') {
         const acid = hazard === 'acid';
@@ -831,7 +849,7 @@ export class Terrain {
       if (this.onLane(x, z, 6.5)) return false;
       if (this.onPatch(x, z, 6)) return false;
       if (this.viaduct && Math.abs(this.vLocal(x, z).perp) < this.viaduct.w / 2 + 6) return false;
-      if (this.heightAt(x, z) > 0.1) return false;
+      if (this.featureHeightAt(x, z) > 0.1) return false;
       if (this.nearBridge(x, z, 7)) return false;
       return sites.every((s) => Math.hypot(s.x - x, s.z - z) > minD);
     };
@@ -1404,9 +1422,8 @@ export class Terrain {
       // visibly stair-stepped; take what the GPU will give, up to 16.
       const caps = this.arena.engine?.renderer?.capabilities;
       tex.anisotropy = Math.min(16, caps ? caps.getMaxAnisotropy() : 4);
-      // align texture cells with the world cell
-      tex.repeat.set(span / P, span / P);
-      tex.offset.set(0.5 - span / 2 / P, 0.5 - span / 2 / P);
+      // one texture cell per world cell: the ground tiles (buildGroundTiles)
+      // carry uv 0..1 across exactly one period
       return tex;
     };
     this.overlayMat = new THREE.MeshStandardMaterial({
@@ -1423,12 +1440,49 @@ export class Terrain {
       this.overlayMat.emissive = new THREE.Color(0xffffff);
       this.overlayMat.emissiveIntensity = 1.0;
     }
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(span, span), this.overlayMat);
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.y = 0.03;
-    plane.receiveShadow = true;
-    plane.renderOrder = 1;
-    this.arena.scene.add(plane);
-    this.arena.objects.push(plane);
+    void span;
+  }
+
+  // THE FLOOR ITSELF, built last (arena.finishGround), once every footprint
+  // and prop pad has shaped the relief: one displaced P×P cell geometry,
+  // drawn 3×3 like the ghost-tiled props so the floor still reaches past the
+  // fog wall in every direction. The painted overlay rides the SAME geometry
+  // a hair above it, so a road can never come unstuck from the ground it is
+  // painted on.
+  buildGroundTiles(groundMat) {
+    const P = this.P;
+    const seg = Math.max(8, Math.round(P / 1.25));
+    const mk = (yOff) => {
+      const g = reliefCellGeometry(this.relief, seg, yOff);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(g.pos, 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(g.nrm, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(g.uv, 2));
+      geo.setAttribute('aRel', new THREE.BufferAttribute(g.rel, 1));
+      geo.setIndex(new THREE.BufferAttribute(g.idx, 1));
+      geo.computeBoundingSphere();
+      return geo;
+    };
+    const groundGeo = mk(0);
+    const overGeo = this.overlayMat ? mk(0.03) : null;
+    this.groundTiles = [];
+    for (let gx = -1; gx <= 1; gx++) {
+      for (let gz = -1; gz <= 1; gz++) {
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.position.set(gx * P, 0, gz * P);
+        ground.receiveShadow = true;
+        this.arena.scene.add(ground);
+        this.arena.objects.push(ground);
+        this.groundTiles.push(ground);
+        if (overGeo) {
+          const plane = new THREE.Mesh(overGeo, this.overlayMat);
+          plane.position.set(gx * P, 0, gz * P);
+          plane.receiveShadow = true;
+          plane.renderOrder = 1;
+          this.arena.scene.add(plane);
+          this.arena.objects.push(plane);
+        }
+      }
+    }
   }
 }

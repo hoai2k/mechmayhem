@@ -1,4 +1,9 @@
-# IMAGE REQUESTS — menu hangar (2 images) · hero cards (17 images)
+# IMAGE REQUESTS — ground materials (24 materials, OPEN) · menu hangar (2 images, closed) · hero cards (17 images, closed)
+
+> **OPEN: GROUND MATERIALS** — the first section below. Twelve replacement
+> arena floors that are seamless without mirroring, and twelve `_b`
+> companions the ground shader splats over them. Everything after it is
+> closed and kept for reference.
 
 > **Delivered:** both hangar backplates and all 17 active mech hero cards.
 > The cards' ORIGINALS live in `docs/cards/`; the game ships the web-size
@@ -7,7 +12,7 @@
 > the hangar plates are not used; they are kept, unshipped, in `docs/menus/`. AEGIS and NOVA are retired, so the
 > active roster has 17 cards rather than the 19 stated in the original title.
 
-> **Two requests lived in this file, and both are closed.** The **hangar
+> **The two earlier requests in this file are both closed.** The **hangar
 > backplates** directly below (2 images) were only needed for **Concept C —
 > The Hangar** from the menu redesign (`docs/menu-concepts/`); they were
 > delivered but Concept B shipped, so they sit unshipped in `docs/menus/`
@@ -15,6 +20,126 @@
 > cards** after them are the original request, and they now serve twice: the VS
 > splash they were made for, and **Concept B — Fight Night**'s select panels.
 > Concept A needs no new art at all.
+
+---
+
+# GROUND MATERIALS — OPEN (12 replacements + 12 companions)
+
+**Why:** every arena floor is one of twelve 2048² materials in
+`src/textures/ground/`, and **all twelve are four-way mirrors** — one quarter
+of the image flipped into the other three. Repeated ~10 times across an arena
+that is a kaleidoscope medallion the eye finds every 15 units, plus a dark
+GROOVE the mirroring left along every fold (51–83% darker than the ground
+beside it), which reads as a grid ruled across the floor to the horizon.
+The full audit and the plan are in `docs/GROUND_RELIEF.md`. The game now
+cancels the grooves and breaks the repeat in the shader as a stopgap; the
+real fix is art that was never mirrored.
+
+**The acceptance check:** `node tools/groundaudit.mjs --strict` must print
+`OK` for every delivered material (mirror score ≥ 0.3 both ways, no fold
+grooves, blotch SD ≤ 12, 2048 px). It also writes a 2×2-tiled contact sheet
+with a path argument (`node tools/groundaudit.mjs sheet.jpg`) — look at THAT,
+never a single tile: a single tile cannot show its own repetition.
+
+**After delivery:** `node tools/groundfolds.mjs --write` (drops the groove
+correction for every texture that is no longer a mirror — `npm test` fails
+until it is run), then `node tools/groundshot.mjs <theme> out` to look at it
+in the arena.
+
+## Delivery
+
+Same folders and file names as the pack (`docs/TEXTURE_GEN_PROMPT.md` has the
+conventions): `src/textures/ground/<name>/<name>_albedo.png` + `_normal.png`
++ `_rough.png` (+ `_metal.png` / `_emissive.png` where marked). 2048×2048 PNG,
+OpenGL normal (+Y green up), roughness in the GREEN channel is what is read
+(greyscale is fine). Do **not** put anything in `public/textures/` — it is not
+read.
+
+## Global rules — every ground material
+
+1. **Seamless WITHOUT mirroring.** Tile by offset-and-heal / synthesis /
+   wrap-around generation — never by flipping a quarter. No motif may appear
+   twice symmetrically anywhere in the image. Check by offsetting the image by
+   50%/50%: no seam, and by flipping it: it must look DIFFERENT.
+2. **Nothing on the tile grid.** No line, crack, seam or colour change may run
+   along the image edges or the horizontal/vertical midlines (a paver or panel
+   joint is the one exception — and then put the joints at irregular
+   positions, not at 0 and 50%).
+3. **Even at large scale.** Overall value variation within ±10% at the scale
+   of a quarter of the tile. The shader adds its own world-scale blotches,
+   wet patches and hue drift; a texture that already has big light and dark
+   shapes repeats them every tile.
+4. **Detail at 2–40 cm**, read at ~4 m per tile from a chase camera 10–20 m
+   away: grain, crack networks, pebbles, pores, small stains. No single
+   distinctive feature (a manhole, a big crack, a puddle) — those are decals,
+   and a decal that repeats every tile is a stamp.
+5. **No baked lighting** — flat, even, shadowless. No AO darkening at
+   crevices beyond what the material itself is.
+6. **No text, numbers, logos, markings.** (`ground_orbital_deck`: plain
+   geometric lines only, as before.)
+
+### Negative prompt (all)
+
+> `mirror symmetry, kaleidoscope, symmetric pattern, medallion, radial
+> pattern, visible seam, grid lines, border, frame, vignette, baked shadows,
+> directional light, specular highlight, perspective, text, logo, numbers,
+> large single feature, puddle, manhole, low resolution, blurry, jpeg
+> artifacts`
+
+### Shared style block — append to every prompt
+
+> `seamless tileable PBR ground texture, top-down orthographic, flat even
+> lighting, stylized-realistic AAA game material, clean grading, 2048x2048`
+
+## A · Twelve replacements (same names — drop-in)
+
+| # | file | prompt (+ style block) | maps |
+|---|---|---|---|
+| 1 | `ground_neon_asphalt` | dark city asphalt, fine aggregate, faint hairline cracks in an irregular network, a few thin tar-sealed crack lines, subtle oily sheen variation, slightly damp | albedo normal rough +metal (dark, ~10%) |
+| 2 | `ground_foundry_ironplate` | cast-iron factory floor plates with an irregular joint layout and rivet rows, soot-stained, heat-discoloured blue/brown blooms, worn bright where boots and wheels run | albedo normal rough +metal |
+| 3 | `ground_uptown_paving` | large light concrete plaza pavers in a running-bond layout of uneven-length slabs, thin expansion joints, light wear and faint water stains | albedo normal rough |
+| 4 | `ground_harbor_concrete` | weathered dock concrete slab, salt bloom, faded rust and yellowish wear, hairline cracks, coarse exposed aggregate in patches | albedo normal rough |
+| 5 | `ground_skyterrace_roofpanel` | rooftop composite deck panels, light grey, anti-slip grit texture, drainage perforations in short irregular runs | albedo normal rough |
+| 6 | `ground_scrapyard_dirt` | packed brown dirt with gravel, small embedded metal scraps, bolts and shavings, oil spots of varied size, tyre-compacted areas | albedo normal rough +metal (sparse flecks) |
+| 7 | `ground_quarry_rock` | cool grey-violet fractured bedrock, tool and blast scars, rock dust in the cracks, sparse pale crystal flecks | albedo normal rough |
+| 8 | `ground_volcano_basalt` | dark basalt crust with ropy pāhoehoe texture and an irregular network of cooling cracks, a minority of cracks glowing ember orange, ash dust in the hollows | albedo normal rough +emissive (crack glow only) |
+| 9 | `ground_frozen_snowice` | wind-packed snow over blue-grey ice, fine wind ripples (sastrugi texture), scattered glassy refrozen patches | albedo normal rough |
+| 10 | `ground_ruins_sandstone` | worn sandstone slabs of irregular sizes, sand drifted into the joints, chipped arrises, faint eroded carving traces | albedo normal rough |
+| 11 | `ground_jungle_mossstone` | old fitted stone blocks of irregular sizes, moss filling the seams and creeping over edges, damp dark patches, fine roots and leaf litter | albedo normal rough |
+| 12 | `ground_orbital_deck` | spacecraft landing-deck alloy panels in an irregular panel layout, hexagonal anti-slip sub-pattern, brushed metal, plain geometric lines only | albedo normal rough +metal |
+
+## B · Twelve companions — the second material (`<name>_b`)
+
+The ground shader splats a SECOND material over the first through a
+world-scale mask (about a third of the floor, in soft irregular regions) —
+the patched asphalt in the asphalt, the scree in the rock. It is already
+wired: drop `src/textures/ground/<name>_b/<name>_b_albedo.png` (+ normal,
+rough) and the arena picks it up, no code edit. **Same colour family and
+texel scale as its partner** — it must read as the same ground in a different
+condition, not a different floor. Same global rules. Albedo, normal and
+roughness only (a `_b` metal or emissive map is not read).
+
+| # | file | prompt (+ style block) |
+|---|---|---|
+| 1 | `ground_neon_asphalt_b` | patched city asphalt: newer darker asphalt patches, crack-sealant squiggles, a little loose grit |
+| 2 | `ground_foundry_ironplate_b` | the same iron floor plates heavily oiled and scuffed, grease stains, swarf and metal filings in drifts |
+| 3 | `ground_uptown_paving_b` | the same plaza pavers, older and weathered: darker, lichen spots, worn smooth in a traffic path |
+| 4 | `ground_harbor_concrete_b` | dock concrete wet from spray: darker, algae-green tidemarks, salt crust at the edges of damp |
+| 5 | `ground_skyterrace_roofpanel_b` | the same roof panels with bitumen repair seams and pooled-dust drainage stains |
+| 6 | `ground_scrapyard_dirt_b` | churned muddy dirt with tyre-track ridges and oily puddle stains (no standing water) |
+| 7 | `ground_quarry_rock_b` | quarry scree: loose broken rock fragments and gravel over the bedrock, rock dust |
+| 8 | `ground_volcano_basalt_b` | aʻā lava: rough clinkery black rubble, sharp, matte, no glow |
+| 9 | `ground_frozen_snowice_b` | wind-glazed blue ice, polished, with trapped bubbles and white crack planes, a dusting of snow in the low spots |
+| 10 | `ground_ruins_sandstone_b` | loose rippled sand over the stone, wind ripples, a few half-buried slab edges |
+| 11 | `ground_jungle_mossstone_b` | forest floor: dark wet soil, leaf litter, roots and moss, no stone showing |
+| 12 | `ground_orbital_deck_b` | the same deck alloy with heat-scorched blast-plate discolouration (straw/blue temper colours) and scuffing |
+
+## Checking one before you generate the other twenty-three
+
+Generate `ground_neon_asphalt` first, run `node tools/groundaudit.mjs
+--strict` and `node tools/groundfolds.mjs --write`, and look at it in place:
+`node tools/groundshot.mjs neon out` (then `out-fix.jpg`). If it reads as a
+floor rather than a pattern from a chase camera, the prompt works.
 
 ---
 

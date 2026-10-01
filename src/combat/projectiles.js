@@ -482,9 +482,10 @@ export class ProjectileSystem {
       }
 
       // ground
-      if (!dead && p.mesh.position.y <= 0.15) {
+      const gY = world.groundY ? world.groundY(p.mesh.position.x, p.mesh.position.z) : 0;
+      if (!dead && p.mesh.position.y <= gY + 0.15) {
         if (p.boomerang) { // skims the deck, kicks up and whips back home
-          p.mesh.position.y = 0.2;
+          p.mesh.position.y = gY + 0.2;
           p.vel.y = Math.abs(p.vel.y) * 0.4 + 2.5;
           world.effects.impactSparks(p.mesh.position, p.color, 6, 5);
           this.startReturn(p);

@@ -39,7 +39,7 @@ export function makeSiteOk(terrain, sites) {
     if (terrain.onPatch(x, z, 6)) return false;
     if (terrain.viaduct &&
         Math.abs(terrain.vLocal(x, z).perp) < terrain.viaduct.w / 2 + 6) return false;
-    if (terrain.heightAt(x, z) > 0.1) return false;
+    if (terrain.featureHeightAt(x, z) > 0.1) return false;
     if (terrain.nearBridge(x, z, 7)) return false;
     return sites.every((s) => torusDist(s.x, s.z, x, z, P) > minD);
   };
@@ -318,7 +318,7 @@ export function makeGateOk(terrain, footprints) {
     if (terrain.nearBridge(x, z, 2.5)) return false;
     if (terrain.viaduct &&
         Math.abs(terrain.vLocal(x, z).perp) < terrain.viaduct.w / 2 + 1.5) return false;
-    if (terrain.heightAt(x, z) > 0.15) return false;
+    if (terrain.featureHeightAt(x, z) > 0.15) return false;
     return !insideFootprint(footprints, x, z, 4);
   };
 }
