@@ -17,15 +17,31 @@ export const DIFFICULTY = {
   rookie: { react: 0.6, aggression: 0.4, blockP: 0.5, dodgeP: 0.4, ultDelay: 2.8, useUlt: false, err: 0.5, aimErr: 0.3, pace: 1.7 },
   veteran: { react: 0.34, aggression: 0.65, blockP: 1.4, dodgeP: 1.0, ultDelay: 1.3, useUlt: true, err: 0.28, aimErr: 0.16, pace: 1.15 },
   ace: { react: 0.16, aggression: 0.88, blockP: 3.2, dodgeP: 2.2, ultDelay: 0.5, useUlt: true, err: 0.1, aimErr: 0.05, pace: 0.75 },
-  // TRAINING DUMMY (game/training.js). Not a tier you can pick at mech select
-  // — every CPU slot in a training session becomes one. `passive` is the whole
-  // of it: it never attacks, blocks, dodges or ults, it turns to face the
-  // nearest person, and if it gets knocked more than DUMMY_LEASH from its pad
-  // it walks back so the practice target is always where you left it.
+  // TRAINING PARTNER — the tier BELOW rookie on mech select (◀ ▶ on a CPU's
+  // tag), id `dummy`. `passive` is the whole of it: it never moves, attacks,
+  // blocks, dodges or ults, and when it is destroyed it comes back WHERE IT
+  // WENT DOWN (partnerRespawnSpot) — the training match's rules in
+  // game/training.js, or the match's own respawn when it stands in a real
+  // fight, where it is a target and never a contestant (match.js).
   dummy: { react: 0.5, aggression: 0, blockP: 0, dodgeP: 0, ultDelay: 99, useUlt: false, err: 1, aimErr: 0, pace: 1, passive: true },
 };
-const DUMMY_LEASH = 15;     // units off its pad before a dummy walks home
-const DUMMY_HOME = 2;       // ...and how close counts as home again
+// the difficulty ladder as a CPU's tag walks it, lowest first
+export const DIFF_ORDER = ['dummy', 'rookie', 'veteran', 'ace'];
+
+// Where a TRAINING PARTNER comes back: where it went down (`at`, captured at
+// the KO, before a ragdoll carries the wreck anywhere), on the floor unless it
+// died standing on something. A death somewhere nobody can stand — off the
+// sky terrace's edge, in a void — falls back to the arena's own respawn rule.
+export function partnerRespawnSpot(f, at, fighters) {
+  const w = f.world, T = w.arena?.terrain;
+  const lost = at.voidFall || T?.onLane?.(at.x, at.z)?.hazard === 'void' || T?.onPatch?.(at.x, at.z)?.hazard === 'void';
+  if (lost) return w.arena.respawnSpot(f, fighters);
+  return { pos: f.pos.clone().set(at.x, at.y, at.z), yaw: at.yaw };
+}
+// …captured at the moment of the KO
+export function partnerDeathMark(f) {
+  return { x: f.pos.x, y: f.grounded ? Math.max(0, f.pos.y) : 0, z: f.pos.z, yaw: f.yaw, voidFall: !!f._voidFall };
+}
 
 // preferred fighting range by ranged-weapon type
 function preferredRange(def) {
@@ -71,36 +87,14 @@ export class AIController {
     this.brawler = isBrawler(fighter.def, this.rangedPref);
     this.hold = null;   // {key, t}: a charge attack being held (see below)
     this.thinkNoise = rand(100);
-    // a dummy's pad: where it was stood at the start (and re-stood on respawn)
-    this.home = fighter.pos.clone();
-    this.returning = false;
   }
 
-  // ---- the training dummy: stand there, face whoever is nearest, and walk
-  // back to the pad if a blow carried you off it. No intent but movement is
-  // ever set, so it cannot attack, block, dodge or ult by construction.
+  // ---- the training partner: does NOTHING. No intent is ever set, so it
+  // cannot move, attack, block, dodge or ult by construction; it stands where
+  // the last blow left it, facing the way it was knocked.
   updateDummy() {
-    const f = this.f;
-    const I = f.intent;
-    const w = f.world;
-    let best = null, bestD = Infinity;
-    for (const o of w.fighters) {
-      if (o === f || o.isAI || !o.alive) continue;
-      const d = Math.hypot(w.wrapDelta(o.pos.x - f.pos.x), w.wrapDelta(o.pos.z - f.pos.z));
-      if (d < bestD) { best = o; bestD = d; }
-    }
-    const hx = w.wrapDelta(this.home.x - f.pos.x), hz = w.wrapDelta(this.home.z - f.pos.z);
-    const hd = Math.hypot(hx, hz);
-    // a LATCH, not a comparison: past the leash it commits to walking home
-    // and lets go only once it is there, or it would stop on the leash line
-    if (hd > DUMMY_LEASH) this.returning = true;
-    else if (hd < DUMMY_HOME) this.returning = false;
-    if (this.returning && hd > 0.01) {
-      I.moveX = hx / hd; I.moveZ = hz / hd;
-    } else {
-      I.moveX = I.moveZ = 0;
-      if (best && f.state === 'normal' && f.grounded) f.targetYaw = f.yawTo(best);
-    }
+    const I = this.f.intent;
+    I.moveX = I.moveZ = 0;
   }
 
   // ---- THE FLOOR SENSE. The CPU used to walk straight down a lava lane

@@ -9,6 +9,7 @@ import { t } from '../../core/text.js';
 import { loadPosterIndex, posterMeta, SETTLE_MS } from '../posters.js';
 import { shotUrl, requestShot } from '../../game/snapshot.js';
 import { RANDOM_PICK, pickFrom, el, touchBtn, frameHotButton, preload } from './common.js';
+import { DIFF_ORDER } from '../../game/ai.js';
 
 // ---------------- FIGHTER SELECT (join + pick, one screen) ----------------
 // Players JOIN by connecting/pressing a controller, pressing a keyboard
@@ -578,10 +579,11 @@ export class MechSelectScreen {
   }
 
   cycleAiDiff(i, dir) {
-    const order = ['rookie', 'veteran', 'ace'];
+    // TRAINING PARTNER below rookie (ai.js DIFF_ORDER), wrapping both ways
+    const order = DIFF_ORDER;
     const cur = order.indexOf(this.slots[i].diff);
     // the temper changes, the robot it dealt itself does not
-    this.slots[i] = { ...this.slots[i], kind: 'ai', diff: order[(cur + dir + 3) % 3] };
+    this.slots[i] = { ...this.slots[i], kind: 'ai', diff: order[(cur + dir + order.length) % order.length] };
     this.audio?.play('uiMove');
     this.refresh();
   }
@@ -622,11 +624,10 @@ export class MechSelectScreen {
     this.refresh();
   }
 
-  // what a remote slot can be cycled through: empty → CPU (three tempers) →
-  // any keyboard seat that isn't already claimed
+  // what a remote slot can be cycled through: empty → CPU (every temper,
+  // training partner to ace) → any keyboard seat that isn't already claimed
   remoteOptions(i) {
-    const opts = [{ kind: 'off' },
-      { kind: 'ai', diff: 'rookie' }, { kind: 'ai', diff: 'veteran' }, { kind: 'ai', diff: 'ace' }];
+    const opts = [{ kind: 'off' }, ...DIFF_ORDER.map((diff) => ({ kind: 'ai', diff }))];
     if (!this.deviceTaken('kb1', i)) opts.push({ kind: 'human', device: 'kb1' });
     if (!this.deviceTaken('kb2', i)) opts.push({ kind: 'human', device: 'kb2' });
     return opts;

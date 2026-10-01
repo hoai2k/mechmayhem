@@ -44,7 +44,18 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   human's RANDOM); once every human is locked, the arrows or a click on a
   robot steer the first CPU's cursor (the side says so), and a CPU seat
   visited with LB/RB steps its pick with ←/→ — so a locked player's paint is
-  on X/R and the swatches while there is a CPU to steer. The robot on a side is
+  on X/R and the swatches while there is a CPU to steer.
+  TRAINING IS A CPU TEMPER, NOT AN ARENA: the ◀ ▶ on a CPU's tag walks
+  `DIFF_ORDER` (ai.js) — TRAINING PARTNER, ROOKIE, VETERAN, ACE, wrapping. A
+  partner does NOTHING (no intent is ever set) and comes back WHERE IT WENT
+  DOWN (`partnerRespawnSpot`; the arena's own respawn rule if it died off
+  the stage). A line-up whose CPUs are ALL partners is a TRAINING SESSION on
+  the picked arena (game/training.js: no clock, the checklist, infinite
+  ults, respawns); a partner beside a real CPU is a target in an ordinary
+  match and never a contestant (`Match.contestants` — no win, no KO, no
+  clean sheet, no bell). There is no TRAINING card on arena select any more.
+  `node tools/scratch/partner.mjs` drives it through the real menus.
+  The robot on a side is
   its stock POSTER, or — once repainted — a PHOTOGRAPH of the real model in
   that paint (`snapshot.js requestShot`, 260ms debounce, one job per side, the
   old picture kept up until the new one CROSSFADES in — nothing moves; only a

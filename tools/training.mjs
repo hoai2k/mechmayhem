@@ -2,7 +2,7 @@
 // through the real input path on the dev harness.
 //
 // Opens ?battle=uptown&p1=titanus&p2=viper&training=1 (P1 on keyboard 1, P2 a
-// DUMMY), pauses the engine so the sim advances only when asked, then presses
+// TRAINING PARTNER), pauses the engine so the sim advances only when asked, then presses
 // P1's actual keys step by step and asserts:
 //   · the round clock is hidden — its slot reads TRAINING, no digits
 //   · the checklist ticks IN ORDER, one step per thing actually done
@@ -10,8 +10,9 @@
 //   · the ult pouch never runs dry, and a second ult fires after the first
 //   · ammo refills a second after a magazine empties, hp regenerates after
 //     four quiet seconds
-//   · the DUMMY never attacks, blocks or dashes over 20 s of being hit, and
-//     walks back to its pad after being knocked off it
+//   · the PARTNER never attacks, blocks or dashes over 20 s of being hit, and
+//     does NOTHING at all — knocked off its pad, it stays where it landed
+//     (its in-place respawn through the real menus: tools/scratch/partner.mjs)
 // Then a SECOND load with two human seats (&forcesplit=1, P3 the dummy) for
 // the picture: the split HUD with a checklist under each plate.
 //
@@ -156,8 +157,8 @@ const regen = await page.evaluate(() => {
 });
 check('hp regenerates after 4 quiet seconds', regen.at3 <= 0.5 && regen.at5 > 0.5 && regen.at7 === 1, JSON.stringify(regen));
 
-// 6. the dummy: 20 s of being hit, never a swing back; knocked off its pad,
-//    it walks home
+// 6. the partner: 20 s of being hit, never a swing back; knocked off its pad,
+//    it stays there
 const dummy = await page.evaluate(() => {
   const F = window.__fighters, w = window.__world;
   const d = F[1], me = F[0];
@@ -166,7 +167,7 @@ const dummy = await page.evaluate(() => {
   // stand P1 in its face
   me.pos.set(home.x + Math.sin(home.z > 0 ? 0 : Math.PI) * 4, 0, home.z + 4);
   const bad = new Set(['attack', 'special', 'ult', 'dash', 'channel']);
-  let offences = 0, blocks = 0, hitsLanded = 0, hpMin = d.maxHp, facedFrames = 0, normalFrames = 0;
+  let offences = 0, blocks = 0, hitsLanded = 0, hpMin = d.maxHp;
   for (let i = 0; i < 1200; i++) {
     // a hit every second, straight from P1
     if (i % 60 === 0 && d.alive) { const h = d.hp; d.iframes = 0; d.takeHit(6, me, { srcPos: me.pos }); if (d.hp < h) hitsLanded++; }
@@ -174,30 +175,21 @@ const dummy = await page.evaluate(() => {
     if (bad.has(d.state)) offences++;
     if (d.blocking) blocks++;
     hpMin = Math.min(hpMin, d.hp);
-    if (d.alive && d.state === 'normal') {
-      normalFrames++;
-      const want = Math.atan2(w.wrapDelta(me.pos.x - d.pos.x), w.wrapDelta(me.pos.z - d.pos.z));
-      let dy = Math.abs(d.yaw - want) % (Math.PI * 2);
-      if (dy > Math.PI) dy = Math.PI * 2 - dy;
-      if (dy < 0.35) facedFrames++;
-    }
   }
-  // shove it off its pad
+  // shove it off its pad: it must stay exactly there
   d.pos.set(home.x + 24, 0, home.z);
-  let dist0 = 24, t0 = -1;
+  const at = { x: d.pos.x, z: d.pos.z };
+  let drift = 0;
   for (let i = 0; i < 600; i++) {
     window.__sim(1);
-    const dd = Math.hypot(w.wrapDelta(d.pos.x - home.x), w.wrapDelta(d.pos.z - home.z));
-    if (dd < 3 && t0 < 0) t0 = i / 60;
-    dist0 = dd;
+    drift = Math.max(drift, Math.hypot(w.wrapDelta(d.pos.x - at.x), w.wrapDelta(d.pos.z - at.z)));
   }
-  return { offences, blocks, hitsLanded, hpMin: +hpMin.toFixed(0), facedShare: +(facedFrames / Math.max(1, normalFrames)).toFixed(2), walkedHomeAt: t0, endDist: +dist0.toFixed(1) };
+  return { offences, blocks, hitsLanded, hpMin: +hpMin.toFixed(0), drift: +drift.toFixed(3) };
 });
-check('dummy never attacks / dashes over 20 s', dummy.offences === 0, JSON.stringify(dummy));
-check('dummy never blocks', dummy.blocks === 0);
-check('dummy took the hits', dummy.hitsLanded >= 15);
-check('dummy faces the nearest human', dummy.facedShare > 0.6, `faced ${dummy.facedShare}`);
-check('dummy walks back to its pad', dummy.walkedHomeAt >= 0 && dummy.endDist < 3, `home at ${dummy.walkedHomeAt}s, ends ${dummy.endDist}`);
+check('partner never attacks / dashes over 20 s', dummy.offences === 0, JSON.stringify(dummy));
+check('partner never blocks', dummy.blocks === 0);
+check('partner took the hits', dummy.hitsLanded >= 15);
+check('partner, knocked off its pad, stays where it landed', dummy.drift < 0.05, `drift ${dummy.drift}`);
 
 // ---------------------------------------------------------------- the picture
 // two human seats (P1, P2) and a dummy (P3, vulcan): a checklist under each plate
