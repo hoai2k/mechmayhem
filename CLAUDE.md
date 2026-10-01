@@ -154,6 +154,7 @@ was learned by breaking it, and the measurements say what "working" means.
   - A MATCH IS FOUGHT IN THREE DIFFERENT CITIES
   - A MATCH OPENS ON A STAGE THAT IS READY
   - THE FOG IS THE COLOUR OF WHAT IS BEHIND IT
+  - THE GROUND IS NOT A TABLE TOP (relief field + ground shader, `docs/GROUND_RELIEF.md`)
   - NOT EVERY LARGE STRUCTURE IS A BUILDING
   - PER-CHUNK COLOUR NEEDS BOTH HALVES, and it was silently doing NOTHING
   - ORGANIC GROUND PATCHES

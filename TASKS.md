@@ -18,8 +18,8 @@ Browser-based 3D mech arena fighter in the spirit of **Override: Mech City Brawl
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** EIGHT FIGHTERS, AND THE DOCS CAUGHT UP (see the entry at the
-  end). Previous: THE MECH DIET — every model baked, half the triangles, a
+- **Latest:** THE GROUND IS NOT A TABLE TOP (see the entry at the end).
+  Previous: EIGHT FIGHTERS, AND THE DOCS CAUGHT UP. Before that: THE MECH DIET — every model baked, half the triangles, a
   quarter of the texture memory. Before that: THE STEPPER STOPS FLICKERING: LONGER STRIDES, FRONT LIMBS
   ANTICIPATE, TWO LIMBS STAY DOWN. Owner: "Jerry's legs are moving a bit too
   fast (looks like flickering) when climbing... reach them a bit further and
@@ -7189,3 +7189,40 @@ and TRIPO_STATUS / REFACTOR_PLAN / ARENA_ASSET_PROMPTS carry historical/closed
 headers. Left open: `tools/dist.mjs` does not strip `public/models/source/`
 (118 MB of archived originals) from a web build — flagged in
 WEB_LAUNCH_CHECKLIST.md rather than changed here.
+
+## THE GROUND IS NOT A TABLE TOP (2026-10-01)
+
+Owner: "Can you do an audit of the ground of the arenas? It looks too 'tiled'
+to me and 'flat'... in cities, roads, sidewalks, have slightly different
+elevation, and sometimes there are hills or slopes... on non-human areas the
+ground is likely to be more hilly and definitely less even... These changes
+shouldn't have too much of an effect on the character movement."
+
+AUDIT (`tools/groundaudit.mjs`): every arena stood on ONE flat plane under ONE
+2048² texture repeated every ~15 units, and all twelve ground textures are
+four-way MIRRORS (score 0.00/0.00) with a dark groove along every fold, 51-83%
+darker than the ground beside it — a ruled grid to the horizon.
+
+- SHAPE (`src/arena/relief.js`): a per-arena height field, periodic in the
+  cell by construction — crowned streets a kerb below the pavement, domed
+  lawns, quay edges, lava between levees, roof drainage planes, deck panels,
+  a rutted dirt lot, quarry benches, ropy flow ridges, sastrugi, dunes and
+  root-heaved forest floor; natural arenas' channels follow the land. It lifts
+  to >= 0 under building footprints, levels under props, and is 0 under
+  hills/bridges/ramps. Physics, projectiles, rubble, crates, effects, spawns
+  and the drawn floor all read the same grid; a grounded runner is snapped
+  down descents so he never leaves the ground on a crest.
+- SURFACE (`src/arena/groundshader.js`): anti-tiling offsets on every map,
+  macro brightness/hue, low/high/slope tints from the relief, the mirror
+  grooves cancelled from measured profiles (`tools/groundfolds.mjs`), and a
+  `<ground>_b` splat material waiting for its art.
+- ART: 24 ground materials requested in `docs/image-requests.md` — 12
+  non-mirrored replacements and 12 `_b` companions, acceptance check
+  `node tools/groundaudit.mjs --strict`.
+
+Measured (`tools/reliefprobe.mjs all`): 0 airborne frames on all twelve
+arenas, worst single-frame height step 0.19 units, run speed unchanged and on
+neon frame-for-frame identical to the flat floor; `tools/arenabake.mjs` all 12
+round-trip; volcano ace soak clean; `npm run check` 50/50; build green.
+Write-up: `docs/GROUND_RELIEF.md`. `?relief=0` is the old floor.
+

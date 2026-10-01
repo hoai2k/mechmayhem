@@ -212,6 +212,58 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   0.66-0.80P (was 0.45-0.62P), the theme's own `fog.near` steering where in
   the window it lands. `CONFIG.fogReach` (`?fogreach=0..1`) scales back toward
   the old band for a side-by-side.
+- THE GROUND IS NOT A TABLE TOP (`src/arena/relief.js`, `src/arena/groundshader.js`,
+  the whole audit + research + per-arena plan in `docs/GROUND_RELIEF.md`,
+  `?relief=0` for the old flat floor). Every arena stood on ONE flat plane at
+  y = 0 under ONE 2048² texture repeated every ~15 units — and all twelve of
+  those textures are FOUR-WAY MIRRORS with a dark groove along every fold, so
+  the floor read as a ruled grid of kaleidoscopes. Two halves to the fix.
+  THE SHAPE is a per-arena height field (`RELIEF[theme]`), a 256² grid over
+  the cell, bilinear and wrapped, built from periodic noise so it TILES by
+  construction (`test/ground.test.mjs` holds the seam to the interior's own
+  worst step): crowned streets a kerb below the pavement in the cities, domed
+  lawns, quay edges, factory lava between levees, roof drainage planes, deck
+  panels each a hair proud, a rutted dirt lot, quarry BENCHES, ropy flow
+  ridges, asymmetric sastrugi and dunes, root-heaved forest floor. Natural
+  arenas set `follow: 0.7`, so a river keeps most of the land it runs through
+  instead of cutting a level bed with a cliff for a bank. It STEPS ASIDE for
+  what was built — building footprints LIFT it to >= 0 (a plinth; a tower's
+  chunks stand on 0), props are levelled to their placed height (a pad),
+  hills/bridges/viaduct ramps bring it to 0 — and it is baked in that order
+  (layout, then footprints, then pads, then `terrain.buildGroundTiles`).
+  EVERY CONSUMER READS THE SAME GRID: `Terrain.heightAt = max(relief,
+  features)` (`featureHeightAt` is the old features-only answer, for code that
+  asks "is there a hill here"), `world.groundY` for rubble/projectiles/effects,
+  and the drawn floor is that grid displaced (3x3 tiles of one cell geometry,
+  the overlay paint riding the same geometry +0.03). MOVEMENT barely notices,
+  by design: the fighter lands on the relief and a grounded, moving body is
+  SNAPPED down a descent within `0.35 + speed*dt*0.6`, so a run hugs every
+  crest rather than leaving the ground on it. `node tools/reliefprobe.mjs all
+  [mech] [--flat]` runs four straight lines per arena: 0 airborne frames on all
+  twelve, worst single-frame height step 0.19, and on neon the trajectory is
+  frame-for-frame the flat floor's.
+  THE SURFACE is a patched MeshStandardMaterial: Quilez "technique 3"
+  anti-tiling (noise-chosen uv offsets shared by every map, `textureGrad` so
+  the mip stays continuous), two octaves of world-scale macro brightness/hue,
+  low/high/slope tints read off the relief (that is what makes a few tenths of
+  a unit READ from a chase camera), an optional `<ground>_b` second material
+  splatted through a world mask (requested, hasTex-gated, free until it lands)
+  and the FOLD GROOVES CANCELLED: `tools/groundfolds.mjs --write` measures each
+  texture's average groove profile into `groundfolds.json` and the shader
+  applies its running integral box-filtered over the pixel's own texel
+  footprint, so it holds at every distance with nothing to fade. TWO TRAPS,
+  both silent: maps other than colour are sampled INSIDE chunks that
+  `onBeforeCompile` still sees as `#include` lines, so a string replace of
+  `texture2D( normalMap…` matches nothing until the chunk is expanded first
+  (the normal map went on tiling under an albedo that did not) — and the
+  albedo is read sRGB-DECODED, so a groove measured in file values is a
+  third of the one the shader sees. A correction is only valid on the art it
+  was measured on: each entry carries the albedo's byte size and `npm test`
+  fails when it no longer matches, and a texture that is not a mirror is left
+  out entirely. Judge the floor with `node tools/groundshot.mjs <theme> <out>`
+  (fixed low camera, fighters hidden, correction on/off) and new ground art
+  with `node tools/groundaudit.mjs [sheet.jpg] --strict` — the acceptance
+  check for the 24 materials requested in `docs/image-requests.md`.
 - NOT EVERY LARGE STRUCTURE IS A BUILDING (`src/arena/structures.js`, asset
   prompts in `docs/ASSET_REQUESTS_STRUCTURES.md`). A big destructible mass has
   a gameplay job — block sight, give cover, be climbed, come down — and every

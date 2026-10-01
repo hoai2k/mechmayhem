@@ -149,6 +149,10 @@ export const CONFIG = {
   // use the generated PBR texture pack (src/textures/) for robots, grounds
   // and buildings; anything missing falls back to procedural automatically
   useTextures: params.get('textures') !== '0',
+  // GROUND RELIEF (arena/relief.js): the arena floor's gentle rises, kerbs,
+  // channels and drifts. ?relief=0 stands every arena back on the old flat
+  // plane — for a side-by-side, and for any measurement that must not move.
+  relief: params.get('relief') !== '0',
   // ~7s cinematic KO finisher when a round is won by a kill (never on a
   // timeout). ?finishers=0 disables at load time.
   enable_finishers: params.get('finishers') !== '0',

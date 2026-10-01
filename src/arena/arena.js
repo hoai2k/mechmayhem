@@ -19,6 +19,9 @@ import { sunYawOf, frontClear, traitYaw } from './designs/util.js';
 import { rand, makeRng, clamp } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { pbrMaterial, hasTex, loadMap } from '../core/texload.js';
+import { reliefProfile } from './relief.js';
+import { patchGroundMaterial } from './groundshader.js';
+import GROUND_FOLDS from './groundfolds.json';
 import { measureHorizonColor, horizonGradientColor } from './horizon.js';
 
 // texture-pack material names per arena / building style
@@ -226,13 +229,15 @@ export class Arena {
     // ---- ground ----
     // texture repeats are per-700-units of plane, so widening the ground for
     // the long view keeps its texel density instead of stretching
-    const texScale = (P * 3) / 700;
+    // (the floor is drawn as 3×3 tiles of ONE cell — terrain.buildGroundTiles
+    // — so the repeat is per cell, and must be whole for the tiles to meet)
+    const texScale = P / 700;
     let gmat = null;
     if (CONFIG.useTextures && GROUND_TEX[theme.id]) {
       // pack texture, lightly tinted toward the theme's ground color so
       // arena mood grading survives
       gmat = pbrMaterial('ground', GROUND_TEX[theme.id], {
-        repeat: Math.round(44 * texScale),
+        repeat: Math.max(1, Math.round(44 * texScale)),
         color: new THREE.Color(theme.ground.color).lerp(new THREE.Color(0xffffff), 0.55),
       });
     }
@@ -242,18 +247,29 @@ export class Arena {
       });
       if (theme.ground.road) {
         gmat.map = roadTexture();
-        gmat.map.repeat.set(7 * texScale, 7 * texScale);
+        const rp = Math.max(1, Math.round(7 * texScale));
+        gmat.map.repeat.set(rp, rp);
         gmat.color.set(0xffffff);
       }
     }
+    // THE TILE IS BROKEN IN THE SHADER (groundshader.js): anti-tiling offsets,
+    // macro variation, and shading that reads the relief — plus a second
+    // ground material mixed in where the pack has delivered one
+    // (`<ground>_b`). Off with the relief (?relief=0 is the old floor).
+    const rprof = CONFIG.relief === false ? null : reliefProfile(theme);
+    if (rprof) {
+      const bName = GROUND_TEX[theme.id] && `${GROUND_TEX[theme.id]}_b`;
+      const bMat = CONFIG.useTextures && bName && hasTex('ground', bName)
+        ? pbrMaterial('ground', bName, { repeat: Math.max(1, Math.round(44 * texScale)) }) : null;
+      const folds = CONFIG.useTextures ? GROUND_FOLDS.textures?.[GROUND_TEX[theme.id]] : null;
+      patchGroundMaterial(gmat, { P, profile: rprof, b: bMat, folds });
+    }
     // ground reaches past the fog wall (±1.5 cells) so no matter how far the
     // view runs, the floor never ends inside the visible range
+    // — built at the END of the constructor (finishGround), because the
+    // relief it follows is only final once buildings and props have landed
     this.groundSpan = P * 3;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(this.groundSpan, this.groundSpan), gmat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-    this.objects.push(ground);
+    this.groundMat = gmat;
 
     // No walls anymore: the arena wraps toroidally at ±wrapHalf (set on the
     // world in bind), out in the foggy empty ring where the seam is subtle.
@@ -539,6 +555,13 @@ export class Arena {
       }
     }
 
+    // THE GROUND MAKES WAY FOR WHAT WAS BUILT ON IT (relief.js): no ground may
+    // sit below a footprint, or the tower's bottom row would float
+    for (const d of this.destructoAll) {
+      for (const b of d.buildings) if (b.aabb) this.terrain.relief.addFootprint(b.aabb);
+    }
+    this.terrain.relief.compose();
+
     // ---- props ----
     // all props live in one group so the toroidal tiling below can clone
     // them into the 8 neighbor cells
@@ -562,7 +585,7 @@ export class Arena {
       if (patch && (patch.hazard || patch.kind === 'ice')) return false;
       if (this.terrain.viaduct &&
           Math.abs(this.terrain.vLocal(x, z).perp) < this.terrain.viaduct.w / 2 + 1.5) return false;
-      if (needFlat && this.terrain.heightAt(x, z) > 0.15) return false;
+      if (needFlat && this.terrain.featureHeightAt(x, z) > 0.15) return false;
       return true;
     };
     // viaduct piers first: solid destructible columns holding up the loop.
@@ -583,11 +606,11 @@ export class Arena {
         const opts = { ...(o.opts || {}), seed: o.opts?.seed ?? (aseed++ * 131 + 7), ry: o.ry ?? 0 };
         if (opts.mat === 'ice') opts.mat = PROP_MATS.ice;
         const flat = FLAT_PROPS.has(o.name);
-        const gy = flat ? 0 : this.terrain.heightAt(o.x, o.z);
+        const gy = flat ? this.terrain.reliefAt(o.x, o.z) : this.terrain.heightAt(o.x, o.z);
         const g = placeProp(this.propGroup, this.objects, o.name, o.x, o.z, opts);
         if (!g) continue;
         if (o.s && o.s !== 1) g.scale.multiplyScalar(o.s);
-        if (gy > 0.01) g.position.y += gy;
+        if (Math.abs(gy) > 0.01) g.position.y += gy;
         this._regProp(g, o.x, o.z, gy);
       }
     } else {
@@ -605,7 +628,7 @@ export class Arena {
         if (opts.mat === 'ice') opts.mat = PROP_MATS.ice;
         const gy = skyAnchored ? 0 : this.terrain.heightAt(x, z);
         const g = placeProp(this.propGroup, this.objects, spec.name, x, z, opts);
-        if (g && gy > 0.01) g.position.y += gy; // seat the prop on the terrain surface
+        if (g && Math.abs(gy) > 0.01) g.position.y += gy; // seat the prop on the terrain surface
         if (g) this._regProp(g, x, z, gy);
         if (g && this.recipe) {
           this.recipe.props.push({
@@ -719,6 +742,10 @@ export class Arena {
     if (CONFIG.mergeProps) {
       for (const g of this.propGroup.children) mergePropMeshes(g);
     }
+    // the relief's last shaping (every prop's pad), then the floor that
+    // follows it
+    this.terrain.relief.compose();
+    this.terrain.buildGroundTiles(this.groundMat);
     // ghost copies of the props in the 8 neighbor cells (static)
     {
       const P = this.wrapHalf * 2;
@@ -736,7 +763,8 @@ export class Arena {
     // extra steam vents at ground level for industrial themes
     for (let i = 0; i < (theme.steamVents || 0); i++) {
       const a = rng.range(0, Math.PI * 2), r = rng.range(14, B * 0.8);
-      this.steamSpots.push(new THREE.Vector3(Math.cos(a) * r, 0.3, Math.sin(a) * r));
+      const sx = Math.cos(a) * r, sz = Math.sin(a) * r;
+      this.steamSpots.push(new THREE.Vector3(sx, 0.3 + this.terrain.reliefAt(sx, sz), sz));
     }
   }
 
@@ -1207,6 +1235,19 @@ export class Arena {
   // register a built prop's gameplay hooks + measure its solid collider.
   // shared by procedural placement and authored (level-editor) placement.
   _regProp(g, x, z, gy = 0) {
+    // the ground is levelled to whatever height the prop was set down at
+    // (relief.js) — a pad, so nothing floats on a dip or sinks into a rise.
+    // Hanging things (an aurora) have no footing to level.
+    {
+      const bb = new THREE.Box3().setFromObject(g);
+      // (a prop riding a HILL or a deck stands on that feature, which the
+      // relief is already levelled under — no pad, or the field would grow a
+      // plateau the height of the hilltop)
+      if (!bb.isEmpty() && bb.min.y < gy + 1.2 && this.terrain.featureHeightAt(x, z) < 0.05) {
+        const r = Math.min(10, Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2);
+        this.terrain.relief.addPad(x, z, r, gy);
+      }
+    }
     if (g.userData.spin) this.spinners.push(g);
     if (g.userData.bob) {
       const b = g.userData.bob;
@@ -1329,7 +1370,7 @@ export class Arena {
     const ringPad = (i, count) => {
       const a = (i / count) * Math.PI * 2 + Math.PI / count;
       const [x, z] = this.settlePad(Math.cos(a) * r, Math.sin(a) * r, r);
-      return { pos: new THREE.Vector3(x, 0, z), yaw: Math.atan2(-x, -z) };
+      return { pos: new THREE.Vector3(x, this.terrain.heightAt(x, z), z), yaw: Math.atan2(-x, -z) };
     };
     // authored levels can pin exact spawn points. FEWER PADS THAN FIGHTERS
     // used to cycle the list, stacking two robots on one pad; the remainder
@@ -1340,7 +1381,7 @@ export class Arena {
         const s = sp[i];
         const [x, z] = this.settlePad(s.x, s.z);
         const yaw = s.yaw ?? Math.atan2(-x, -z);
-        pts.push({ pos: new THREE.Vector3(x, 0, z), yaw });
+        pts.push({ pos: new THREE.Vector3(x, this.terrain.heightAt(x, z), z), yaw });
       }
       for (let i = sp.length; i < n; i++) pts.push(ringPad(i, n));
       return pts;

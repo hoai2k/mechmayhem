@@ -682,13 +682,14 @@ export class DestructibleSystem {
         it.vy -= 30 * dt;
         it.px += it.vx * dt; it.py += it.vy * dt; it.pz += it.vz * dt;
         it.rx += it.avx * dt; it.ry += it.avy * dt; it.rz += it.avz * dt;
-        const rest = it.h / 2;
+        // the floor under it is the arena's relief, not y = 0 (relief.js)
+        const rest = it.h / 2 + (this.world?.groundY ? this.world.groundY(it.px, it.pz) : 0);
         if (it.py <= rest) {
           it.py = rest;
           if (it.vy < -6) { // bounce once, shed spin
             it.vy *= -0.28; it.vx *= 0.5; it.vz *= 0.5;
             it.avx *= 0.4; it.avy *= 0.4; it.avz *= 0.4;
-            if (this.world && it.w > 1) this.world.effects.dustPuff(_p.set(it.px, 0.3, it.pz), 4, 0x9a9284);
+            if (this.world && it.w > 1) this.world.effects.dustPuff(_p.set(it.px, rest - it.h / 2 + 0.3, it.pz), 4, 0x9a9284);
           } else { // settle flat, snap toward axis-aligned so it stacks readably
             it.settled = true;
             it.vx = it.vy = it.vz = 0;

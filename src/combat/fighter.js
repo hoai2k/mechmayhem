@@ -4891,10 +4891,22 @@ export class Fighter {
     this.pos.y += this.vel.y * dt;
     this.pos.z += this.vel.z * dt;
 
-    // ground — none under a body dropping through a void (voidFall)
-    if (this.pos.y <= 0 && !this._voidFall) {
+    // ground — none under a body dropping through a void (voidFall). THE
+    // FLOOR IS THE RELIEF (arena/relief.js), not y = 0: kerbs, channels and
+    // drifts a fraction of a unit high, which a body simply rides.
+    const floor = this._voidFall ? 0 : (this.world.arena?.terrain?.reliefAt(this.pos.x, this.pos.z) ?? 0);
+    // DOWNHILL, A WALKING BODY HUGS THE GROUND rather than leaving it: the floor
+    // falls away faster than one frame of gravity, so without this every crest
+    // would be a tiny jump — airborne for a frame, the jump layer flickering on
+    // the legs. Only a body that was standing and is not going up (no jump,
+    // no launch) is held, and only within a step of the floor.
+    if (this.grounded && !this._voidFall && this.vel.y <= 0.01 && this.pos.y > floor) {
+      const step = 0.35 + Math.hypot(this.vel.x, this.vel.z) * dt * 0.6;
+      if (this.pos.y - floor < step) { this.pos.y = floor; this.vel.y = 0; }
+    }
+    if (this.pos.y <= floor && !this._voidFall) {
       const fallSpeed = -this.vel.y;
-      this.pos.y = 0;
+      this.pos.y = floor;
       this.vel.y = 0;
       if (!this.grounded) {
         this.grounded = true;
@@ -4928,7 +4940,7 @@ export class Fighter {
           this.animator.play('land');
         }
       }
-    } else if (this.pos.y > 0.05) {
+    } else if (this.pos.y > floor + 0.05) {
       this.grounded = false;
     }
 

@@ -42,6 +42,8 @@ export class World {
     this.scene = engine.scene;
     this.audio = audio;
     this.effects = new Effects(this.scene);
+    // ground decals sit on the arena's relief, not on y = 0
+    this.effects.groundY = (x, z) => this.groundY(x, z);
     this.projectiles = new ProjectileSystem(this.scene, this);
     this.fleas = new FleaSystem(this.scene, this); // JERRY's living ammo
     this.events = new Emitter();
@@ -70,6 +72,11 @@ export class World {
   }
 
   // shortest signed delta on a wrapped axis (nearest image)
+  // the ground's own height under (x,z) — the arena relief (arena/relief.js),
+  // 0 where there is no arena. Hills and bridge decks are NOT in it: they are
+  // surfaces a body is carried on, and this is the floor itself.
+  groundY(x, z) { return this.arena?.terrain?.reliefAt(x, z) ?? 0; }
+
   wrapDelta(d) {
     const W = this.wrapHalf;
     if (!W) return d;
