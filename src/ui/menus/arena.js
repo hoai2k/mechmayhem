@@ -8,10 +8,9 @@ import { el, appendTouchBack } from './common.js';
 // ---------------- ARENA SELECT ----------------
 
 // Card 0 (top-left) is RANDOM: confirming it spins the selector visibly
-// through every arena before landing on the roulette's pick. The LAST card is
-// TRAINING — the same line-up on a fixed open arena under training rules
-// (game/training.js); `onDone(themeId, { training: true })` says so.
-const TRAINING_ARENA = 'uptown';   // open, flat, low-hazard
+// through every arena before landing on the roulette's pick. (TRAINING is not
+// a card any more: a line-up of TRAINING PARTNER CPUs is a training session on
+// whichever arena is picked here — game/training.js.)
 
 export class ArenaSelectScreen {
   // `pickRandom` supplies the RANDOM tile's arena. boot hands over the one the
@@ -76,25 +75,6 @@ export class ArenaSelectScreen {
       wrap.appendChild(c);
       this.cards.push(c);
     });
-    // last: TRAINING — after every real arena, since it is a practice room
-    // rather than somewhere to fight, and its index is recorded rather than
-    // assumed so confirm() can find it wherever the list ends
-    {
-      const c = el('div', 'arena-card training');
-      const art = document.createElement('canvas');
-      art.className = 'arena-art';
-      art.width = 256; art.height = 144;
-      this.drawTrainingArt(art);
-      c.appendChild(art);
-      c.appendChild(el('div', 'arena-name', t('arena.training.name')));
-      c.appendChild(el('div', 'arena-desc', t('arena.training.desc')));
-      c.title = t('arena.training.desc');
-      c.addEventListener('mouseenter', () => { if (!this.rolling) { this.cursor = this.trainingIdx; this.refresh(); } });
-      c.addEventListener('click', () => this.confirm());
-      this.trainingIdx = this.cards.length;
-      wrap.appendChild(c);
-      this.cards.push(c);
-    }
     this.el.appendChild(wrap);
     this.el.appendChild(el('div', 'hint-bar', t('arena.hint.html')));
     root.appendChild(this.el);
@@ -132,38 +112,6 @@ export class ArenaSelectScreen {
     ctx.shadowColor = 'rgba(56,232,255,0.9)';
     ctx.shadowBlur = 18;
     ctx.fillText('?', W / 2, H / 2 + 3);
-  }
-
-  // TRAINING tile art: a target on a practice-range grid
-  drawTrainingArt(canvas) {
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#0c1c2c');
-    g.addColorStop(1, '#06101c');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(56,232,255,0.16)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= W; x += 16) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (let y = 0; y <= H; y += 16) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-    const cx = W / 2, cy = H / 2 + 4;
-    [46, 34, 22, 10].forEach((r, i) => {
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = i % 2 ? '#ffb43c' : '#122a3c';
-      ctx.fill();
-    });
-    ctx.strokeStyle = '#38e8ff';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = 'rgba(56,232,255,0.9)';
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.moveTo(cx - 58, cy); ctx.lineTo(cx - 14, cy);
-    ctx.moveTo(cx + 14, cy); ctx.lineTo(cx + 58, cy);
-    ctx.moveTo(cx, cy - 56); ctx.lineTo(cx, cy - 14);
-    ctx.moveTo(cx, cy + 14); ctx.lineTo(cx, cy + 56);
-    ctx.stroke();
   }
 
   // Swap a card's procedural canvas for its painted art once that image has
@@ -217,7 +165,7 @@ export class ArenaSelectScreen {
     this.cards.forEach((c, i) => c.classList.toggle('selected', i === this.cursor));
     this.cards[this.cursor]?.scrollIntoView?.({ block: 'nearest' });
     const th = THEMES[this.cursor - this.firstArena];
-    this.backdrop(th ? th.id : this.cursor === this.trainingIdx ? TRAINING_ARENA : null);
+    this.backdrop(th ? th.id : null);
   }
 
   backdrop(id) {
@@ -235,7 +183,6 @@ export class ArenaSelectScreen {
     if (this.rolling) return;
     if (this.cursor === 0) { this.startRoulette(); return; }
     this.audio?.play('uiSelect');
-    if (this.cursor === this.trainingIdx) { this.onDone(TRAINING_ARENA, { training: true }); return; }
     this.onDone(THEMES[this.cursor - this.firstArena].id);
   }
 

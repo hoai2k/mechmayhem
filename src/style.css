@@ -618,7 +618,6 @@ body.touch-mode .ready-banner { position: fixed; bottom: 15vh; z-index: 26; }
 /* The blurb has nowhere left to live on a clipped card — it rides the card's
    tooltip instead (menus.js), so nothing is lost. */
 .arena-card .arena-desc { display: none; }
-.arena-card.training .arena-name { color: var(--hud-amber); }
 
 /* ---------- HUD ---------- */
 #hud { position: absolute; inset: 0; pointer-events: none; }

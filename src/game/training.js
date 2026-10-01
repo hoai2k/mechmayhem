@@ -2,16 +2,18 @@
 // TRAINING MODE — a fight that never ends, against dummies that never hit
 // back, with every seat working through the same checklist at its own pace.
 //
-// It is reached from the TRAINING tile on arena select (ui/menus.js) and from
-// `?battle=<arena>&training=1` (dev/battletest.js), and it changes NOTHING in
-// fighter.js: every rule here is written onto the fighters from the outside,
-// per frame, off the same fields the HUD reads.
+// A match IS a training session when every CPU in it is a TRAINING PARTNER —
+// the tier below rookie on mech select's CPU tag (ai.js DIFFICULTY.dummy) —
+// on whatever arena was picked. (It used to be a TRAINING tile on arena
+// select, on a fixed arena.) Also `?battle=<arena>&training=1`
+// (dev/battletest.js). It changes NOTHING in fighter.js: every rule here is
+// written onto the fighters from the outside, per frame, off the same fields
+// the HUD reads.
 //
 //   · no clock and no end (match.js `training`) — leave through PAUSE → QUIT
-//   · a KO is a RESPAWN on your own pad, at full hp, ~1.5s later — humans
-//     and dummies alike
-//   · CPU slots are DUMMIES (ai.js DIFFICULTY.dummy): they face you, take the
-//     hits, and walk back to their pad if a blow carries them off it
+//   · a KO is a RESPAWN at full hp, ~1.5s later: a trainee on their own pad,
+//     a PARTNER where it went down (ai.js partnerRespawnSpot)
+//   · a partner does NOTHING — it stands where the last blow left it
 //   · infinite ults (CONFIG.debugUltimates, FOR THE SESSION — the persisted
 //     setting is untouched), ammo refills a second after the magazine empties,
 //     hp regenerates once you have gone four seconds without being hit
@@ -23,6 +25,7 @@
 import { CONFIG } from '../core/config.js';
 import { t } from '../core/text.js';
 import { el } from '../ui/menus.js';
+import { partnerRespawnSpot, partnerDeathMark } from './ai.js';
 
 export const TRAINING_STEPS = [
   'move', 'jump', 'hover', 'light', 'heavy', 'block', 'dash', 'ranged', 'special', 'ult', 'taunt',
@@ -218,7 +221,7 @@ export class Training {
   onKO({ fighter }) {
     if (fighter.isMinion || !this.fighters.includes(fighter)) return;
     if (this.respawns.some((r) => r.f === fighter)) return;
-    this.respawns.push({ f: fighter, t: 0 });
+    this.respawns.push({ f: fighter, t: 0, at: fighter.partner ? partnerDeathMark(fighter) : null });
   }
 
   updateRespawns(dt) {
@@ -229,10 +232,11 @@ export class Training {
       if (r.t < FADE_T) { r.f.setOpacity?.(Math.max(0, 1 - r.t / FADE_T)); continue; }
       if (r.t < RESPAWN_T) { r.f.setOpacity?.(0); r.f.group.visible = false; continue; }
       this.respawns.splice(i, 1);
-      // his OWN pad — a training target should be where you left it, and a
-      // trainee should not have to walk back across the plaza to try again
+      // a partner comes back WHERE IT WENT DOWN — the target is where you
+      // left it; a trainee on their OWN pad, so nobody walks back across the
+      // plaza to try again
       const idx = this.fighters.indexOf(r.f);
-      const spot = this.spawns[idx] || this.spawns[0];
+      const spot = r.at ? partnerRespawnSpot(r.f, r.at, this.fighters) : this.spawns[idx] || this.spawns[0];
       r.f.resetForRound(spot.pos, spot.yaw);
       r.f.iframes = Math.max(r.f.iframes, RESPAWN_IFRAMES);
       const st = this.stateFor(r.f);

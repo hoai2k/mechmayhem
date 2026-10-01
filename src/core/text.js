@@ -81,6 +81,9 @@ export const MESSAGES = {
   'device.pad': 'GAMEPAD {n}',
 
   // AI difficulty names (shown uppercased on the player cards)
+  // below rookie: stands still, respawns where it falls; a line-up of only
+  // these is a training session (game/training.js)
+  'diff.dummy': 'TRAINING PARTNER',
   'diff.rookie': 'ROOKIE',
   'diff.veteran': 'VETERAN',
   'diff.ace': 'ACE',
@@ -90,9 +93,6 @@ export const MESSAGES = {
   'arena.random.name': 'RANDOM',
   'arena.random.desc': 'Spin the wheel — any arena could come up.',
   'arena.hint.html': '<b>ARROWS</b> move&nbsp;&nbsp;<b>ENTER / A</b> fight!&nbsp;&nbsp;<b>ESC / B</b> back',
-  // the TRAINING tile beside RANDOM (game/training.js)
-  'arena.training.name': 'TRAINING',
-  'arena.training.desc': 'Practice every move at your own pace. Everyone seated plays at once against dummies that hit back never; no clock, no KO — quit from PAUSE.',
 
   // ----------------------------------------------------------------- training
   // The session: what the clock's slot says, the round banner, and the state

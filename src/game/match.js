@@ -3,6 +3,7 @@ import { clamp01 } from '../core/utils.js';
 import { CONFIG } from '../core/config.js';
 import { t } from '../core/text.js';
 import { prewarmSummons, clearSpares } from '../combat/specials.js';
+import { partnerRespawnSpot, partnerDeathMark } from './ai.js';
 
 const KO_COLOR = '#ff4d5e';
 const FIGHT_COLOR = '#ffb43c';
@@ -45,7 +46,7 @@ export class Match {
     // and the thing that makes it one is that beating them ENDS it. Respawning
     // CPUs would only deny the win. Two people plus a CPU is a party game, and
     // there nobody should be sitting out half a round watching.
-    this.brawl = fighters.length >= 3 && humans >= 2;
+    this.brawl = this.contestants.length >= 3 && humans >= 2;
     this.humans = humans;
     this.respawns = [];   // {f, t} — a wreck fading out on the floor
     // ---- TRAINING (game/training.js) -----------------------------------
@@ -56,6 +57,13 @@ export class Match {
     // built without it is byte-identical to one built before it existed.
     this.training = !!training;
   }
+
+  // A TRAINING PARTNER IS A TARGET, NOT A CONTESTANT (ai.js, `f.partner`). It
+  // stands in a real fight as something to hit: it never wins, never loses,
+  // never counts toward a brawl, a gauntlet, a clean sheet or the bell, and
+  // when it is destroyed it simply comes back where it went down. A getter,
+  // because boot re-deals RANDOM-pick fighters in place between rounds.
+  get contestants() { return this.fighters.filter((f) => !f.partner); }
 
   begin() {
     for (const f of this.fighters) f.wins = 0;
@@ -107,7 +115,8 @@ export class Match {
     this.hud.announce(this.training ? t('training.announce') : t('match.round', { n: this.round }), true);
     this.world.audio?.play('stingRound');
     // a bit of personality: someone talks trash at the start of each round
-    const talker = this.fighters[(this.round - 1) % this.fighters.length];
+    const cast = this.contestants.length ? this.contestants : this.fighters;   // a partner has nothing to say
+    const talker = cast[(this.round - 1) % cast.length];
     this.hud.callout(t('match.intro', { mech: talker.def.name, quote: talker.def.quotes.intro }));
   }
 
@@ -119,6 +128,12 @@ export class Match {
     // respawn queue — a phantom ring and a "powerup" sting on an empty pad for
     // a body that was no longer in the fight
     if (fighter.isMinion || !this.fighters.includes(fighter)) return;
+    if (fighter.partner) {
+      if (!this.respawns.some((r) => r.f === fighter)) {
+        this.respawns.push({ f: fighter, t: 0, at: partnerDeathMark(fighter) });
+      }
+      return;
+    }
     // ---- BRAWL (3+ robots): a KO is a RESPAWN, not the end of the round ----
     if (this.brawl) {
       fighter.deaths = (fighter.deaths || 0) + 1;
@@ -129,11 +144,11 @@ export class Match {
       this.respawns.push({ f: fighter, t: 0 });
       // THE LAST ROBOT STANDING IS THE ONE WHO NEVER WENT DOWN: the moment
       // everybody else has a death against them, the one clean sheet takes it.
-      const clean = this.fighters.filter((f) => !f.deaths);
+      const clean = this.contestants.filter((f) => !f.deaths);
       if (clean.length === 1) this.endRound(clean[0], t('match.lastStanding'));
       return;
     }
-    const alive = this.fighters.filter((f) => f.alive);
+    const alive = this.contestants.filter((f) => f.alive);
     // A GAUNTLET ENDS WITH ITS PLAYER. One person against two or three CPUs
     // is decided the moment that person drops — the alternative was watching
     // the machines finish each other off for the rest of the clock.
@@ -198,7 +213,7 @@ export class Match {
         break;
 
       case 'fight': {
-        if (this.brawl && this.respawns.length) this.updateRespawns(dt);
+        if (this.respawns.length) this.updateRespawns(dt);   // brawlers + partners
         if (this.training) break;    // no clock: the session runs until QUIT
         this.timeLeft -= dt;
         if (this.timeLeft <= 0) {
@@ -215,7 +230,7 @@ export class Match {
             }
             return 0;
           };
-          for (const f of this.fighters) {
+          for (const f of this.contestants) {
             if (!f.alive && !this.brawl) continue;   // a brawler mid-respawn still counts
             const k = key(f);
             const c = bestKey ? cmp(k, bestKey) : 1;
@@ -245,9 +260,9 @@ export class Match {
         if (this.stateT <= 0) {
           this.victoryPlayed = false;
           this.engine.timeScale = 1;
-          let champ = this.fighters.find((f) => f.wins >= WINS_NEEDED);
+          let champ = this.contestants.find((f) => f.wins >= WINS_NEEDED);
           if (!champ && this.round >= MAX_ROUNDS) {
-            champ = this.fighters.reduce((a, b) =>
+            champ = this.contestants.reduce((a, b) =>
               (b.wins > a.wins || (b.wins === a.wins && b.hp / b.maxHp > a.hp / a.maxHp)) ? b : a);
           }
           if (champ) {
@@ -282,7 +297,7 @@ export class Match {
       }
       if (r.t < FADE_T + GONE_T) { r.f.setOpacity?.(0); r.f.group.visible = false; continue; }
       this.respawns.splice(i, 1);
-      const spot = this.respawnSpot(r.f);
+      const spot = r.at ? partnerRespawnSpot(r.f, r.at, this.fighters) : this.respawnSpot(r.f);
       r.f.resetForRound(spot.pos, spot.yaw);
       r.f.iframes = Math.max(r.f.iframes, RESPAWN_IFRAMES);
       w.effects.rings.spawn(r.f.pos, { from: 4.5, to: 0.6, dur: 0.5, color: 0x8fe8ff, y: 1 });

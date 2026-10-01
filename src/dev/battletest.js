@@ -28,7 +28,8 @@ export async function runBattleTest() {
   const themeId = params.get('battle') || 'neon';
   let theme = THEMES_BY_ID[themeId] || THEMES[0];
   const auto = params.get('auto') === '1';
-  // &training=1: the TRAINING rules (game/training.js) — CPUs are dummies,
+  // &training=1: the TRAINING rules (game/training.js) — CPUs are training
+  // partners (also reachable on their own as &diff=dummy),
   // KOs respawn, no clock, and the REAL HUD with a checklist per human seat.
   // With &forcesplit=1 every fighter but the LAST is a real human seat (nobody
   // drives P2+, but each gets a plate and a checklist) and the last is the
@@ -99,7 +100,11 @@ export async function runBattleTest() {
     });
     fighters.push(f);
     world.fighters.push(f);
-    if (i >= humanN) ais.push(new AIController(f, training ? 'dummy' : params.get('diff') || 'veteran'));
+    if (i >= humanN) {
+      const diff = training ? 'dummy' : params.get('diff') || 'veteran';
+      f.partner = diff === 'dummy';   // a TRAINING PARTNER (ai.js): a target, never a contestant
+      ais.push(new AIController(f, diff));
+    }
   });
 
   let humans = fighters.slice(0, humanN);
@@ -107,7 +112,7 @@ export async function runBattleTest() {
     // &humans=<n> leaves the rest as CPUs (e.g. four players + a CPU)
     const hn = +params.get('humans') || fighters.length;
     if (!training) humans = fighters.slice(0, Math.min(hn, MAX_FIGHTERS, fighters.length));
-    // (a training dummy's home is its pad, so the bodies stay where they spawned)
+    // (a training session keeps the bodies where they spawned)
     if (!training) fighters.forEach((f, i) => f.pos.set((i % 2) * 90 - 45, 0, (i >> 1) * 45 - 60));
   }
   const layoutParam = params.get('layout'); // lr | tb (2-human split preview)

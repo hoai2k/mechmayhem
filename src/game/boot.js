@@ -622,9 +622,7 @@ export async function bootGame() {
       audio,
       // the RANDOM tile lands on the arena the prefetcher has been loading
       pickRandom: () => predictor.takeArena(),
-      // the TRAINING tile says so in `opts` (game/training.js); every other
-      // card is a plain arena pick
-      onDone: (themeId, opts) => { S.themeId = themeId; S.training = !!opts?.training; startBattle(); },
+      onDone: (themeId) => { S.themeId = themeId; startBattle(); },
       onBack: () => goMechSelect(),
     }));
   }
@@ -646,9 +644,13 @@ export async function bootGame() {
     predictor.stop();
 
     const picked = THEMES_BY_ID[S.themeId];
-    const training = !!S.training;   // TRAINING tile: see game/training.js
     const active = [];
     S.slots.forEach((s, i) => { if (s.kind !== 'off') active.push({ slot: s, slotIdx: i }); });
+    // A TRAINING SESSION is a line-up whose CPUs are ALL training partners
+    // (game/training.js): no clock, the checklist, respawns. A partner beside a
+    // real CPU is just a target in an ordinary match (match.js contestants).
+    const cpus = active.filter((a) => a.slot.kind === 'ai');
+    const training = cpus.length > 0 && cpus.every((a) => a.slot.diff === 'dummy');
     // WHO IS FIGHTING, settled first — it needs nothing that loads, and the
     // intro card below is these robots. Each fighter wears its chosen paint
     // scheme; anyone sharing a mech id with an identical scheme (e.g. random
@@ -739,8 +741,8 @@ export async function bootGame() {
       fighters.push(f);
       world.fighters.push(f);
       if (a.slot.kind === 'ai') {
-        // in TRAINING every CPU slot is a dummy, whatever temper it was dealt
-        const diff = training ? 'dummy' : a.slot.diff;
+        const diff = a.slot.diff;
+        f.partner = diff === 'dummy';   // a target, never a contestant (match.js)
         const ctrl = new AIController(f, diff);
         ctrl.diffName = diff;
         ais.push(ctrl);
@@ -875,6 +877,7 @@ export async function bootGame() {
           if (m.isGLB && world.fighters.includes(nf)) nf.swapMech(m);
         });
         nf.wins = old.wins;
+        nf.partner = old.partner;
         fighters[i] = nf;
         const wi = world.fighters.indexOf(old);
         if (wi >= 0) world.fighters[wi] = nf;
