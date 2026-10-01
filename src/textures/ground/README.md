@@ -10,5 +10,8 @@ metalness are RGB grayscale (the shader reads green/blue respectively).
 Prompts and export details: `docs/ground-material-generation.json`.
 
 After changing art, run `node tools/groundaudit.mjs --strict`, then
+`node tools/groundfix.mjs --check` (wrap seams from an edge-clamped resize,
+normal-map bias, roughness below the prompt's range — drop `--check` to repair
+in place; every map here was repaired once on 2026-10-01), then
 `node tools/groundfolds.mjs --write`. Judge a 2×2 tiled contact sheet and
 the material in-game with `node tools/groundshot.mjs <theme> out`.

@@ -18,8 +18,8 @@ Browser-based 3D mech arena fighter in the spirit of **Override: Mech City Brawl
 
 - **Phase:** ALL 10 PHASES COMPLETE ✅ — game shipped on this branch
 - **Next action:** playtesting feedback / tuning
-- **Latest:** THE GROUND IS NOT A TABLE TOP (see the entry at the end).
-  Previous: EIGHT FIGHTERS, AND THE DOCS CAUGHT UP. Before that: THE MECH DIET — every model baked, half the triangles, a
+- **Latest:** THE NEW GROUND ART, VERIFIED AND REPAIRED (see the entry at
+  the end). Previous: THE GROUND IS NOT A TABLE TOP. Before that: EIGHT FIGHTERS, AND THE DOCS CAUGHT UP. Before that: THE MECH DIET — every model baked, half the triangles, a
   quarter of the texture memory. Before that: THE STEPPER STOPS FLICKERING: LONGER STRIDES, FRONT LIMBS
   ANTICIPATE, TWO LIMBS STAY DOWN. Owner: "Jerry's legs are moving a bit too
   fast (looks like flickering) when climbing... reach them a bit further and
@@ -7225,4 +7225,27 @@ arenas, worst single-frame height step 0.19 units, run speed unchanged and on
 neon frame-for-frame identical to the flat floor; `tools/arenabake.mjs` all 12
 round-trip; volcano ace soak clean; `npm run check` 50/50; build green.
 Write-up: `docs/GROUND_RELIEF.md`. `?relief=0` is the old floor.
+
+## THE NEW GROUND ART, VERIFIED AND REPAIRED (2026-10-01)
+
+Owner: "New image textures are in. Can you verify that they work as you hoped."
+
+They do what they were for: in all twelve arenas the grid and the
+kaleidoscope are gone, the `_b` companions splat in, the fold correction is
+correctly off, and `groundaudit --strict` passes 24/24. Three defects the
+audit could not see, measured and repaired in place by the new
+`tools/groundfix.mjs` (idempotent, `--check` measures only):
+
+- WRAP SEAM on every map: the 1254 -> 2048 resize clamped the edge instead of
+  wrapping, border step 1.7-4.6x normal (a ruled line visible up close).
+  Excess closed over an 8-texel ramp -> 0.79-1.09x.
+- NORMAL BIAS up to 14/255 off flat (a whole floor lit as if tilted) -> recentred.
+- ROUGHNESS 60-110 levels smoother than the prompts asked (volcano basalt 109
+  vs "matte 210-240", jungle 144 vs 185-245) — the glare on moss/ash/dirt ->
+  shifted onto each prompt's dominant range, contrast kept.
+
+Left for the owner: neon reads lighter than before (same albedo; the old metal
+map was ~85% metallic, the new one the requested ~12%), and the pack is 553 MB
+— the Pages build ships ~53 MB of ground maps per arena (was ~11); WebP would
+be ~10 MB, ~5 MB at the native 1254². `docs/GROUND_RELIEF.md` §6.
 

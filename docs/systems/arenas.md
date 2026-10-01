@@ -264,6 +264,15 @@ measured, and the tool that checks it — most of it was learned by breaking it.
   (fixed low camera, fighters hidden, correction on/off) and new ground art
   with `node tools/groundaudit.mjs [sheet.jpg] --strict` — the acceptance
   check for the 24 materials requested in `docs/image-requests.md`.
+  THE AUDIT IS NOT THE WHOLE CHECK, which the delivered pack proved: it
+  passed `--strict` 24/24 and still carried a WRAP SEAM on every map (a
+  1254 -> 2048 resize that clamped the image edge instead of wrapping it, so
+  the border step measured 1.7-4.6x any other), normal maps biased up to
+  14/255 off flat, and roughness medians 60-110 levels below what their own
+  prompts asked for (the glare on jungle moss and volcano ash). `node
+  tools/groundfix.mjs [--check]` measures all three and repairs them in
+  place — closing only the EXCESS of a seam step, since closing it fully
+  leaves a line too smooth to match its neighbours.
 - NOT EVERY LARGE STRUCTURE IS A BUILDING (`src/arena/structures.js`, asset
   prompts in `docs/ASSET_REQUESTS_STRUCTURES.md`). A big destructible mass has
   a gameplay job — block sight, give cover, be climbed, come down — and every

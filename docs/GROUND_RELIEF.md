@@ -233,6 +233,8 @@ Judging tools:
   off (`-fix.jpg` / `-nofix.jpg`).
 - `node tools/groundaudit.mjs [sheet.jpg] [--strict]` — the texture audit and
   the ACCEPTANCE CHECK for new ground art (mirror / fold / blotch / size).
+- `node tools/groundfix.mjs [--check] [name …]` — measure and repair wrap
+  seams, normal-map bias and roughness level on delivered ground art.
 - `node tools/groundfolds.mjs [--write]` — re-measure the fold profiles;
   RE-RUN AFTER ANY GROUND TEXTURE CHANGES (a non-mirrored texture is left out
   and gets no correction; `npm test` fails until you do).
@@ -247,6 +249,48 @@ splat — patched asphalt in the asphalt, scree in the rock, wind-glazed ice in
 the snow. Delivered on 2026-10-01. Every one is a drop-in: same folder,
 same names, no code edit. Native generated outputs were 1254², exported at
 2048²; see `docs/ground-material-generation.json` for the prompt set.
+
+### Verified in the game, and three defects repaired
+
+Judged in all twelve arenas (`tools/groundshot.mjs`, plus a straight-down
+close-up 2.2 units off the floor): no grid, no medallion, no visible repeat,
+the `_b` splat live everywhere (`NT_B`), the fold correction correctly OFF
+(nothing in `groundfolds.json` — none of the new art is a mirror), and
+`groundaudit --strict` OK on all 24. What the audit could not see, a closer
+measurement could — and `node tools/groundfix.mjs` (idempotent, `--check` to
+measure only) repaired it in place on every map:
+
+1. **A wrap seam on every map.** The 1254 → 2048 Lanczos resize CLAMPED the
+   image edge instead of wrapping it: two texels in, the content matches
+   across the border (the generated source was seamless), but the step across
+   the border itself measured 1.7–4.6× a normal step — a faint ruled line on
+   every tile edge, visible in the close-up. The excess step is now closed
+   half from each side over an 8-texel ramp, leaving a border step the size of
+   any other (0.79–1.09× after; closing it FULLY measured 0.45×, a line too
+   smooth to match its neighbours, which is a seam the other way round).
+2. **Normal maps biased off flat** by up to 14/255 in R or G (neon_b,
+   skyterrace_b, jungle_b), which lights a whole floor as if tilted 3–6°. A
+   tiling height field has zero mean slope, so the mean is recentred to 128.
+3. **Roughness far smoother than the prompts asked** — volcano basalt
+   "matte 210–240" came back at a median of 109, jungle stone/moss 144
+   against 185–245, scrapyard dirt 161 against 220–245 — which put a wet
+   glare on moss, ash and dirt. Each map whose median sat below its own
+   dominant material's requested range is shifted onto the middle of it,
+   contrast kept (table in the tool). frozen_b is the one moved DOWN: its
+   prompt is glazed ice (65–100) and it came back at 159. neon, neon_b,
+   foundry and orbital had no recorded target or were already in range.
+
+**Not changed, and worth knowing:** neon's asphalt now reads lighter than the
+old floor. Its albedo is the same (64 vs 66); the old METAL map was ~85%
+metallic, which is physically wrong for asphalt but is what made it read dark
+and wet, and the new one is the ~12% the brief asked for. If the darker look
+is wanted back, that is a tint or roughness decision for neon, not a defect.
+
+**Payload.** The pack is 553 MB in the repo (was 109), and `npm run build`
+— what the Pages deploy ships — copies the PNGs as they are: ~53 MB of ground
+maps per arena (base + `_b`), against ~11 MB before. Measured on neon, WebP at
+`tools/dist.mjs`' qualities is 10.2 MB at 2048², 5.2 MB at the native 1254²
+(the 2048 export adds no detail over the source it was resized from).
 
 ## 7 · Follow-ups (not done)
 
